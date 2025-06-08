@@ -1,5 +1,9 @@
 edit_bookmarks(var:="") {
 	global file_path
+	if RegExMatch(a_workingdir, "imO)[aA-zZ]\:\\$")
+		get_workingdir := a_workingdir . "mpcbe-video-clipper-v1\"
+	else
+		get_workingdir := a_workingdir . "\mpcbe-video-clipper-v1\"
 	if (var = "erase") {
 		gosub, start_steps
 		gosub, erase_steps
@@ -19,11 +23,13 @@ edit_bookmarks(var:="") {
 	start_steps:
 		wait(1)
 		file_path := window_title("MPC-BE")
-		if regexmatch(file_path, "imO)MPC-BE\sx64\s(\d+\.\d+\.\d+)", num_match)
-			version := num_match[1]
-		while (file_path = "MPC-BE x64 " . version . "" or file_path = "MPC-BE")
+		if regexmatch(file_path, "imO)MPC-BE\sx(32|64)\s(\d+\.\d+\.\d+)", num_match) {
+			version := num_match[2]
+			arch := num_match[1]
+		}
+		while (file_path = "MPC-BE x" . arch . " " . version . "" or file_path = "MPC-BE")
 			file_path := window_title("MPC-BE")
-		file_path := regexreplace(file_path, "imO) - MPC-BE x64 " . version, "")
+		file_path := regexreplace(file_path, "imO) - MPC-BE x" . arch . " " . version, "")
 		splitpath, file_path, file_both, file_directory, file_extension, file_name, file_drive
 		file_directory := file_directory . "\"
 		file_name := string_caseLower(file_name)
@@ -144,11 +150,11 @@ edit_bookmarks(var:="") {
 		ui_width := 500	
 		button_size := number_roundWhole(ui_width / button_size)
 		button_position += button_size
-		ui_add_picture("C:\users\Chris\Desktop\new working files\working\images\undo.png", "x0 +w95 +h50 +gundoVideo")
-		ui_add_picture("C:\users\Chris\Desktop\new working files\working\images\clear.png", "xp+95 +w109 +h50 +gclearVideo")
-		ui_add_picture("C:\users\Chris\Desktop\new working files\working\images\reload.png", "xp+109 +w123 +h50 +greloadVideo")
-		ui_add_picture("C:\users\Chris\Desktop\new working files\working\images\csv.png", "xp+123 +w75 +h50 +gopenCSV")
-		ui_add_picture("C:\users\Chris\Desktop\new working files\working\images\close.png", "xp+75 +w100 +h50 +gquitVideo")
+		ui_add_picture(get_workingdir . "images\undo.png", "x0 +w95 +h50 +gundoVideo")
+		ui_add_picture(get_workingdir . "images\clear.png", "xp+95 +w109 +h50 +gclearVideo")
+		ui_add_picture(get_workingdir . "images\reload.png", "xp+109 +w123 +h50 +greloadVideo")
+		ui_add_picture(get_workingdir . "images\csv.png", "xp+123 +w75 +h50 +gopenCSV")
+		ui_add_picture(get_workingdir . "images\close.png", "xp+75 +w100 +h50 +gquitVideo")
 		gui, Font, s%font_size% cWhite Bold
 		loop, parse, % pretty_print, `n
 			{
@@ -226,9 +232,9 @@ edit_bookmarks(var:="") {
 	return
 	
 	undoVideo:
-		iniwrite, 1, C:\users\Chris\Desktop\new working files\working\mpcbe-video-clipper-v1\compile_data.ini, stored_data, bookmark_removed
+		iniwrite, 1, %get_workingdir%compile_data.ini, stored_data, bookmark_removed
 		edit_bookmarks("erase")
-		iniwrite, 0, C:\users\Chris\Desktop\new working files\working\mpcbe-video-clipper-v1\compile_data.ini, stored_data, bookmark_removed
+		iniwrite, 0, %get_workingdir%compile_data.ini, stored_data, bookmark_removed
 		reload
 	return
 	
@@ -251,7 +257,7 @@ edit_bookmarks(var:="") {
 				}
 			}
 			file_path_create := file_path . " " . file_path_check
-			run("C:\users\Chris\Desktop\new working files\working\mpcbe-video-clipper-v1\compile_merge.bat " . file_path_create . " " . ffmpeg_time)
+			run(get_workingdir . compile_merge.bat " . file_path_create . " " . ffmpeg_time)
 		}
 	return
 	
@@ -278,9 +284,11 @@ edit_bookmarks(var:="") {
 		}	
 		window_activate("MPC-BE")
 		file_path := window_title("MPC-BE")
-		if regexmatch(file_path, "imO)MPC-BE\sx64\s(\d+\.\d+\.\d+)", num_match)
-			version := num_match[1]
-		file_path := regexreplace(file_path, "imO) - MPC-BE x64 " . version, "")
+		if regexmatch(file_path, "imO)MPC-BE\sx(32|64)\s(\d+\.\d+\.\d+)", num_match) {
+			version := num_match[2]
+			arch := num_match[1]
+		}
+		file_path := regexreplace(file_path, "imO) - MPC-BE x" . arch . " " . version, "")
 		total_time := mpc_getTotalTime(time_total)
 		new_time := time_LongToBookmark(get_time, total_time)
 		send("{control}{g}", "down")
@@ -433,7 +441,7 @@ edit_video() {
 		clipboard := ffmpeg_time
 		file_path_create_done := " " . file_path . " " . file_directory . file_name . "[done]" . file_extension_dot . " "
 		if (selectedDone = 1) {
-			run("C:\users\Chris\Desktop\new working files\working\mpcbe-video-clipper-v1\compile_merge.bat" . file_path_create_done . ffmpeg_time)
+			run(get_workingdir . "compile_merge.bat" . file_path_create_done . ffmpeg_time)
 			window_waitActive("ahk_exe cmd.exe")
 			window_waitNotActive("ahk_exe cmd.exe")
 		}
@@ -443,7 +451,7 @@ edit_video() {
 					file_path_create := " " . file_path . " " . file_directory . file_name . "[split" . a_index . "]" . file_extension_dot . " "
 					new_ffmpeg_time := pairs[0]
 					ffmpeg_time := regexreplace(ffmpeg_time, "imO)" . pairs[0])
-					run("C:\users\Chris\Desktop\new working files\working\mpcbe-video-clipper-v1\compile_merge.bat" . file_path_create . new_ffmpeg_time)
+					run(get_workingdir . "compile_merge.bat" . file_path_create . new_ffmpeg_time)
 					window_waitActive("ahk_exe cmd.exe")
 					window_waitNotActive("ahk_exe cmd.exe")
 				} else
