@@ -47,20 +47,20 @@ csv_data(var, line:="") {
 	return data
 }
 csv_linedelete(var, number) {
-	file := FileOpen(var, "rw")
-	data := file.Read()
-	if instr(data, "`n")
-		var := "`n"
-	else
-		var := "`r"
-	loop, parse, % data, %var%
-		{
-		if (a_index != number)
-			new_data .= a_loopfield
-	}
-	file.write(new_data)
-	file.close()
-	return new_data
+        file := FileOpen(var, "r")
+        data := file.Read()
+        file.close()
+        if instr(data, "`n")
+                delim := "`n"
+        else
+                delim := "`r"
+        loop, parse, % data, %delim%
+                {
+                if (a_index != number)
+                        new_data .= a_loopfield . delim
+        }
+        file_write(var, new_data, "w")
+        return new_data
 }
 
 csv_removeBlankLines(var) {
