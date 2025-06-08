@@ -232,9 +232,9 @@ edit_bookmarks(var:="") {
 	return
 	
 	undoVideo:
-		iniwrite, 1, %get_workingdir%compile_data.ini, stored_data, bookmark_removed
+		iniwrite, 1, %get_workingdir%data\compile_data.ini, stored_data, bookmark_removed
 		edit_bookmarks("erase")
-		iniwrite, 0, %get_workingdir%compile_data.ini, stored_data, bookmark_removed
+		iniwrite, 0, %get_workingdir%data\compile_data.ini, stored_data, bookmark_removed
 		reload
 	return
 	
