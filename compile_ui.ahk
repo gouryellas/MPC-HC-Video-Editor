@@ -4,7 +4,10 @@ ui_setup(name, options:="+owner +border -resize -maximizebox -sysmenu -caption -
 	gui, color, black, white
 	gui, font, s14 cFFFFFF bold, Segoe UI
 	gui, %options%
-	return name}ui_basic(var) {	listlines, off	ui_destroy("basic")	gui, basic:default	gui, margin, 0, 0	gui, color, black, white	gui, font, s14 cFFFFFF bold, Segoe UI	gui, +owner +border -resize -maximizebox -sysmenu -caption -toolwindow -dpiscale -alwaysontop	ui_add_text(var)
+	return name}ui_basic(var) {	listlines, off	colors := "black|silver|gray|maroon|red|purple|fuchsia|green|lime|olive|navy|blue|teal|yellow|aqua|orange|white"
+	if regexmatch(options, "imO)(\+)(black|silver|gray|maroon|red|purple|fuchsia|green|lime|olive|navy|blue|teal|yellow|aqua|orange|white)", fc)
+	if regexmatch(options, "imO)(\+)?(black|silver|gray|maroon|red|purple|fuchsia|green|lime|olive|navy|blue|teal|yellow|aqua|orange|white)", c)
+	gui, color, black, white	gui, font, s14 cFFFFFF bold, Segoe UI	gui, +owner +border -resize -maximizebox -sysmenu -caption -toolwindow -dpiscale -alwaysontop	ui_add_text(var)
 	listlines, on	gui, show, NA, basic}ui_caret(var, num:="0") {	listlines, off	gui, destroy	gui, basic:default	gui, margin, 0, 0	gui, color, black, white	gui, font, s12 cFFFFFF bold, Segoe UI	gui, +owner +border -resize -maximizebox -sysmenu -caption -toolwindow -dpiscale +alwaysontop	xpos := "x" . a_caretx + 20 + num	ypos := "y" . a_carety + 20	ui_add_text(var, "+left")
 	listlines, on	gui, show, %xpos% %ypos% NA, caret}
 ui_size(options) {	listlines, off
@@ -125,9 +128,9 @@ ui_add_button(value:="OK", options:="") {
 		options := strreplace(options, bv[1], " v")
 	if regexmatch(options, "imO)(\+g)(\w+)", bg)
 		options := strreplace(options, bg[1], " g")
-	else if regexmatch(value, "imO)(\w+)\s(\w+)", bg) 
-		options .= " g" . bg[1] . bg[2]		
-	else if regexmatch(value, "imO)(\w+)", bg) 
+	if regexmatch(options, "imO)(\+bc)(black|silver|gray|maroon|red|purple|fuchsia|green|lime|olive|navy|blue|teal|yellow|aqua|orange|white)", bc)
+	if regexmatch(options, "imO)(\+bg)(black|silver|gray|maroon|red|purple|fuchsia|green|lime|olive|navy|blue|teal|yellow|aqua|orange|white)", bg)
+		found_progress := regexmatch(value, "im)(black|silver|gray|maroon|red|purple|fuchsia|green|lime|olive|navy|blue|teal|yellow|aqua|orange)", color)
 		options .= " g" . bg[1]
 	listlines, on
 	gui, add, button, %options%, %value%}
