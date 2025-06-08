@@ -257,7 +257,7 @@ edit_bookmarks(var:="") {
 				}
 			}
 			file_path_create := file_path . " " . file_path_check
-			run(get_workingdir . compile_merge.bat " . file_path_create . " " . ffmpeg_time)
+			run(get_workingdir . "compile_merge.bat " . file_path_create . " " . ffmpeg_time)
 		}
 	return
 	
