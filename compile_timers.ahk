@@ -25,11 +25,13 @@ bookmark:
 		if window_active("MPC-BE") {
 			wait(1)
 			file_path := window_title("MPC-BE")
-			if regexmatch(file_path, "imO)MPC-BE\sx64\s(\d+\.\d+\.\d+)", num_match)
-				version := num_match[1]
-			while (file_path = "MPC-BE x64 " . version . "" or file_path = "MPC-BE")
+			if regexmatch(file_path, "imO)MPC-BE\sx(32|64)\s(\d+\.\d+\.\d+)", num_match) {
+				version := num_match[2]
+				arch := num_match[1]
+			}
+			while (file_path = "MPC-BE x" . arch . " " . version . "" or file_path = "MPC-BE")
 				file_path := window_title("MPC-BE")
-			file_path := regexreplace(file_path, "imO) - MPC-BE x64 " . version, "")
+			file_path := regexreplace(file_path, "imO) - MPC-BE x" . arch . " " . version, "")
 			splitpath, file_path, file_both, file_directory, file_extension, file_name, file_drive
 			file_directory := file_directory . "\"
 			file_name := string_caseLower(file_name)
