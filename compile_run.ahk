@@ -2,11 +2,13 @@ run(var, var2:="") {
 	if (var = "regedit")
 		Run *RunAs C:\Windows\Regedit.exe
 	else if (var = "explorer")
-		run, %ComSpec% /c "start explorer.exe"
+		Run, %ComSpec% /c "start explorer.exe"
 	else if (var2 = "hide")
-		run, % var, , hide
+		Run, % var, , hide
 	else
-		run, % var}
+		Run, % var
+}
+}
 
 run_command(var1, var2:="", var3:="", var4:="") {
 	var1 := """" . var1 . """"
