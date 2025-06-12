@@ -32,4 +32,5 @@ FileInstall, images\reload.png, %A_ScriptDir%\images\reload.png, 1
 #Include compile_time.ahk
 #Include compile_wait.ahk
 #Include compile_window.ahk
+#Include mpcbe-menu.ahk
 
