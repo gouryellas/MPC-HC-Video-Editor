@@ -12,7 +12,7 @@ SetNumLockState AlwaysOn
 #CommentFlag ;
 #NoEnv
 #WinActivateForce
-#SingleInstance, Force
+#SingleInstance, Ignore
 
 sendmode input
 coordmode, mouse, screen
