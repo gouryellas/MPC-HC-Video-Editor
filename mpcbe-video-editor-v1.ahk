@@ -6,6 +6,7 @@ FileCreateDir, % A_ScriptDir "\ffmpeg"
 FileInstall, ffmpeg\ffmpeg.exe, %A_ScriptDir%\ffmpeg\ffmpeg.exe, 1
 FileInstall, compile_merge.bat, %A_ScriptDir%\compile_merge.bat, 1
 FileInstall, data\compile_data.ini, %A_ScriptDir%\data\compile_data.ini, 1
+FileInstall, data\settings.ini, %A_ScriptDir%\data\settings.ini, 0
 FileInstall, images\undo.png, %A_ScriptDir%\images\undo.png, 1
 FileInstall, images\csv.png, %A_ScriptDir%\images\csv.png,  1
 FileInstall, images\close.png, %A_ScriptDir%\images\close.png, 1
