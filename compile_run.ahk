@@ -8,7 +8,6 @@ run(var, var2:="") {
 	else
 		Run, % var
 }
-}
 
 run_command(var1, var2:="", var3:="", var4:="") {
 	var1 := """" . var1 . """"
