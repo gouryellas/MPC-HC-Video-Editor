@@ -143,7 +143,7 @@ edit_bookmarks(var:="") {
 		button_divide := ui_width * 0.5
 		ui_destroy("basic")
 		gui, basic:default
-		gui, +owner +border -resize -maximizebox -sysmenu -caption -toolwindow -dpiscale +alwaysontop +lastfound
+		gui, +owner +border -resize -maximizebox -sysmenu -caption -toolwindow +DPIScale +alwaysontop +lastfound
 		gui, margin, 0, 0
 		Gui, Color, 000000
 		button_size := 5
@@ -198,7 +198,7 @@ edit_bookmarks(var:="") {
 		wingetpos, x, y, width, height, basic
 		ui_destroy("basic2")
 		gui, basic2:default
-		gui, +owner +border -resize -maximizebox -sysmenu -caption -toolwindow -dpiscale +alwaysontop +lastfound
+		gui, +owner +border -resize -maximizebox -sysmenu -caption -toolwindow +DPIScale +alwaysontop +lastfound
 		gui, margin, 0, 0
 		Gui, Color, 000000
 		gui, Font, s%font_size% cAqua Bold

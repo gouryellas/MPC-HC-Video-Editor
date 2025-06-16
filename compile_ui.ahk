@@ -1,10 +1,12 @@
-ui_setup(name, options:="+owner +border -resize -maximizebox -sysmenu -caption -toolwindow -dpiscale -alwaysontop") {
+ui_setup(name, options:="+owner +border -resize -maximizebox -sysmenu -caption -toolwindow +DPIScale -alwaysontop") {
 	gui, %name%:default
 	gui, margin, 0, 0
 	gui, color, black, white
 	gui, font, s14 cFFFFFF bold, Segoe UI
 	gui, %options%
-	return name}ui_basic(var) {	listlines, off	ui_destroy("basic")	gui, basic:default	gui, margin, 0, 0	gui, color, black, white	gui, font, s14 cFFFFFF bold, Segoe UI	gui, +owner +border -resize -maximizebox -sysmenu -caption -toolwindow -dpiscale -alwaysontop	ui_add_text(var)
+	return name}ui_basic(var) {	listlines, off	ui_destroy("basic")	gui, basic:default	gui, margin, 0, 0	gui, color, black, white	gui, font, s14 cFFFFFF bold, Segoe UI	gui, +owner +border -resize -maximizebox -sysmenu -caption -toolwindow +DPIScale -alwaysontop	ui_add_text(var)
+	listlines, on	gui, show, NA, basic}ui_caret(var, num:="0") {	listlines, off	gui, destroy	gui, basic:default	gui, margin, 0, 0	gui, color, black, white	gui, font, s12 cFFFFFF bold, Segoe UI	gui, +owner +border -resize -maximizebox -sysmenu -caption -toolwindow +DPIScale +alwaysontop	xpos := "x" . a_caretx + 20 + num	ypos := "y" . a_carety + 20	ui_add_text(var, "+left")
+ui_basic(var) {	listlines, off	ui_destroy("basic")	gui, basic:default	gui, margin, 0, 0	gui, color, black, white	gui, font, s14 cFFFFFF bold, Segoe UI	gui, +owner +border -resize -maximizebox -sysmenu -caption -toolwindow -dpiscale -alwaysontop	ui_add_text(var)
 	listlines, on	gui, show, NA, basic}ui_caret(var, num:="0") {	listlines, off	gui, destroy	gui, basic:default	gui, margin, 0, 0	gui, color, black, white	gui, font, s12 cFFFFFF bold, Segoe UI	gui, +owner +border -resize -maximizebox -sysmenu -caption -toolwindow -dpiscale +alwaysontop	xpos := "x" . a_caretx + 20 + num	ypos := "y" . a_carety + 20	ui_add_text(var, "+left")
 	listlines, on	gui, show, %xpos% %ypos% NA, caret}
 ui_size(options) {	listlines, off
