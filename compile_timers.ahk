@@ -1,23 +1,4 @@
 settimer, bookmark, 1000
-settimer, HoverTooltipCheck, 100
-
-HoverTooltipCheck:
-	global hgui
-	WinGetPos,winx,winy, guiW, guiH, ahk_id %hGUI%
-	MouseGetPos, xpos, ypos, id, control
-	guiH := guiH + winy
-    xPos := xpos - winX
-    yyPos := (ypos - winY) + 141
-	if (ypos > 177) and if (ypos < guiH) and if (xpos > 20) and if (xpos < 50)
-			tooltip % "save this clip"
-	else if regexmatch(control, "imO)Static(\d+)", static_num) {
-		if (static_num[1] > 5) {
-			tooltip % "jump to"
-		} else
-			tooltip % ""
-	} else
-		tooltip % ""
-return
 
 bookmark:
 	global file_path
@@ -46,19 +27,6 @@ bookmark:
 				window_waitclose("MPC-BE")
 				ui_destroy("basic")
 				ui_destroy("basic2")
-				if (bookmark_status = "incomplete") {
-					msgbox,37, Error, Last bookmark is incomplete.
-					ifmsgbox, cancel
-						{
-						reload
-					}
-					ifmsgbox, retry
-						{
-						run(file_path)
-						reload
-					}
-				} else
-					edit_video()
 			}
 		} 
 	} 

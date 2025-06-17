@@ -1,18 +1,8 @@
-SetWorkingDir, %a_scriptdir%
-FileCreateDir, % A_ScriptDir "\data"
-FileCreateDir, % A_ScriptDir "\images"
-FileCreateDir, % A_ScriptDir "\ffmpeg"
+SetWorkingDir, %a_temp%
 
-FileInstall, ffmpeg\ffmpeg.exe, %A_ScriptDir%\ffmpeg\ffmpeg.exe, 1
-FileInstall, compile_merge.bat, %A_ScriptDir%\compile_merge.bat, 1
-FileInstall, data\compile_data.ini, %A_ScriptDir%\data\compile_data.ini, 1
-FileInstall, data\settings.ini, %A_ScriptDir%\data\settings.ini, 0
-FileInstall, images\undo.png, %A_ScriptDir%\images\undo.png, 1
-FileInstall, images\csv.png, %A_ScriptDir%\images\csv.png,  1
-FileInstall, images\close.png, %A_ScriptDir%\images\close.png, 1
-FileInstall, images\clear.png, %A_ScriptDir%\images\clear.png, 1
-FileInstall, images\bar.png, %A_ScriptDir%\images\bar.png, 1
-FileInstall, images\reload.png, %A_ScriptDir%\images\reload.png, 1
+FileInstall, ffmpeg.exe, %a_temp%\ffmpeg.exe, 1
+FileInstall, compile_merge.bat, %a_temp%\compile_merge.bat, 1
+FileInstall, compile_data.ini, %a_temp%\compile_data.ini, 1
 
 #Include compile_execute.ahk
 #Include compile_globals.ahk
