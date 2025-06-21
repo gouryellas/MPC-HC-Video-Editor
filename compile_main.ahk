@@ -210,7 +210,6 @@ edit_bookmarks(var:="") {
 	return
 
 	seek_steps:
-		msg("seek")
 		if (errorlevel = "a")
 			new_time := time_LongToBookmark(time_split1, total_time)
 		else if (errorlevel = "b") 
