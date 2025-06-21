@@ -9,7 +9,7 @@ basicGuiClose:
 		file_recycle(path_join(file_directory, file_name, file_extension_dot))
 		file_recycle(file_path_csv,file_path_mkv)
 	}
-	WinGet, pid, PID, MPC-BE Video Editor v1.4
+	WinGet, pid, PID, MPC-BE Video Editor v1.5
 	PostMessage, 0x112, 0xF060,,, ahk_pid %pid%
 	Process, Close, %pid%
 return
@@ -206,7 +206,7 @@ edit_bookmarks(var:="") {
 		else
 			ui_add_text("cut length: " . time_secToAlt(save_duration) . " / " . time_total, "x+0 yp+25")
 		xpos := a_screenwidth - 1000
-		gui, show, NA y140 x%xpos% w330, MPC-BE Video Editor v1.4
+		gui, show, NA y140 x%xpos% w330, MPC-BE Video Editor v1.5
 	return
 
 	seek_steps:
