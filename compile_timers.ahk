@@ -1,5 +1,4 @@
 settimer, bookmark, 1000
-mpc_pid := 0 
 
 bookmark:
 	global file_path

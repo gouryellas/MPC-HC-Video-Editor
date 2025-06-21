@@ -1,5 +1,4 @@
-#ifwinactive, ahk_exe mpc-be64.exe
-	+space::edit_bookmarks("erase")
+#ifwinactive, ahk_class MPC-BE
 	MButton::edit_bookmarks("create")
 #ifwinactive
 
@@ -17,6 +16,7 @@ return
 
 edit_bookmarks(var:="") {
 	global file_path
+	global timer
 	if (var = "erase") {
 		gosub, start_steps
 		gosub, erase_steps
@@ -28,7 +28,7 @@ edit_bookmarks(var:="") {
 	} else if (var = "show") {
 		gosub, read_steps
 		gosub, show_steps
-		if timer := 1
+		if (timer = 1 and new_hotkey_loaded = "")
 			gosub, seek_steps
 	}
 	return
@@ -154,7 +154,12 @@ edit_bookmarks(var:="") {
 		if (file_path_csv != "")
 			Menu, CSVMenu, Add, Loaded: %file_path_csv%, csv_loaded
 		Menu, MyMenuBar, Add, CSV, :CSVMenu
-		Menu, MyMenuBar, Add, Hotkey, hotkey
+		Menu, HotkeyMenu, Add, Change..., hotkey
+		if (activehotkey != "")
+			Menu, HotkeyMenu, Add, Current: %activehotkey%, noaction
+		else
+			Menu, HotkeyMenu, Add, Current: MButton, noaction
+		Menu, MyMenuBar, Add, Hotkey, :HotkeyMenu
 		Menu, MyMenuBar, Add, Merge, split_merge
 		Menu, MyMenuBar, Add, Split, split_merge
 		Gui, Menu, MyMenuBar
@@ -205,6 +210,7 @@ edit_bookmarks(var:="") {
 	return
 
 	seek_steps:
+		msg("seek")
 		if (errorlevel = "a")
 			new_time := time_LongToBookmark(time_split1, total_time)
 		else if (errorlevel = "b") 
@@ -231,48 +237,51 @@ edit_bookmarks(var:="") {
 			send("{enter}")
 	return
 
+	noaction:
+
+	return
+
 	hotkey:
-		Gui, New, +AlwaysOnTop +ToolWindow +LabelHKdlg
-		Gui, Font, s10, Segoe UI
-		Gui, Add, Text,, Press key to bind now
-		Gui, Add, Hotkey, vNewBind w180
-		Gui, Add, Button, Default gHKok w75, OK
-		Gui, Show, AutoSize Center, Set Hotkey
+		Gui, HotkeyGUI:New
+		Gui, HotkeyGUI:Add, Text, , Press desired hotkey:
+		Gui, HotkeyGUI:Add, Hotkey, vSelectedHotkey, MButton
+		Gui, HotkeyGUI:Add, Button, gHotkeyGUISubmit, OK
+		Gui, HotkeyGUI:Add, Button, gHotkeyGUICancel, Cancel
+		Gui, HotkeyGUI:Show, , Set new hotkey
 	return
 
-	HKdlgEscape:
-	HKdlgClose:
-		Gui, Destroy
+	HotkeyGUIClose:
+	HotkeyGUIEscape:
+		Gui, HotkeyGUI:Destroy
 	Return
-	
-	hkok:
-		Gui, Submit
-		if (NewBind = "")
-		{
-			Gui, Destroy
-			Return
+
+	HotkeyGUISubmit:
+		Gui, HotkeyGUI:Default
+		Gui, Submit, NoHide
+		GuiControlGet, SelectedHotkey, , SelectedHotkey
+		If (SelectedHotkey = "") {
+			MsgBox, 16, Error, Hotkey cannot be empty. Please select a hotkey.
+			Return 
 		}
-
-		Hotkey, %currentCreateHotkey%, Off
-		currentCreateHotkey := NewBind
-		Hotkey, IfWinActive, ahk_exe mpc-be64.exe
-		Hotkey, %currentCreateHotkey%, CreateBookmark,  On
-		Hotkey, IfWinActive
-
+		If (ActiveHotkey != "")
+			Hotkey, %ActiveHotkey%, MyHotkeyLabel, Off
+		Hotkey, %SelectedHotkey%, MyHotkeyLabel, On
+		MsgBox, Hotkey set to: %SelectedHotkey%
+		ActiveHotkey := SelectedHotkey
 		Gui, Destroy
-		ToolTip, New bookmark key: %currentCreateHotkey%, 0, 0
-		SetTimer, RemoveTip, -1500
-	return
-	
-	RemoveTip:
-		ToolTip
+		refreshhotkeymenu()
+		ui_destroy("basic")
+		pretty_print := ""
+		data := file_read(file_path_csv)
+		new_hotkey_loaded := 1
+		edit_bookmarks("show")
 	Return
 
-	EraseBookmark:
-		edit_bookmarks("erase")
+	HotkeyGUICancel:
+		Gui, HotkeyGUI:Destroy
 	Return
 
-	CreateBookmark:
+	MyHotkeyLabel:
 		edit_bookmarks("create")
 	Return
 
@@ -332,7 +341,6 @@ edit_bookmarks(var:="") {
 			return
 		global file_path_csv
 		global data
-		global new_csv_loaded
 		file_path_csv := chosen
 		RefreshCSVMenu()
 		ui_destroy("basic")
@@ -402,7 +410,15 @@ ClearBookmarkGUI()
 {
     Gui, basic:Destroy
 }
-
+RefreshHotkeyMenu()
+{
+    global file_path_csv
+    Menu, HotkeyMenu, DeleteAll
+    Menu, HotkeyMenu, Add, Change, hotkey
+    if (file_path_csv != "")
+        Menu, CSVMenu, Add, Loaded: %file_path_csv%, CSV_Loaded
+    Menu, MyMenuBar, Add, CSV, :CSVMenu
+}
 RefreshCSVMenu()
 {
     global file_path_csv

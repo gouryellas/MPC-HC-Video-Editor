@@ -14,3 +14,4 @@ global get_time
 global button_divide
 global save_duration
 global buttoncount
+global currentCreateHotkey

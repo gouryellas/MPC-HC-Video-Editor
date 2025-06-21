@@ -26,4 +26,3 @@ GroupAdd, Windows, ahk_class shell_TrayWnd
 GroupAdd, Windows, ahk_class CabinetWClass
 GroupAdd, Windows, ahk_class WorkerW
 GroupAdd, Windows, ahk_exe explorer.exe
-
