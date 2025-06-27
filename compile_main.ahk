@@ -17,6 +17,7 @@ return
 edit_bookmarks(var:="") {
 	global file_path
 	global timer
+	global stop_var
 	if (var = "erase") {
 		gosub, start_steps
 		gosub, erase_steps
@@ -26,10 +27,19 @@ edit_bookmarks(var:="") {
 		gosub, create_steps
 		gosub, show_steps
 	} else if (var = "show") {
-		gosub, read_steps
-		gosub, show_steps
-		if (timer = 1 and new_hotkey_loaded = "")
-			gosub, seek_steps
+		IniRead, erased, %a_temp%\compile_data.ini, stored_data, bookmark_removed
+		if (erased = 1) {
+			iniwrite, 0, %a_temp%\compile_data.ini, stored_data, bookmark_removed
+			ui_destroy("basic")
+			pretty_print := ""
+			gosub, read_steps
+			gosub, show_steps
+		} else {
+			gosub, read_steps
+			gosub, show_steps
+			if (timer = 1 and new_hotkey_loaded = "")
+				gosub, seek_steps
+		}
 	}
 	return
 
@@ -114,6 +124,7 @@ edit_bookmarks(var:="") {
 	return
 	
 	read_steps:
+		data := file_read(file_path_csv)
 		loop, parse, % data, `n
 			{
 			current_line := a_loopfield, line_num := a_index
@@ -219,7 +230,7 @@ edit_bookmarks(var:="") {
 		} else if regexmatch(a_guicontrol, "imO)<a id=""a"">(.+)</a>\s\-\s<a id=""b"">(.+)</a>\s", get_clicked) {
 			if (get_errorlevel = "a")
 				get_clicked_time := get_clicked[1]
-			else (if get_errorlevel = "b")
+			else if (get_errorlevel = "b")
 				get_clicked_time := get_clicked[2]
 		} else if regexmatch(a_guicontrol, "imO)<a id=.c.>(.+)<.a>", get_clicked)
 				get_clicked_time := get_clicked[1]
@@ -374,14 +385,19 @@ edit_bookmarks(var:="") {
 	return
 	
 	reload:
-		reload
+		already := 0
+		if (already)
+			return
+		already := 1
+		Reload
 	return
 	
 	undo:
 		iniwrite, 1, %a_temp%\compile_data.ini, stored_data, bookmark_removed
 		edit_bookmarks("erase")
-		iniwrite, 0, %a_temp%\compile_data.ini, stored_data, bookmark_removed
-		reload
+		IniRead, erased, %a_temp%\compile_data.ini, stored_data, bookmark_removed
+		edit_bookmarks("show")
+		
 	return
 	
 	clear:
