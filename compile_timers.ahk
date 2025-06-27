@@ -24,7 +24,8 @@ bookmark:
 					if (bookmark_started != 1) {
 						timer := 1
 						data := file_read(file_path_csv)
-						edit_bookmarks("show")
+						if (stop_var != 1)
+							edit_bookmarks("show")
 						stop_var := 1
 					}
 				}
