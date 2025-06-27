@@ -217,9 +217,9 @@ edit_bookmarks(var:="") {
 			get_clicked_time := get_time
 			timer := 0
 		} else if regexmatch(a_guicontrol, "imO)<a id=""a"">(.+)</a>\s\-\s<a id=""b"">(.+)</a>\s", get_clicked) {
-			if get_errorlevel = "a"
+			if (get_errorlevel = "a")
 				get_clicked_time := get_clicked[1]
-			else if get_errorlevel = "b"
+			else (if get_errorlevel = "b")
 				get_clicked_time := get_clicked[2]
 		} else if regexmatch(a_guicontrol, "imO)<a id=.c.>(.+)<.a>", get_clicked)
 				get_clicked_time := get_clicked[1]
