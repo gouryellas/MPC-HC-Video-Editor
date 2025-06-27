@@ -406,13 +406,11 @@ number_zeros(var) {
 	return zeros
 }
 
-number_countDigits(var) {
-	if regexmatch(var, "imO)^\d{1}$")
-		digits := 1
-	else if regexmatch(var, "imO)^\d{2}$")
-		digits := 2
-	else if (var = "") {
-		digits := 0
+number_countDigits(num) {
+	Loop, Parse, num
+		{
+		if A_LoopField is digit
+			digits++
 	}
 	return digits
 }
@@ -756,6 +754,38 @@ InvertCase(str) {
 	}
 	RETURN Lab_Invert_Char_Out
 	listlines, on
+}
+
+special(hrtime, total_time) {
+	num := number_countDigits(hrtime)
+	if regexmatch(total_time, "imO)(\d{2}):(\d{2}):(\d{2})", time_seek)
+		time_seeks := time_seek[1]
+	if (num = 6)
+		prefix := ""
+	else if (num = 5)
+		prefix := "0"
+	else if (num = 4) {
+		if time_seeks
+			prefix := "00"
+		else
+			prefix := ""
+	} else if (num = 3) {
+		if time_seeks
+			prefix := "000"
+		else
+			prefix := "0"
+	} else if (num = 2) {
+		if time_seeks
+			prefix := "0000"
+		else
+			prefix := "00"
+	} else if (num = 1) {
+		if time_seeks
+			prefix := "00000"
+		else
+			prefix := "000"
+	}
+	return prefix
 }
 
 time_LongToBookmark(hrTime, total_time) {

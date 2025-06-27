@@ -9,7 +9,7 @@ basicGuiClose:
 		file_recycle(path_join(file_directory, file_name, file_extension_dot))
 		file_recycle(file_path_csv,file_path_mkv)
 	}
-	WinGet, pid, PID, MPC-BE Video Editor v1.5
+	WinGet, pid, PID, MPC-BE Video Editor v1.6
 	PostMessage, 0x112, 0xF060,,, ahk_pid %pid%
 	Process, Close, %pid%
 return
@@ -206,18 +206,39 @@ edit_bookmarks(var:="") {
 		else
 			ui_add_text("cut length: " . time_secToAlt(save_duration) . " / " . time_total, "x+0 yp+25")
 		xpos := a_screenwidth - 1000
-		gui, show, NA y140 x%xpos% w330, MPC-BE Video Editor v1.5
+		gui, show, NA y140 x%xpos% w330, MPC-BE Video Editor v1.6
 	return
 
 	seek_steps:
-		if (errorlevel = "a")
-			new_time := time_LongToBookmark(time_split1, total_time)
-		else if (errorlevel = "b") 
-			new_time := time_LongToBookmark(time_split2, total_time)
-		else if (errorlevel = "c")
-			new_time := time_LongToBookmark(time_split3, total_time)
-		else
-			new_time := time_LongToBookmark(get_time, total_time)
+		get_errorlevel := errorlevel
+		total_time := mpc_getTotalTime(time_total)
+		if (timer = 1) {
+			prefix := special(get_time, total_time)
+			get_clicked_time := get_time
+			timer := 0
+		} else {
+			if regexmatch(a_guicontrol, "imO)<a id=""a"">(.+)</a>\s\-\s<a id=""b"">(.+)</a>\s", get_clicked) {
+				if get_errorlevel = a
+					get_clicked_time := get_clicked[1]
+				else
+					get_clicked_time := get_clicked[2]
+				prefix := special(get_clicked_time, total_time)
+			}
+		}
+		num := number_countdigits(get_clicked_time)
+		if num = 6
+			regexmatch(get_clicked_time, "imO)(..):(..):(..)", time)
+		else if num = 5
+			regexmatch(get_clicked_time, "imO)(.):(..):(..)", time)
+		else if num = 4
+			regexmatch(get_clicked_time, "imO)(..):(..)", time)
+		else if num = 3
+			regexmatch(get_clicked_time, "imO)(.):(..)", time)
+		else if num = 2
+			regexmatch(get_clicked_time, "imO)(..)", time)
+		else if num = 1
+			regexmatch(get_clicked_time, "imO)(.)", time)
+		new_time := prefix . time[1] . time[2] . time[3] . ".000"
 		window_activate("ahk_exe mpc-be64.exe")
 		wait(1)
 		file_path := window_title("ahk_class MPC-BE")
@@ -228,7 +249,6 @@ edit_bookmarks(var:="") {
 		while (file_path = "MPC-BE x" . arch . " " . version . "" or file_path = "MPC-BE" or file_path = "MPC-BE Video Editor v1")
 			file_path := window_title("ahk_class MPC-BE")
 		file_path := regexreplace(file_path, "imO) - MPC-BE x" . arch . " " . version, "")
-		total_time := mpc_getTotalTime(time_total)
 		send("{control}{g}", "down")
 		wait(1)
 		window_waitActive("Go To...")

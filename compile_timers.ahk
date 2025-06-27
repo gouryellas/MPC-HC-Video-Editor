@@ -2,7 +2,7 @@ settimer, bookmark, 1000
 
 bookmark:
 	global file_path
-	if WinExist("ahk_exe mpc-be64.exe") {
+	if WinExist("ahk_class MPC-BE") {
 		reload_var := 1
 		if window_active("ahk_class MPC-BE") {
 			if (stop_var != 1) {
