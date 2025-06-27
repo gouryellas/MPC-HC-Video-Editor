@@ -758,29 +758,30 @@ InvertCase(str) {
 
 special(hrtime, total_time) {
 	num := number_countDigits(hrtime)
-	if regexmatch(total_time, "imO)(\d{2}):(\d{2}):(\d{2})", time_seek)
+	if regexmatch(total_time, "imO)(\d{2}):(\d{2}):(\d{2})", time_seek) {
 		time_seeks := time_seek[1]
+	}
 	if (num = 6)
 		prefix := ""
 	else if (num = 5)
 		prefix := "0"
 	else if (num = 4) {
-		if time_seeks
+		if (time_seeks != "00")
 			prefix := "00"
 		else
 			prefix := ""
 	} else if (num = 3) {
-		if time_seeks
+		if (time_seeks != "00")
 			prefix := "000"
 		else
 			prefix := "0"
 	} else if (num = 2) {
-		if time_seeks
+		if (time_seeks != "00")
 			prefix := "0000"
 		else
 			prefix := "00"
 	} else if (num = 1) {
-		if time_seeks
+		if (time_seeks != "00")
 			prefix := "00000"
 		else
 			prefix := "000"

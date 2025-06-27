@@ -216,30 +216,29 @@ edit_bookmarks(var:="") {
 			prefix := special(get_time, total_time)
 			get_clicked_time := get_time
 			timer := 0
-		} else {
-			if regexmatch(a_guicontrol, "imO)<a id=""a"">(.+)</a>\s\-\s<a id=""b"">(.+)</a>\s", get_clicked) {
-				if get_errorlevel = a
-					get_clicked_time := get_clicked[1]
-				else
-					get_clicked_time := get_clicked[2]
-				prefix := special(get_clicked_time, total_time)
-			}
-		}
+		} else if regexmatch(a_guicontrol, "imO)<a id=""a"">(.+)</a>\s\-\s<a id=""b"">(.+)</a>\s", get_clicked) {
+			if get_errorlevel = "a"
+				get_clicked_time := get_clicked[1]
+			else if get_errorlevel = "b"
+				get_clicked_time := get_clicked[2]
+		} else if regexmatch(a_guicontrol, "imO)<a id=.c.>(.+)<.a>", get_clicked)
+				get_clicked_time := get_clicked[1]
+		prefix := special(get_clicked_time, total_time)
 		num := number_countdigits(get_clicked_time)
-		if num = 6
+		if (num = 6)
 			regexmatch(get_clicked_time, "imO)(..):(..):(..)", time)
-		else if num = 5
+		else if (num = 5)
 			regexmatch(get_clicked_time, "imO)(.):(..):(..)", time)
-		else if num = 4
+		else if (num = 4)
 			regexmatch(get_clicked_time, "imO)(..):(..)", time)
-		else if num = 3
+		else if (num = 3)
 			regexmatch(get_clicked_time, "imO)(.):(..)", time)
-		else if num = 2
+		else if (num = 2)
 			regexmatch(get_clicked_time, "imO)(..)", time)
-		else if num = 1
+		else if (num = 1)
 			regexmatch(get_clicked_time, "imO)(.)", time)
 		new_time := prefix . time[1] . time[2] . time[3] . ".000"
-		window_activate("ahk_exe mpc-be64.exe")
+		window_activate("ahk_class MPC-BE")
 		wait(1)
 		file_path := window_title("ahk_class MPC-BE")
 		if regexmatch(file_path, "imO)MPC-BE\sx(32|64)\s(\d+\.\d+\.\d+)", num_match) {
@@ -336,7 +335,7 @@ edit_bookmarks(var:="") {
 			}
 			Loop, %loop_count% 
 				{
-				if (a_thismenuitem = "Split") {
+				if (a_thismenuitem = "split") {
 					file_path_create := " " . file_path . " " . file_directory . file_name . "[split" . a_index . "]" . file_extension_dot . " "
 					if regexmatch(ffmpeg_time, "imO)(\d+:\d+:\d+\s\d+:\d+:\d+)", pairs) {
 						new_ffmpeg_time := pairs[0]
