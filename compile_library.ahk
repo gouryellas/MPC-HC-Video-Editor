@@ -1,25 +1,44 @@
-	control_getText(var, title:="a", byref save:="") {
-		controlgettext, save, %var%, %title%
-		return save
+info(var) {
+	if (var = "all") {
+		number_of_bookmarks := "Number of bookmarks: " . line_num . "`n"
+		if (edited_duration = "")
+			save_video_length := "Save video length: <blank>`n"
+		else
+			save_video_length := "Save video length: " . edited_duration . "`n"
+		if (file_directory != "")
+			source_directory := "Source directory: " . file_directory . "`n"
+		else
+			source_directory := "Source directory: <blank>`n"
+		if (file_directory_old != "") 
+			source_directory := "Source directory: " . file_directory_old . "`n"
+		if (time_total)
+			source_video_length := "Source video length: " . time_total . "`n"
+		else
+			source_video_length := "Source video length: <blank>`n"
+		if (file_path_csv) 
+			bookmarks_loaded := "Bookmarks loaded: " . file_path_csv . "`n"
+		else
+			bookmarks_loaded := "Bookmarks loaded: <blank>`n"
+		if (file_path) 
+			video_loaded := "Video loaded: " . file_both . "`n"
+		else
+			video_loaded := "Video loaded: <blank>`n"
+		if (file_directory != "")
+			save_directory := "Save directory: " . file_directory . "`n"
+		else
+			save_directory := "Save directory: <blank>`n"
+		hotkey_active := "Hotkey active: " . activehotkey
+		data := number_of_bookmarks . bookmarks_loaded . video_loaded . source_directory . save_directory . save_video_length . source_video_length . hotkey_active
+		return data
+	} 
+	if (var = "advanced") {
+		advanced := "file_path: " . file_path . "`nfile_path_new: " . file_path_new . "`nfile_path_csv: " . file_path_csv . "`nfile_path_create: " . file_path_create . "`nfile_drive: " . file_drive . "`nfile_directory: " . file_directory . "`nfile_name: " . file_name . "`nfile_name_new: " . file_name_new . "`nfile_extension: " . file_extension . "`nfile_dot_extension: " . file_dot_extension . "`nfile_both: " . file_both . "`nfolder_path: " . folder_path . "`nfolder_path_set: " . folder_path_set . "`nffmpeg_time: " . ffmpeg_time . "`nffmpeg_time_last: " . ffmpeg_time_last . "`nbookmark_started: " . bookmark_started . "`nbookmark_status: " . bookmark_status . "`nclear_timestamps: " . clear_timestamps . "`ncurrent_seconds: " . current_seconds . "`ncurrent_seconds_last: " . current_seconds_last . "`ncurrent_time: " . current_time . "`ndelete_files: " . delete_files . "`nedited_duration: " . edited_duration . "`nsave_duration: " . save_duration . "`nerased: " . erased . "`nget_time: " . get_time . "`nload_video: " . load_video . "`nline_num: " . line_num . "`npretty_print: " . pretty_print . "`nselect_file_path: " . select_file_path . "`nselect_file_path_csv: " . select_file_path_csv
+		return advanced
 	}
-	
-	control_getSize(control, title:="a") {
-		WinGet, windowID, id, %title%
-		controlgetpos, x, y, width, height, %control%, ahk_id %windowID%
-		save := {}
-		save.width := width
-		save.height := height
-		return save
-	}
-	
-	control_getPos(control, title:="a") {
-		WinGet, windowID, id, %title%
-		controlgetpos, x, y, width, height, %control%, ahk_id %windowID%
-		save := {}
-		save.x := x
-		save.y := y
-		return save
-	}
+	if (var = "both") {
+		return data . "`n" . advanced
+	}	
+}
 
 csv_lastline(var) {
 	file := FileOpen(var, "r")
@@ -27,10 +46,10 @@ csv_lastline(var) {
 	if instr(data, "`n")
 		var := "`n"
 	else
-		var := "`r"
+		var := "`n"
 	loop, parse, % data, %var%
 		{
-		if (a_loopfield != "") 
+		if (a_loopfield != "")
 			last_line := a_loopfield
 	}
 	return last_line
@@ -41,7 +60,7 @@ csv_linecount(var) {
 	if instr(data, "`n")
 		var := "`n"
 	else
-		var := "`r"
+		var := "`n"
 	loop, parse, % data, %var%
 		{
 		if (a_loopfield != "")
@@ -56,7 +75,7 @@ csv_data(var, line:="") {
 	if instr(data, "`n")
 		var := "`n"
 	else
-		var := "`r"
+		var := "`n"
 	if regexmatch(line, "imO)\d+") {
 		loop, parse, % data, %var%
 			{
@@ -76,7 +95,7 @@ csv_linedelete(var, number) {
         if instr(data, "`n")
                 delim := "`n"
         else
-                delim := "`r"
+                delim := "`n"
         loop, parse, % data, %delim%
                 {
                 if (a_index != number)
@@ -86,16 +105,11 @@ csv_linedelete(var, number) {
         return new_data
 }
 
-csv_removeBlankLines(var) {
-	data := file_read(var)
-	Loop, Parse, data, `n, `r
-		{
-		if (StrLen(A_LoopField) >= 1)  ; Only keep lines that aren’t empty
-			new_data .= A_LoopField
-	}
-	file_delete(var)
-	file_write(var, new_data)
-	return new_data
+csv_filePath(file_path) {
+	splitpath, file_path, file_both, file_directory, file_extension, file_name, file_drive
+	file_name := string_caseLower(file_name)
+	file_extension_dot := "." . file_extension
+	return file_path_csv := strreplace(file_path, file_extension, "csv")
 }
 
 error(var :="") {
@@ -115,44 +129,9 @@ error(var :="") {
 	}
 }
 
-file_setAttributes(source, attribute) {
-	if (attribute = "hidden")
-		filesetattrib, +h, %source%
-	if (attribute = "unhidden")
-		filesetattrib, -h, %source%
-}
-file_getAttributes(source) {
-	filegetattrib, var, %source%
-	return var
-}
 file_delete(source) {
 	filedelete, %source%
 	return errorlevel
-}
-file_tag(option:="") {
-	sendinput % "{lalt down}{enter down}{enter up}{lalt up}"
-	winwaitactive, ahk_class #32770
-	control, tabright, 2, systabcontrol321
-	s(100)	
-	wingettext, get_tab, Properties
-	if regexmatch(get_tab, "im)previous", save_var)
-		control, tableft, 1, systabcontrol321
-	sendinput % "{down}{t}"
-	s(100)
-	if (option != "")
-		sendinput % option
-	else 
-		sendinput % "cut"
-	s(250)
-	sendinput % "{enter down}{enter up}"
-	controlsend, button1, {enter}, Properties
-}
-
-file_rename(var) {
-	file_path := explorer_getSelected()
-	file_name := explorer_getSelectedFile()
-	file_directory := explorer_getPath()
-
 }
 
 file_move(source, target) {
@@ -194,9 +173,7 @@ file_recycle(source1, source2:="", source3:="", source4:="") {
 	}
 	return errorlevel
 }
-file_properties() {
-	sendinput % "{lalt down}{enter down}{enter up}{lalt up}"
-}
+
 file_read(file, check:="") {
 	file := FileOpen(file, "r")
 	data := file.Read()
@@ -205,34 +182,32 @@ file_read(file, check:="") {
 			error("Data is blank!")
 	}
 	file.close()
+	wait(250)
 	return data
 }
-file_parse(data, var:="") {
-	if (var = "lastline") {
-		loop, parse, % data, `r
-			{
-			if (a_loopfield != "")
-				line := a_loopfield
-		}
-		return line
-	}
-}
+
 file_write(file, string, mode:="a") {
 	file := FileOpen(file, "" . mode . "")
 	file.write(string)
 	file.close()
+	wait(250)
 }
 file_writeline(file, string, mode:="a") {
 	file := FileOpen(file, "" . mode . "")
 	file.writeline(string)
+	wait(250)
 	file.close()
 }
-file_replace(file, string) {
-	file_write(file, string, "w")
+
+
+file_extension(string) {
+	if RegExMatch(string, "iO)\.([^.]+)$", obj)
+		ext := obj[1] 
+	return ext
 }
 
-file_extension(string, extension) {
-	return regexmatch(string, "imO)(.+)\." . extension)
+mpc_open(file_path) {
+	run, %file_path%
 }
 
 mpc_getSource(byref var:="") {
@@ -287,26 +262,27 @@ mpc_getTime(byref var:="") {
 		var := time[1] . ":" . time[2] . ":" . time[3]
 	return var
 }
+
 mpc_getTotalTime(byref var:="") {
 	controlgettext, get_duration, Static3, ahk_class MPC-BE
-	if regexmatch(get_duration, "imO).+\/\s(.+)", var2)
-		if regexmatch(var2[1], "imO)^(\d{2})\:(\d{2})$", time)
-			var := "00:" . time[1] . ":" . time[2]
-		else if regexmatch(var2[1], "imO)^(\d{2})\:(\d{2})\:(\d{2})$", time)
-			var := time[1] . ":" . time[2] . ":" . time[3]	
+	if regexmatch(get_duration, "imO).+\/\s(.+)", var2) {
+		if regexmatch(var2[1], "imO)^(\d{2})\:(\d{2})\:(\d{2})$", time)
+			var := time[1] . ":" . time[2] . ":" . time[3]
+		else if regexmatch(var2[1], "imO)^(\d{2})\:(\d{2})$", time)
+			var := time[1] . ":" . time[2]
+	}
 	return var
 }
 mpc_fileDelete() {
-	filedelete % file_path
+	file_path := mpc_getPath(file_path)
+	filerecycle % file_path
 	send("{alt}{right}", "down")
 }
 mpc_playNext() {
 	sendinput % "{xbutton1}"
 }
-mpc_addBookmark() {
-	sendinput % "{p down}{p up}"
-}
-mpc_seek(var) {
+
+mpc_f(var) {
 	send("ctrl g", "down")
 	window_waitActive("Go To...")
 	clipboard := var
@@ -480,12 +456,10 @@ send(var, options:="", speed:="600") {
 	keyMapping["capslock"] := true
 
 	; Alphanumeric Keys
-	Loop, 26 
-		{ ; a-z
+	Loop, 26 { ; a-z
 		keyMapping[Chr(Asc("a") + A_Index - 1)] := true
 	}
-	Loop, 10 
-		{ ; 0-9
+	Loop, 10 { ; 0-9
 		keyMapping[Chr(48 + A_Index - 1)] := true
 	}
 
@@ -509,8 +483,7 @@ send(var, options:="", speed:="600") {
 	keyMapping["right"] := true
 
 	; Function Keys
-	Loop, 12
-		{
+	Loop, 12 {
 		keyMapping["f" . A_Index] := true
 	}
 
@@ -564,36 +537,41 @@ send(var, options:="", speed:="600") {
 	keyMapping["xbutton2"] := true
 
 
-	if instr(var, "down") and instr(var, "up")
+	if instr(var, "down") and instr(var, "up") {
 		send_keys := var
-	else if instr(options, "down") and !instr(var, "{") {
-		if regexmatch(var, "imO)(.+)\s(.+)", key_found)
+	} else if instr(options, "down") and !instr(var, "{") {
+		if regexmatch(var, "imO)(.+)\s(.+)", key_found) {
 			send_keys := "{" . key_found[1] . " down}{" . key_found[2] . " down}{" . key_found[2] . " up}{" . key_found[1] . " up}"
+		}
 	} else if regexmatch(var, "imO)^\{?(.+)\}?(\,|\s)?\{?(.+)\}?(\,|\s)?\{?(.+)\}?$", key_found) {
 		if keyMapping.HasKey(key_found[1]) and keyMapping.HasKey(key_found[3]) and keyMapping.HasKey(key_found[5]) {
-			if instr(options, "down")
+			if instr(options, "down") {
 				send_keys := "{" . key_found[1] . " down}{" . key_found[3] . " down}{" . key_found[5] . " down}{" . key_found[5] . " up}{" . key_found[3] . " up}{" . key_found[1] . " up}"
-			else
+			} else {
 				send_keys := "{" . key_found[1] . "}{" . key_found[2] . "}{" . key_found[3] . "}"
-		} else
+			}
+		} else {
 			send_keys := var
+		}
 	} else if regexmatch(var, "imO)^\{?([^,}]+)\}?(?:[,\s]+)?\{?([^}]+)\}?$", key_found) {
 		if keyMapping.HasKey(key_found[1]) and keyMapping.HasKey(key_found[2]) {
-			if instr(options, "down")
+			if instr(options, "down") {
 				send_keys := "{" . key_found[1] . " down}{" . key_found[2] . " down}{" . key_found[2] . " up}{" . key_found[1] . " up}"
-			else
+			} else {
 				send_keys := "{" . key_found[1] . "}{" . key_found[2] . "}"
-		} else
+			}
+		} else {
 			send_keys := var
+		}
 	} else if regexmatch(var, "imO)^\{?[^,]+\}?$", key_found) {
-		if keyMapping.HasKey(key_found[1])
+		if keyMapping.HasKey(key_found[1]) {
 			send_keys := "{" . key_found[1] . " down}{" . key_found[1] . " up}"
-		else
+		} else {
 			send_keys := var
+		}
 	}
 	sendinput % send_keys
 }
-
 
 string_random(length:="10") {
     randomString := ""
@@ -612,7 +590,7 @@ string_trimRight(string, num:=1) {
 	regexmatch(string, "imO)(.+)(" . dot . ")$", match)
 	string := match[1]
 	return string
-	}
+}
 	
 string_trimLeft(string, num:=1) {
 	Loop %num%
@@ -740,7 +718,18 @@ string_CountCharacter(string, character) {
     return count
 }
 
-InvertCase(str) {
+string_RemoveBlanks(input_string) {
+    result := ""
+    Loop, Parse, input_string, `n, `n
+    {
+        if (A_LoopField != "" && RegExMatch(A_LoopField, "\S")) {
+            result .= A_LoopField . "`n"
+        }
+    }
+    return (result = "") ? "" : SubStr(result, 1, -1)
+}
+
+string_invertCase(str) {
 	listlines, off
 	Lab_Invert_Char_Out := ""
 	Loop % Strlen(str) {
@@ -756,41 +745,7 @@ InvertCase(str) {
 	listlines, on
 }
 
-special(hrtime, total_time) {
-	num := number_countDigits(hrtime)
-	if regexmatch(total_time, "imO)(\d{2}):(\d{2}):(\d{2})", time_seek) {
-		time_seeks := time_seek[1]
-	}
-	if (num = 6)
-		prefix := ""
-	else if (num = 5)
-		prefix := "0"
-	else if (num = 4) {
-		if (time_seeks != "00")
-			prefix := "00"
-		else
-			prefix := ""
-	} else if (num = 3) {
-		if (time_seeks != "00")
-			prefix := "000"
-		else
-			prefix := "0"
-	} else if (num = 2) {
-		if (time_seeks != "00")
-			prefix := "0000"
-		else
-			prefix := "00"
-	} else if (num = 1) {
-		if (time_seeks != "00")
-			prefix := "00000"
-		else
-			prefix := "000"
-	}
-	return prefix
-}
-
 time_LongToBookmark(hrTime, total_time) {
-
 	regexmatch(total_time, "imO)(\d{2}):(\d{2}):(\d{2})", time_seek)
 	if regexmatch(hrTime, "imO)^(.)$", time)
 		new_time := "000" . time[1] . ".000"
@@ -959,18 +914,22 @@ time_longToAlt(var) {
 		hours := getting_time[1]
 		minutes := getting_time[2]
 		seconds := getting_time[3]
-		hours := (hours != "00") ? hours + 0 "h" : ""
-        minutes := (minutes != "00") ? minutes + 0 "m" : ""
-        seconds := (seconds != "00") ? seconds + 0 "s" : ""
-        time := ""
-        if (hours != "") 
-            time .= hours
-        if (minutes != "") 
-            time .= (time != "" ? " " : "") minutes
-        if (seconds != "") 
-            time .= (time != "" ? " " : "") seconds
-        return time
+	} else if regexmatch(var, "imO)(\d+)\:(\d+)", getting_time) {
+		hours := "00"
+		minutes := getting_time[1]
+		seconds := getting_time[2]
 	}
+	hours := (hours != "00") ? hours + 0 "h" : ""
+	minutes := (minutes != "00") ? minutes + 0 "m" : ""
+	seconds := (seconds != "00") ? seconds + 0 "s" : ""
+	time := ""
+	if (hours != "") 
+		time .= hours
+	if (minutes != "") 
+		time .= (time != "" ? " " : "") minutes
+	if (seconds != "") 
+		time .= (time != "" ? " " : "") seconds
+	return time
 }
 
 ui_setup(name, options:="+owner +border -resize -maximizebox -sysmenu -caption -toolwindow +DPIScale -alwaysontop") {
@@ -982,41 +941,6 @@ ui_setup(name, options:="+owner +border -resize -maximizebox -sysmenu -caption -
 	return name
 }
 
-ui_basic(var) {
-	listlines, off
-	ui_destroy("basic")
-	gui, basic:default
-	gui, margin, 0, 0
-	gui, color, black, white
-	gui, font, s14 cFFFFFF bold, Segoe UI
-	gui, +owner +border -resize -maximizebox -sysmenu -caption -toolwindow -dpiscale -alwaysontop
-	ui_add_text(var)
-	listlines, on
-	gui, show, NA, basic
-}
-
-ui_caret(var, num:="0") {
-	listlines, off
-	gui, destroy
-	gui, basic:default
-	gui, margin, 0, 0
-	gui, color, black, white
-	gui, font, s12 cFFFFFF bold, Segoe UI
-	gui, +owner +border -resize -maximizebox -sysmenu -caption -toolwindow -dpiscale +alwaysontop
-	xpos := "x" . a_caretx + 20 + num
-	ypos := "y" . a_carety + 20
-	ui_add_text(var, "+left")
-	listlines, on
-	gui, show, %xpos% %ypos% NA, caret
-}
-
-ui_size(options) {
-	listlines, off
-	if regexmatch(options, "imO)(\d{1,4})x(\d{1,4})", ws) 
-		options := window_size := "w" . ws[1] . " " . "h" . ws[2]
-	listlines, on
-	gui, show, %options% NA, %name%
-}
 ui_pos(options) {
 	listlines, off
 	if regexmatch(options, "imO)(\+)(left|absolute-left|right|absolute-right|center|top|absolute-top|bottom)", wcp) {
@@ -1115,11 +1039,12 @@ ui_add_text(value, options:="") {
 		options := strreplace(options, pg[1], " g")
 	if regexmatch(options, "imO)(\+)(left|right|center)", pos)
 		options := strreplace(options, pos[1])
+	if regexmatch(options, "imO)(\+)(hscroll)", scroll)
+		options := strreplace(options, scroll[1])
 	else
 		options .= " center"
 	if regexmatch(options, "imO)(\+)?(black|silver|gray|maroon|red|purple|fuschia|green|lime|olive|navy|blue|teal|yellow|aqua|orange|white)", c)
-		options := strreplace(options, "+", " c")
-		options := strreplace(options, "+")
+		options := strreplace(options,c[1]c[2], " c" . c[2])
 	listlines, on
 	gui, add, text, %options%, %value%
 }
@@ -1177,7 +1102,7 @@ ui_add_checkbox(value:="", options:="checkedGray") {
 
 ui_add_edit(value:="", options:="") {
 	global
-	listlines, off
+
 	if regexmatch(options, "imO)(\+w)(\d+)", bcw) 
 		options := strreplace(options, bcw[1], "w")
 	if !regexmatch(options, "imO)(w)(\d+)") && regexmatch(gui_size, "imO)(\d+)x(\d+)", wh)
@@ -1186,51 +1111,7 @@ ui_add_edit(value:="", options:="") {
 		options := strreplace(options, bv[1], " v")
 	else
 		options .= " v" . value
-	listlines, on	
 	gui, add, edit, %options%, %value%
-}
-ui_add_progress(options:="") {
-	global
-	listlines, off
-	if regexmatch(options, "imO)(\+pb)(\d+)", pb) {
-		options := strreplace(options, pb[1])
-		percent := pb[2]
-	}
-	options := strreplace(options, "+transparent", "backgroundtrans 0x4000000")
-	if !regexmatch(options, "im)backgroundtrans 0x4000000")
-		options .= " backgroundtrans 0x4000000"
-	if regexmatch(options, "imO)(\+bc)(black|silver|gray|maroon|red|purple|fuschia|green|lime|olive|navy|blue|teal|yellow|aqua|orange|white)", bc)
-		options := strreplace(options, bc[1], " c")
-	if regexmatch(options, "imO)(\+bg)(black|silver|gray|maroon|red|purple|fuschia|green|lime|olive|navy|blue|teal|yellow|aqua|orange|white)", bg)
-		options := strreplace(options, bg[1], " background")
-	if regexmatch(options, "imO)(\+w)(\d+)", cw)
-		options := strreplace(options, cw[1], " w")
-	if regexmatch(options, "imO)(\+v)(\w+)", pv)
-		options := strreplace(options, pv[1], " v")
-	listlines, on
-	gui, add, progress, %options%, %percent%
-}
-
-ui_dynamic_height(string, num:=26.5, delim:=",") {
-	loop, parse, string, %delim%
-		count := A_Index
-	return count * num
-}
-ui_dynamic_width(ByRef string, num:=11, delim:=",") {
-	listlines, off
-	loop, parse, string, %delim% 
-		new_string .= StrLen(A_Loopfield) . ", "
-	string := strreplace(new_string, A_Space, "")
-	string := regexreplace(string, "im)\,$")
-	sort, string, nuD,
-	found_pos := regexmatch(string, "im)\d+$", count)
-	count += 5
-	return count * num
-	listlines, on
-}
-ui_movedraw(control, options:="") {
-	listlines, off
-	guicontrol, %name%:movedraw, %control%, %options%
 }
 ui_destroy(name:="") {
 	listlines, off
@@ -1238,12 +1119,6 @@ ui_destroy(name:="") {
 		name := this.name
 	listlines, on
 	gui, %name%:destroy
-}
-ui_work_folder(working_dir:="A_WorkingDir", byref var:="") {
-	local
-	var := working_dir
-	return var
-	listlines, on
 }
 
 wait(var:="100") {
@@ -1255,10 +1130,8 @@ wait(var:="100") {
 }
 
 window_waitExist(title:="a", time:="") {
-	listlines, off
 	WinWait, %title%, , %time%
 	return errorlevel
-	listlines, on
 }
 window_waitClose(title:="a", time:="") {
 	WinWaitClose, %title%, , %time%
@@ -1268,11 +1141,8 @@ window_waitNotActive(title:="a", time:="") {
 	WinWaitNotActive, %title%, , %time%
 	return errorlevel
 }
-window_waitActive(title:="", time:="") {
-	if title = ""
-		WinWaitActive, , , %time%
-	else
-		WinWaitActive, %title%, , %time%
+window_waitActive(title:="a", time:="") {
+	WinWaitActive, %title%, , %time%
 	return errorlevel
 }
 window_maximize(title:="a") {
@@ -1327,41 +1197,29 @@ window_active(title:="a") {
 	return 0
 }
 window_getActive(ByRef var:="") {
-	listlines, off
 	WinGetActiveTitle, var
 	return var
-	listlines, on
 }
 window_id(title:="a") {
-	listlines, off
 	winget, uservar, id, %title%
 	return uservar
-	listlines, on
 }
 window_pid(title:="a") {
-	listlines, off
 	winget, uservar, pid, %title%
 	return uservar
-	listlines, on
 }
 window_path(title:="a") {
-	listlines, off
 	winget, uservar, processpath, %title%
 	return uservar
-	listlines, on
 }
 window_process(title:="a") {
-	listlines, off
 	winget, uservar, processname, %title%
 	return uservar
-	listlines, on
 }
 
 window_controls(title:="a") {
-	listlines, off
 	winget, uservar, controllist, %title%
 	return uservar
-	listlines, on
 }
 
 window_title(title = "a") {
@@ -1411,14 +1269,6 @@ window_stats(title:="a") {
 	return uservar
 }
 
-window_resize(var, title:="a") {
-	if regexmatch(var, "imO)(\d+)\s?(\d+)?", size) {
-		width := size[1]
-		height := size[2]
-	}
-	winmove, %title%, , , , %width%, %height%
-}
-
 window_move(var, title:="a") {
 	if regexmatch(var, "imO)(\d+)(\s\d+)?", pos) {
 		xpos := pos[1]
@@ -1438,5 +1288,4 @@ window_ontop(title:="a") {
 		window_setTitle("******** " . window_title())
 	}
 }
-
 

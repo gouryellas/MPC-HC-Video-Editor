@@ -1,10 +1,19 @@
 @echo off
 setlocal enabledelayedexpansion
 
-echo Input file: %1
-echo Output file: %2
-echo Start time 1: %3
-echo End time 1: %4
+:: Arguments:
+:: %1: Input Video File (quoted)
+:: %2: Output Video File (quoted)
+:: %3: Start Time (HH:MM:SS)
+:: %4: End Time (HH:MM:SS) - Optional, for single segments
+
+set "INPUT_FILE=%~1"
+set "OUTPUT_FILE=%~2"
+set "START_TIME=%~3"
+set "END_TIME=%~4"
+
+echo Input file: %INPUT_FILE%
+echo Output file: %OUTPUT_FILE%
 
 :: Check if at least 4 arguments are passed (input, output, and at least one pair of start-end timestamps)
 if "%~4"=="" (
@@ -14,11 +23,6 @@ if "%~4"=="" (
 
 for %%I in ("%~1") do set "input_dir=%%~dpI"
 for %%O in ("%~2") do set "output_dir=%%~dpO"
-if /I not "%input_dir%"=="%output_dir%" (
-    echo Error: The output file must be located in the same directory as the input file.
-    pause
-    exit /b 1
-)
 
 :: Save original input and output file names
 set "orig_input=%~1"
