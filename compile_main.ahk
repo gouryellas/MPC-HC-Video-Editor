@@ -105,8 +105,8 @@ stats:
 	if InStr(file_path,"MPC-BE")
 		file_path := RegExReplace(file_path,"imO)(\s\-\s)?MPC\-BE\s.+")
 	Gui, basic:Default
-    if window_exist2("MPC-BE Video Editor v2") {
-        WinGetPos, current_x, current_y, current_w, current_h, MPC-BE Video Editor v2
+    if window_exist2("MPC-BE Video Editor v2.1") {
+        WinGetPos, current_x, current_y, current_w, current_h, MPC-BE Video Editor v2.1
 		new_y := current_y + current_h
         gui_existed := 1
     }
@@ -160,10 +160,10 @@ stats:
 		}
 	}
 	if (gui_existed = 1) {
-		Gui, Show, NA Autosize x%current_x% y%current_y%, MPC-BE Video Editor v2
-		Gui, Show, NA w500 x%current_x% y%current_y%, MPC-BE Video Editor v2
+		Gui, Show, NA Autosize x%current_x% y%current_y%, MPC-BE Video Editor v2.1
+		Gui, Show, NA w500 x%current_x% y%current_y%, MPC-BE Video Editor v2.1
 	} else
-		Gui, Show, NA w500 x%xpos% y140, MPC-BE Video Editor v2
+		Gui, Show, NA w500 x%xpos% y140, MPC-BE Video Editor v2.1
 return
 
 load_bookmark:

@@ -1,4 +1,4 @@
-gui_title := "MPC-BE Video Editor v2"
+gui_title := "MPC-BE Video Editor v2.1"
 
 menu_add(menu, string, label) {
 	menu, %menu%, add, %string%, %label%	
@@ -283,8 +283,8 @@ csv_repair2(file_path_csv) {
 
 show_gui2(status:="") {
 	global
-	if window_exist2("MPC-BE Video Editor v2") {
-		WinGetPos, current_x, current_y, current_w, current_h, MPC-BE Video Editor v2
+	if window_exist2("MPC-BE Video Editor v2.1") {
+		WinGetPos, current_x, current_y, current_w, current_h, MPC-BE Video Editor v2.1
 		gui_existed := 1
 		Gui, Destroy
 	}
@@ -380,9 +380,9 @@ show_gui2(status:="") {
 ;	}
 	xpos := a_screenwidth - 1200
 	if (gui_existed = 1) 
-		Gui, Show, NA x%current_x% y%current_y% w500, MPC-BE Video Editor v2
+		Gui, Show, NA x%current_x% y%current_y% w500, MPC-BE Video Editor v2.1
 	else
-		Gui, Show, NA x%xpos% y140 w500, MPC-BE Video Editor v2
+		Gui, Show, NA x%xpos% y140 w500, MPC-BE Video Editor v2.1
 	gui, color, 000000, 000000
 	for index, value in radiobox_index
 		GuiControl, , %value%, 1
@@ -437,8 +437,8 @@ return
 
 clear_gui2() {
     global
-    if window_exist2("MPC-BE Video Editor v2") {
-        WinGetPos, current_x, current_y, current_w, current_h, MPC-BE Video Editor v2
+    if window_exist2("MPC-BE Video Editor v2.1") {
+        WinGetPos, current_x, current_y, current_w, current_h, MPC-BE Video Editor v2.1
         gui_existed := 1
     }
 	gui, %mygui%:destroy
@@ -451,9 +451,9 @@ clear_gui2() {
 
     xpos := a_screenwidth - 1200
     if (gui_existed = 1)
-        Gui, Show, NA x%current_x% y%current_y% w500, MPC-BE Video Editor v2
+        Gui, Show, NA x%current_x% y%current_y% w500, MPC-BE Video Editor v2.1
     else
-        Gui, Show, NA x%xpos% y140 w500, MPC-BE Video Editor v2
+        Gui, Show, NA x%xpos% y140 w500, MPC-BE Video Editor v2.1
     gui, color, 000000, 000000
 }
 

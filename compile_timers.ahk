@@ -66,7 +66,6 @@ MonitorMPC:
         ; --- DETECT A NEW OR CHANGED VIDEO ---
         if (current_video_path != last_known_video_path) {
             
-            ; *** THE FIX FOR DOUBLE REFRESH ***
             ; If a manual load is in progress, the timer's only job is to update its
             ; internal tracker, reset the flag, and then stop. It will NOT call show_gui2().
             if (g_manual_load_in_progress = 1) {
