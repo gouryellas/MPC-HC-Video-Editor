@@ -17,3 +17,11 @@ global checkbox_index
 global stats_hidden
 global advanced_hidden
 global global_delete
+global time_saved, global time1, global time2, global load_video, global load_bookmark
+global advanced_checked, global enable_checked, global skip_menu, global video_length, global timetotal
+global start_h, global start_y, global merge_split_selected, global delete_all
+global transition_effect, global transition_duration
+global ff := "C:\Program Files\ffmpeg\tools\ffmpeg\bin\ffmpeg.exe"
+global VCodec := "libx264", global VCRF := 18, global VPreset := "veryfast", global ABitrate := "192k"
+global gpu_accel, global something_checked
+global edited_duration, global update_file_directory, global radiobox_index, global gui_title,global timetotal

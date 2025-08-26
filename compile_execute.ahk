@@ -25,9 +25,3 @@ GroupAdd, Windows, ahk_class shell_TrayWnd
 GroupAdd, Windows, ahk_class CabinetWClass
 GroupAdd, Windows, ahk_class WorkerW
 GroupAdd, Windows, ahk_exe explorer.exe
-
-Menu, SaveToMenu, Add
-Menu, LoadMenu, Add
-Menu, ActionsMenu, Add
-Menu, HotkeyMenu, Add
-Menu, StatsMenu, Add

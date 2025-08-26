@@ -1,3 +1,6 @@
+
+
+Process, Priority, , High
 #SingleInstance, force
 SetWorkingDir, %a_temp%
 Menu, Tray, NoStandard
