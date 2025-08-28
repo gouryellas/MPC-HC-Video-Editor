@@ -1,5 +1,7 @@
-# mpcbe-video-editor
-Fast way to cut and merge video clips using mpc-be player.
+I have abandoned mpc-be due to lack of development and switched to mpc-hc.
+
+# mpchc-video-editor
+Fast way to cut and merge video clips using mpc-hc player found here: https://github.com/clsid2/mpc-hc
 
 ## Configuration
 
