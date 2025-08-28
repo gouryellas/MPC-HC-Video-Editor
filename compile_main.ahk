@@ -1,18 +1,15 @@
-#ifwinactive, ahk_class MPC-BE
-	MButton::
-		file_path := mpc_getSource2()
-		if InStr(file_path,"MPC-BE")
-			file_path := RegExReplace(file_path,"imO)(\s\-\s)?MPC\-BE\s.+")
-		bookmark_started := "yes"
-		file_path := file_info2(file_path)
-		file_path := file_rename2(file_path)
-		file_path := folder_rename2(file_path)
-		current_seconds := file_time2()
-		file_create2(current_seconds)
-		show_gui2()
-		update_menus2()
-	return
-#ifwinactive
+main:
+	file_path := mpc_getSource2()
+	bookmark_started := "yes"
+	file_path := file_info2(file_path)
+	file_path := file_rename2(file_path)
+	file_path := folder_rename2(file_path)
+	current_seconds := file_time2()
+	file_create2(current_seconds)
+	show_gui2()
+	update_menus2()
+return
+
 
 TR_SelectType:
 	transition_effect := a_thismenuitem
@@ -26,8 +23,6 @@ DUR_SelectType:
 return
 
 enter_time:
-	if InStr(file_path,"MPC-BE")
-		file_path := RegExReplace(file_path,"imO)(\s\-\s)?MPC\-BE\s.+")
 	gui, enterGUI:New
 	gui, +owner +border -resize +maximizebox +sysmenu +caption +toolwindow +DPIScale +alwaysontop +lastfound
 	gui, enterGUI:margin, 5, 5
@@ -42,8 +37,6 @@ enter_time:
 return
 
 EnterGUISubmit:
-	if InStr(file_path,"MPC-BE")
-		file_path := RegExReplace(file_path,"imO)(\s\-\s)?MPC\-BE\s.+")
 	guicontrolget, entertime, , entertime
 	time_seconds2 := ""
 	time_seconds3 := ""
@@ -101,88 +94,72 @@ csv_check:
 	result := csv_repair2(file_path_csv)
 return
 
-stats:
-	if InStr(file_path,"MPC-BE")
-		file_path := RegExReplace(file_path,"imO)(\s\-\s)?MPC\-BE\s.+")
-	Gui, basic:Default
-    if window_exist2("MPC-BE Video Editor v2.1") {
-        WinGetPos, current_x, current_y, current_w, current_h, MPC-BE Video Editor v2.1
-		new_y := current_y + current_h
+stats:	
+    if window_exist2("MPC-HC Video Editor v2.1") {
+        WinGetPos, current_x, current_y, current_w, current_h, MPC-HC Video Editor v2.1
         gui_existed := 1
     }
     xpos := a_screenwidth - 1200
 	if (a_thismenuitem = "Advanced") {
-		if (first_advanced_click = "") {
-			first_advanced_click := 1
-			Menu, StatsMenu, Check, Advanced
-			advanced_checked := 1
-			advanced := info2("advanced")
-            line_count := StrSplit(advanced, "`n").Length()
-			ui_add_edit2(advanced, "+left +vstats_advanced +hscroll +w500 +r" . line_count - 1)
-			advanced_hidden := 0
-		} else if (advanced_checked = 1) {
+		if (advanced_checked = 1) {
+			advanced_checked := 0
 			Menu, StatsMenu, Uncheck, Advanced
 			guicontrol, hide, stats_advanced
-			advanced_checked := 0
-			advanced_hidden := 1
-		} else {
+		} else if (advanced_checked = 0 or advanced_checked = "") {
+			advanced_checked := 1
 			Menu, StatsMenu, Check, Advanced
 			guicontrol, show, stats_advanced
-			advanced_checked := 1
-			advanced_hidden := 0
+		}
+		if (enable_checked = 1) {
+			advanced := info2("advanced")
+            line_count := StrSplit(advanced, "`n").Length()
+			if (first_check_advanced = "") {
+				ui_add_edit2(advanced, "+left +vstats_advanced +hscroll +w500 +r" . line_count)	
+				first_check_advanced := 1
+			}
 		}
 	} else if (a_thismenuitem = "Enable") {
-		if (first_enable_click = "") {
-			first_enable_click := 1
-			Menu, StatsMenu, Check, Enable
-			Menu, StatsMenu, Enable, Advanced
+		if (enable_checked = 1) {
+			enable_checked := 0
+			advanced_checked := 0
+			Menu, StatsMenu, Uncheck, Enable
+			Menu, StatsMenu, Uncheck, advanced
+			guicontrol, hide, stats_data
+			guicontrol, hide, stats_advanced
+			Menu, StatsMenu, Disable, Advanced
+		} else {
 			enable_checked := 1
 			stats := info2("all")
             line_count := StrSplit(stats, "`n").Length()
-			ui_add_edit2("test")
-			ui_add_edit2(stats, "y" . new_y . " xs +left +vstats_data +hscroll +w500 +r" . line_count - 1)
-			stats_hidden := 0
-		} else if (enable_checked = 1) {
-			Menu, StatsMenu, Uncheck, Enable
-			Menu, StatsMenu, Uncheck, Advanced
-			guicontrol, hide, stats_data
-			guicontrol, hide, stats_advanced
-			enable_checked := 0
-			advanced_checked := 0
-			stats_hidden := 1
-			advanced_hidden := 1
-		} else {
+			if (first_check_enable = "") {
+				ui_add_edit2(stats, " xs +left +vstats_data +hscroll +w500 +r" . line_count)
+				first_check_enable := 1
+			}
 			Menu, StatsMenu, Check, Enable
-			guicontrol, show, stats_data
 			Menu, StatsMenu, Enable, Advanced
-			enable_checked := 1
-			stats_hidden := 0
+			guicontrol, show, stats_data
 		}
 	}
 	if (gui_existed = 1) {
-		Gui, Show, NA Autosize x%current_x% y%current_y%, MPC-BE Video Editor v2.1
-		Gui, Show, NA w500 x%current_x% y%current_y%, MPC-BE Video Editor v2.1
+		Gui, Show, NA Autosize x%current_x% y%current_y%, MPC-HC Video Editor v2.1
+		Gui, Show, NA w500 x%current_x% y%current_y%, MPC-HC Video Editor v2.1
 	} else
-		Gui, Show, NA w500 x%xpos% y140, MPC-BE Video Editor v2.1
+		Gui, Show, NA w500 x%xpos% y140, MPC-HC Video Editor v2.1
 return
 
-load_bookmark:
-	if InStr(file_path,"MPC-BE")
-		file_path := RegExReplace(file_path,"imO)(\s\-\s)?MPC\-BE\s.+")
+load_bookmark:	
 	fileselectfile, select_file_path_csv, 3,, Select a bookmark file, CSV files (*.csv)
 	if (select_file_path_csv) {
 		g_manual_load_in_progress := 1
 		load_bookmark := 1
 		file_path_csv := file_path_csv2 := select_file_path_csv
-		iniwrite, %file_path_csv%, %a_temp%\compile_data.ini, stored_data, file_path_csv_saved
 		stats := info2("all")
 		guicontrol,, stats_data, %stats%
 		advanced := info2("advanced")
 		guicontrol,, stats_advanced, %advanced%
-		file_path_check := csv_csvToFilepath2(file_path_csv)
+		file_path_check := check_matching_video(file_path_csv)
 		if fileexist(file_path_check) {
 			file_path := file_path_check
-			iniwrite, %file_path%, %a_temp%\compile_data.ini, stored_data, file_path_saved
 			run, %file_path%
 			Menu, LoadMenu, Rename, 6&, Video: %file_path%
 		}
@@ -194,10 +171,8 @@ load_bookmark:
 return
 
 edit_bookmark:
-	if InStr(file_path,"MPC-BE")
-		file_path := RegExReplace(file_path,"imO)(\s\-\s)?MPC\-BE\s.+")
 	run, %file_path_csv%
-	window_waitactive2("ahk_class MPC-BE")
+	window_waitactive2("ahk_class MediaPlayerClassicW")
 	stats := info2("all")
 	guicontrol,, stats_data, %stats%
 	advanced := info2("advanced")
@@ -206,8 +181,6 @@ edit_bookmark:
 return
 
 delete_bookmark:
-	if InStr(file_path,"MPC-BE")
-		file_path := RegExReplace(file_path,"imO)(\s\-\s)?MPC\-BE\s.+")
 	file_recycle2(file_path_csv)
 	file_path_csv := ""
 	iniwrite, %file_path_csv%, %a_temp%\compile_data.ini, stored_data, file_path_csv_saved
@@ -222,8 +195,6 @@ delete_bookmark:
 return
 
 saveto_change:
-	if InStr(file_path,"MPC-BE")
-		file_path := RegExReplace(file_path,"imO)(\s\-\s)?MPC\-BE\s.+")
 	file_directory_old := file_directory
 	FileSelectFolder, folder_path, , 3, Select a folder
 	if (folder_path) {
@@ -240,9 +211,7 @@ saveto_change:
 	}
 return
 
-load_video:
-	if InStr(file_path,"MPC-BE")
-		file_path := RegExReplace(file_path,"imO)(\s\-\s)?MPC\-BE\s.+")
+load_video:	
 	old_file_path_csv := file_path_csv
 	FileSelectFile, select_file_path, 3,, Select a video file,(Video Files (*.3gp;*.3g2;*.3gpp;*.asf;*.avi;*.divx;*.dv;*.evo;*.f4v;*.flv;*.m2ts;*.m4v;*.mkv;*.mov;*.mp4;*.mpeg;*.mpg;*.mts;*.ogm;*.ogv;*.qt;*.rm;*.rmvb;*.swf;*.ts;*.vob;*.webm;*.wmv)|*.3gp;*.3g2;*.3gpp;*.asf;*.avi;*.divx;*.dv;*.evo;*.f4v;*.flv;*.m2ts;*.m4v;*.mkv;*.mov;*.mp4;*.mpeg;*.mpg;*.mts;*.ogm;*.ogv;*.qt;*.rm;*.rmvb;*.swf;*.ts;*.vob;*.webm;*.wmv|All Files (*.*)|*.*)
 	if (select_file_path) {
@@ -257,18 +226,33 @@ load_video:
 		advanced := info2("advanced")
 		guicontrol,, stats_advanced, %advanced%
 		Menu, LoadMenu, Rename, 6&, Video: %file_path%
-		file_path_csv_check := csv_filepathtocsv2(file_path)
+		file_path_csv_check := check_matching_csv(file_path)
 		if fileexist(file_path_csv_check) {
-			; A matching CSV was found, so load it and show the bookmarks
 			file_path_csv := file_path_csv_check
+			Menu, LoadMenu, Rename, 1&, Bookmarks: %file_path_csv%
 			show_gui2()
-		} else {
-			; No matching CSV, so restore the old one and leave the GUI untouched
-			file_path_csv := old_file_path_csv
-		}
+		} 
+		Menu, LoadMenu, Rename, 6&, Video: %file_path%
+		Menu, LoadMenu, Rename, 1&, Bookmarks: %file_path_csv%
 		update_menus2()
-        SetTimer, ResetVideoLoadFlag, -1000 ; Reset the flag after 1 second
-	}
+        SetTimer, ResetVideoLoadFlag, -1000
+		gui, font, cwhite
+		guicontrol, font, videolength
+		guicontrol, , videolength, Video Length:
+		loop { 
+			title := mpc_getSource2()
+			if instr(title, ".")
+				break
+		}
+		wait(1)
+		time_total := mpc_getDuration2()
+		trim(time_total)
+		gui, font, cYellow
+		guicontrol, font, timetotal
+		guicontrol, , timetotal, %time_total%
+		guicontrol, move, timetotal, x+125
+	} else
+		load_video := 0
 return
 
 ResetVideoLoadFlag:
@@ -276,22 +260,20 @@ ResetVideoLoadFlag:
 return
 
 delete_video:
-	if InStr(file_path,"MPC-BE")
-		file_path := RegExReplace(file_path,"imO)(\s\-\s)?MPC\-BE\s.+")
 	file_recycle2(file_path)
 	stats := info2("all")
 	guicontrol,, stats_data, %stats%
 	advanced := info2("advanced")
 	guicontrol,, stats_advanced, %advanced%
 	Menu, LoadMenu, rename, 6&, Video: <not loaded>
+	GuiControl, , VideoLength
+	GuiControl, , TimeTotal
 	file_path := ""
 	update_menus2()
 	show_gui2()
 return
 
 merge_split:
-	if InStr(file_path,"MPC-BE")
-		file_path := RegExReplace(file_path,"imO)(\s\-\s)?MPC\-BE\s.+")
 	iniread, file_path, %a_temp%\compile_data.ini, stored_data, file_path
 	if (update_file_directory = 1)
 		iniread, file_directory, %a_temp%\compile_data.ini, stored_data, file_directory
@@ -322,14 +304,12 @@ merge_split:
 		}
 		if !regexmatch(file_directory, "imO).+\\$")
 			file_directory := file_directory . "\"
-		if instr(file_path, "MPC-BE") 
-			file_path := regexreplace(file_path, "imO)(\s\-\s)?MPC\-BE\s.+")
 		old_file_path := file_path
 		old_csv_path := file_path_csv
 		Loop, %loop_count% {
 			if (a_thismenuitem = "Split all" or a_thismenuitem = "Split selected") {
-				if InStr(file_path,"MPC-BE")
-					file_path := RegExReplace(file_path,"imO)(\s\-\s)?MPC\-BE\s.+")
+				
+					
 				file_path_create := " " . file_path . " " . file_directory . file_name . "[cs" . a_index . "]" . file_extension_dot . " "
 				if regexmatch(ffmpeg_time, "imO)(\d+:\d+:\d+\s\d+:\d+:\d+)", pairs) {
 					new_ffmpeg_time := pairs[0]
@@ -338,8 +318,8 @@ merge_split:
 				}
 			}
 			if (a_thismenuitem = "Merge all" or a_thismenuitem = "Merge selected") {
-				if InStr(file_path,"MPC-BE")
-					file_path := RegExReplace(file_path,"imO)(\s\-\s)?MPC\-BE\s.+")
+				
+					
 				file_path_create := " " . file_path . " " . file_directory . file_name . "[done]" . file_extension_dot . " "		
 				if RegExMatch(ffmpeg_time,"imO)(\d{2}:\d{2}:\d{2})\s\1",pairs) 
 					ffmpeg_time := RegExReplace(ffmpeg_time,"imO)(\d{2}:\d{2}:\d{2})\s\1","")
@@ -378,7 +358,7 @@ merge_split:
 		return
 	}
 	iniwrite, ERROR, %a_temp%\compile_data.ini, stored_data, time_saved
-	winactivate, ahk_class MPC-BE
+	winactivate, ahk_class MediaPlayerClassicW
 	bookmark_status := ""
 	bookmark_started := ""
 	data := ""
@@ -399,8 +379,6 @@ merge_split:
 return
 
 erase:
-	if InStr(file_path,"MPC-BE")
-		file_path := RegExReplace(file_path,"imO)(\s\-\s)?MPC\-BE\s.+")
 	if (load_bookmark = "yes")
 		file_path_csv := select_file_path_csv
 	iniwrite, 1, %a_temp%\compile_data.ini, stored_data, bookmark_removed
@@ -431,8 +409,6 @@ erase:
 return
 
 clear:
-	if InStr(file_path,"MPC-BE")
-		file_path := RegExReplace(file_path,"imO)(\s\-\s)?MPC\-BE\s.+")
 	file_recycle2(file_path_csv)
 	file_path_csv := ""
 	clear_gui2()
@@ -445,8 +421,6 @@ return
 
 
 checkbox:
-	if InStr(file_path,"MPC-BE")
-		file_path := RegExReplace(file_path,"imO)(\s\-\s)?MPC\-BE\s.+")
 	line_count := csv_linecount2(file_path_csv)
 	ffmpeg_time_selected := ""
 	count := 0
@@ -469,9 +443,9 @@ checkbox:
 	edited_duration := edit_duration2(file_path_csv)
 	selected_duration := time_secToAlt2(edited_duration)
 	wait2(1)
-	total_time := mpc_getTotalTime2()
-	time_total := time_longToAlt2(total_time)
-;	Gui, basic:Default
+	total_time := mpc_getDuration2()
+	if (total_time != 0 or total_time != "")
+		time_total := time_longToAlt2(total_time)
     if (duration > 0) {
 		total_duration := time_secToAlt2(duration)
 		if (file_path != "")
@@ -496,14 +470,6 @@ radio:
 	matched_index := a_guicontrol
 	if (update_file_directory = 1)
 		iniread, file_directory, %a_temp%\compile_data.ini, stored_data, file_directory
-	if InStr(file_path,"MPC-BE")
-		file_path := RegExReplace(file_path,"imO)(\s\-\s)?MPC\-BE\s.+")
-	if (file_name_new != "")
-		file_name := file_name_new
-	if (file_path_new != "")
-		file_path := file_path_new
-	if (file_path_csv_new != "")
-		file_path_csv := file_path_csv_new 
     if regexmatch(%a_guicontrol%, "imO)(\d+)\,(\d+)\,Bookmark(\d+)", checked_time) {
         compare1 := checked_time[0]
 		loop, parse, % data, `n
@@ -518,7 +484,6 @@ radio:
 		}
     }
     checked_ffmpeg_time := time_secToLong2(checked_time[1]) . " " . time_secToLong2(checked_time[2])
-
     file_path_check := file_directory . file_name . "[cs1]" . file_extension_dot
     if fileexist(file_path_check) {
         while fileexist(file_path_check) {
@@ -526,9 +491,7 @@ radio:
                 new_num := cs_match[2] + 1
             file_path_check := file_directory . file_name . "[cs" . new_num . "]" . file_extension_dot
         }
-    }
-	if InStr(file_path,"MPC-BE")
-		file_path := RegExReplace(file_path,"imO)(\s\-\s)?MPC\-BE\s.+")
+    }	
     file_path_create := file_path . " " . file_path_check
 	clipboard := A_Temp . "\compile_merge.bat " . file_path_create . " " . checked_ffmpeg_time
     run2(A_Temp . "\compile_merge.bat " . file_path_create . " " . checked_ffmpeg_time)
@@ -538,7 +501,7 @@ radio:
     radiobox_index.Push(matched_index)
 	for index, value in radiobox_index
 		GuiControl, , radiobox%value%, 1
-	winactivate, ahk_class MPC-BE
+	winactivate, ahk_class MediaPlayerClassicW
 	update_menus2()
 Return
 
@@ -561,9 +524,16 @@ HotkeyGUIEscape:
 Return
 
 HotkeyGUISubmit:
-	Gui, Submit, NoHide
+	Gui, Submit
 	Menu, HotkeyMenu, Rename, 2&, Current: %SelectedHotkey%
+	if (selectedHotkey = activeHotkey)
+		return
+	Hotkey, IfWinActive, ahk_class MediaPlayerClassicW
+	Hotkey, %activeHotkey%, main, Off
 	activehotkey := selectedhotkey
+	Hotkey, %activeHotkey%, main, On
+	Hotkey, IfWinActive
+	iniWrite, %activeHotkey%, %A_Temp%\compile_data.ini, settings, activeHotkey
 Return
 
 HotkeyGUICancel:

@@ -25,3 +25,8 @@ GroupAdd, Windows, ahk_class shell_TrayWnd
 GroupAdd, Windows, ahk_class CabinetWClass
 GroupAdd, Windows, ahk_class WorkerW
 GroupAdd, Windows, ahk_exe explorer.exe
+
+iniRead, activeHotkey, %A_Temp%\compile_data.ini, settings, activeHotkey, MButton
+Hotkey, IfWinActive, ahk_class MediaPlayerClassicW
+Hotkey, %activeHotkey%, main, On
+Hotkey, IfWinActive

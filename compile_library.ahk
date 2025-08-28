@@ -1,4 +1,4 @@
-gui_title := "MPC-BE Video Editor v2.1"
+gui_title := "MPC-HC Video Editor v2.1"
 
 menu_add(menu, string, label) {
 	menu, %menu%, add, %string%, %label%	
@@ -23,6 +23,7 @@ menu_deleteall(menu) {
 }
 
 Menu, LoadMenu, Rename, 6&, Video: <not loaded>	
+
 menu_show2(var) {
 	if (delete_all = 1) {
 		menu, savetomenu, deleteall
@@ -97,6 +98,7 @@ menu_show2(var) {
 	Menu, SettingsMenu, Icon, 5&, C:\Users\Chris\Desktop\ahk\photoshop\ico\InfoPath alt 2.ico, 1
 	Menu, StatsMenu, Add, Enable, stats
 	Menu, StatsMenu, Add, Advanced, stats
+	Menu, StatsMenu, Disable, Advanced
 	Menu, %var%, Add, &Save to, :SaveToMenu
 	Menu, %var%, Add, &Add, :AddMenu
 	Menu, %var%, Add, &Load/Unload, :LoadMenu
@@ -281,10 +283,10 @@ csv_repair2(file_path_csv) {
 	return message
 }
 
-show_gui2(status:="") {
+show_gui2() {
 	global
-	if window_exist2("MPC-BE Video Editor v2.1") {
-		WinGetPos, current_x, current_y, current_w, current_h, MPC-BE Video Editor v2.1
+	if window_exist2("MPC-HC Video Editor v2.1") {
+		WinGetPos, current_x, current_y, current_w, current_h, MPC-HC Video Editor v2.1
 		gui_existed := 1
 		Gui, Destroy
 	}
@@ -295,94 +297,92 @@ show_gui2(status:="") {
 	gui, menu, test
 	Gui, Color, 000000
 	gui, font, bold s11 cWhite, Fira Code
-	data := file_read2(file_path_csv)
-	loop, parse, % data, `n
-		{
-		if regexmatch(a_loopfield, "imO)(\d+)\,(\d+)\,Bookmark(\d+)", line_time) {
-			ui_add_radio2(, "r1 +w23 xs y+5 +gRadio +vRadiobox" . a_index)
-			ui_add_checkbox2(, "+w30 x+5 yp+0 +gCheckbox +center +vCheckBox" . a_index)
-			time1sec := time1 := line_time[1]
-			time2sec := time2 := line_time[2]
-			iniwrite, %time2%, %a_temp%\compile_data.ini, stored_data, time_saved
-			line_num := line_time[3]
-			duration_time := time_secToAlt2(time2 - time1)
-			bookmark_status := "complete"
-			time1 := time_secToShort2(time1)
-			time2 := time_secToShort2(time2)
-			gui, add, text, x+ +center cWhite, [
-			if (time1sec > time2sec or time1sec = time2sec)
+		data := file_read2(file_path_csv)
+		loop, parse, % data, `n
+			{
+			if regexmatch(a_loopfield, "imO)(\d+)\,(\d+)\,Bookmark(\d+)", line_time) {
+				ui_add_radio2(, "r1 +w23 xs y+5 +gRadio +vRadiobox" . a_index)
+				ui_add_checkbox2(, "+w30 x+5 yp+0 +gCheckbox +center +vCheckBox" . a_index)
+				time1sec := time1 := line_time[1]
+				time2sec := time2 := line_time[2]
+				iniwrite, %time2%, %a_temp%\compile_data.ini, stored_data, time_saved
+				line_num := line_time[3]
+				duration_time := time_secToAlt2(time2 - time1)
+				bookmark_status := "complete"
+				time1 := time_secToShort2(time1)
+				time2 := time_secToShort2(time2)
+				gui, add, text, x+ +center cWhite, [
+				if (time1sec > time2sec or time1sec = time2sec)
+					gui, add, text, x+ +center cRed, X
+				else
+					gui, add, text, x+ +center cGreen, %line_num%
+				gui, add, text, x+ +center cWhite, ]
+				gui, add, text, x+ +center cWhite, %a_space%
+				if (time1sec > time2sec or time1sec = time2sec)
+					gui, add, text, x+ +center cRed gtime_split, %time1%
+				else
+					gui, add, text, x+ +center cBlue gtime_split, %time1%
+				gui, add, text, x+ +center cWhite, %a_space%-%a_space%   
+				if (time1sec > time2sec or time1sec = time2sec)
+					gui, add, text, x+ +center cRed  gtime_split, %time1%
+				else
+					gui, add, text, x+ +center cBlue gtime_split, %time2%
+				gui, add, text, x+ +center cWhite, %a_space%
+				gui, add, text, x+ +center cWhite, (
+				if (time1sec > time2sec)
+					gui, add, text, x+ +center cRed, %duration_time%
+				else if (time1sec = time2sec)
+					gui, add, text, x+ +center cRed, 0s
+				else
+					gui, add, text, x+ +center cYellow, %duration_time%
+				gui, add, text, x+ +center cWhite , )			
+				button%a_index% := a_loopfield
+				radiobox%a_index% := button%a_index%
+				radiobox_checked%a_index% := button%a_index%
+			} else if regexmatch(a_loopfield, "imO)(\d+)\,", line_time) {
+				line_num := csv_linecount2(file_path_csv)
+				ui_add_radio2(, "r1 +w23 xs y+5 +gRadio +vRadiobox" . a_index)
+				ui_add_checkbox2(, "+w30 x+5 yp+0 +gCheckbox +center +vCheckBox" . a_index)
+				time1 := time_secToShort2(line_time[1])
+				bookmark_status := "incomplete"
+				iniwrite, %time1%, %a_temp%\compile_data.ini, stored_data, time_saved
+				gui, add, text, x+ +center cWhite, [
 				gui, add, text, x+ +center cRed, X
-			else
-				gui, add, text, x+ +center cGreen, %line_num%
-			gui, add, text, x+ +center cWhite, ]
-			gui, add, text, x+ +center cWhite, %a_space%
-			if (time1sec > time2sec or time1sec = time2sec)
-				gui, add, text, x+ +center cRed gtime_split, %time1%
-			else
+				gui, add, text, x+ +center cWhite, ] 
+				gui, add, text, x+ +center cwhite, %a_space%
 				gui, add, text, x+ +center cBlue gtime_split, %time1%
-			gui, add, text, x+ +center cWhite, %a_space%-%a_space%   
-			if (time1sec > time2sec or time1sec = time2sec)
-				gui, add, text, x+ +center cRed  gtime_split, %time1%
-			else
-				gui, add, text, x+ +center cBlue gtime_split, %time2%
-			gui, add, text, x+ +center cWhite, %a_space%
-			gui, add, text, x+ +center cWhite, (
-			if (time1sec > time2sec)
-				gui, add, text, x+ +center cRed, %duration_time%
-			else if (time1sec = time2sec)
-				gui, add, text, x+ +center cRed, 0s
-			else
-				gui, add, text, x+ +center cYellow, %duration_time%
-			gui, add, text, x+ +center cWhite , )			
-			button%a_index% := a_loopfield
-			radiobox%a_index% := button%a_index%
-			radiobox_checked%a_index% := button%a_index%
-		} else if regexmatch(a_loopfield, "imO)(\d+)\,", line_time) {
-			line_num := csv_linecount2(file_path_csv)
-			ui_add_radio2(, "r1 +w23 xs y+5 +gRadio +vRadiobox" . a_index)
-			ui_add_checkbox2(, "+w30 x+5 yp+0 +gCheckbox +center +vCheckBox" . a_index)
-			time1 := time_secToShort2(line_time[1])
-			bookmark_status := "incomplete"
-			iniwrite, %time1%, %a_temp%\compile_data.ini, stored_data, time_saved
-			gui, add, text, x+ +center cWhite, [
-			gui, add, text, x+ +center cRed, X
-			gui, add, text, x+ +center cWhite, ] 
-			gui, add, text, x+ +center cwhite, %a_space%
-			gui, add, text, x+ +center cBlue gtime_split, %time1%
+			}
+		}
+		edited_duration := edit_duration2(file_path_csv)
+		edited_duration := time_secToAlt2(edited_duration)
+		total_time := mpc_getDuration2()
+		if (total_time != 0 and total_time != "")
+			time_total := time_longToAlt2(total_time)
+	if !fileexist(file_path_csv)
+		gui, add, text, w500 xs y+10 +left cRed vEdit , No csv loaded
+	else {
+		if (edited_duration != "") {
+			gui, add, text, xs y+5 cWhite vEditTime +left, Edit time:
+			gui, add, text, x+ +left cwhite, %a_space%
+			gui, add, text, x+ +left cRed vEditedDuration w500, %edited_duration%
 		}
 	}
-
-	edited_duration := edit_duration2(file_path_csv)
-	edited_duration := time_secToAlt2(edited_duration)
-	wait2(1)
-	total_time := mpc_getTotalTime2()
-	time_total := time_longToAlt2(total_time)
-	if (edited_duration != "") {
-		gui, add, text, xs y+5 cWhite, Edit time:
-		gui, add, text, x+ cwhite, %a_space%
-		gui, add, text, x+ +left cRed vEditedDuration w200
-		if (file_path != "")
-			GuiControl, , EditedDuration, %edited_duration% / %time_total%
-		else
-			GuiControl, , EditedDuration, %edited_duration%
+	if !fileexist(file_path) {
+		gui, add, text, xs y+5 cRed vVideoLength +left, No video loaded
+		gui, add, text, x+ cWhite +left, %a_space%
+		gui, add, text, x+ cYellow +left vTimeTotal w500,%time_total%
 	} else {
-		if (status = "clear")
-			GuiControl, text, TimeTotal, %a_space%
-		else if (!regexmatch(file_path, "imO)^MPC-BE\sx(\d+)\s\d+\.\d+\.\d+$") and file_path != "") {
-			total_time := time_longToAlt2(total_time)
-			gui, add, text, w300 xs y+5 +left cYellow vTimeTotal, Video length: %time_total%
-		}
+		gui, add, text, xs y+5 +left cWhite vVideoLength, Video length:
+		gui, add, text, x+ +left cWhite, %a_space%
+		gui, add, text, x+ +left cYellow vTimeTotal w500,%time_total%
 	}
-;	if (launch = "") {
-	Gui, Add, GroupBox, +left vdragdropborder w500 h150 xs y+5
+	Gui, Add, GroupBox, +left vdragdropborder w500 h150 xs
 	Gui, Add, Text, w490 Center xp+5 yp+65 vdragdroptext, <drag files here to load>
-;		launch := 1
-;	}
 	xpos := a_screenwidth - 1200
 	if (gui_existed = 1) 
-		Gui, Show, NA x%current_x% y%current_y% w500, MPC-BE Video Editor v2.1
+		Gui, Show, NA x%current_x% y%current_y% w500, MPC-HC Video Editor v2.1
 	else
-		Gui, Show, NA x%xpos% y140 w500, MPC-BE Video Editor v2.1
+		Gui, Show, NA x%xpos% y140 w500, MPC-HC Video Editor v2.1
 	gui, color, 000000, 000000
 	for index, value in radiobox_index
 		GuiControl, , %value%, 1
@@ -399,46 +399,39 @@ show_gui2(status:="") {
 }
 
 GuiDropFiles:
-    Loop, Parse, A_GuiEvent, `n
-    {
+	Loop, Parse, A_GuiEvent, `n
+		{
         dropped_file_path := A_LoopField
-        SplitPath, dropped_file_path, , , extension
-        
+        SplitPath, dropped_file_path, , , extension       
         if (extension = "csv") {
-            ; --- This is the logic from your load_bookmark function ---
             g_manual_load_in_progress := 1
             file_path_csv := dropped_file_path
-            show_gui2()
-            
-            file_path_check := csv_csvToFilepath2(file_path_csv)
-            if fileexist(file_path_check) {
-                file_path := file_path_check
-                run, %file_path%
+            show_gui2()            
+			file_path_check := check_matching_video(file_path_csv)
+			if fileexist(file_path_check) {
+				file_path := file_path_check
+				run, %file_path%
             }
             update_menus2()
-
-        } else if (InStr(".mp4.mkv.avi.mov.wmv.flv.webm.mpg.mpeg.m4v.ts.", "." . extension . ".")) {
-            ; --- This is the logic from your load_video function ---
+        } else if regexmatch(extension, "imO)(mp4|avi|wmv|mov|flv|mpg|mpeg|ts|f4v|mkv)") {
             g_manual_load_in_progress := 1
             file_path := dropped_file_path
             run, %file_path%
-
-            associated_csv_path := csv_filepathToCSV2(file_path)
-            if FileExist(associated_csv_path) {
-                file_path_csv := associated_csv_path
+			csv_check := check_matching_csv(file_path)
+			if fileexist(csv_check) {
+                file_path_csv := file_path_csv_check
                 show_gui2()
             } else
-		;		clear_gui2()
-            update_menus2()
+				update_menus2()
+			break
         }
-        break ; Process only the first file if multiple are dropped
-    }
+	}
 return
 
 clear_gui2() {
     global
-    if window_exist2("MPC-BE Video Editor v2.1") {
-        WinGetPos, current_x, current_y, current_w, current_h, MPC-BE Video Editor v2.1
+    if window_exist2("MPC-HC Video Editor v2.1") {
+        WinGetPos, current_x, current_y, current_w, current_h, MPC-HC Video Editor v2.1
         gui_existed := 1
     }
 	gui, %mygui%:destroy
@@ -448,12 +441,11 @@ clear_gui2() {
     gui, menu, test
     Gui, Color, 000000
     gui, font, bold s11 cWhite, Fira Code
-
     xpos := a_screenwidth - 1200
     if (gui_existed = 1)
-        Gui, Show, NA x%current_x% y%current_y% w500, MPC-BE Video Editor v2.1
+        Gui, Show, NA x%current_x% y%current_y% w500, MPC-HC Video Editor v2.1
     else
-        Gui, Show, NA x%xpos% y140 w500, MPC-BE Video Editor v2.1
+        Gui, Show, NA x%xpos% y140 w500, MPC-HC Video Editor v2.1
     gui, color, 000000, 000000
 }
 
@@ -462,12 +454,9 @@ file_info2(file_path:="") {
 		version := num_match[2]
 		arch := num_match[1]
 		while (file_path = "MPC-BE x" . arch . " " . version . "" or file_path = "MPC-BE" or file_path = gui_title)
-			file_path := window_title2("ahk_class MPC-BE")
-		file_path := regexreplace(file_path, "imO)(\s\-\s)?MPC\-BE\s.+")
+			file_path := window_title2("ahk_class MediaPlayerClassicW")
 		wait2(500)
 	}
-	if instr(file_path, "MPC-BE")
-		file_path := regexreplace(file_path, "imO)(\s\-\s)?MPC\-BE\s.+")
 	wait2(500)
 	splitpath, file_path, file_both, file_directory, file_extension, file_name, file_drive
 	if (folder_path_set = 1) 
@@ -477,9 +466,7 @@ file_info2(file_path:="") {
 	file_extension_dot := "." . file_extension
 	file_path_csv := strreplace(file_path, file_extension, "csv")
 	if (load_bookmark = "yes")
-		file_path_csv := select_file_path_csv
-	if instr(file_path, "MPC-BE")
-		file_path := regexreplace(file_path, "imO)(\s\-\s)?MPC\-BE\s.+")
+		file_path_csv := select_file_path_csv	
 	return file_path
 }
 
@@ -521,8 +508,8 @@ file_rename2(file_path) {
 			file_name := string_caseLower2(file_name)
 			file_extension_dot := "." . file_extension
 		}
-		if instr(file_path, "MPC-BE") 
-			file_path := regexreplace(file_path, "imO)(\s\-\s)?MPC\-BE\s.+")
+		 
+			
 		iniwrite, %file_path%, %a_temp%\compile_data.ini, stored_data, file_path
 		return file_path
 	}
@@ -543,7 +530,7 @@ folder_rename2(file_path) {
 			ui_pos2("+top")
 			ui_show2("progress")
 			status2(30, "Closing MPC-BE...")
-			window_kill2("ahk_class MPC-BE")
+			window_kill2("ahk_class MediaPlayerClassicW")
 			status2(60, "Renaming folder...")
 			wait2(2)
 			FileMoveDir, %old_folder_path%, %new_folder_path%
@@ -555,9 +542,7 @@ folder_rename2(file_path) {
 			splitpath, file_path, file_both, file_directory, file_extension, file_name, file_drive
 			file_directory := file_directoryfix2(file_directory)
 			status2(100, "Opening renamed video file...")
-		}
-		if instr(file_path, "MPC-BE")
-			file_path := regexreplace(file_path, "imO)(\s\-\s)?MPC\-BE\s.+")
+		}			
 		iniwrite, %file_path%, %a_temp%\compile_data.ini, stored_data, file_path
 		ui_destroy2("progress")
 		return file_path
@@ -566,14 +551,14 @@ folder_rename2(file_path) {
 
 file_time2() {
 	current_time := mpc_getTime2()
-	total_time := mpc_getTotalTime2()
-	time_total := time_longToAlt2(total_time)
-	current_seconds := time_longToSec2(current_time)
+	total_time := mpc_getDuration2()
+	if (total_time != 0 or total_time != "")
+		time_total := time_longToAlt2(total_time)
+	current_seconds := mpc_getTime2("seconds")
 	if (current_time = "") {
 		msg2("Failed to get the current time of the video.")
 		return "error"
-	} else 
-		current_time := time_secToLong2(current_time)
+	}
 	if (current_seconds = 0) 
 		current_seconds := 1
 	previous_time := current_seconds
@@ -692,7 +677,6 @@ update_menus2(var:="") {
 	}
 }
 
-
 csv_linedelete2(var, number) {
 	file := FileOpen(var, "rw")
 	data := file.Read()
@@ -725,6 +709,7 @@ csv_lineread2(file_path_csv, num) {
 	}
 	return line
 }
+
 csv_linewrite2(file_path_csv, string, num) {
 	file := FileOpen(file_path_csv, "rw")
 	data := file.Read()
@@ -740,6 +725,7 @@ csv_linewrite2(file_path_csv, string, num) {
 		}
 	}
 }
+
 edit_duration2(file_path_csv:="") {
 	data := file_read2(file_path_csv)
 	loop, parse, % data, `n	
@@ -802,7 +788,7 @@ seek_steps2(t_time:="") {
 		regexmatch(get_clicked_time, "imO)(.)", time)
 	;msg("prefix = " . prefix . "`rnum = " . num . "`rt_time = " . t_time . "`rtime[1] = " . time[1] . "`rtime[2] = " . time[2] . "`rget_clicked_time = " . get_clicked_time)
 	new_time := prefix . time[1] . time[2] . time[3] . ".000"
-	WinActivate, ahk_class MPC-BE
+	WinActivate, ahk_class MediaPlayerClassicW
 	Send, ^g
 	WinWaitActive, Go To...
 	Controlfocus, MFCMaskedEdit1, Go To...
@@ -811,7 +797,7 @@ seek_steps2(t_time:="") {
 }	
 
 special2(var1) {
-	total_time := mpc_gettotaltime2()
+	total_time := mpc_getDuration2("raw")
 	if regexmatch(total_time, "imO)(\d{2}):(\d{2}):(\d{2})", time_seek) {
 		num := number_countDigits2(var1)
 		if (num = 6)
@@ -1078,6 +1064,7 @@ info2(var) {
 			if (var_value != "") 
 				advanced .= var_name . ": " . var_value . "`n"
 		}
+		advanced := RTrim(advanced, "`n") 
 		return advanced
 	}
 	if (var = "both")
@@ -1098,6 +1085,7 @@ csv_lastline2(var) {
 	}
 	return last_line
 }
+
 csv_linecount2(var) {
 	file := FileOpen(var, "r")
 	data := file.Read()
@@ -1113,6 +1101,7 @@ csv_linecount2(var) {
 	file.close()
 	return count
 }
+
 csv_data2(var, line:="") {
 	file := FileOpen(var, "r")
 	data := file.Read()
@@ -1133,7 +1122,6 @@ csv_data2(var, line:="") {
 	return data
 }
 
-
 csv_filepathToCSV2(file_path) {
 	splitpath, file_path, file_both, file_directory, file_extension, file_name, file_drive
 	file_name := string_caseLower2(file_name)
@@ -1141,9 +1129,30 @@ csv_filepathToCSV2(file_path) {
 	return var := strreplace(file_path, file_extension, "csv")
 }
 
-csv_csvToFilepath2(file_path_csv) {
-	test := strreplace(file_path_csv,"csv","mp4")
-	return test
+csv_csvToFilepath2(file_path_csv,extension:="mp4") {
+	file_path := strreplace(file_path_csv,"csv",extension)
+	return file_path
+}
+
+check_matching_video(file_path_csv) {
+	extensions := []
+	extensions.push("mp4", "avi", "mpg", "mkv", "avi", "mov", "wmv", "flv", "webm", "mpeg", "m4v", "ts")
+	Loop % extensions.MaxIndex() 
+		{
+		new_file_path := strreplace(file_path_csv,"csv",extensions[a_index])
+		if fileexist(new_file_path) {
+			return file_path_new
+		}
+	}
+}
+
+check_matching_csv(file_path) {
+	splitpath, file_path, file_both, file_directory, file_extension, file_name, file_drive
+	file_name := string_caseLower2(file_name)
+	file_extension_dot := "." . file_extension
+	new_file_path_csv := strreplace(file_path, file_extension, "csv")
+	if fileexist(new_file_path_csv)
+		return new_file_path_csv
 }
 
 error2(var :="") {
@@ -1162,6 +1171,7 @@ error2(var :="") {
 			reload
 	}
 }
+
 file_directoryfix2(var) {
 	if !regexmatch(var, "imO).+(\\)$")
 		var := var . "\"
@@ -1179,6 +1189,7 @@ file_move2(source, target) {
 	else
 		FileMoveDir, %source%, %target%, r
 }
+
 file_recycle2(source1, source2:="", source3:="", source4:="") {
 	if instr(source1, " ") {
 		new_source1 := strreplace(source1," ","-")
@@ -1229,6 +1240,7 @@ file_write2(file, string, mode:="a") {
 	file.write(string)
 	file.close()
 }
+
 file_write2line(file, string, mode:="a") {
 	file := FileOpen(file, "" . mode . "")
 	file.writeline(string)
@@ -1242,9 +1254,8 @@ file_extension2(string) {
 	return ext
 }
 
-
 mpc_close2() {
-	winactivate, ahk_class MPC-BE
+	winactivate, ahk_class MediaPlayerClassicW
 	send2("{shift}{escape}", "down")
 }
 
@@ -1253,66 +1264,72 @@ mpc_open2(file_path) {
 }
 
 mpc_getSource2() {
-	regexmatch(window_title2("ahk_class MPC-BE"), "imO)(.+\\)(.+)(?=\s-\sMPC-BE)", get_source)
+	regexmatch(window_title2("ahk_class MediaPlayerClassicW"), "imO)(.+)", get_source)
 	var := get_source[1] . get_source[2]
 	return var
 }
+
 mpc_getName2(byref var:="") {
-	regexmatch(window_title2("ahk_class MPC-BE"), "imO)(.+)\s\-\s", file_path)
+	regexmatch(window_title("ahk_class MediaPlayerClassicW"), "imO).+\\(.+)", file_path)
 	file_path := file_path[1]
 	splitpath, file_path, file_both, file_directory, file_extension, file_name, file_drive
 	var := file_name
 	return var
 }
+
 mpc_getPath2(byref var:="") {
-	regexmatch(window_title2("ahk_class MPC-BE"), "imO)(.+)\s\-\s", file_path)
+	regexmatch(window_title("ahk_class MediaPlayerClassicW"), "imO)(.+\\)", file_path)
 	file_path := file_path[1]
 	splitpath, file_path, file_both, file_directory, file_extension, file_name, file_drive
 	var := file_path
 	return var
 }
+
 mpc_getExt2(byref var:="") {
-	file_path := window_title2("ahk_class MPC-BE")
-	window_activate2("ahk_class MPC-BE")
-	regexmatch(window_title2("ahk_class MPC-BE"), "imO)(\....$)", get_ext)
+	file_path := window_title("ahk_class MediaPlayerClassicW")
+	regexmatch(window_title("ahk_class MediaPlayerClassicW"), "imO)(....)$", get_ext)
 	var := get_ext[1]
 	return var
 }
-mpc_getDuration2(byref var:="") {
-	controlgettext, get_duration, Static3, ahk_class MPC-BE
-	regexmatch(get_duration, "imO)(\d{2})\:(\d{2})\:(\d{2})", time)
-	raw_time := time[0]
-	time_hours := time[1], time_minutes := time[2], time_seconds := time[3]
+
+mpc_getDuration2(var:="") {
+	controlgettext, get_duration, Static2, ahk_class MediaPlayerClassicW
+	regexmatch(get_duration, "imO).+\/(.+)", time)
+	raw_time := time[1]
+	if regexmatch(raw_time, "imO)(\d+)\:(\d+)\:(\d+)", time)
+		time_hours := time[1], time_minutes := time[2], time_seconds := time[3]
+	else if regexmatch(raw_time, "imO)(\d+)\:(\d+)", time)
+		time_hours := "0", time_minutes := time[1], time_seconds := time[2]
+	else if regexmatch(raw_time, "imO)(\d+)", time)
+		time_hours := "0", time_minutes := "0", time_seconds := time[1]
 	total_seconds := (time_hours * 3600) + (time_minutes * 60) + time_seconds
-	var := total_seconds
-	return var
-}
-mpc_getTime2(byref var:="") {
-	controlgettext, get_duration, Static3, ahk_class MPC-BE
-	if instr(get_duration,"-") {
-		window := window_stats2("ahk_class MPC-BE")
-		window.width -= 20
-		window.height -= 20
-		click_relative2(window.width . " " . window.height)
-		controlgettext, get_duration, Static3, ahk_class MPC-BE
-	}
-	if regexmatch(get_duration, "imO)^(\d{2})\:(\d{2})\s.+", time)
-		var := "00:" . time[1] . ":" . time[2]
-	else if regexmatch(get_duration, "imO)(\d{2})\:(\d{2})\:(\d{2})\s.+", time)
-		var := time[1] . ":" . time[2] . ":" . time[3]
+	if (var = "seconds")
+		var := total_seconds
+	else if (var = "raw")
+		var := raw_time
+	else
+		var := time_secToLong2(total_seconds)
 	return var
 }
 
-mpc_getTotalTime2(byref var:="") {
-	controlgettext, get_duration, Static3, ahk_class MPC-BE
-	if regexmatch(get_duration, "imO).+\/\s(.+)", var2) {
-		if regexmatch(var2[1], "imO)^(\d{2})\:(\d{2})\:(\d{2})$", time)
-			var := time[1] . ":" . time[2] . ":" . time[3]
-		else if regexmatch(var2[1], "imO)^(\d{2})\:(\d{2})$", time)
-			var := time[1] . ":" . time[2]
-	}
+mpc_getTime2(var:="") {
+	controlgettext, get_duration, Static2, ahk_class MediaPlayerClassicW
+	regexmatch(get_duration, "imO)(.+).+\/", time)
+	raw_time := time[1]
+	if regexmatch(raw_time, "imO)(\d+)\:(\d+)\:(\d+)", time)
+		time_hours := time[1], time_minutes := time[2], time_seconds := time[3]
+	else if regexmatch(raw_time, "imO)(\d+)\:(\d+)", time)
+		time_hours := "0", time_minutes := time[1], time_seconds := time[2]
+	else if regexmatch(raw_time, "imO)(\d+)", time)
+		time_hours := "0", time_minutes := "0", time_seconds := time[1]
+	total_seconds := (time_hours * 3600) + (time_minutes * 60) + time_seconds
+	if (var = "seconds")
+		var := total_seconds
+	else
+		var := time_secToLong2(total_seconds)
 	return var
 }
+
 mpc_fileDelete2() {
 	file_path := mpc_getPath2(file_path)
 	filerecycle % file_path
@@ -1416,10 +1433,10 @@ number_countDigits2(num) {
 path_join2(var1, var2:="", var3:="") {
 	if !regexmatch(var1, "imO)(.+)\\$")
 		var1 := var1 . "\"
-	if regexmatch(var2, "imO)(.+)\.(mp4|avi|mpg|mpeg|mov|wmv|flv|csv|mkv)$", file) {
+	if regexmatch(var2, "imO)(.+)\.(mp4|avi|mpg|mpeg|mov|wmv|flv|csv|mkv|f4v|ts)$", file) {
 		file_ext := file[1] . "." . file[2]
 		return var1 . file_ext
-	} else if regexmatch(var3, "imO)(.+)\.(mp4|avi|mpg|mpeg|mov|wmv|flv|csv|mkv)$", file) {
+	} else if regexmatch(var3, "imO)(.+)\.(mp4|avi|mpg|mpeg|mov|wmv|flv|csv|mkv|f4v|ts)$", file) {
 		file_ext := file[1] . "." . file[2]
 		if regexmatch(var2, "imO)[^\\](.+)[^\\]$")
 			return var1 . var2 . file_ext
@@ -1427,7 +1444,7 @@ path_join2(var1, var2:="", var3:="") {
 			return var1 . var2 . "\" . file_ext
 		else
 			return var1 . var2 . file_ext
-	} else if regexmatch(var3, "imO)\.(mp4|avi|mpg|mpeg|mov|wmv|flv|csv|mkv)$", file) {
+	} else if regexmatch(var3, "imO)\.(mp4|avi|mpg|mpeg|mov|wmv|flv|csv|mkv|f4v|ts)$", file) {
 		ext := "." . file[1]
 		return var1 . var2 . ext
 	} else {
@@ -1789,6 +1806,7 @@ time_LongToBookmark2(hrTime, total_time) {
 	return new_time
 }
 
+
 time_secToLong2(var) {
     hours := Floor(var / 3600)
     rem := var - (hours * 3600)
@@ -1934,10 +1952,18 @@ time_longToAlt2(var) {
 		hours := "00"
 		minutes := getting_time[1]
 		seconds := getting_time[2]
+	} else if regexmatch(var, "imO)(\d+)", getting_time) {
+		hours := "00"
+		minutes := "00"
+		seconds := getting_time[2]
+	} else {
+		hours := "00"
+		minutes := "00"
+		seconds := "00"
 	}
-	hours := (hours != "00") ? hours + 0 "h" : ""
-	minutes := (minutes != "00") ? minutes + 0 "m" : ""
-	seconds := (seconds != "00") ? seconds + 0 "s" : ""
+	hours := (hours != "00" and hours != 0) ? hours + 0 "h" : ""
+	minutes := (minutes != "00" and minutes != 0) ? minutes + 0 "m" : ""
+	seconds := (seconds != "00" and seconds != 0) ? seconds + 0 "s" : ""
 	time := ""
 	if (hours != "" and hours != "h") 
 		time .= hours . " "
