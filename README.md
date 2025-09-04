@@ -10,3 +10,4 @@ This must be set to "display full path" or else program will not work.
 Middle mouse button (scroll wheel click) is the default hotkey. You can change this in the hotkey menu.
 
 (https://github.com/user-attachments/assets/fd5f9daf-0b58-411e-83c6-f60b2e617b21)
+![2](https://github.com/user-attachments/assets/625607db-d7a3-4f33-93b4-fda14bb90445)
