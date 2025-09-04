@@ -25,3 +25,6 @@ global ff := "C:\Program Files\ffmpeg\tools\ffmpeg\bin\ffmpeg.exe"
 global VCodec := "libx264", global VCRF := 18, global VPreset := "veryfast", global ABitrate := "192k"
 global gpu_accel, global something_checked
 global edited_duration, global update_file_directory, global radiobox_index, global gui_title,global timetotal
+global ffmpeg_path := A_Temp . "\ffmpeg.exe"
+global ffprobe_path := A_Temp . "\ffprobe.exe"
+global inifile := A_AppData . "\MPC-HC Video Editor\compile_data.ini"

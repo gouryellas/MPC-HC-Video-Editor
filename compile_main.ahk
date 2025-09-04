@@ -10,6 +10,49 @@ main:
 	update_menus2()
 return
 
+add_shortcut:
+	FileSelectFolder, shortcut_path, , 3, Select a folder
+	if (shortcut_path) {
+		iniread, shortcut_add, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, shortcut_add
+		if (shortcut_add = 0)
+			iniwrite, 1, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, shortcut_add
+		iniread, shortcut_number, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, shortcut_number
+		if (shortcut_number = 0) {
+			shortcut_number := 1
+		} else if (shortcut_number > 0)
+			shortcut_number++
+		iniwrite, %shortcut_number%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, shortcut_number
+		iniwrite, %shortcut_path%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, shortcut_path%shortcut_number%
+		Menu, quicksavetomenu, Add, %shortcut_path%\, shortcut_actions
+		stats := info2("all")
+		guicontrol,, stats_data, %stats%
+		advanced := info2("advanced")
+		guicontrol,, stats_advanced, %advanced%
+		update_menus2()
+	}
+return
+
+shortcut_actions:
+	menu, savetomenu, rename, 2&, Current: %a_thismenuitem%
+	Menu, quicksavetomenu, check, %a_thismenuitem%
+	if (a_thismenuitem = a_desktop . "\")
+		desktop_checked := 1
+	iniread, shortcut_number, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, shortcut_number
+	loop, %shortcut_number% {
+		iniread, shortcut_path, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, shortcut_path%a_index%
+		if (a_thismenuitem != shortcut_path . "\") {
+			Menu, quicksavetomenu, uncheck, %shortcut_path%\
+		}
+	}	
+	if (a_thismenuitem != a_desktop . "\" and desktop_checked = 1) {
+		desktop_checked := 0
+		Menu, quicksavetomenu, uncheck, %a_desktop%\
+	}
+	if !regexmatch(a_thismenuitem, "imO).+\\$")
+		file_directory := a_thismenuitem . "\"
+	else
+		file_directory := a_thismenuitem
+return
 
 TR_SelectType:
 	transition_effect := a_thismenuitem
@@ -20,6 +63,10 @@ DUR_SelectType:
 	transition_duration := a_thismenuitem
 	menu, settingsmenu, rename, 5&, Current: %transition_duration%
 	transition_duration := strreplace(transition_duration,"s")
+return
+
+add_shortcut_path:
+
 return
 
 enter_time:
@@ -183,7 +230,7 @@ return
 delete_bookmark:
 	file_recycle2(file_path_csv)
 	file_path_csv := ""
-	iniwrite, %file_path_csv%, %a_temp%\compile_data.ini, stored_data, file_path_csv_saved
+	iniwrite, %file_path_csv%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, file_path_csv_saved
 	stats := info2("all")
 	guicontrol,, stats_data, %stats%
 	advanced := info2("advanced")
@@ -201,7 +248,7 @@ saveto_change:
 		file_directory := folder_path
 		file_directory := file_directoryfix2(file_directory)
 		update_file_directory := 1
-		iniwrite, %file_directory%, %a_temp%\compile_data.ini, stored_data, file_directory
+		iniwrite, %file_directory%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, file_directory
 		stats := info2("all")
 		guicontrol,, stats_data, %stats%
 		advanced := info2("advanced")
@@ -218,7 +265,7 @@ load_video:
 		g_manual_load_in_progress := 1
 		load_video := 1
 		file_path := select_file_path
-		iniwrite, %file_path%, %a_temp%\compile_data.ini, stored_data, file_path_saved
+		iniwrite, %file_path%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, file_path_saved
 		splitpath, file_path, file_both, file_directory, file_extension, file_name, file_drive
 		run, %file_path%
 		stats := info2("all")
@@ -236,9 +283,6 @@ load_video:
 		Menu, LoadMenu, Rename, 1&, Bookmarks: %file_path_csv%
 		update_menus2()
         SetTimer, ResetVideoLoadFlag, -1000
-		gui, font, cwhite
-		guicontrol, font, videolength
-		guicontrol, , videolength, Video Length:
 		loop { 
 			title := mpc_getSource2()
 			if instr(title, ".")
@@ -247,10 +291,6 @@ load_video:
 		wait(1)
 		time_total := mpc_getDuration2()
 		trim(time_total)
-		gui, font, cYellow
-		guicontrol, font, timetotal
-		guicontrol, , timetotal, %time_total%
-		guicontrol, move, timetotal, x+125
 	} else
 		load_video := 0
 return
@@ -274,9 +314,8 @@ delete_video:
 return
 
 merge_split:
-	iniread, file_path, %a_temp%\compile_data.ini, stored_data, file_path
 	if (update_file_directory = 1)
-		iniread, file_directory, %a_temp%\compile_data.ini, stored_data, file_directory
+		iniread, file_directory, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, file_directory
 	if (file_path_new != "") {
 		file_path := file_path_new
 		splitpath, file_path, file_both, file_directory, file_extension, file_name, file_drive
@@ -307,19 +346,28 @@ merge_split:
 		old_file_path := file_path
 		old_csv_path := file_path_csv
 		Loop, %loop_count% {
+			count := a_index
 			if (a_thismenuitem = "Split all" or a_thismenuitem = "Split selected") {
-				
-					
+				split := 1
 				file_path_create := " " . file_path . " " . file_directory . file_name . "[cs" . a_index . "]" . file_extension_dot . " "
 				if regexmatch(ffmpeg_time, "imO)(\d+:\d+:\d+\s\d+:\d+:\d+)", pairs) {
 					new_ffmpeg_time := pairs[0]
 					ffmpeg_time := regexreplace(ffmpeg_time, "imO)" . pairs[0])
+					Gui, Font, cFFA500  ; Set the drawing color for the font
+					GuiControl, Font, line_num%count% ; Apply the new font color to the specified checkbox
+					GuiControl, Font, bracketleft%count% ; Apply the new font color to the specified checkbox
+					GuiControl, Font, bracketright%count% ; Apply the new font color to the specified checkbox
+					GuiControl, Font, dash%count% ; Apply the new font color to the specified checkbox
+					GuiControl, Font, time_split1_%count% ; Apply the new font color to the specified checkbox
+					GuiControl, Font, time_split2_%count% ; Apply the new font color to the specified checkbox
+					GuiControl, Font, parenthesisleft%count% ; Apply the new font color to the specified checkbox
+					GuiControl, Font, parenthesisright%count% ; Apply the new font color to the specified checkbox
+					GuiControl, Font, durationtime%count% ; Apply the new font color to the specified checkbox
+					Gui, Font, cDefault ; Reset the color back to default for any other GUI operations
 					run2(a_temp . "\compile_merge.bat" . file_path_create . new_ffmpeg_time)
 				}
-			}
-			if (a_thismenuitem = "Merge all" or a_thismenuitem = "Merge selected") {
-				
-					
+			} else if (a_thismenuitem = "Merge all" or a_thismenuitem = "Merge selected") {
+				merge := 1
 				file_path_create := " " . file_path . " " . file_directory . file_name . "[done]" . file_extension_dot . " "		
 				if RegExMatch(ffmpeg_time,"imO)(\d{2}:\d{2}:\d{2})\s\1",pairs) 
 					ffmpeg_time := RegExReplace(ffmpeg_time,"imO)(\d{2}:\d{2}:\d{2})\s\1","")
@@ -327,37 +375,78 @@ merge_split:
 					pairs := ParsePairsFromString2(ffmpeg_time)
 					output := file_directory . file_name . "[done]" . file_extension_dot
 					ok := ffmpeg_transition2(file_path, output, ffmpeg_time, transition_effect, transition_duration)
-				} else
+				} else {
+					times := csv_linecount(file_path_csv)
+					Loop, %times% {
+						Gui, Font, cFFA500  ; Set the drawing color for the font
+						GuiControl, Font, line_num%a_index% ; Apply the new font color to the specified checkbox
+						GuiControl, Font, bracketleft%a_index% ; Apply the new font color to the specified checkbox
+						GuiControl, Font, bracketright%a_index% ; Apply the new font color to the specified checkbox
+						GuiControl, Font, dash%a_index% ; Apply the new font color to the specified checkbox
+						GuiControl, Font, time_split1_%a_index% ; Apply the new font color to the specified checkbox
+						GuiControl, Font, time_split2_%a_index% ; Apply the new font color to the specified checkbox
+						GuiControl, Font, parenthesisleft%a_index% ; Apply the new font color to the specified checkbox
+						GuiControl, Font, parenthesisright%a_index% ; Apply the new font color to the specified checkbox
+						GuiControl, Font, durationtime%a_index% ; Apply the new font color to the specified checkbox
+						Gui, Font, cDefault ; Reset the color back to default for any other GUI operations
+					}
 					run2(a_temp . "\compile_merge.bat" . file_path_create . ffmpeg_time)
+				}
 			}
 			window_waitExist2("cmd.exe")
-			window_id := window_id2("cmd.exe")
-			window_waitClose2("ahk_id " . window_id)
+			window_waitClose2("cmd.exe")
+			if (split = 1) {
+				Gui, Font, cGreen  ; Set the drawing color for the font
+				GuiControl, Font, line_num%count% ; Apply the new font color to the specified checkbox
+				GuiControl, Font, bracketleft%count% ; Apply the new font color to the specified checkbox
+				GuiControl, Font, bracketright%count% ; Apply the new font color to the specified checkbox
+				GuiControl, Font, dash%count% ; Apply the new font color to the specified checkbox
+				GuiControl, Font, time_split1_%count% ; Apply the new font color to the specified checkbox
+				GuiControl, Font, time_split2_%count% ; Apply the new font color to the specified checkbox
+				GuiControl, Font, parenthesisleft%count% ; Apply the new font color to the specified checkbox
+				GuiControl, Font, parenthesisright%count% ; Apply the new font color to the specified checkbox
+				GuiControl, Font, durationtime%count% ; Apply the new font color to the specified checkbox
+				Gui, Font, cDefault ; Reset the color back to default for any other GUI operations
+			} else if (merge = 1) {
+				Loop, %times% {
+					Gui, Font, cGreen  ; Set the drawing color for the font
+					GuiControl, Font, line_num%a_index% ; Apply the new font color to the specified checkbox
+					GuiControl, Font, bracketleft%a_index% ; Apply the new font color to the specified checkbox
+					GuiControl, Font, bracketright%a_index% ; Apply the new font color to the specified checkbox
+					GuiControl, Font, dash%a_index% ; Apply the new font color to the specified checkbox
+					GuiControl, Font, time_split1_%a_index% ; Apply the new font color to the specified checkbox
+					GuiControl, Font, time_split2_%a_index% ; Apply the new font color to the specified checkbox
+					GuiControl, Font, parenthesisleft%a_index% ; Apply the new font color to the specified checkbox
+					GuiControl, Font, parenthesisright%a_index% ; Apply the new font color to the specified checkbox
+					GuiControl, Font, durationtime%a_index% ; Apply the new font color to the specified checkbox
+					Gui, Font, cDefault ; Reset the color back to default for any other GUI operations
+				}
+			}
 		}
 		msgbox, 4, , Delete source video and csv file?
 		ifmsgbox Yes
 			{
-			file_recycle2(old_file_path)
-			file_recycle2(old_csv_path)
+			wait(500)
+			winactivate, ahk_class MediaPlayerClassicW
+			send("{Shift}{escape}", "down")
+			file_recycle2(file_path)
+			file_recycle2(file_path_csv)
 			file_path_csv := ""
 			file_path := ""
 			global_delete := 1
-			reload
 			Menu, LoadMenu, Rename, 1&, Bookmarks: <not loaded>
 			menu, loadmenu, rename, 6&, Video: <not loaded>
-			update_menus2()
-			mpc_close2()
 		}
 		ifmsgbox No
 			{
-			global_delete := 0
 		}
 	} else {
 		if (bookmark_status = "incomplete")
 			msg2("You cannot split or merge files without completing the last bookmark.")
 		return
 	}
-	iniwrite, ERROR, %a_temp%\compile_data.ini, stored_data, time_saved
+	iniwrite, "", %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, time_saved
+	reload
 	winactivate, ahk_class MediaPlayerClassicW
 	bookmark_status := ""
 	bookmark_started := ""
@@ -378,10 +467,10 @@ merge_split:
 	time_total := ""
 return
 
-erase:
+undo_bookmark:
 	if (load_bookmark = "yes")
 		file_path_csv := select_file_path_csv
-	iniwrite, 1, %a_temp%\compile_data.ini, stored_data, bookmark_removed
+	iniwrite, 1, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, bookmark_removed
 	if regexmatch(ffmpeg_time, "imO)(.+)(\d{2}\:\d{2}\:\d{2})$", ffmpeg_remove_time)
 		ffmpeg_time := ffmpeg_remove_time[1]
 	if (file_path_csv != "") {
@@ -404,21 +493,21 @@ erase:
 		else
 			button%a_index% := ""
 	}
-	IniRead, erased, %a_temp%\compile_data.ini, stored_data, bookmark_removed
+	IniRead, erased, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, bookmark_removed
 	show_gui2()
 return
 
-clear:
+clear_bookmarks:
 	file_recycle2(file_path_csv)
 	file_path_csv := ""
 	clear_gui2()
+	show_gui2()
 	update_menus2()
 return
 
-reset:
+reset_everything:
 	reload
 return
-
 
 checkbox:
 	line_count := csv_linecount2(file_path_csv)
@@ -469,7 +558,9 @@ return
 radio:
 	matched_index := a_guicontrol
 	if (update_file_directory = 1)
-		iniread, file_directory, %a_temp%\compile_data.ini, stored_data, file_directory
+		iniread, file_directory, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, file_directory
+	if !regexmatch(file_directory, "imO).+\\$")
+		file_directory := file_directory . "\"
     if regexmatch(%a_guicontrol%, "imO)(\d+)\,(\d+)\,Bookmark(\d+)", checked_time) {
         compare1 := checked_time[0]
 		loop, parse, % data, `n
@@ -483,6 +574,8 @@ radio:
 			}
 		}
     }
+	if (file_extension_dot = ".mkv")
+		file_extension_dot := ".mp4"
     checked_ffmpeg_time := time_secToLong2(checked_time[1]) . " " . time_secToLong2(checked_time[2])
     file_path_check := file_directory . file_name . "[cs1]" . file_extension_dot
     if fileexist(file_path_check) {
@@ -533,7 +626,7 @@ HotkeyGUISubmit:
 	activehotkey := selectedhotkey
 	Hotkey, %activeHotkey%, main, On
 	Hotkey, IfWinActive
-	iniWrite, %activeHotkey%, %A_Temp%\compile_data.ini, settings, activeHotkey
+	iniWrite, %activeHotkey%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, activeHotkey
 Return
 
 HotkeyGUICancel:

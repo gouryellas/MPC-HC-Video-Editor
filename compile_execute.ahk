@@ -26,7 +26,9 @@ GroupAdd, Windows, ahk_class CabinetWClass
 GroupAdd, Windows, ahk_class WorkerW
 GroupAdd, Windows, ahk_exe explorer.exe
 
-iniRead, activeHotkey, %A_Temp%\compile_data.ini, settings, activeHotkey, MButton
+iniRead, activeHotkey, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, activeHotkey, MButton
+IniRead, ffmpeg_path, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, ffmpeg_path, %A_Temp%\ffmpeg.exe
+IniRead, ffprobe_path, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, ffprobe_path, %A_Temp%\ffprobe.exe
 Hotkey, IfWinActive, ahk_class MediaPlayerClassicW
 Hotkey, %activeHotkey%, main, On
 Hotkey, IfWinActive
