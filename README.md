@@ -5,9 +5,8 @@ Fast way to cut and merge video clips using mpc-hc player found here: https://gi
 
 ## Configuration
 This must be set to "display full path" or else program will not work.
-[img src="https://github.com/user-attachments/assets/5cc38734-3e77-40f1-86b0-4435af02dccf"]
+<img width="773" height="741" alt="1" src="https://github.com/user-attachments/assets/762856cb-a3d8-4ca9-be54-53942bf39471" />
 
 Middle mouse button (scroll wheel click) is the default hotkey. You can change this in the hotkey menu.
-
-[img src=h"ttps://github.com/user-attachments/assets/fd5f9daf-0b58-411e-83c6-f60b2e617b21"]
+<img width="913" height="450" alt="2" src="https://github.com/user-attachments/assets/99d61513-2253-4373-a919-63e1b7d4d6f0" />
 
