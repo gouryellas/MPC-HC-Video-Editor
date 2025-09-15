@@ -1,41 +1,138 @@
-gui_title := "MPC-HC Video Editor v2.1"
+Menu, LoadMenu, Rename, 7&, Video: <not loaded>	
 
-menu_add(menu, string, label) {
-	menu, %menu%, add, %string%, %label%	
-}
-menu_icon(menu, string, icon) {
-	icon .= ", 1"
-	menu, %menu%, icon, %string%, %icon%
-}
-menu_enable(menu, string) {
-	menu, %menu%, enable, %string%
-	return 1
-}
-menu_disable(menu, string) {
-	menu, %menu%, disable, %string%
-	return 1
-}
-menu_rename(menu, string1, string2) {
-	Menu, %menu%, Rename, %string1%, %string2%	
-}
-menu_deleteall(menu) {
-	menu, %menu%, deleteall
+repeat2(var, num:=1) {
+    if (num is not digit)
+        error("second parameter must be a digit!")
+    else {
+        result := ""
+        loop, %num% {
+            result .= var
+        }
+        return result
+    }
 }
 
-mpchc_isFullPath() {
-    if WinExist("ahk_class MediaPlayerClassicW")
-        WinGetTitle, t, ahk_class MediaPlayerClassicW
-    else if WinExist("ahk_exe mpc-hc64.exe")
-        WinGetTitle, t, ahk_exe mpc-hc64.exe
-    else
-        return -1
-    if (t = "")
-        return -1
-    base := RegExReplace(RegExReplace(t, " - MPC.*"), " - Media Player Classic.*")
-    return RegExMatch(base, "i)^(?:[A-Z]:\\|\\\\|https?://)") ? 1 : 0
+show_gui2() {
+	global
+	if (window_exist2("MPC-HC Video Editor v2.1") and gui_existed != "") {
+		WinGetPos, current_x, current_y, current_w, current_h, MPC-HC Video Editor v2.1
+		gui_existed := 1
+	}
+	line_num := csv_linecount2(file_path_csv)
+	gui, destroy
+	gui, +border -resize +sysmenu +caption -toolwindow +DPIScale +alwaysontop +lastfound +theme
+	gui, margin, 0, 0
+	gui, menu, test
+	Gui, Color, 000000
+	gui, font, bold s11 cWhite, Fira Code
+		data := file_read2(file_path_csv)
+		loop, parse, % data, `n
+			{
+			if regexmatch(a_loopfield, "imO)(\d+)\,(\d+)\,Bookmark(\d+)", line_time) {
+				ui_add_radio2(, "r1 +w23 xs y+5 +gRadio +vRadiobox" . a_index)
+				ui_add_checkbox2(, "+w30 x+5 yp+0 +gCheckbox +center +vCheckBox" . a_index)
+				time1sec := time1 := line_time[1]
+				time2sec := time2 := line_time[2]
+				iniwrite, %time2%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, time_saved
+				line_num := line_time[3]
+				duration_time := time_secToAlt2(time2 - time1)
+				bookmark_status := "complete"
+				time1 := time_secToShort2(time1)
+				time2 := time_secToShort2(time2)
+				gui, add, text, x+ +center cWhite vbracketleft%a_index%, [
+				if (time1sec > time2sec or time1sec = time2sec)
+					gui, add, text, x+ +center cRed, X
+				else
+					gui, add, text, x+ +center cGreen vline_num%a_index%, %line_num%
+				gui, add, text, x+ +center cWhite vbracketright%a_index%, ]
+				gui, add, text, x+ +center cWhite, %a_space%
+				if (time1sec > time2sec or time1sec = time2sec)
+					gui, add, text, x+ +center cRed gtime_split vtime_split1_%a_index%, %time1%
+				else
+					gui, add, text, x+ +center cBlue gtime_split vtime_split1_%a_index%, %time1%
+				gui, add, text, x+ +center cWhite vdash%a_index%, %a_space%-%a_space%   
+				if (time1sec > time2sec or time1sec = time2sec)
+					gui, add, text, x+ +center cRed  gtime_split vtime_split2_%a_index%, %time2%
+				else
+					gui, add, text, x+ +center cBlue gtime_split vtime_split2_%a_index%, %time2%
+				gui, add, text, x+ +center cWhite, %a_space%
+				gui, add, text, x+ +center cWhite vparenthesisleft%a_index%, (
+				if (time1sec > time2sec)
+					gui, add, text, x+ +center cRed, %duration_time%
+				else if (time1sec = time2sec)
+					gui, add, text, x+ +center cRed, 0s
+				else
+					gui, add, text, x+ +center cYellow vdurationtime%a_index%, %duration_time%
+				gui, add, text, x+ +center cWhite vparenthesisright%a_index%, )			
+				button%a_index% := a_loopfield
+				radiobox%a_index% := button%a_index%
+				radiobox_checked%a_index% := button%a_index%
+			} else if regexmatch(a_loopfield, "imO)(\d+)\,", line_time) {
+				line_num := csv_linecount2(file_path_csv)
+				ui_add_radio2(, "r1 +w23 xs y+5 +gRadio +vRadiobox" . a_index)
+				ui_add_checkbox2(, "+w30 x+5 yp+0 +gCheckbox +center +vCheckBox" . a_index)
+				time1 := time_secToShort2(line_time[1])
+				bookmark_status := "incomplete"
+				iniwrite, %time1%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, time_saved
+				gui, add, text, x+ +center cWhite, [
+				gui, add, text, x+ +center cRed, X
+				gui, add, text, x+ +center cWhite, ] 
+				gui, add, text, x+ +center cwhite, %a_space%
+				gui, add, text, x+ +center cBlue gtime_split vtime_split%a_index%, %time1%
+			}
+		}
+		edited_duration := edit_duration2(file_path_csv)
+		edited_duration := time_secToAlt2(edited_duration)
+		total_time := mpc_getDuration2()
+		if (total_time != 0 and total_time != "")
+			time_total := time_longToAlt2(total_time)
+	if !fileexist(file_path_csv)
+		gui, add, text, w500 xs y+10 +left cRed vEdit , No csv loaded
+	else {
+		if (edited_duration != "") {
+			gui, add, text, xs y+5 cWhite vEditTime +left, Edit time:
+			gui, add, text, x+ +left cwhite, %a_space%
+			Gui, Font, cFFA500
+			gui, add, text, x+ +left vEditedDuration w500, %edited_duration%
+			Gui, Font, cWhite
+		}
+	}
+	if !fileexist(file_path) {
+		gui, add, text, xs y+5 cRed vVideoLength +left, No video loaded
+		gui, add, text, x+ cWhite +left, %a_space%
+		gui, add, text, x+ cYellow +left vTimeTotal w500,%time_total%
+	} else {
+		gui, add, text, xs y+5 +left cWhite vVideoLength, Video length:
+		gui, add, text, x+ +left cWhite, %a_space%
+		gui, add, text, x+ +left cYellow vTimeTotal w500,%time_total%
+	}
+	Gui, Add, GroupBox, +left vdragdropborder w500 h150 xs
+	Gui, Add, Text, w490 Center xp+5 yp+65 vdragdroptext, <drag files here to load>
+	xpos := a_screenwidth - 1200
+	WinGet, state, MinMax, ahk_id %MyGui%
+	if (gui_existed = 1) {
+		Gui, Show, NA x%current_x% y%current_y% w500, MPC-HC Video Editor v2.1
+		if (state = 1)
+			WinMinimize, ahk_id %MyGui%
+	} else {
+		Gui, Show, NA x%xpos% y140 w500, MPC-HC Video Editor v2.1
+		if (state = 1)
+			WinMinimize, ahk_id %MyGui%
+	}
+	gui, color, 000000, 000000
+	for index, value in radiobox_index
+		GuiControl, , %value%, 1
+	if (timer = "on")
+		seek_steps2()
+	WM_COPYDATA := 0x004A
+	WM_COPYGLOBALDATA := 0x0049
+	WM_DROPFILES := 0x0233
+	MSGFLT_ALLOW := 1
+	DllCall("ChangeWindowMessageFilterEx", "Ptr", mygui, "UInt", 0x0233, "UInt", 1, "Ptr", 0)
+	DllCall("ChangeWindowMessageFilterEx", "Ptr", mygui, "UInt", WM_COPYDATA, "UInt", MSGFLT_ALLOW, "Ptr", 0)
+	DllCall("ChangeWindowMessageFilterEx", "Ptr", mygui, "UInt", WM_COPYGLOBALDATA, "UInt", MSGFLT_ALLOW, "Ptr", 0)
+	DllCall("ChangeWindowMessageFilterEx", "Ptr", mygui, "UInt", WM_DROPFILES, "UInt", MSGFLT_ALLOW, "Ptr", 0)
 }
-
-Menu, LoadMenu, Rename, 6&, Video: <not loaded>	
 
 menu_show2(var) {
 	if (delete_all = 1) {
@@ -48,55 +145,79 @@ menu_show2(var) {
 		menu, statsMenu, deleteall
 	}
 	Menu, SaveToMenu, Add, Select..., saveto_change
-	Menu, SaveToMenu, Icon, Select..., C:\Users\Chris\Desktop\ahk\photoshop\ico\Location and Other Sensors.ico, 1
+	Menu, SaveToMenu, Icon, Select..., %A_AppData%\MPC-HC Video Editor\icons\Location and Other Sensors.ico, 1
 	Menu, SaveToMenu, Add, Current: %file_directory%, no_action
-	Menu, SaveToMenu, Icon, Current: %file_directory%, C:\Users\Chris\Desktop\ahk\photoshop\ico\Bookmarks.ico, 1
-	Menu, quicksavetomenu, Add, Add..., add_shortcut	
-	Menu, quicksavetomenu, Add, -----------------, no_action
-	Menu, quicksavetomenu, Add, %a_desktop%\, shortcut_actions
+	Menu, SaveToMenu, Icon, Current: %file_directory%, %A_AppData%\MPC-HC Video Editor\icons\Bookmarks.ico, 1
+	if (file_directory = "" or file_directory = a_desktop "\") {
+		Menu, saveToMenu, Rename, 2&, Current: %a_desktop%\
+		desktop_checked := 1
+		file_directory := a_desktop . "\"
+		iniwrite, %file_directory%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, file_directory
+	}	
+	num := string_countCharacters2("Current: " file_directory)
+	separator1 := repeat2("_", num)
+	Menu, quicksavetomenu, Add, Add new..., add_shortcut
+	Menu, quicksavetomenu, Icon, Add new..., %A_AppData%\MPC-HC Video Editor\icons\Power - Lock.ico, 1	
+	Menu, quicksavetomenu, Add, Add current, add_current
+	Menu, quicksavetomenu, Icon, Add current, %A_AppData%\MPC-HC Video Editor\icons\Power - Lock.ico, 1		
+    Menu, quicksavetomenu, Add, Delete..., delete_shortcut
+    Menu, quicksavetomenu, Icon, Delete..., %A_AppData%\MPC-HC Video Editor\icons\Power - Lock.ico, 1	 ; Pick an icon
+	Menu, savetomenu, Add, %separator1%, no_action
+	Menu, SaveToMenu, Add, Shortcuts, :quicksavetomenu
+	Menu, savetomenu, Add, %a_desktop%\, shortcut_actions
+	if (file_directory = a_desktop "\")
+		menu, savetomenu, check, %a_desktop%\
 	if (file_path) {
 		splitpath, file_path, , shortcut_path
-		Menu, quicksavetomenu, Add, %shortcut_path%, shortcut_actions
+		Menu, savetomenu, Add, %shortcut_path%\, shortcut_actions
 	}
-	Menu, SaveToMenu, Add, Shortcuts, :quicksavetomenu
+	Menu, SaveToMenu, Icon, Shortcuts, %A_AppData%\MPC-HC Video Editor\icons\Google Tasks.ico, 1
 	Menu, SaveToMenu, Default, 2&
 	Menu, AddMenu, Add, Enter a time..., enter_time
-	Menu, AddMenu, Icon, Enter a time..., C:\Users\Chris\Desktop\ahk\backups\photoshop - 1.30.2022\ico\Metro\Office Apps\ICO\InfoPath alt 2.ico, 1
+	Menu, AddMenu, Icon, Enter a time..., %A_AppData%\MPC-HC Video Editor\icons\InfoPath alt 2.ico, 1
+	if (file_path_csv = "") {
+		num1 := string_countCharacters2("Bookmarks: <not loaded")
+		separator2 := repeat2("_",num1)
+	}
 	Menu, LoadMenu, Add, Bookmarks: %file_path_csv%, load_bookmark
-	Menu, LoadMenu, Icon, Bookmarks: %file_path_csv%, C:\Users\Chris\Desktop\ahk\photoshop\ico\Notifications.ico, 1
+	Menu, LoadMenu, Icon, Bookmarks: %file_path_csv%, %A_AppData%\MPC-HC Video Editor\icons\Notifications.ico, 1
 	Menu, LoadMenu, Add, Load..., load_bookmark 
-	Menu, LoadMenu, Icon, Load...,	C:\Users\Chris\Desktop\ahk\photoshop\ico\Share.ico, 1
+	Menu, LoadMenu, Icon, Load...,	%A_AppData%\MPC-HC Video Editor\icons\Share.ico, 1
+	Menu, LoadMenu, Add, Unload, unload_bookmark 
+	Menu, LoadMenu, Icon, Unload, %A_AppData%\MPC-HC Video Editor\icons\Share.ico, 1
 	Menu, LoadMenu, Add, Edit, edit_bookmark 
-	Menu, LoadMenu, Icon, Edit, C:\Users\Chris\Desktop\ahk\photoshop\ico\AutoPlay.ico, 1
-	Menu, LoadMenu, Add, Delete`t, delete_bookmark
-	Menu, LoadMenu, Icon, Delete`t, C:\Users\Chris\Desktop\ahk\photoshop\ico\Excel alt 1.ico, 1
-	Menu, LoadMenu, Add, -----------------, no_action
+	Menu, LoadMenu, Icon, Edit, %A_AppData%\MPC-HC Video Editor\icons\AutoPlay.ico, 1
+	Menu, LoadMenu, Add, Delete, delete_bookmark
+	Menu, LoadMenu, Icon, Delete, %A_AppData%\MPC-HC Video Editor\icons\Excel alt 1.ico, 1
+	Menu, LoadMenu, Add, %separator2%`t, no_action
 	Menu, LoadMenu, Add, Video: %file_path%, load_video
-	Menu, LoadMenu, Icon, Video: %file_path%, C:\Users\Chris\Desktop\ahk\backups\photoshop - 1.30.2022\ico\Metro\Applications\ICO\Windows Media Player.ico, 1
+	Menu, LoadMenu, Icon, Video: %file_path%, C%A_AppData%\MPC-HC Video Editor\icons\Windows Media Player.ico, 1
 	Menu, LoadMenu, Add, Load...`t, load_video 
-	Menu, LoadMenu, Icon, Load...`t, C:\Users\Chris\Desktop\ahk\photoshop\ico\MS Office Upload Center.ico, 1
-	Menu, LoadMenu, Add, Delete, delete_video
-	Menu, LoadMenu, Icon, Delete, C:\Users\Chris\Desktop\ahk\photoshop\ico\Power - Standby.ico, 1		
+	Menu, LoadMenu, Icon, Load...`t, %A_AppData%\MPC-HC Video Editor\icons\MS Office Upload Center.ico, 1
+	Menu, LoadMenu, Add, Unload`t, unload_video 
+	Menu, LoadMenu, Icon, Unload`t, %A_AppData%\MPC-HC Video Editor\icons\MS Office Upload Center.ico, 1
+	Menu, LoadMenu, Add, Delete`t, delete_video
+	Menu, LoadMenu, Icon, Delete`t, %A_AppData%\MPC-HC Video Editor\icons\Power - Standby.ico, 1		
 	Menu, ActionsMenu, Add, Merge all, merge_split
-	Menu, ActionsMenu, Icon, Merge all, C:\Users\Chris\Desktop\ahk\photoshop\ico\Aperture.ico, 1
+	Menu, ActionsMenu, Icon, Merge all, %A_AppData%\MPC-HC Video Editor\icons\Aperture.ico, 1
 	Menu, ActionsMenu, Add, Split all, merge_split
-	Menu, ActionsMenu, Icon, Split all, C:\Users\Chris\Desktop\ahk\photoshop\ico\Screen Resolution.ico, 1
-	Menu, ActionsMenu, Add, -----------------, no_action
+	Menu, ActionsMenu, Icon, Split all, %A_AppData%\MPC-HC Video Editor\icons\Screen Resolution.ico, 1
+	Menu, ActionsMenu, Add, _________________, no_action
 	Menu, ActionsMenu, Add, Undo last bookmark, undo_bookmark
-	Menu, ActionsMenu, Icon, Undo last bookmark, C:\Users\Chris\Desktop\ahk\backups\photoshop - 1.30.2022\ico\Metro\System Icons\ICO\Network Drive Offline.ico, 1
+	Menu, ActionsMenu, Icon, Undo last bookmark, %A_AppData%\MPC-HC Video Editor\icons\Network Drive Offline.ico, 1
 	Menu, ActionsMenu, Add, Clear all bookmarks, clear_bookmarks
-	Menu, ActionsMenu, Icon, Clear all bookmarks, C:\Users\Chris\Desktop\ahk\backups\photoshop - 1.30.2022\ico\Metro\System Icons\ICO\Recycle Bin Full.ico, 1
+	Menu, ActionsMenu, Icon, Clear all bookmarks, %A_AppData%\MPC-HC Video Editor\icons\Recycle Bin Full.ico, 1
 	Menu, ActionsMenu, Add, Reset everything, reset_everything
-	Menu, ActionsMenu, Icon, Reset everything, C:\Users\Chris\Desktop\ahk\backups\photoshop - 1.30.2022\ico\Metro\Other\ICO\Power - Shut Down.ico, 1
-	Menu, ActionsMenu, Add, -----------------%a_space%, no_action
+	Menu, ActionsMenu, Icon, Reset everything, %A_AppData%\MPC-HC Video Editor\icons\Power - Shut Down.ico, 1
+	Menu, ActionsMenu, Add, _________________%a_space%, no_action
 	Menu, ActionsMenu, Add, Check for errors, csv_check
-	Menu, ActionsMenu, Icon, Check for errors, C:\Users\Chris\Desktop\ahk\backups\photoshop - 1.30.2022\ico\Metro\Other\ICO\Power - Lock.ico, 1	
+	Menu, ActionsMenu, Icon, Check for errors, %A_AppData%\MPC-HC Video Editor\icons\Power - Shut Down.ico, 1
 	Menu, HotkeyMenu, Add, Select..., hotkey
-	Menu, HotkeyMenu, Icon, Select..., C:\Users\Chris\Desktop\ahk\photoshop\ico\Fraps.ico, 1
+	Menu, HotkeyMenu, Icon, Select..., %A_AppData%\MPC-HC Video Editor\icons\Fraps.ico, 1
 	if (activehotkey = "") 
 		activehotkey := "MButton"
 	Menu, HotkeyMenu, Add, Current: %activehotkey%, no_action
-	Menu, HotkeyMenu, Icon, Current: %activehotkey%, C:\Users\Chris\Desktop\ahk\photoshop\ico\Wikipedia alt 1.ico, 1
+	Menu, HotkeyMenu, Icon, Current: %activehotkey%, %A_AppData%\MPC-HC Video Editor\icons\Wikipedia alt 1.ico, 1
 	Menu, HotkeyMenu, Default, 2&
 	Menu, effectsmenu, Add, None, TR_SelectType
 	Menu, effectsmenu, Add, Fadeblack, TR_SelectType
@@ -105,16 +226,16 @@ menu_show2(var) {
 	Menu, durationmenu, Add, 3s, DUR_SelectType
 	Menu, durationmenu, Add, 4s, DUR_SelectType
 	Menu, durationmenu, Add, 5s, DUR_SelectType
-	Menu, videoMenu, Add, Transition effect >, :effectsmenu
-	Menu, videoMenu, Icon, 1&, C:\Users\Chris\Desktop\ahk\backups\photoshop - 1.30.2022\ico\Metro\Applications\ICO\Visual Studio 2012.ico, 1
+	Menu, videoMenu, Add, Transition effect, :effectsmenu
+	Menu, videoMenu, Icon, 1&, %A_AppData%\MPC-HC Video Editor\icons\Visual Studio 2012.ico, 1
 	Menu, videoMenu, Add, Current: None, no_action
-	Menu, videoMenu, Icon, 2&, C:\Users\Chris\Desktop\ahk\backups\photoshop - 1.30.2022\ico\Metro\Applications\ICO\Calendar.ico, 1
+	Menu, videoMenu, Icon, 2&, %A_AppData%\MPC-HC Video Editor\icons\Calendar.ico, 1
 	Menu, videoMenu, Default, 2&
-	Menu, videoMenu, Add, -----------------, no_action
-	Menu, videoMenu, Add, Effect duration >, :durationmenu
-	Menu, videoMenu, Icon, 4&, C:\Users\Chris\Desktop\ahk\backups\photoshop - 1.30.2022\ico\Metro\Office Apps\ICO\InfoPath.ico, 1
+	Menu, videoMenu, Add, _________________, no_action
+	Menu, videoMenu, Add, Effect duration, :durationmenu
+	Menu, videoMenu, Icon, 4&, %A_AppData%\MPC-HC Video Editor\icons\InfoPath.ico, 1
 	Menu, videoMenu, Add, Current: 2s, no_action
-	Menu, videoMenu, Icon, 5&, C:\Users\Chris\Desktop\ahk\photoshop\ico\InfoPath alt 2.ico, 1
+	Menu, videoMenu, Icon, 5&, %A_AppData%\MPC-HC Video Editor\icons\InfoPath alt 2.ico, 1
 	Menu, StatsMenu, Add, Enable, stats
 	Menu, StatsMenu, Add, Advanced, stats
 	Menu, StatsMenu, Disable, Advanced
@@ -125,13 +246,164 @@ menu_show2(var) {
 	Menu, %var%, Add, &Hotkey, :HotkeyMenu
 	Menu, %var%, Add, &Video, :videoMenu
 	Menu, %var%, Add, &Stats, :StatsMenu
-	if (file_directory = "") {
-		Menu, saveToMenu, Rename, 2&, Current: %a_desktop%\
-		iniwrite, %a_desktop%\, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, file_directory
-		file_directory := a_desktop . "\"
-	}
 	Gui, Menu, %var%
 	delete_all := 1
+}
+
+update_menus2(var:="") {
+	if (var != "")
+		file_path_csv := var
+	if (!file_path_csv and !file_path) {
+		Menu, AddMenu, Disable, Enter a time...
+		Menu, LoadMenu, Disable, Edit
+		Menu, LoadMenu, Disable, Delete`t
+		Menu, LoadMenu, Disable, Delete
+		Menu, LoadMenu, Disable, Unload`t
+		Menu, LoadMenu, Disable, Unload
+		Menu, LoadMenu, Enable, Load...
+		Menu, LoadMenu, Enable, Load...`t
+		Menu, LoadMenu, Rename, 1&, Bookmarks: <not loaded>
+		Menu, LoadMenu, Rename, 7&, Video: <not loaded>	
+		Menu, ActionsMenu, Disable, 1&
+		Menu, ActionsMenu, Disable, 2&
+		Menu, ActionsMenu, Disable, Undo last bookmark
+		Menu, ActionsMenu, Disable, Clear all bookmarks
+		Menu, ActionsMenu, Disable, Check for errors
+		Menu, ActionsMenu, Enable, Reset everything	
+		Menu, videoMenu, Disable, Transition effect
+		Menu, videoMenu, Disable, 2&
+		Menu, videoMenu, Disable, Effect duration
+		Menu, videoMenu, Disable, 5&
+		num := string_countCharacters2("Bookmarks: <not loaded>")
+		separator := repeat2("_",num)
+		Menu, LoadMenu, Rename, 6&, %separator%
+	} else if (FileExist(file_path_csv) and FileExist(file_path)) {
+		Menu, AddMenu, Enable, Enter a time...
+		Menu, LoadMenu, Rename, 1&, Bookmarks: %file_path_csv%
+		Menu, LoadMenu, Rename, 7&, Video: %file_path%
+		Menu, LoadMenu, Enable, Delete
+		Menu, LoadMenu, Enable, Delete`t
+		Menu, LoadMenu, Enable, Edit
+		Menu, LoadMenu, Enable, Unload
+		Menu, LoadMenu, Enable, Unload`t
+		Menu, LoadMenu, Enable, Load...
+		Menu, LoadMenu, Enable, Load...`t
+		Menu, ActionsMenu, Enable, Undo last bookmark
+		Menu, ActionsMenu, Enable, Clear all bookmarks
+		Menu, ActionsMenu, Enable, Check for errors
+		Menu, videoMenu, Enable, Transition effect
+		Menu, videoMenu, Enable, 2&
+		Menu, videoMenu, Enable, Effect duration
+		Menu, videoMenu, Enable, 5&
+		num1 := string_countCharacters2("Video: " file_path)
+		num2 := string_countCharacters2("Bookmarks: " file_path_csv)
+		if (num1 > num2)
+			separator := repeat2("_",num1 - 10)
+		else
+			separator := repeat2("_",num2 - 10)
+		Menu, LoadMenu, Rename, 6&, %separator%
+		if (merge_split_selected = 1) {
+			Menu, ActionsMenu, rename, 1&, Merge selected
+			Menu, ActionsMenu, rename, 2&, Split selected
+		} else if (merge_split_selected = "") {
+			Menu, ActionsMenu, rename, 1&, Merge all
+			Menu, ActionsMenu, rename, 2&, Split all
+		}
+		Menu, ActionsMenu, Enable, 1&
+		Menu, ActionsMenu, Enable, 2&
+	} else {
+		if FileExist(file_path_csv) {
+			menu, LoadMenu, deleteall
+			Menu, LoadMenu, Add, Bookmarks: %file_path_csv%, load_bookmark
+			Menu, LoadMenu, Icon, Bookmarks: %file_path_csv%, %A_AppData%\MPC-HC Video Editor\icons\Notifications.ico, 1
+			Menu, LoadMenu, Add, Load..., load_bookmark 
+			Menu, LoadMenu, Icon, Load...,	%A_AppData%\MPC-HC Video Editor\icons\Share.ico, 1
+			Menu, LoadMenu, Add, Unload, unload_bookmark 
+			Menu, LoadMenu, Icon, Unload, %A_AppData%\MPC-HC Video Editor\icons\Share.ico, 1
+			Menu, LoadMenu, Add, Edit, edit_bookmark 
+			Menu, LoadMenu, Icon, Edit, %A_AppData%\MPC-HC Video Editor\icons\AutoPlay.ico, 1
+			Menu, LoadMenu, Add, Delete, delete_bookmark
+			Menu, LoadMenu, Icon, Delete, %A_AppData%\MPC-HC Video Editor\icons\Excel alt 1.ico, 1
+			Menu, LoadMenu, Add, %separator2%`t, no_action
+			Menu, LoadMenu, Add, Video: %file_path%, load_video
+			Menu, LoadMenu, Icon, Video: %file_path%, %A_AppData%\MPC-HC Video Editor\icons\Windows Media Player.ico, 1
+			Menu, LoadMenu, Add, Load...`t, load_video 
+			Menu, LoadMenu, Icon, Load...`t, %A_AppData%\MPC-HC Video Editor\icons\MS Office Upload Center.ico, 1
+			Menu, LoadMenu, Add, Unload`t, unload_video 
+			Menu, LoadMenu, Icon, Unload`t, %A_AppData%\MPC-HC Video Editor\icons\MS Office Upload Center.ico, 1
+			Menu, LoadMenu, Add, Delete`t, delete_video
+			Menu, LoadMenu, Icon, Delete`t, %A_AppData%\MPC-HC Video Editor\icons\Power - Standby.ico, 1	
+			Menu, AddMenu, Enable, Enter a time...
+			Menu, ActionsMenu, Enable, Undo last bookmark
+			Menu, ActionsMenu, Enable, Clear all bookmarks
+			Menu, ActionsMenu, Enable, Reset everything
+			Menu, ActionsMenu, Enable, Check for errors
+			Menu, LoadMenu, Enable, Unload
+			Menu, LoadMenu, Enable, Edit
+			Menu, LoadMenu, Enable, Delete
+			Menu, LoadMenu, Enable, Load...
+			Menu, LoadMenu, Enable, Load...`t
+			Menu, LoadMenu, Rename, 1&, Bookmarks: %file_path_csv%
+			num := string_countCharacters2("Bookmarks: " file_path_csv)
+			separator := repeat2("_",num - 10)
+			Menu, LoadMenu, Rename, 6&, %separator%
+		} else {
+			Menu, AddMenu, Disable, Enter a time...
+			Menu, videoMenu, Disable, Transition effect
+			Menu, videoMenu, Disable, 2&
+			Menu, videoMenu, Disable, Effect duration
+			Menu, videoMenu, Disable, 5&
+			Menu, ActionsMenu, Disable, 1&
+			Menu, ActionsMenu, Disable, 2&
+			Menu, ActionsMenu, Disable, Undo last bookmark
+			Menu, ActionsMenu, Disable, Clear all bookmarks
+			Menu, ActionsMenu, Disable, Reset everything
+			Menu, ActionsMenu, Disable, 8&
+			Menu, LoadMenu, Disable, Edit
+			Menu, LoadMenu, Disable, Delete
+			Menu, LoadMenu, Disable, Unload
+			Menu, ActionsMenu, Enable, Reset everything	
+			Menu, LoadMenu, Rename, 1&, Bookmarks: <not loaded>
+		}
+		if FileExist(file_path) {
+			Menu, LoadMenu, Enable, Delete`t
+			Menu, LoadMenu, Enable, Unload`t
+			Menu, LoadMenu, Enable, Load...
+			Menu, LoadMenu, Enable, Load...`t
+			Menu, AddMenu, Enable, Enter a time...
+			Menu, LoadMenu, Rename, 7&, Video: %file_path%
+			num := string_countCharacters2("Video: " file_path)
+			separator := repeat2("_",num - 10)
+			Menu, LoadMenu, Rename, 6&, %separator%
+		} else {
+			Menu, AddMenu, Enable, Enter a time...
+			Menu, videoMenu, Disable, Transition effect
+			Menu, videoMenu, Disable, Effect duration
+			Menu, videoMenu, Disable, 2&
+			Menu, videoMenu, Disable, 5&
+			Menu, ActionsMenu, Disable, 1&
+			Menu, ActionsMenu, Disable, 2&
+			Menu, LoadMenu, Disable, Delete`t
+			Menu, LoadMenu, Disable, Unload`t
+			Menu, LoadMenu, Rename, 7&, Video: <not loaded>	
+		}
+	}
+	iniread, shortcut_number, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, shortcut_number
+	loop, %shortcut_number% {
+		iniread, shortcut_path, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, shortcut_path%a_index%
+		Menu, savetomenu, Add, %a_index%: %shortcut_path%, shortcut_actions
+	}
+	menu, effectsmenu, check, none
+	menu, videomenu, uncheck, 2&
+	if (!errorlevel) {
+		menu, videomenu, disable, 4&
+		menu, videomenu, disable, 5&
+	} else {
+		menu, effectsmenu, uncheck, none
+		menu, videomenu, enable, 4&
+		menu, videomenu, enable, 5&
+	}
+	
 }
 
 csv_repair2(file_path_csv) {
@@ -313,160 +585,6 @@ csv_repair2(file_path_csv) {
 	return message
 }
 
-show_gui2() {
-	global
-	if window_exist2("MPC-HC Video Editor v2.1") {
-		WinGetPos, current_x, current_y, current_w, current_h, MPC-HC Video Editor v2.1
-		gui_existed := 1
-		Gui, Destroy
-	}
-	line_num := csv_linecount2(file_path_csv)
-
-	gui, +minimizebox +border -resize +sysmenu +caption -toolwindow +DPIScale +alwaysontop +lastfound +theme
-	gui +hwndmygui
-	gui, margin, 0, 0
-	gui, menu, test
-	Gui, Color, 000000
-	gui, font, bold s11 cWhite, Fira Code
-		data := file_read2(file_path_csv)
-		loop, parse, % data, `n
-			{
-			if regexmatch(a_loopfield, "imO)(\d+)\,(\d+)\,Bookmark(\d+)", line_time) {
-				ui_add_radio2(, "r1 +w23 xs y+5 +gRadio +vRadiobox" . a_index)
-				ui_add_checkbox2(, "+w30 x+5 yp+0 +gCheckbox +center +vCheckBox" . a_index)
-				time1sec := time1 := line_time[1]
-				time2sec := time2 := line_time[2]
-				iniwrite, %time2%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, time_saved
-				line_num := line_time[3]
-				duration_time := time_secToAlt2(time2 - time1)
-				bookmark_status := "complete"
-				time1 := time_secToShort2(time1)
-				time2 := time_secToShort2(time2)
-				gui, add, text, x+ +center cWhite vbracketleft%a_index%, [
-				if (time1sec > time2sec or time1sec = time2sec)
-					gui, add, text, x+ +center cRed, X
-				else
-					gui, add, text, x+ +center cGreen vline_num%a_index%, %line_num%
-				gui, add, text, x+ +center cWhite vbracketright%a_index%, ]
-				gui, add, text, x+ +center cWhite, %a_space%
-				if (time1sec > time2sec or time1sec = time2sec)
-					gui, add, text, x+ +center cRed gtime_split vtime_split1_%a_index%, %time1%
-				else
-					gui, add, text, x+ +center cBlue gtime_split vtime_split1_%a_index%, %time1%
-				gui, add, text, x+ +center cWhite vdash%a_index%, %a_space%-%a_space%   
-				if (time1sec > time2sec or time1sec = time2sec)
-					gui, add, text, x+ +center cRed  gtime_split vtime_split1_%a_index%, %time1%
-				else
-					gui, add, text, x+ +center cBlue gtime_split vtime_split2_%a_index%, %time2%
-				gui, add, text, x+ +center cWhite, %a_space%
-				gui, add, text, x+ +center cWhite vparenthesisleft%a_index%, (
-				if (time1sec > time2sec)
-					gui, add, text, x+ +center cRed, %duration_time%
-				else if (time1sec = time2sec)
-					gui, add, text, x+ +center cRed, 0s
-				else
-					gui, add, text, x+ +center cYellow vdurationtime%a_index%, %duration_time%
-				gui, add, text, x+ +center cWhite vparenthesisright%a_index%, )			
-				button%a_index% := a_loopfield
-				radiobox%a_index% := button%a_index%
-				radiobox_checked%a_index% := button%a_index%
-			} else if regexmatch(a_loopfield, "imO)(\d+)\,", line_time) {
-				line_num := csv_linecount2(file_path_csv)
-				ui_add_radio2(, "r1 +w23 xs y+5 +gRadio +vRadiobox" . a_index)
-				ui_add_checkbox2(, "+w30 x+5 yp+0 +gCheckbox +center +vCheckBox" . a_index)
-				time1 := time_secToShort2(line_time[1])
-				bookmark_status := "incomplete"
-				iniwrite, %time1%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, time_saved
-				gui, add, text, x+ +center cWhite, [
-				gui, add, text, x+ +center cRed, X
-				gui, add, text, x+ +center cWhite, ] 
-				gui, add, text, x+ +center cwhite, %a_space%
-				gui, add, text, x+ +center cBlue gtime_split vtime_split%a_index%, %time1%
-			}
-		}
-		edited_duration := edit_duration2(file_path_csv)
-		edited_duration := time_secToAlt2(edited_duration)
-		total_time := mpc_getDuration2()
-		if (total_time != 0 and total_time != "")
-			time_total := time_longToAlt2(total_time)
-	if !fileexist(file_path_csv)
-		gui, add, text, w500 xs y+10 +left cRed vEdit , No csv loaded
-	else {
-		if (edited_duration != "") {
-			gui, add, text, xs y+5 cWhite vEditTime +left, Edit time:
-			gui, add, text, x+ +left cwhite, %a_space%
-			gui, add, text, x+ +left cRed vEditedDuration w500, %edited_duration%
-		}
-	}
-	if !fileexist(file_path) {
-		gui, add, text, xs y+5 cRed vVideoLength +left, No video loaded
-		gui, add, text, x+ cWhite +left, %a_space%
-		gui, add, text, x+ cYellow +left vTimeTotal w500,%time_total%
-	} else {
-		gui, add, text, xs y+5 +left cWhite vVideoLength, Video length:
-		gui, add, text, x+ +left cWhite, %a_space%
-		gui, add, text, x+ +left cYellow vTimeTotal w500,%time_total%
-	}
-	Gui, Add, GroupBox, +left vdragdropborder w500 h150 xs
-	Gui, Add, Text, w490 Center xp+5 yp+65 vdragdroptext, <drag files here to load>
-	xpos := a_screenwidth - 1200
-	WinGet, state, MinMax, ahk_id %MyGui%
-	if (gui_existed = 1) {
-		Gui, Show, NA x%current_x% y%current_y% w500, MPC-HC Video Editor v2.1
-		if (state = 1)
-			WinMinimize, ahk_id %MyGui%
-	} else {
-		Gui, Show, NA x%xpos% y140 w500, MPC-HC Video Editor v2.1
-		if (state = 1)
-			WinMinimize, ahk_id %MyGui%
-	}
-	gui, color, 000000, 000000
-	for index, value in radiobox_index
-		GuiControl, , %value%, 1
-	if (timer = "on")
-		seek_steps2()
-	WM_COPYDATA := 0x004A
-	WM_COPYGLOBALDATA := 0x0049
-	WM_DROPFILES := 0x0233
-	MSGFLT_ALLOW := 1
-	DllCall("ChangeWindowMessageFilterEx", "Ptr", mygui, "UInt", 0x0233, "UInt", 1, "Ptr", 0)
-	DllCall("ChangeWindowMessageFilterEx", "Ptr", mygui, "UInt", WM_COPYDATA, "UInt", MSGFLT_ALLOW, "Ptr", 0)
-	DllCall("ChangeWindowMessageFilterEx", "Ptr", mygui, "UInt", WM_COPYGLOBALDATA, "UInt", MSGFLT_ALLOW, "Ptr", 0)
-	DllCall("ChangeWindowMessageFilterEx", "Ptr", mygui, "UInt", WM_DROPFILES, "UInt", MSGFLT_ALLOW, "Ptr", 0)
-}
-
-GuiDropFiles:
-	Loop, Parse, A_GuiEvent, `n
-		{
-        dropped_file_path := A_LoopField
-        SplitPath, dropped_file_path, , , extension       
-        if (extension = "csv") {
-            g_manual_load_in_progress := 1
-            file_path_csv := dropped_file_path
-            show_gui2()            
-			file_path_check := check_matching_video(file_path_csv)
-			if fileexist(file_path_check) {
-				file_path := file_path_check
-				run, %file_path%
-            }
-            update_menus2()
-        } else if regexmatch(extension, "imO)(mp4|avi|wmv|mov|flv|mpg|mpeg|ts|f4v|mkv)") {
-            g_manual_load_in_progress := 1
-            file_path := dropped_file_path
-            run, %file_path%
-			csv_check := check_matching_csv(file_path)
-			if (file_path_csv != csv_check) {
-				if fileexist(csv_check) {
-					file_path_csv := file_path_csv_check
-					show_gui2()
-				} else
-					update_menus2()
-				break
-			}
-        }
-	}
-return
-
 clear_gui2() {
     global
     if window_exist2("MPC-HC Video Editor v2.1") {
@@ -488,6 +606,29 @@ clear_gui2() {
     gui, color, 000000, 000000
 }
 
+folder_rename2(file_path) {
+	file_path := window_title2("ahk_class MediaPlayerClassicW")
+	wait2(500)
+	splitpath, file_path, file_both, file_directory, file_extension, file_name, file_drive
+	old_folder_path := file_directory
+	new_folder_path := RegExReplace(file_directory," ","-")
+	if (new_folder_path != old_folder_path) {
+		Progress, fs14, Renaming file
+		window_kill2("ahk_class MediaPlayerClassicW")
+		wait2(1)
+		FileMoveDir, %old_folder_path%, %new_folder_path%
+		file_path := path_join2(new_folder_path,file_both)
+		file_path_csv := strreplace(file_path,file_extension,"csv")
+		run, %file_path%
+		wait2(1)
+		splitpath, file_path, file_both, file_directory, file_extension, file_name, file_drive
+		file_directory := file_directoryfix2(file_directory)
+		Progress, off
+	}			
+	iniwrite, %file_path%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, file_path
+	return file_path
+}
+
 file_info2(file_path:="") {
 	file_path := window_title2("ahk_class MediaPlayerClassicW")
 	wait2(500)
@@ -498,64 +639,50 @@ file_info2(file_path:="") {
 	file_name := string_caseLower2(file_name)
 	file_extension_dot := "." . file_extension
 	file_path_csv := strreplace(file_path, file_extension, "csv")
+	iniread, test, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, file_path_csv
 	if (load_bookmark = "yes")
 		file_path_csv := select_file_path_csv	
 	return file_path
 }
 
 file_rename2(file_path) {
-	if !regexmatch(file_path, "imO)^MPC-BE\sx(\d+)\s\d+\.\d+\.\d+$") {
-		splitpath, file_path, file_both, file_directory, file_extension, file_name, file_drive
-		old_file_path := file_path
-		old_csv_path := strreplace(old_file_path,file_extension,"csv")
-		invalidPattern := "[&\s',!\\\/@?:\.=%\*¡]"
-		new_file_name := RegExReplace(file_name,invalidPattern,"-")
-		new_file_path := path_join2(file_directory,new_file_name,"." . file_extension)
-		if (new_file_path != old_file_path && old_file_path != "") {
-			mpc_close2()
-			FileMove, %old_file_path%, %new_file_path%
-			file_path := new_file_path
-			new_csv_path := strreplace(new_file_path,file_extension,"csv")
-			if (new_csv_path != old_csv_path) {
-				FileMove, %old_csv_path%, %new_csv_path%
-				file_path_csv := new_csv_path
-			}
-			run, %file_path%
-			wait2(1)
-			splitpath, file_path, file_both, file_directory, file_extension, file_name, file_drive
-			file_directory := file_directoryfix2(file_directory)
-			file_name := string_caseLower2(file_name)
-			file_extension_dot := "." . file_extension
+	file_path := window_title2("ahk_class MediaPlayerClassicW")
+	wait2(500)
+	splitpath, file_path, file_both, file_directory, file_extension, file_name, file_drive
+	old_file_path := file_path
+	old_csv_path := strreplace(old_file_path,file_extension,"csv")
+	invalidPattern := "[&\s',!\\\/@?:\.=%\*¡]"
+	new_file_name := RegExReplace(file_name,invalidPattern,"-")
+	new_file_path := path_join2(file_directory,new_file_name,"." . file_extension)
+	if (new_file_path != old_file_path && old_file_path != "") {
+		Progress, fs14, Renaming file
+		mpc_close2()
+		wait2(1)
+		FileMove, %old_file_path%, %new_file_path%
+		wait2(1)
+		file_path := new_file_path
+		new_csv_path := strreplace(new_file_path,file_extension,"csv")
+		if (new_csv_path != old_csv_path) {
+			FileMove, %old_csv_path%, %new_csv_path%
+			file_path_csv := new_csv_path
 		}
-		iniwrite, %file_path%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, file_path
-		return file_path
-	}
-}
-
-folder_rename2(file_path) {
-	if !regexmatch(file_path, "imO)^MPC-BE\sx(\d+)\s\d+\.\d+\.\d+$") {
+		run, %file_path%
+		wait2(1)
 		splitpath, file_path, file_both, file_directory, file_extension, file_name, file_drive
-		old_folder_path := file_directory
-		new_folder_path := RegExReplace(file_directory," ","-")
-		if (new_folder_path != old_folder_path) {
-			window_kill2("ahk_class MediaPlayerClassicW")
-			wait2(2)
-			FileMoveDir, %old_folder_path%, %new_folder_path%
-			file_path := path_join2(new_folder_path,file_both)
-			file_path_csv := strreplace(file_path,file_extension,"csv")
-			run, %file_path%
-			wait2(2)
-			splitpath, file_path, file_both, file_directory, file_extension, file_name, file_drive
-			file_directory := file_directoryfix2(file_directory)
-		}			
-		iniwrite, %file_path%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, file_path
-		return file_path
+		file_directory := file_directoryfix2(file_directory)
+		file_name := string_caseLower2(file_name)
+		file_extension_dot := "." . file_extension
+		Progress, off
 	}
+	iniwrite, %file_path%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, file_path
+	return file_path
 }
 
 file_time2() {
 	current_time := mpc_getTime2()
+	wait(500)
 	total_time := mpc_getDuration2()
+	wait(500)
 	if (total_time != 0 or total_time != "")
 		time_total := time_longToAlt2(total_time)
 	current_seconds := mpc_getTime2("seconds")
@@ -591,101 +718,6 @@ file_create2(current_seconds) {
 	return file_path_csv
 }
 
-update_menus2(var:="") {
-	if (var != "")
-		file_path_csv := var
-	if (!file_path_csv and !file_path) {
-		Menu, AddMenu, Disable, Enter a time...
-		Menu, videoMenu, Disable, Transition effect >
-		Menu, videoMenu, Disable, 2&
-		Menu, videoMenu, Disable, Effect duration >
-		Menu, videoMenu, Disable, 5&
-		Menu, ActionsMenu, Disable, 1&
-		Menu, ActionsMenu, Disable, 2&
-		Menu, ActionsMenu, Disable, Undo last bookmark
-		Menu, ActionsMenu, Disable, Clear all bookmarks
-		Menu, ActionsMenu, Disable, Reset everything
-		Menu, ActionsMenu, Disable, Check for errors
-		Menu, LoadMenu, Disable, Edit
-		Menu, LoadMenu, Disable, Delete`t
-		Menu, LoadMenu, Disable, Delete
-		Menu, LoadMenu, Rename, 1&, Bookmarks: <not loaded>
-		Menu, LoadMenu, Rename, 6&, Video: <not loaded>	
-		Menu, LoadMenu, Disable, 8&
-		Menu, ActionsMenu, Enable, Reset everything	
-	} else if (FileExist(file_path_csv) and FileExist(file_path)) {
-		Menu, AddMenu, Enable, Enter a time...
-		Menu, LoadMenu, Rename, 1&, Bookmarks: %file_path_csv%
-		Menu, LoadMenu, Rename, 6&, Video: %file_path%
-		Menu, LoadMenu, Enable, 4&
-		Menu, LoadMenu, Enable, 8&
-		Menu, LoadMenu, Enable, Edit
-		Menu, ActionsMenu, Enable, Undo last bookmark
-		Menu, ActionsMenu, Enable, Clear all bookmarks
-		Menu, ActionsMenu, Enable, Check for errors
-		Menu, videoMenu, Enable, Transition effect >
-		Menu, videoMenu, Enable, 2&
-		Menu, videoMenu, Enable, Effect duration >
-		Menu, videoMenu, Enable, 5&
-		if (merge_split_selected = 1) {
-			Menu, ActionsMenu, rename, 1&, Merge selected
-			Menu, ActionsMenu, rename, 2&, Split selected
-		} else if (merge_split_selected = "") {
-			Menu, ActionsMenu, rename, 1&, Merge all
-			Menu, ActionsMenu, rename, 2&, Split all
-		}
-		Menu, ActionsMenu, Enable, 1&
-		Menu, ActionsMenu, Enable, 2&
-	} else {
-		if FileExist(file_path_csv) {
-			Menu, AddMenu, Enable, Enter a time...
-			Menu, ActionsMenu, Enable, Undo last bookmark
-			Menu, ActionsMenu, Enable, Clear all bookmarks
-			Menu, ActionsMenu, Enable, Reset everything
-			Menu, ActionsMenu, Enable, Check for errors
-			Menu, LoadMenu, Enable, Edit
-			Menu, LoadMenu, Enable, Delete`t
-			Menu, LoadMenu, Rename, 1&, Bookmarks: %file_path_csv%
-			Menu, LoadMenu, Enable, 8&
-		} else {
-			Menu, videoMenu, Disable, Transition effect >
-			Menu, videoMenu, Disable, 2&
-			Menu, videoMenu, Disable, Effect duration >
-			Menu, videoMenu, Disable, 5&
-			Menu, ActionsMenu, Disable, 1&
-			Menu, ActionsMenu, Disable, 2&
-			Menu, ActionsMenu, Disable, Undo last bookmark
-			Menu, ActionsMenu, Disable, Clear all bookmarks
-			Menu, ActionsMenu, Disable, Reset everything
-			Menu, ActionsMenu, Disable, 8&
-			Menu, LoadMenu, Disable, Edit
-			Menu, LoadMenu, Disable, Delete`t
-			Menu, ActionsMenu, Enable, Reset everything	
-			Menu, LoadMenu, Rename, 1&, Bookmarks: <not loaded>
-		}
-		if FileExist(file_path) {
-			Menu, LoadMenu, Enable, Delete
-			Menu, AddMenu, Enable, Enter a time...
-			Menu, LoadMenu, Rename, 6&, Video: %file_path%
-		} else {
-			Menu, AddMenu, Enable, Enter a time...
-			Menu, videoMenu, Disable, Transition effect >
-			Menu, videoMenu, Disable, Effect duration >
-			Menu, videoMenu, Disable, 2&
-			Menu, videoMenu, Disable, 5&
-			Menu, ActionsMenu, Disable, 1&
-			Menu, ActionsMenu, Disable, 2&
-			Menu, LoadMenu, Disable, Delete
-			Menu, LoadMenu, Rename, 6&, Video: <not loaded>	
-		}
-	}
-	iniread, shortcut_number, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, shortcut_number
-	loop, %shortcut_number% {
-		iniread, shortcut_path, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, shortcut_path%a_index%
-		Menu, quicksavetomenu, Add, %shortcut_path%\, shortcut_actions
-	}
-}
-
 csv_linedelete2(var, number) {
 	file := FileOpen(var, "rw")
 	data := file.Read()
@@ -702,6 +734,58 @@ csv_linedelete2(var, number) {
 	file.close()
 	return new_data
 }
+
+csv_lastline2(var) {
+	file := FileOpen(var, "r")
+	data := file.Read()
+	if instr(data, "`n")
+		var := "`n"
+	else
+		var := "`r"
+	loop, parse, % data, %var%
+		{
+		if (a_loopfield != "")
+			last_line := a_loopfield
+	}
+	return last_line
+}
+
+csv_linecount2(var) {
+	file := FileOpen(var, "r")
+	data := file.Read()
+	if instr(data, "`n")
+		var := "`n"
+	else
+		var := "`r"
+	loop, parse, % data, %var%
+		{
+		if (a_loopfield != "")
+			count := a_index
+	}
+	file.close()
+	return count
+}
+
+csv_data2(var, line:="") {
+	file := FileOpen(var, "r")
+	data := file.Read()
+	if instr(data, "`n")
+		var := "`n"
+	else
+		var := "`r"
+	if regexmatch(line, "imO)\d+") {
+		loop, parse, % data, %var%
+			{
+			if (a_index = line) {
+				data := a_loopfield
+				break
+			}
+		}
+	}
+	file.close()
+	return data
+}
+
 csv_lineread2(file_path_csv, num) {
 	file := FileOpen(file_path_csv, "rw")
 	data := file.Read()
@@ -737,13 +821,21 @@ csv_linewrite2(file_path_csv, string, num) {
 
 edit_duration2(file_path_csv:="") {
 	data := file_read2(file_path_csv)
+	line_count := csv_linecount(file_path_csv)
 	loop, parse, % data, `n	
 		{
 		if regexmatch(a_loopfield, "imO)(\d+)\,(\d+)\,Bookmark(\d+)", time) {
 			time1 := time[1]
 			time2 := time[2]
 			duration%a_index% := time2 - time1
-			duration_total+= duration%a_index%
+			duration_total+=duration%a_index%
+		} else if regexmatch(a_loopfield, "imO)(\d+)\,", time) {
+			time1 := time[1]
+			if (line_count = 1) {
+				duration_total := ""
+				break
+			} else if (line_count > 1)
+				duration_total+=time1
 		}
 	}
 	return duration_total
@@ -777,8 +869,8 @@ seek_steps2(t_time:="") {
 		get_clicked_time := t_time
 	}
 	get_clicked_time2 := time_shortToSec2(get_clicked_time)
-	time_total2 := time_shortToSec2(time_total2)
-	if (get_clicked_time2 < time_total2) {
+	time_total2 := time_altToSec2(time_total)
+	if 	(get_clicked_time2 > time_total2) {
 		msg2("Warning: The last bookmark time exceeds the length of the video. `n`nLast bookmark time: " . time_shortToAlt2(get_clicked_time) . "`nVideo length: " . time_total)
 		return
 	}
@@ -1080,57 +1172,6 @@ info2(var) {
 		return data . "`n" . advanced
 }
 
-csv_lastline2(var) {
-	file := FileOpen(var, "r")
-	data := file.Read()
-	if instr(data, "`n")
-		var := "`n"
-	else
-		var := "`r"
-	loop, parse, % data, %var%
-		{
-		if (a_loopfield != "")
-			last_line := a_loopfield
-	}
-	return last_line
-}
-
-csv_linecount2(var) {
-	file := FileOpen(var, "r")
-	data := file.Read()
-	if instr(data, "`n")
-		var := "`n"
-	else
-		var := "`r"
-	loop, parse, % data, %var%
-		{
-		if (a_loopfield != "")
-			count := a_index
-	}
-	file.close()
-	return count
-}
-
-csv_data2(var, line:="") {
-	file := FileOpen(var, "r")
-	data := file.Read()
-	if instr(data, "`n")
-		var := "`n"
-	else
-		var := "`r"
-	if regexmatch(line, "imO)\d+") {
-		loop, parse, % data, %var%
-			{
-			if (a_index = line) {
-				data := a_loopfield
-				break
-			}
-		}
-	}
-	file.close()
-	return data
-}
-
 check_matching_video(file_path_csv) {
 	extensions := []
 	extensions.push("mp4", "avi", "mpg", "mkv", "avi", "mov", "wmv", "flv", "webm", "mpeg", "m4v", "ts")
@@ -1253,6 +1294,7 @@ file_extension2(string) {
 
 mpc_close2() {
 	winactivate, ahk_class MediaPlayerClassicW
+	wait2(1)
 	send2("{shift}{escape}", "down")
 }
 
@@ -1267,7 +1309,7 @@ mpc_getSource2() {
 }
 
 mpc_getName2(byref var:="") {
-	regexmatch(window_title("ahk_class MediaPlayerClassicW"), "imO).+\\(.+)", file_path)
+	regexmatch(window_title2("ahk_class MediaPlayerClassicW"), "imO).+\\(.+)", file_path)
 	file_path := file_path[1]
 	splitpath, file_path, file_both, file_directory, file_extension, file_name, file_drive
 	var := file_name
@@ -1275,7 +1317,7 @@ mpc_getName2(byref var:="") {
 }
 
 mpc_getPath2(byref var:="") {
-	regexmatch(window_title("ahk_class MediaPlayerClassicW"), "imO)(.+\\)", file_path)
+	regexmatch(window_title2("ahk_class MediaPlayerClassicW"), "imO)(.+\\)", file_path)
 	file_path := file_path[1]
 	splitpath, file_path, file_both, file_directory, file_extension, file_name, file_drive
 	var := file_path
@@ -1283,8 +1325,8 @@ mpc_getPath2(byref var:="") {
 }
 
 mpc_getExt2(byref var:="") {
-	file_path := window_title("ahk_class MediaPlayerClassicW")
-	regexmatch(window_title("ahk_class MediaPlayerClassicW"), "imO)(....)$", get_ext)
+	file_path := window_title2("ahk_class MediaPlayerClassicW")
+	regexmatch(window_title2("ahk_class MediaPlayerClassicW"), "imO)(....)$", get_ext)
 	var := get_ext[1]
 	return var
 }
@@ -1572,40 +1614,33 @@ send2(var, options:="", speed:="600") {
 	keyMapping["xbutton1"] := true
 	keyMapping["xbutton2"] := true
 
-
-	if instr(var, "down") and instr(var, "up") {
-		send_keys := var
-	} else if instr(options, "down") and !instr(var, "{") {
-		if regexmatch(var, "imO)(.+)\s(.+)", key_found) {
-			send_keys := "{" . key_found[1] . " down}{" . key_found[2] . " down}{" . key_found[2] . " up}{" . key_found[1] . " up}"
-		}
-	} else if regexmatch(var, "imO)^\{?(.+)\}?(\,|\s)?\{?(.+)\}?(\,|\s)?\{?(.+)\}?$", key_found) {
+	if regexmatch(var, "imO)^\{(.+)\}\{(.+)\}\{(.+)\}$", key_found) {
 		if keyMapping.HasKey(key_found[1]) and keyMapping.HasKey(key_found[3]) and keyMapping.HasKey(key_found[5]) {
-			if instr(options, "down") {
-				send_keys := "{" . key_found[1] . " down}{" . key_found[3] . " down}{" . key_found[5] . " down}{" . key_found[5] . " up}{" . key_found[3] . " up}{" . key_found[1] . " up}"
-			} else {
+			if instr(options, "down")
+				send_keys := "{" . key_found[1] . " down}{" . key_found[2] . " down}{" . key_found[3] . " down}{" . key_found[3] . " up}{" . key_found[2] . " up}{" . key_found[1] . " up}"
+			else
 				send_keys := "{" . key_found[1] . "}{" . key_found[2] . "}{" . key_found[3] . "}"
-			}
-		} else {
-			send_keys := var
 		}
-	} else if regexmatch(var, "imO)^\{?([^,}]+)\}?(?:[,\s]+)?\{?([^}]+)\}?$", key_found) {
-		if keyMapping.HasKey(key_found[1]) and keyMapping.HasKey(key_found[2]) {
-			if instr(options, "down") {
+	} else if regexmatch(var, "imO)^\{(.+)\}\{(.+)\}$", key_found) {
+		if keyMapping.HasKey(key_found[1]) and keyMapping.HasKey(key_found[3]) {
+			if instr(options, "down")
 				send_keys := "{" . key_found[1] . " down}{" . key_found[2] . " down}{" . key_found[2] . " up}{" . key_found[1] . " up}"
-			} else {
+			else
 				send_keys := "{" . key_found[1] . "}{" . key_found[2] . "}"
-			}
-		} else {
-			send_keys := var
 		}
-	} else if regexmatch(var, "imO)^\{?[^,]+\}?$", key_found) {
-		if keyMapping.HasKey(key_found[1]) {
+	} else if regexmatch(var, "imO)^\{(.+)\}$", key_found) {
+		if keyMapping.HasKey(key_found[1])
 			send_keys := "{" . key_found[1] . " down}{" . key_found[1] . " up}"
-		} else {
-			send_keys := var
-		}
-	}
+	} else if (regexmatch(var, "imO)(.+)\s(.+)\s(.+)$", key_found) and options = "down")
+		send_keys := "{" . key_found[1] . " down}{" . key_found[2] . " down}{" . key_found[3] . " down}{" . key_found[3] . " up}{" . key_found[2] . " up}{" . key_found[1] . " up}"
+	else if (regexmatch(var, "imO)(.+)\s(.+)$", key_found) and options = "down")
+		send_keys := "{" . key_found[1] . " down}{" . key_found[2] . " down}{" . key_found[2] . " up}{" . key_found[1] . " up}"
+	else if regexmatch(var, "imO)(.+)\s(.+)\s(.+)$", key_found)
+		send_keys := "{" . key_found[1] . "}{" . key_found[2] . "}{" . key_found[3] . "}"
+	else if regexmatch(var, "imO)(.+)\s(.+)$", key_found)
+		send_keys := "{" . key_found[1] . "}{" . key_found[2] . "}"	
+	else if regexmatch(var, "imO)(.+)", key_found)
+		send_keys := "{" . key_found[1] . "}"	
 	sendinput % send_keys
 }
 
@@ -1620,6 +1655,7 @@ string_random2(length:="10") {
     }
     return randomString
 }
+
 string_trimRight2(string, num:=1) {
 	Loop %num%
 		dot .= "."
@@ -1644,17 +1680,20 @@ string_trimSpaces2(string) {
 	return string
 	listlines, on
 }
+
 string_removeDuplicates2(string, delim:=",") {
 	listlines, off
 	sort, string, uD%delim%
 	return string
 	listlines, on
 }
+
 string_removeSpaces2(string) {
 	listlines, off
 	return string := strreplace(string, A_Space, "")
 	listlines, on
 }
+
 string_case2(string:="") {
 	listlines, off
 	num := number_random2(5)
@@ -1662,6 +1701,7 @@ string_case2(string:="") {
 	return selection
 	listlines, on
 }
+
 string_caseUpper2(string:="") {
 	listlines, off
 	if (string != "") {
@@ -1675,6 +1715,7 @@ string_caseUpper2(string:="") {
 	}
 	listlines, on
 }
+
 string_caseTitle2(string:="") {
 	listlines, off
 	if (string != "") {
@@ -1688,6 +1729,7 @@ string_caseTitle2(string:="") {
 	}
 	listlines, on
 }
+
 string_caseLower2(string:="") {
 	listlines, off
 	if (string != "") {
@@ -1701,6 +1743,7 @@ string_caseLower2(string:="") {
 	}
 	listlines, on
 }
+
 string_caseBlend2(string:="") {
 	listlines, off
 	if (string != "") {
@@ -1715,6 +1758,7 @@ string_caseBlend2(string:="") {
 	}
 	listlines, on
 }
+
 string_caseSentence2(string:="") {
 	listlines, off
 	X = I,AHK,AutoHotkey
@@ -1744,14 +1788,8 @@ string_JoinBefore2(var1, var2) {
 	return new_string
 }
 
-string_CountCharacter2(string, character) {
-    count := 0
-    loop, parse, string
-    {
-        if (a_loopfield = character)
-            count++
-    }
-    return count
+string_CountCharacters2(string) {
+    return strlen(string)
 }
 
 string_RemoveBlanks2(string) {
@@ -1971,7 +2009,33 @@ time_longToAlt2(var) {
 	return time
 }
 
+time_altToSec2(var) {
+    hours := 0
+    minutes := 0
+    seconds := 0
+    parts := StrSplit(var, " ")
+    Loop, % parts.MaxIndex() {
+        part := parts[A_Index]
+        if regexmatch(part, "imO)^(\d+)h$", match)
+            hours := match[1]
+        else if regexmatch(part, "imO)^(\d+)m$", match)
+            minutes := match[1]
+        else if regexmatch(part, "imO)^(\d+)s$", match)
+            seconds := match[1]
+    }
+    totalSeconds := (hours * 3600) + (minutes * 60) + seconds
+    return totalSeconds
+}
 
+time_altToLong2(var) {
+    sec := time_altToSec2(var)
+    return time_secToLong2(sec)
+}
+
+time_altToShort2(var) {
+    sec := time_altToSec2(var)
+    return time_secToShort2(sec)
+}
 
 ui_setup2(name, options:="+owner +border -resize -maximizebox -sysmenu -caption -toolwindow +DPIScale -alwaysontop") {
 	gui, %name%:default
@@ -1981,8 +2045,6 @@ ui_setup2(name, options:="+owner +border -resize -maximizebox -sysmenu -caption 
 	gui, %options%
 	return name
 }
-
-
 
 ui_pos2(options) {
 	listlines, off
@@ -2002,8 +2064,9 @@ ui_pos2(options) {
 	else
 		options := "center"
 	listlines, on
-	gui, show, %options%, %name%
+	gui, %options%
 }
+
 ui_color2(options, control:="") {
 	listlines, off
 	colors := "black|silver|gray|maroon|red|purple|fuschia|green|lime|olive|navy|blue|teal|yellow|aqua|orange|white"
@@ -2020,6 +2083,7 @@ ui_color2(options, control:="") {
 		gui, color, %wc%, %cc%
 	}
 }
+
 ui_font2(options) {
 	listlines, off
 	if ff = ""
@@ -2039,19 +2103,23 @@ ui_font2(options) {
 	listlines, on
 	gui, font, %options%, %ff%
 }
+
 ui_options2(var:="") {
 	if (var = "")
 		var := "+owner +border -resize -maximizebox -sysmenu -caption -toolwindow -alwaysontop "
 	gui, %var%
 }
+
 ui_show2(name:="MyName") {
 	gui, %name%:default
 	gui, show, NA, %name%
 }
+
 ui_hide2(name:="MyName") {
 	gui, %name%:default
 	gui, hide
 }
+
 ui_add_picture2(value, options:="") {
 	global
 	if regexmatch(options, "imO)(\+w)(\d+)", pcw) 
@@ -2066,6 +2134,7 @@ ui_add_picture2(value, options:="") {
 		options .= " backgroundtrans 0x4000000"
 	gui, add, picture, %options%, %value%
 }
+
 ui_add_text2(value, options:="") {
 	global
 	listlines, off
@@ -2091,6 +2160,7 @@ ui_add_text2(value, options:="") {
 	listlines, on
 	gui, add, text, %options%, %value%
 }
+
 ui_add_button2(value:="OK", options:="") {
 	global
 	listlines, off
@@ -2110,6 +2180,7 @@ ui_add_button2(value:="OK", options:="") {
 	listlines, on
 	gui, add, button, %options%, %value%
 }
+
 ui_add_radio2(value:="", options:="Checked") {
 	global
 	listlines, off
@@ -2126,6 +2197,7 @@ ui_add_radio2(value:="", options:="Checked") {
 	listlines, on
 	gui, add, radio, %options%, %value%
 }
+
 ui_add_checkbox2(value:="", options:="checkedGray") {
 	global
 	listlines, off
@@ -2155,11 +2227,13 @@ ui_add_edit2(value:="", options:="") {
 		options .= " v" . value
 	gui, add, edit, %options%, %value%
 }
+
 ui_destroy2(name:="") {
 	if (name = "")
 		name := this.name
 	gui name:destroy
 }
+
 ui_add_progress2(options:="") {
 	global
 	if regexmatch(options, "imO)(\+pb)(\d+)", pb) {
@@ -2192,30 +2266,36 @@ window_waitExist2(title:="a", time:="") {
 	WinWait, %title%, , %time%
 	return errorlevel
 }
+
 window_waitClose2(title:="a", time:="") {
 	WinWaitClose, %title%, , %time%
 	return errorlevel
 }
+
 window_waitNotActive2(title:="a", time:="") {
 	WinWaitNotActive, %title%, , %time%
 	return errorlevel
 }
+
 window_waitActive2(title:="a", time:="") {
 	WinWaitActive, %title%, , %time%
 	return errorlevel
 }
+
 window_maximize2(title:="a") {
 	winmaximize, %title%
 	winget, max_status, minmax, %title%
 	if (max_status = 0) 
 		winactivate, %title%
 }
+
 window_minimize2(title:="a") {
 	winminimize, %title%
 	winget, max_status, minmax, %title%
 		if (max_status != -1) 
 		winminimize, %title%
 }
+
 window_minmax2(title:="a") {
 	winget, max_status, minmax, %title%
 	if (max_status = -1)
@@ -2224,51 +2304,62 @@ window_minmax2(title:="a") {
 		max_status := "maximized"
 	return max_status
 }
+
 window_activate2(title:="a") {
 	winactivate, %title%
 }
+
 window_kill2(title:="a") {
 	listlines, off
 	winkill, %title%
 	listlines, on
 }
+
 window_hide2(title:="a") {
 	listlines, off
 	winhide, %title%
 	listlines, on
 }
+
 window_show2(title:="a") {
 	listlines, off
 	winshow, %title%
 	listlines, on
 }
+
 window_exist2(title:="a") {
 	if winexist(title) 
 		return 1
 	else
 		return 0
 }
+
 window_active2(title:="a") {
 	if winactive(title) 
 		return 1
 	return 0
 }
+
 window_getActive2(ByRef var:="") {
 	WinGetActiveTitle, var
 	return var
 }
+
 window_id2(title:="a") {
 	winget, uservar, id, %title%
 	return uservar
 }
+
 window_pid2(title:="a") {
 	winget, uservar, pid, %title%
 	return uservar
 }
+
 window_path2(title:="a") {
 	winget, uservar, processpath, %title%
 	return uservar
 }
+
 window_process2(title:="a") {
 	winget, uservar, processname, %title%
 	return uservar
@@ -2345,6 +2436,7 @@ window_ontop2(title:="a") {
 		window_setTitle2("******** " . window_title2())
 	}
 }
+
 status2(num, var:="", control:="MyText", delay:="") {
 	get_color := object("0","000000","1","fa004b","2","fa0047","3","fa0043","4","fa003e","5","fa003a","6","fa0036","7","fa0032","8","fa002e","9","fa002a","10","fa0026","11","fa0021","12","fa001d","13","fa0019","14","fa0015","15","fa0011","16","fa000c","17","fa0008","18","fa0004","19","fa0000","20","fa0400","21","fa0800","22","fa0d00","23","fa1100","24","fa1500","25","fa1900","26","fa1d00","27","fa2600","28","fa2a00","29","fa2e00","30","fa3200","31","fa3600","32","fa3a00","33","fa3e00","34","fa4300","35","fa4700","36","fa4b00","37","fa5300","38","fa5700","39","fa5c00","40","fa6000","41","fa6800","42","fa6c00","43","fa7000","44","fa7500","45","fa7900","46","fa7d00","47","fa8100","48","fa8500","49","fa8a00","50","fa8e00","51","fa9200","52","fa9600","53","fa9a00","54","fa9e00","55","faa300","56","faa700","57","faab00","58","faaf00","59","fab300","60","fab700","61","fabb00","62","fac000","63","fac400","64","fac800","65","facc00","66","fad000","67","fad400","68","fad900","69","fadd00","70","fae100","71","fae500","72","fae900","73","faed00","74","faf200","75","faf600","76","fafa00","77","f6fa00","78","f2fa00","79","edfa00","80","e9fa00","81","e5fa00","82","e1fa00","83","ddfa00","84","d9fa00","85","d5fa00","86","d0fa00","87","ccfa00","88","c4fa00","89","bbfa00","90","abfa00","91","a2fa00","92","9afa00","93","92fa00","94","8afa00","95","81fa00","96","79fa00","97","70fa00","98","68fa00","99","60fa00","100","58fa00")
 	if (num = "error") {
@@ -2378,6 +2470,7 @@ status2(num, var:="", control:="MyText", delay:="") {
 	Pause
 	}
 }
+
 click_relative2(xpos:="", ypos:="", num:=1, button:="l") {
 	coordmode, mouse, window
 	send {click %xpos% %ypos% %num% %button%}
