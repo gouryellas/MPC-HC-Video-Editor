@@ -1,13 +1,181 @@
 main:
 	file_path := mpc_getSource2()
+	current_seconds := mpc_getTime2("seconds")
+	previous_time := current_seconds
+	iniwrite, %current_seconds%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, latest_time
+	if (current_seconds = 0 or current_seconds = 00)
+		current_seconds := 1
+	total_time := mpc_getDuration2()
+	previous_time := current_seconds
+	set_time := current_time
 	bookmark_started := "yes"
 	file_path := file_info2(file_path)
 	file_path := file_rename2(file_path)
 	file_path := folder_rename2(file_path)
-	current_seconds := file_time2()
-	file_create2(current_seconds)
+	file_path_csv := file_create2(current_seconds)
 	show_gui2()
 	update_menus2()
+return
+
+add_history2:
+    menu, historyMenu, deleteall
+    menu, quickhistorymenu, deleteall
+    Menu, quickhistorymenu, Add, 5, history_number_maximum
+    Menu, quickhistorymenu, Icon, 5, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+    Menu, quickhistorymenu, Add, 10, history_number_maximum
+    Menu, quickhistorymenu, Icon, 10, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+    Menu, quickhistorymenu, Add, 15, history_number_maximum
+    Menu, quickhistorymenu, Icon, 15, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+    Menu, quickhistorymenu, Add, 20, history_number_maximum
+    Menu, quickhistorymenu, Icon, 20, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+    Menu, historyMenu, Add, Maximum to show, :quickhistorymenu
+    menu, historyMenu, icon, Maximum to show, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+    Menu, historyMenu, Add, Clear history, clear_history
+    menu, historyMenu, icon, Clear history, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+    menu, historymenu, add,  _________________, no_action
+    iniread, history_number_maximum, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_number_maximum
+    if (history_number_maximum = "" or history_number_maximum = 0 or history_number_maximum = "ERROR") {
+        history_number_maximum := 5
+        menu, quickhistorymenu, check, 5
+        iniwrite, 5, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_number_maximum
+    } else
+        menu, quickhistorymenu, check, %history_number_maximum%
+    iniread, history_number_actual, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_number_actual
+    if (history_number_actual = "" or history_number_actual = "ERROR" or history_number_actual = 0) {
+        delete_no_history := 1
+        Menu, historyMenu, Add, <no history>, no_action
+        menu, historyMenu, icon, <no history>, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+        iniwrite, 0, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_number_actual
+    } else {
+        loop, %history_number_actual% {
+            IniRead, history_video_path, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_video%A_Index%
+            if (history_video_path != "" && history_video_path != "ERROR") {
+                Menu, historyMenu, Add, %A_Index%: %history_video_path%, history_video_action
+                menu, historyMenu, icon, %a_index%: %history_video_path%, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+            }
+        }
+    }
+return
+
+add_history:
+    IniRead, history_number_actual, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_number_actual, 0
+    IniRead, history_number_maximum, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_number_maximum, 5
+    if (history_number_actual = "ERROR")
+        history_number_actual := 0
+    if (history_number_maximum = "ERROR")
+        history_number_maximum := 5
+    error := 0
+    loop, %history_number_actual% {
+        IniRead, existing_video, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_video%a_index%
+        if (existing_video != "ERROR" && existing_video = file_path) {
+            error := 1
+            break
+        }
+    }
+    if (error != 1) {
+        new_number := history_number_actual + 1
+        if (new_number > history_number_maximum) {
+            loop, %history_number_maximum% {
+                old_index := a_index + 1
+                if (old_index <= history_number_maximum) {
+                    IniRead, old_path, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_video%old_index%
+                    IniWrite, %old_path%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_video%a_index%
+                }
+            }
+            IniWrite, %file_path%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_video%history_number_maximum%
+            IniWrite, %history_number_maximum%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_number_actual
+        } else {
+            IniWrite, %file_path%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_video%new_number%
+ ;           new_item := new_number . ": " . file_path
+ ;           menu, historymenu, add, %new_item%, history_video_action
+;            menu, historymenu, icon, %new_item%, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+            IniWrite, %new_number%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_number_actual
+        }
+		gosub, add_history2
+    }
+return
+
+history_number_maximum:
+    IniRead, history_number_actual, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_number_actual, 0
+    IniRead, old_history_number_maximum, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_number_maximum, 5
+	if (history_number_actual = "ERROR")
+        history_number_actual := 0
+    if (old_history_number_maximum = "ERROR")
+        old_history_number_maximum := 5
+    new_maximum := A_ThisMenuItem
+    IniWrite, %new_maximum%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_number_maximum
+    if (new_maximum = 5)
+        number := 1
+    else if (new_maximum = 10)
+        number := 2
+    else if (new_maximum = 15)
+        number := 3
+    else if (new_maximum = 20)
+        number := 4
+    loop, 4 {
+        if (A_Index != number)
+            Menu, quickhistorymenu, Uncheck, %A_Index%&
+        else
+            Menu, quickhistorymenu, Check, %A_Index%&
+    }
+    if (new_maximum < old_history_number_maximum && history_number_actual > new_maximum) {
+        delete_count := history_number_actual - new_maximum
+        remaining := new_maximum
+        loop, %delete_count%
+            IniDelete, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_video%A_Index%
+        count := 0
+        loop, %remaining% {
+            old_index := delete_count + A_Index
+            IniRead, value, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_video%old_index%, ERROR
+            if (value != "ERROR" && value != "") {
+                IniWrite, %value%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_video%A_Index%
+                IniDelete, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_video%old_index%
+                count++
+            }
+        }
+        IniWrite, %new_maximum%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_number_actual
+        gosub, add_history2
+    }
+    update_menus2()
+return
+
+
+history_video_action:
+	menu_item := a_thismenuitem
+	menu_item := regexreplace(a_thismenuitem, "imO)(\d+)\:\s")
+	msgbox, 4, , Play the video?
+	ifmsgbox, yes
+		{
+		run(menu_item)
+	}
+	ifmsgbox, no
+		{
+		run("explorer.exe /select, " . menu_item . "")
+	}
+return
+
+clear_history:
+	iniread, history_number, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_number_actual
+	file_array := []
+	loop %history_number% {
+		iniread, get_file_path, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_video%a_index%
+		file_array.push(get_file_path)
+	}
+	loop, % file_array.length() {
+		file := a_index ": " file_array[a_index]
+		if (delete_no_history = 1) {
+			delete_no_history := 0
+			menu, historymenu, delete, <no history>
+		}
+		if !instr(file,"ERROR")
+			menu, historymenu, delete, %file%
+		inidelete, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_video%a_index%
+	}
+	iniwrite, 0, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_number_actual
+	menu, historymenu, add, <no history>, no_action
+	menu, historyMenu, icon, <no history>, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	menu, quickhistorymenu, check, 5
+	delete_no_history := 1
 return
 
 GuiDropFiles:
@@ -32,7 +200,7 @@ GuiDropFiles:
 			csv_check := check_matching_csv(file_path)
 			if (file_path_csv != csv_check) {
 				if fileexist(csv_check) {
-					file_path_csv := file_path_csv_check
+					file_path_csv := csv_check
 					show_gui2()
 				} else
 					update_menus2()
@@ -68,6 +236,14 @@ delete_shortcut:
 	current_h += 143
 	Gui, MainGui:+Owner +OwnDialogs
 	Gui, DeleteShortcutGUI:Show, x%current_x% y%current_h% w500, Save to > Shortcuts > Delete...
+return
+
+open_file:
+	if instr(a_thismenuitem, "csv")
+		file := strreplace(a_thismenuitem,"Bookmarks: ")
+	else
+		file := strreplace(a_thismenuitem,"Video: ")
+	run("explorer.exe /select, " . file . "")  
 return
 
 confirm_delete:
@@ -391,13 +567,14 @@ undo_bookmark:
 			button%a_index% := ""
 	}
 	IniRead, erased, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, bookmark_removed
+	timeCheck1 := ""
 	show_gui2()
 return
 
 clear_bookmarks:
 	file_recycle2(file_path_csv)
 	file_path_csv := ""
-	clear_gui2()
+	ffmpeg_time := ""
 	show_gui2()
 	update_menus2()
 return
@@ -405,6 +582,9 @@ return
 unload_bookmark:
 	file_path_csv := ""
 	transition_effect := "None"
+	gui, font, cRed
+	guicontrol, font, edittime
+	guicontrol, , edittime, CSV unloaded
 	show_gui2()
 	update_menus2()
 return
@@ -436,6 +616,8 @@ load_bookmark:
 		gui, font, cFFA500
 		guicontrol, font, EditedDuration
 		guicontrol, , EditedDuration, %edited_duration%
+		guicontrol, show, editedduration
+		guicontrol, move, editedduration, x95
 		Gui, Font, cWhite
 	} else
 		load_bookmark := ""
@@ -461,6 +643,7 @@ delete_bookmark:
 	guicontrol,, stats_advanced, %advanced%
 	previous_time := ""
 	Menu, LoadMenu, Rename, 1&, Bookmarks: <not loaded>
+	gosub, clear_bookmarks
 	update_menus2()
 	show_gui2()
 return
@@ -498,7 +681,6 @@ load_video:
 		g_manual_load_in_progress := 1
 		load_video := 1
 		file_path := select_file_path
-		iniwrite, %file_path%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, file_path_saved
 		splitpath, file_path, file_both, file_directory, file_extension, file_name, file_drive
 		run, %file_path%
 		stats := info2("all")
@@ -512,24 +694,19 @@ load_video:
 			Menu, LoadMenu, Rename, 1&, Bookmarks: %file_path_csv%
 			show_gui2()
 		} 
+		wait(500)
 		Menu, LoadMenu, Rename, 7&, Video: %file_path%
+		if (delete_no_history = 1) {
+			delete_no_history := 0
+			menu, historymenu, delete, <no history>
+		}
+		gosub, add_history
 		update_menus2()
-        SetTimer, ResetVideoLoadFlag, -1000
-		loop { 
-			title := mpc_getSource2()
-			if instr(title, ".")
+		Loop {
+			file_path := window_title2("ahk_class MediaPlayerClassicW")
+			if !instr(file_path, "Media Player Classic")
 				break
 		}
-		wait(1)
-		time_total := mpc_getDuration2()
-		time_total := time_longToAlt2(time_total)
-		gui, font, cWhite
-		guicontrol, font, videolength
-		GuiControl, , videolength, Video length:
-		gui, font, cYellow
-		guicontrol, font, timetotal
-		GuiControl, , TimeTotal, %time_total%
-		guicontrol, move, timetotal, x+123
 		last_known_video_path := file_path
 	} else
 		load_video := 0
@@ -540,11 +717,6 @@ unload_video:
 	mpc_close2()
 	show_gui2()
 	update_menus2()
-	gui, font, cred
-	guicontrol, font, videolength
-	guicontrol, , videolength, No video loaded
-	GuiControl, , TimeTotal
-	guicontrol, move, timetotal, x+140
 return
 
 delete_video:
@@ -554,8 +726,6 @@ delete_video:
 	advanced := info2("advanced")
 	guicontrol,, stats_advanced, %advanced%
 	Menu, LoadMenu, rename, 7&, Video: <not loaded>
-	GuiControl, , VideoLength
-	GuiControl, , TimeTotal
 	file_path := ""
 	update_menus2()
 	show_gui2()
@@ -566,6 +736,9 @@ ResetVideoLoadFlag:
 return
 
 merge_split:
+	message := csv_repair2(file_path_csv)
+	if (message = "Errors were found and repaired.")
+		return
 	if (update_file_directory = 1)
 		iniread, file_directory, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, file_directory
 	if (file_path_new != "") {
@@ -616,7 +789,7 @@ merge_split:
 					GuiControl, Font, parenthesisright%count%
 					GuiControl, Font, durationtime%count%
 					Gui, Font, cDefault
-					run2(a_temp . "\compile_merge.bat" . file_path_create . new_ffmpeg_time)
+					run2(A_AppData . "\MPC-HC Video Editor\compile_merge.bat" . file_path_create . new_ffmpeg_time)
 				}
 			} else if (a_thismenuitem = "Merge all" or a_thismenuitem = "Merge selected") {
 				merge := 1
@@ -630,55 +803,82 @@ merge_split:
 				} else {
 					times := csv_linecount(file_path_csv)
 					Loop, %times% {
-						Gui, Font, cFFA500  ; Set the drawing color for the font
-						GuiControl, Font, line_num%a_index% ; Apply the new font color to the specified checkbox
-						GuiControl, Font, bracketleft%a_index% ; Apply the new font color to the specified checkbox
-						GuiControl, Font, bracketright%a_index% ; Apply the new font color to the specified checkbox
-						GuiControl, Font, dash%a_index% ; Apply the new font color to the specified checkbox
-						GuiControl, Font, time_split1_%a_index% ; Apply the new font color to the specified checkbox
-						GuiControl, Font, time_split2_%a_index% ; Apply the new font color to the specified checkbox
-						GuiControl, Font, parenthesisleft%a_index% ; Apply the new font color to the specified checkbox
-						GuiControl, Font, parenthesisright%a_index% ; Apply the new font color to the specified checkbox
-						GuiControl, Font, durationtime%a_index% ; Apply the new font color to the specified checkbox
-						Gui, Font, cDefault ; Reset the color back to default for any other GUI operations
+						Gui, Font, cFFA500
+						GuiControl, Font, line_num%a_index%
+						GuiControl, Font, bracketleft%a_index%
+						GuiControl, Font, bracketright%a_index%
+						GuiControl, Font, dash%a_index%
+						GuiControl, Font, time_split1_%a_index%
+						GuiControl, Font, time_split2_%a_index%
+						GuiControl, Font, parenthesisleft%a_index%
+						GuiControl, Font, parenthesisright%a_index%
+						GuiControl, Font, durationtime%a_index%
+						Gui, Font, cDefault
 					}
-					run2(a_temp . "\compile_merge.bat" . file_path_create . ffmpeg_time)
-					wait(1)
+					clipboard := ""
+					run2(A_AppData . "\MPC-HC Video Editor\compile_merge.bat" . file_path_create . ffmpeg_time)
+					if (merge = 1) {
+						Loop {
+							if (clipboard != "")
+								break
+						}
+						captured_time := clipboard
+						if regexmatch(captured_time, "imO)(\d+\:\d+\:\d+)", get_time) {
+							get_time := get_time[1]
+							get_time := time_longToAlt2(get_time)
+							if (get_time != edited_duration) {
+								msg2("There was an error joining the files.")
+								return
+							} else {
+								msg2("Success!")
+								loop
+									{
+									if !process_exist("cmd.exe")
+										break
+									else {
+										process, close, cmd.exe
+										cmd := 1
+									}
+								}
+							}
+						}
+					}
 				}
 			}
-			window_waitExist2("cmd.exe")
-			window_waitClose2("cmd.exe")
+			if (cmd != 1) {
+				window_waitExist2("cmd.exe")
+				window_waitClose2("cmd.exe")
+			}
+			cmd := ""
 			if (split = 1) {
-				Gui, Font, cGreen  ; Set the drawing color for the font
-				GuiControl, Font, line_num%count% ; Apply the new font color to the specified checkbox
-				GuiControl, Font, bracketleft%count% ; Apply the new font color to the specified checkbox
-				GuiControl, Font, bracketright%count% ; Apply the new font color to the specified checkbox
-				GuiControl, Font, dash%count% ; Apply the new font color to the specified checkbox
-				GuiControl, Font, time_split1_%count% ; Apply the new font color to the specified checkbox
-				GuiControl, Font, time_split2_%count% ; Apply the new font color to the specified checkbox
-				GuiControl, Font, parenthesisleft%count% ; Apply the new font color to the specified checkbox
-				GuiControl, Font, parenthesisright%count% ; Apply the new font color to the specified checkbox
-				GuiControl, Font, durationtime%count% ; Apply the new font color to the specified checkbox
-				Gui, Font, cDefault ; Reset the color back to default for any other GUI operations
+				Gui, Font, cGreen
+				GuiControl, Font, line_num%count%
+				GuiControl, Font, bracketleft%count%
+				GuiControl, Font, bracketright%count%
+				GuiControl, Font, dash%count%
+				GuiControl, Font, time_split1_%count%
+				GuiControl, Font, time_split2_%count%
+				GuiControl, Font, parenthesisleft%count%
+				GuiControl, Font, parenthesisright%count%
+				GuiControl, Font, durationtime%count%
+				Gui, Font, cDefault
 			} else if (merge = 1) {
 				Loop, %times% {
-					Gui, Font, cGreen  ; Set the drawing color for the font
-					GuiControl, Font, line_num%a_index% ; Apply the new font color to the specified checkbox
-					GuiControl, Font, bracketleft%a_index% ; Apply the new font color to the specified checkbox
-					GuiControl, Font, bracketright%a_index% ; Apply the new font color to the specified checkbox
-					GuiControl, Font, dash%a_index% ; Apply the new font color to the specified checkbox
-					GuiControl, Font, time_split1_%a_index% ; Apply the new font color to the specified checkbox
-					GuiControl, Font, time_split2_%a_index% ; Apply the new font color to the specified checkbox
-					GuiControl, Font, parenthesisleft%a_index% ; Apply the new font color to the specified checkbox
-					GuiControl, Font, parenthesisright%a_index% ; Apply the new font color to the specified checkbox
-					GuiControl, Font, durationtime%a_index% ; Apply the new font color to the specified checkbox
-					Gui, Font, cDefault ; Reset the color back to default for any other GUI operations
+					Gui, Font, cGreen
+					GuiControl, Font, line_num%a_index%
+					GuiControl, Font, bracketleft%a_index%
+					GuiControl, Font, bracketright%a_index%
+					GuiControl, Font, dash%a_index%
+					GuiControl, Font, time_split1_%a_index%
+					GuiControl, Font, time_split2_%a_index%
+					GuiControl, Font, parenthesisleft%a_index%
+					GuiControl, Font, parenthesisright%a_index%
+					GuiControl, Font, durationtime%a_index%
+					Gui, Font, cDefault
 				}
 			}
 		}
-		wait(1)
-		Loop, %times%
-			gosub, reset_timestamps
+
 		msgbox, 4, , Delete source video and csv file?
 		ifmsgbox Yes
 			{
@@ -694,7 +894,6 @@ merge_split:
 			menu, loadmenu, rename, 7&, Video: <not loaded>
 			iniwrite, "", %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, time_saved
 			winactivate, ahk_class MediaPlayerClassicW
-			reload
 		}
 		ifmsgbox No
 			{
@@ -704,28 +903,10 @@ merge_split:
 			msg2("You cannot split or merge files without completing the last bookmark.")
 		return
 	}
+	reload
 return
 
-reset_timestamps:
-	Gui, Font, cWhite
-	GuiControl, Font, bracketleft%a_index% 
-	Gui, Font, cGreen
-	GuiControl, Font, line_num%a_index%
-	Gui, Font, cWhite
-	GuiControl, Font, bracketright%a_index%
-	Gui, Font, cBlue
-	GuiControl, Font, time_split1_%a_index%
-	Gui, Font, cWhite
-	GuiControl, Font, dash%a_index%
-	Gui, Font, cBlue
-	GuiControl, Font, time_split2_%a_index%
-	Gui, Font, cWhite
-	GuiControl, Font, parenthesisleft%a_index%
-	Gui, Font, cYellow
-	GuiControl, Font, durationtime%a_index%
-	Gui, Font, cWhite
-	GuiControl, Font, parenthesisright%a_index%
-return
+
 
 reset_everything:
 	reload
@@ -753,7 +934,6 @@ checkbox:
 	}
 	edited_duration := edit_duration2(file_path_csv)
 	selected_duration := time_secToAlt2(edited_duration)
-	wait2(1)
 	total_time := mpc_getDuration2()
 	if (total_time != 0 or total_time != "")
 		time_total := time_longToAlt2(total_time)
@@ -806,8 +986,8 @@ radio:
         }
     }	
     file_path_create := file_path . " " . file_path_check
-	clipboard := A_Temp . "\compile_merge.bat " . file_path_create . " " . checked_ffmpeg_time
-    run2(A_Temp . "\compile_merge.bat " . file_path_create . " " . checked_ffmpeg_time)
+	clipboard := A_AppData . "\MPC-HC Video Editor\compile_merge.bat " . file_path_create . " " . checked_ffmpeg_time
+    run2(A_AppData . "\MPC-HC Video Editor\compile_merge.bat " . file_path_create . " " . checked_ffmpeg_time)
 	window_waitclose2("cmd.exe")
     if not IsObject(radiobox_index)
         radiobox_index := []
@@ -947,3 +1127,275 @@ show:
 	gui, show, , MPC-HC Video Editor v2.1
 return
 
+convert_files:
+	count := 0
+	convert_files := ""
+	select_file_path := ""
+	existing_files := ""
+	files_exist := ""
+	Loop {
+		FileSelectFile, select_file_path, MS,, Select a video file,(Video Files (*.3gp;*.3g2;*.3gpp;*.asf;*.avi;*.divx;*.dv;*.evo;*.f4v;*.flv;*.m2ts;*.m4v;*.mkv;*.mov;*.mp4;*.mpeg;*.mpg;*.mts;*.ogm;*.ogv;*.qt;*.rm;*.rmvb;*.swf;*.ts;*.vob;*.webm;*.wmv)|*.3gp;*.3g2;*.3gpp;*.asf;*.avi;*.divx;*.dv;*.evo;*.f4v;*.flv;*.m2ts;*.m4v;*.mkv;*.mov;*.mp4;*.mpeg;*.mpg;*.mts;*.ogm;*.ogv;*.qt;*.rm;*.rmvb;*.swf;*.ts;*.vob;*.webm;*.wmv|All Files (*.*)|*.*)
+		wait(500)
+		if (a_index = 1) {
+			if instr(select_file_path,"`n") {
+				loop, parse, % select_file_path, `n
+					{
+					if (a_index = 1) {
+						select_file_dir := a_loopfield
+						if !regexmatch(select_file_dir, "imO).+\\$")
+							select_file_dir .= "\"
+					} else {
+						count := a_index - 1
+						convert_files .= "#" count ". " select_file_dir . a_loopfield "`n"
+						multiple := 1
+					}
+				}
+				break
+			} else
+				multiple := 0
+		}
+		if (multiple = 0) {
+			if (select_file_path) {
+				convert_files .= "#" a_index ". " select_file_path "`n"
+				count++
+			} else
+				break
+		}
+	}
+	if (count = 0)
+		return
+	count := 0
+	msgbox, 4, , Convert these files to mp4?`n`n%convert_files%
+	ifmsgbox Yes
+		{
+		loop, parse, % convert_files, `n
+			{	
+			if (a_loopfield != "") {
+				file := strreplace(a_loopfield, "#" a_index . ". ")
+				SplitPath, file, , , extension
+				file := strreplace(file,extension,"mp4")
+				if fileexist(file) {
+					files_exist := 1
+					existing_files .= "#" a_index ". " file "`n"
+				} else
+					files_exist := 0
+			}
+		}
+		if (files_exist = 1) {
+			msgbox, 4, , These files already exist. Overwrite them?`n`n%existing_files%
+			ifmsgbox No
+				{
+				return
+			}
+		}			
+		loop, parse, % convert_files, `n
+			{
+			if (a_loopfield != "") {
+				file := strreplace(a_loopfield, "#" a_index . ". ")
+				file_path_create = "C:\Users\Chris\AppData\Roaming\MPC-HC Video Editor\compile_convert.bat" "%file%"
+				run2(file_path_create)
+				window_waitexist("cmd.exe")
+				window_waitclose("cmd.exe")
+			}
+		}
+		wait(2)
+		msgbox, 4, , Delete source video(s)?
+		ifmsgbox Yes
+			{
+			loop, parse, % convert_files, `n
+				{
+				if (a_loopfield != "") {
+					file := strreplace(a_loopfield, "#" a_index . ". ")
+					file_recycle(file)
+				}
+			}
+		}
+		ifmsgbox no
+			{
+			convert_files := ""
+			return
+		}
+	}
+	ifmsgbox no
+		{
+		convert_files := ""
+		return
+	}
+	convert_files := ""
+	reload
+return
+
+merge_files:
+	merge_files := ""
+	error := ""
+	count := ""
+	select_file_path := ""
+	multiple := ""
+	Loop {
+		FileSelectFile, select_file_path, MS,, Select a video file,(Video Files (*.3gp;*.3g2;*.3gpp;*.asf;*.avi;*.divx;*.dv;*.evo;*.f4v;*.flv;*.m2ts;*.m4v;*.mkv;*.mov;*.mp4;*.mpeg;*.mpg;*.mts;*.ogm;*.ogv;*.qt;*.rm;*.rmvb;*.swf;*.ts;*.vob;*.webm;*.wmv)|*.3gp;*.3g2;*.3gpp;*.asf;*.avi;*.divx;*.dv;*.evo;*.f4v;*.flv;*.m2ts;*.m4v;*.mkv;*.mov;*.mp4;*.mpeg;*.mpg;*.mts;*.ogm;*.ogv;*.qt;*.rm;*.rmvb;*.swf;*.ts;*.vob;*.webm;*.wmv|All Files (*.*)|*.*)
+		loop, parse, % select_file_path, `n
+			{
+			if (a_index = 1) {
+				file_dir := a_loopfield
+				break
+			}
+		}
+		if !regexmatch(file_dir, "imO).+\\$")
+			file_dir .= "\"
+		if (a_index = 1) {
+			if instr(select_file_path,"`n") {
+				multiple := 1
+				loop, parse, % select_file_path, `n
+					{
+					if (a_index = 1) {
+						select_file_dir := a_loopfield
+						if !regexmatch(select_file_dir, "imO).+\\$")
+							select_file_dir .= "\"
+					} else {
+						num := a_index - 1
+						merge_files .= "#" num ". " select_file_dir . a_loopfield "`n"
+						latest_file := select_file_dir . a_loopfield
+					}
+				}
+				break
+			} else
+				multiple := 0
+		}
+		if (multiple = 0) {
+			if (select_file_path) {
+				merge_files .= "#" a_index ". " select_file_path "`n"
+				latest_file := select_file_path
+				count++
+			} else
+				break
+		}
+	}
+	SplitPath, latest_file, , , extension
+	if (multiple = 0 and count < 2) {
+		msg2("You must select more than 1 file.")
+		return
+	} else if (num = 1) {
+		msg2("You must select more than 1 file.")
+		return
+	}		
+	msgbox, 4, , Merge these files in this order?`n`n%merge_files%
+	ifmsgbox Yes
+		{
+		if regexmatch(latest_file, "imO).+\\(.+)", file)
+			latest_file := file[1]
+		
+		InputBox, UserInput, Save as, Enter the filename, , 200, 120,x ,y , , , %latest_file%
+		if fileexist(file_dir . userinput) {
+			msgbox, 4, , This file already exists. Overwrite it?`n`n%file_dir%%userinput%
+			ifmsgbox no
+				{
+				return
+			}
+		}
+		if (ErrorLevel = 0) {
+			FileSelectFolder, select_folder_path, 3,, Select a save location
+			if (select_folder_path) {
+				file_directory := select_folder_path "\"
+				count := 0
+				loop, parse, % merge_files, `n
+					{
+					if (a_loopfield != "")
+						count++
+				}
+				FFPROBE_PATH := A_AppData . "\MPC-HC Video Editor\ffprobe.exe"
+                temp_dur := A_Temp . "\ffprobe_dur.txt"
+                if !FileExist(FFPROBE_PATH) {
+                    MsgBox, 16, Error, ffprobe not found at %FFPROBE_PATH%. Duration check skipped.
+                    total_duration := "Unknown"
+                } else {
+                    total_duration := 0
+                    successful_files := 0
+                    Loop, Parse, % merge_files, `n
+						{
+                        file := StrReplace(A_LoopField, "#" A_Index ". ")
+                        if (file != "") {
+                            FileDelete, %temp_dur%
+                            RunWait, cmd /c ""%FFPROBE_PATH%" -v quiet -print_format json -show_entries format=duration "%file%" > "%temp_dur%"", , Hide UseErrorLevel
+                            if (ErrorLevel = 0) {
+                                FileRead, ffprobe_output, %temp_dur%
+                                if (ffprobe_output != "") {
+                                    RegExMatch(ffprobe_output, "i)""duration""\s*:\s*""?(\d+(?:\.\d+)?)""?", dur_match)
+                                    if (dur_match1 != "") {
+                                        dur_sec := dur_match1 + 0
+                                        total_duration += dur_sec
+                                        successful_files++
+                                    }
+                                }
+                            }
+                            FileDelete, %temp_dur%
+                        }
+                    }
+                    if (successful_files = 0)
+                        formatted_total := "Unknown"
+                    else {
+                        total_h := Floor(total_duration / 3600)
+                        total_m := Floor(Mod(total_duration, 3600) / 60)
+                        total_s := Mod(total_duration, 60)
+                        formatted_total := Format("{:02d}:{:02d}:{:02d}", total_h, total_m, Round(total_s))
+                    }
+                }
+				files := ""
+				loop, parse, % merge_files, `n
+					{
+					if (a_loopfield != "") {
+						file := strreplace(a_loopfield, "#" a_index . ". ")
+						if (a_index = 1)
+							files .= """" . file . """"
+						else if (a_index = 2)
+							files .= " " . """" . file . """"
+						else
+							files .= " " . """" . file . """" . " "
+					}
+				}
+				formatted_total := time_longToAlt(formatted_total)
+				Gui, Font, cWhite
+				guicontrol, font, edittime
+				guicontrol, , edittime, Edit time:
+				Gui, Font, cFFA500
+				guicontrol, font, EditedDuration
+				guicontrol, , EditedDuration, %formatted_total%
+				guicontrol, show, editedduration
+				Gui, Font, cWhite
+				file_path_create = "C:\Users\Chris\AppData\Roaming\MPC-HC Video Editor\compile_merge_files.bat" "%file_directory%%userinput%" %files%
+				run2(file_path_create)
+				files := ""
+				merge_files := ""
+				wait(2)
+				loop
+					{
+					if !window_exist("cmd.exe")
+						break
+				}
+				msgbox, 4, , Delete source videos?
+				ifmsgbox Yes
+					{
+					loop, parse, % merge_files, `n
+						{
+						if (a_loopfield != "") {
+							file := strreplace(a_loopfield, "#" a_index . ". ")
+							file_recycle(file)
+						}
+					}
+					files := ""
+					merge_files := ""
+				}
+				ifmsgbox No
+					{
+					files := ""
+					merge_files := ""
+				}
+			}
+		}
+	}
+	ifmsgbox No
+		{
+		files := ""
+		merge_files := ""
+	}
+	reload
+return

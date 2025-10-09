@@ -1,6 +1,6 @@
 Process, Priority, , High
 #SingleInstance, force
-SetWorkingDir, %a_temp%
+SetWorkingDir, %A_AppData%
 Menu, Tray, NoStandard
 Menu, Tray, Add, Show, show
 Menu, Tray, Default, Show
@@ -9,17 +9,19 @@ Menu, Tray, Add, Edit, edit_script
 Menu, Tray, Add, Variables, view_variables
 Menu, Tray, Add
 Menu, Tray, Add, Exit, Exit_script
-IniDir := A_AppData "\MPC-HC Video Editor"
-FileCreateDir, %IniDir%
-IniFile := IniDir "\compile_data.ini"
+FileCreateDir, %A_AppData%\MPC-HC Video Editor\
+FileCreateDir, %A_AppData%\MPC-HC Video Editor\icons\
 If A_IsCompiled {
 	if !fileexist(A_AppData . "\MPC-HC Video Editor\compile_data.ini")
 		FileInstall, compile_data.ini, %A_AppData%\MPC-HC Video Editor\compile_data.ini
 }
-FileInstall, ffmpeg.exe, %a_temp%\ffmpeg.exe, 1
-FileInstall, ffprobe.exe, %a_Temp%\ffprobe.exe, 1
-FileInstall, compile_merge.bat, %a_temp%\compile_merge.bat, 1
-FileCreateDir, %A_AppData%\MPC-HC Video Editor\icons\
+FileInstall, ffmpeg.exe, %A_AppData%\MPC-HC Video Editor\ffmpeg.exe, 1
+FileInstall, ffprobe.exe, %A_AppData%\MPC-HC Video Editor\ffprobe.exe, 1
+FileInstall, compile_merge.bat, %A_AppData%\MPC-HC Video Editor\compile_merge.bat, 1
+FileInstall, compile_merge_files.bat, %A_AppData%\MPC-HC Video Editor\compile_merge_files.bat, 1
+FileInstall, compile_convert.bat, %A_AppData%\MPC-HC Video Editor\compile_convert.bat, 1
+
+FileInstall, icons\test.ico, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
 FileInstall, icons\Location and Other Sensors.ico, %A_AppData%\MPC-HC Video Editor\icons\Location and Other Sensors.ico, 1
 FileInstall, icons\Bookmarks.ico, %A_AppData%\MPC-HC Video Editor\icons\Bookmarks.ico, 1
 FileInstall, icons\Power - Lock.ico, %A_AppData%\MPC-HC Video Editor\icons\Power - Lock.ico, 1
