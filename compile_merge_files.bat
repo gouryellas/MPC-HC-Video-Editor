@@ -116,5 +116,3 @@ if exist "%output_dir%temp.mp4" del "%output_dir%temp.mp4"
 
 echo Done! Output file: %output%
 :: Run ffmpeg and capture the last line that contains "time="
-
-pause

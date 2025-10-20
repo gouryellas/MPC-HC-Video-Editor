@@ -51,11 +51,10 @@ if "%~3"=="" (
     exit /b 1
 )
 if "%~4"=="" (
-    echo ERROR: No end time provided for first segment.
+    echo ERROR: No end time provided.
     pause
     exit /b 1
 )
-
 :: Validate input file existence
 if not exist "%INPUT_FILE%" (
     echo ERROR: Input file "%INPUT_FILE%" does not exist.
@@ -104,6 +103,8 @@ set "n=0"
 set "concatfile=%output_dir%concat.txt"
 if exist "%concatfile%" del "%concatfile%"
 
+
+
 :loop
 if "%~1"=="" goto concatenate
 set /a "n+=1"
@@ -119,6 +120,7 @@ if "!end!"=="" (
     pause
     exit /b 1
 )
+
 echo Processing segment !n! from !start! to !end!
 "%FFMPEG_PATH%" -fflags +igndts -ss !start! -to !end! -i "%orig_input%" -c:v libx264 -preset veryfast -c:a aac -b:a 192k -y "%output_dir%segment!n!.mp4"
 if errorlevel 1 (
@@ -138,7 +140,7 @@ if !n! equ 0 (
     exit /b 1
 )
 echo Concatenating segments...
-"%FFMPEG_PATH%" -y -f concat -safe 0 -i "%concatfile%" -c copy "%output%"
+"%FFMPEG_PATH%" -y -f concat -safe 0 -i "%concatfile%" -c copy -stats "%output%"
 if errorlevel 1 (
     echo ERROR: Concatenation failed. Check concat.txt and segments for issues.
     pause
@@ -161,5 +163,3 @@ for /f "tokens=1 delims= " %%T in ("!rest!") do set "timevalue=%%T"
 :: copy timestamp to clipboard and show confirmation
 echo %timevalue% | clip
 echo Copied to clipboard: %timevalue%
-
-pause

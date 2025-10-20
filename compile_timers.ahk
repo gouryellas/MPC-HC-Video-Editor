@@ -5,7 +5,7 @@ first := 1
 
 Initialize()
 settimer, csv_time, 250
-settimer, file_time, 250
+settimer, file_time, 1
 settimer, file_path, 250
 settimer, time_total, 250
 settimer, time_current, 250
@@ -13,22 +13,16 @@ return
 
 Initialize() {
     global
-    ; NEW: Always scan for the highest existing history_video index to set actual correctly (handles gaps/missing actual key)
     max_detected := 0
-    loop, 50 {  ; Scan up to a reasonable maximum; adjust if higher limits are needed
+    loop, 50 {
         IniRead, test_path, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_video%A_Index%
-        if (test_path != "ERROR" && test_path != "") {
-            max_detected := A_Index  ; Update to current index if valid (will capture the highest)
-        }
+        if (test_path != "ERROR" && test_path != "")
+            max_detected := A_Index
     }
     IniWrite, %max_detected%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_number_actual
     history_number_actual := max_detected
-    
-    ; Original: Only clear if no history detected after scanning
-    if (history_number_actual = 0) {
+    if (history_number_actual = 0)
         gosub, clear_history
-    }
-    
     menu_show2("test") 
     update_menus2()
     if window_exist2("ahk_class MediaPlayerClassicW") {
@@ -44,7 +38,7 @@ Initialize() {
                 time_current := mpc_getTime2()
             }
             last_known_video_path := current_video_path
-            check_csv_path := check_matching_csv(file_path)
+            check_csv_path := check_matching_csv2(file_path)
             if fileexist(check_csv_path) {
                 file_path_csv := check_csv_path
                 timer := "on"
@@ -74,7 +68,7 @@ MonitorMPC:
 					file_directory := file_directory . "\"
 				Menu, SaveToMenu, rename, 2&, Current: %file_directory%
 				iniwrite, %file_directory%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, file_directory     
-                check_csv_path := check_matching_csv(file_path)
+                check_csv_path := check_matching_csv2(file_path)
 				if (file_path_csv != check_csv_path) {	
 					if fileexist(check_csv_path) {
 						file_path_csv := check_csv_path
@@ -99,15 +93,16 @@ MonitorMPC:
 	}
 return
 
-file_time:	
+file_time:
 	update_menus2()
 return
 
 file_path:
 	if (file_path and last_file_path = "" or file_path and last_file_path != file_path) {
-		if (delete_no_history = 1) {
+		global new := yes
+		SB_SetText(file_path,2)
+		if (delete_no_history = 1)
 			menu, historymenu, delete, <no history>
-		}
 		gosub, add_history
 		iniread, exists, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_video0
 		if (exists = "ERROR")
@@ -115,6 +110,19 @@ file_path:
 		delete_no_history := 0
 		error := 0
 		last_file_path := file_path
+	} else
+		new := ""
+	if (!file_path)
+		SB_SetText("Video: <not loaded>",2)
+	else
+		SB_SetText(file_path,2)
+	get_dir := GetMenuItemText2("savetomenu", 2)
+	if regexmatch(get_dir, "imO)Current\:\s(.+)", get_dir) {
+		dir := get_dir[1]
+		if (dir = a_desktop "\") 
+			menu, savetomenu, check, 7&
+		else
+			menu, savetomenu, uncheck, 7&
 	}
 return
 
@@ -132,13 +140,13 @@ csv_time:
 		guicontrol, show, editedduration
 		Gui, Font, cWhite
 	} else if (fileexist(file_path_csv) and check_csv = "") {
-		file_recycle(file_path_csv)
+		file_recycle2(file_path_csv)
 		file_path_csv := ""
 	} else {
 		Gui, Font, cRed
 		guicontrol, font, edittime
-		guicontrol, , edittime, CSV unloaded
-		guicontrol, move, edittime, w150
+		guicontrol, , edittime,  Bookmarks <not loaded>
+		guicontrol, move, edittime, w350
 		guicontrol, hide, editedduration
 		Gui, Font, cWhite
 	}
@@ -163,8 +171,10 @@ time_current:
 		gui, font, %color%
 		guicontrol, font, timecurrent%a_index%
 		guicontrol, , timecurrent%a_index%, %char%
+		Gui, Font, cWhite
 	}
 return	
+
 
 time_total:
 	paint_all := ""
@@ -191,6 +201,14 @@ time_total:
 	}	
 	if (!file_path and !file_path_csv)
 		guicontrol, hide, editedduration
+	if (file_path) {
+		Gui, Font, cWhite
+		guicontrol, font, spacer
+	} else {
+		Gui, Font, c101010
+		guicontrol, font, spacer
+		Gui, Font, cWhite
+	}
 	settimer, time_total, on
 return
 

@@ -23,7 +23,7 @@ show_gui2() {
 	gui, margin, 0, 0
 	gui, menu, test
 	Gui, Color, 000000
-	gui, font, bold s11 cWhite, Fira Code
+	gui, font, bold s10 cWhite, Segoe UI
 	data := file_read2(file_path_csv)
 		loop, parse, % data, `n
 			{
@@ -32,7 +32,8 @@ show_gui2() {
 				ui_add_checkbox2(, "+w30 x+5 yp+0 +gCheckbox +center +vCheckBox" . a_index)
 				time1sec := time1 := line_time[1]
 				time2sec := time2 := line_time[2]
-				iniwrite, %time2%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, time_saved
+				iniwrite, %time2%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, time2_saved
+				iniwrite, ERROR, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, time1_solo
 				line_num := line_time[3]
 				duration_time := time_secToAlt2(time2 - time1)
 				bookmark_status := "complete"
@@ -72,7 +73,8 @@ show_gui2() {
 				ui_add_checkbox2(, "+w30 x+5 yp+0 +gCheckbox +center +vCheckBox" . a_index)
 				time1 := time_secToShort2(line_time[1])
 				bookmark_status := "incomplete"
-				iniwrite, %time1%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, time_saved
+				iniwrite, %time1%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, time1_solo
+				iniwrite, ERROR, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, time2_saved
 				gui, add, text, x+ +center cWhite, [
 				gui, add, text, x+ +center cRed, X
 				gui, add, text, x+ +center cWhite, ] 
@@ -126,7 +128,7 @@ show_gui2() {
 		}
 	Gui, Add, GroupBox, +left vdragdropborder w500 h150 xs	
 	Gui, Add, Text, w490 Center xp+5 yp+65 vdragdroptext, <drag files here to load>
-	
+	Gui, Add, StatusBar, gStatus vStatus
 	xpos := a_screenwidth - 1200
 	WinGet, state, MinMax, ahk_id %MyGui%
 	if (gui_existed = 1) {
@@ -138,9 +140,13 @@ show_gui2() {
 		if (state = 1)
 			WinMinimize, ahk_id %MyGui%
 	}
+	SB_SetParts(20,370,30,80)
+	SB_SetIcon("Shell32.dll", 116, 1)
+	SB_SetText("Video: <not loaded>",2)
+	
 	gui, color, 000000, 000000
 	for index, value in radiobox_index
-		GuiControl, , %value%, 1
+		GuiControl, , radiobox%value%, 1
 	if (timer = "on" or seek = 1) {
 		seek_steps2()
 		seek := ""
@@ -157,6 +163,87 @@ show_gui2() {
 	update_menus2()
 }
 
+seek_steps2(t_time:="") {   
+	iniread, time1, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, time1_solo
+	if (time1 != "" and time1 != "ERROR")
+		latest_time := time1
+	else {
+		iniread, time2, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, time2_saved
+		if (time2 != "" and time2 != "ERROR")
+			latest_time := time2
+	}
+	if (timer = "on") {
+		if !instr(latest_time, ":")
+			latest_time := time_secToShort2(latest_time)
+		prefix := special2(latest_time)
+		get_clicked_time := latest_time
+	} else {
+		prefix := special2(t_time)
+		get_clicked_time := t_time
+	}
+	get_clicked_time2 := time_shortToSec2(get_clicked_time)
+	time_total2 := time_altToSec2(time_total)
+	if 	(get_clicked_time2 > time_total2 AND time_total2 != "" AND time_total2 != 0) {
+		msg2("Warning: The last bookmark time exceeds the length of the video. `n`nLast bookmark time: " . time_shortToAlt2(get_clicked_time) . "`nVideo length: " . time_total2)
+		return
+	}
+	num := number_countdigits2(get_clicked_time)
+	if (num = 6)
+		regexmatch(get_clicked_time, "imO)(..):(..):(..)", time)
+	else if (num = 5)
+		regexmatch(get_clicked_time, "imO)(.):(..):(..)", time)
+	else if (num = 4) 
+		regexmatch(get_clicked_time, "imO)(..):(..)", time)
+	else if (num = 3)
+		regexmatch(get_clicked_time, "imO)(.):(..)", time)
+	else if (num = 2)
+		regexmatch(get_clicked_time, "imO)(..)", time)
+	else if (num = 1)
+		regexmatch(get_clicked_time, "imO)(.)", time)
+	time1 := time[1]
+	time2 := time[2]
+	time3 := time[3]
+;	msg("prefix = " . prefix . "`rnum = " . num . "`rt_time = " . t_time . "`rtime[1] = " . time[1] . "`rtime[2] = " . time[2] . "`rget_clicked_time = " . get_clicked_time)
+	new_time := prefix . time1 . time2 . time3 . ".000"
+	window_activate2("ahk_class MediaPlayerClassicW")
+	wait2(500)
+	send2("{ctrl}{g}", "down")
+	window_activate2("Go To...")
+	Controlfocus, MFCMaskedEdit1, Go To...
+	sendraw % new_time
+	send2("{enter}")
+}	
+
+special2(var1) {
+	total_time := mpc_getDuration2("raw")
+	if regexmatch(total_time, "imO)(\d{2}):(\d{2}):(\d{2})", time_seek) {
+		num := number_countDigits2(var1)
+		if (num = 6)
+			prefix :=
+		else if (num = 5)
+			prefix := 0
+		else if (num = 4) 
+			prefix := 00
+		else if (num = 3) 
+			prefix := 000
+		else if (num = 2) 
+			prefix := 0000
+		else if (num = 1)
+			prefix := 00000
+	} else if regexmatch(total_time, "imO)(\d{2}):(\d{2})", time_seek) {
+		num := number_countDigits2(var1)
+		if (num = 4) 
+			prefix := 
+		else if (num = 3) 
+			prefix := 0
+		else if (num = 2) 
+			prefix := 00
+		else if (num = 1)
+			prefix := 000
+	}
+	return prefix
+}
+
 menu_show2(var) {
 	if (delete_all = 1) {
 		menu, savetomenu, deleteall
@@ -169,86 +256,93 @@ menu_show2(var) {
 		menu, statsMenu, deleteall
 	}
 	Menu, SaveToMenu, Add, Select..., saveto_change
-	Menu, SaveToMenu, Icon, Select..., %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, SaveToMenu, Icon, Select..., %A_AppData%\MPC-HC Video Editor\icons\select.ico, 1
 	Menu, SaveToMenu, Add, Current: %file_directory%, no_action
-	Menu, SaveToMenu, Icon, Current: %file_directory%, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, SaveToMenu, Icon, Current: %file_directory%, %A_AppData%\MPC-HC Video Editor\icons\save.ico, 1
 	if (file_directory = "" or file_directory = a_desktop "\") {
 		Menu, saveToMenu, Rename, 2&, Current: %a_desktop%\
 		desktop_checked := 1
 		file_directory := a_desktop . "\"
 		iniwrite, %file_directory%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, file_directory
-	}	
+	}
+	iniread, quicksave_dir, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, quicksave
+	if (quicksave_dir = "" or quicksave_dir = "ERROR") {
+		Menu, saveToMenu, add, Quick save: <not set>, no_action
+	} else
+		Menu, saveToMenu, add, Quick save: %quicksave_dir%, no_action
+	;	Menu, saveToMenu, rename, 3&, Quick save: %quicksave_dir%
+	Menu, SaveToMenu, Icon, 3&, %A_AppData%\MPC-HC Video Editor\icons\save.ico, 1
+	Menu, quicksavemenu, Add, Select..., add_quick
+	Menu, quicksavemenu, Icon, Select..., %A_AppData%\MPC-HC Video Editor\icons\select.ico, 1
+	Menu, SaveToMenu, Add, Set, :quicksavemenu
+	Menu, SaveToMenu, Icon, Set, %A_AppData%\MPC-HC Video Editor\icons\test2.ico, 1
 	num := string_countCharacters2("Current: " file_directory)
 	separator1 := repeat2("_", num)
 	Menu, quicksavetomenu, Add, Add new..., add_shortcut
-	Menu, quicksavetomenu, Icon, Add new..., %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1	
+	Menu, quicksavetomenu, Icon, Add new..., %A_AppData%\MPC-HC Video Editor\icons\add.ico, 1	
 	Menu, quicksavetomenu, Add, Add current, add_current
-	Menu, quicksavetomenu, Icon, Add current, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1		
+	Menu, quicksavetomenu, Icon, Add current, %A_AppData%\MPC-HC Video Editor\icons\add.ico, 1		
     Menu, quicksavetomenu, Add, Delete..., delete_shortcut
-    Menu, quicksavetomenu, Icon, Delete..., %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1	 ; Pick an icon
+    Menu, quicksavetomenu, Icon, Delete..., %A_AppData%\MPC-HC Video Editor\icons\delete.ico, 1
 	Menu, savetomenu, Add, %separator1%, no_action
 	Menu, SaveToMenu, Add, Shortcuts, :quicksavetomenu
+	Menu, SaveToMenu, Icon, Shortcuts, %A_AppData%\MPC-HC Video Editor\icons\test2.ico, 1
 	Menu, savetomenu, Add, %a_desktop%\, shortcut_actions
-	if (file_directory = a_desktop "\") {
-		menu, savetomenu, check, %a_desktop%\
-		menu, savetomenu, icon, %a_desktop%\, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1	
-	}
+	if (file_directory = a_desktop "\")
+		menu, savetomenu, icon, %a_desktop%\, %A_AppData%\MPC-HC Video Editor\icons\d.ico, 1	
 	if (file_path) {
-		splitpath, file_path, , shortcut_path
-		Menu, savetomenu, Add, %shortcut_path%\, shortcut_actions
-		menu, savetomenu, icon, %shortcut_path%\, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1	
+		Menu, savetomenu, Add, %dir%\, shortcut_actions
+		menu, savetomenu, icon, %dir%\, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1	
 	}
-	Menu, SaveToMenu, Icon, Shortcuts, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
 	Menu, SaveToMenu, Default, 2&
 	Menu, AddMenu, Add, Enter a time..., enter_time
-	Menu, AddMenu, Icon, Enter a time..., %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, AddMenu, Icon, Enter a time..., %A_AppData%\MPC-HC Video Editor\icons\clock.ico, 1
 	if (file_path_csv = "") {
 		num1 := string_countCharacters2("Bookmarks: <not loaded")
 		separator2 := repeat2("_",num1)
 	}
 	Menu, LoadMenu, Add, Bookmarks: %file_path_csv%, open_file
-	Menu, LoadMenu, Icon, Bookmarks: %file_path_csv%, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, LoadMenu, Icon, Bookmarks: %file_path_csv%, %A_AppData%\MPC-HC Video Editor\icons\bookmarks.ico, 1
 	Menu, LoadMenu, Add, Load..., load_bookmark 
-	Menu, LoadMenu, Icon, Load...,	%A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, LoadMenu, Icon, Load...,	%A_AppData%\MPC-HC Video Editor\icons\load.ico, 1
 	Menu, LoadMenu, Add, Unload, unload_bookmark 
-	Menu, LoadMenu, Icon, Unload, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, LoadMenu, Icon, Unload, %A_AppData%\MPC-HC Video Editor\icons\unload.ico, 1
 	Menu, LoadMenu, Add, Edit, edit_bookmark 
-	Menu, LoadMenu, Icon, Edit, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, LoadMenu, Icon, Edit, %A_AppData%\MPC-HC Video Editor\icons\edit.ico, 1
 	Menu, LoadMenu, Add, Delete, delete_bookmark
-	Menu, LoadMenu, Icon, Delete, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, LoadMenu, Icon, Delete, %A_AppData%\MPC-HC Video Editor\icons\delete.ico, 1
 	Menu, LoadMenu, Add, %separator2%`t, no_action
 	Menu, LoadMenu, Add, Video: %file_path%, open_file
-	Menu, LoadMenu, Icon, Video: %file_path%, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, LoadMenu, Icon, Video: %file_path%, %A_AppData%\MPC-HC Video Editor\icons\video.ico, 1
 	Menu, LoadMenu, Add, Load...`t, load_video 
-	Menu, LoadMenu, Icon, Load...`t, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, LoadMenu, Icon, Load...`t, %A_AppData%\MPC-HC Video Editor\icons\load.ico, 1
 	Menu, LoadMenu, Add, Unload`t, unload_video 
-	Menu, LoadMenu, Icon, Unload`t, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, LoadMenu, Icon, Unload`t, %A_AppData%\MPC-HC Video Editor\icons\unload.ico, 1
 	Menu, LoadMenu, Add, Delete`t, delete_video
-	Menu, LoadMenu, Icon, Delete`t, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1		
+	Menu, LoadMenu, Icon, Delete`t, %A_AppData%\MPC-HC Video Editor\icons\delete.ico, 1		
 	Menu, ActionsMenu, Add, Merge all, merge_split
-	Menu, ActionsMenu, Icon, Merge all, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, ActionsMenu, Icon, Merge all, %A_AppData%\MPC-HC Video Editor\icons\merge.ico, 1
 	Menu, ActionsMenu, Add, Merge files..., merge_files
-	Menu, ActionsMenu, Icon, Merge files..., %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, ActionsMenu, Icon, Merge files..., %A_AppData%\MPC-HC Video Editor\icons\merge.ico, 1
 	Menu, ActionsMenu, Add, Convert file(s)..., convert_files
-	Menu, ActionsMenu, Icon, Convert file(s)..., %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, ActionsMenu, Icon, Convert file(s)..., %A_AppData%\MPC-HC Video Editor\icons\convert.ico, 1
 	Menu, ActionsMenu, Add, Split all, merge_split
-	Menu, ActionsMenu, Icon, Split all, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, ActionsMenu, Icon, Split all, %A_AppData%\MPC-HC Video Editor\icons\split.ico, 1
 	Menu, ActionsMenu, Add, _________________, no_action
 	Menu, ActionsMenu, Add, Undo last bookmark, undo_bookmark
-	Menu, ActionsMenu, Icon, Undo last bookmark, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, ActionsMenu, Icon, Undo last bookmark, %A_AppData%\MPC-HC Video Editor\icons\undo.ico, 1
 	Menu, ActionsMenu, Add, Clear all bookmarks, clear_bookmarks
-	Menu, ActionsMenu, Icon, Clear all bookmarks, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, ActionsMenu, Icon, Clear all bookmarks, %A_AppData%\MPC-HC Video Editor\icons\clear.ico, 1
 	Menu, ActionsMenu, Add, Reset everything, reset_everything
-	Menu, ActionsMenu, Icon, Reset everything, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
-	Menu, ActionsMenu, Add, _________________%a_space%, no_action
+	Menu, ActionsMenu, Icon, Reset everything, %A_AppData%\MPC-HC Video Editor\icons\reset.ico, 1
 	Menu, ActionsMenu, Add, Check for errors, csv_check
-	Menu, ActionsMenu, Icon, Check for errors, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, ActionsMenu, Icon, Check for errors, %A_AppData%\MPC-HC Video Editor\icons\error.ico, 1
 	Menu, HotkeyMenu, Add, Select..., hotkey
-	Menu, HotkeyMenu, Icon, Select..., %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, HotkeyMenu, Icon, Select..., %A_AppData%\MPC-HC Video Editor\icons\select.ico, 1
 	if (activehotkey = "") 
 		activehotkey := "MButton"
 	Menu, HotkeyMenu, Add, Current: %activehotkey%, no_action
-	Menu, HotkeyMenu, Icon, Current: %activehotkey%, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, HotkeyMenu, Icon, Current: %activehotkey%, %A_AppData%\MPC-HC Video Editor\icons\key.ico, 1
 	Menu, HotkeyMenu, Default, 2&
 	Menu, effectsmenu, Add, None, TR_SelectType
 	Menu, effectsmenu, Add, Fadeblack, TR_SelectType
@@ -258,27 +352,27 @@ menu_show2(var) {
 	Menu, durationmenu, Add, 4s, DUR_SelectType
 	Menu, durationmenu, Add, 5s, DUR_SelectType
 	Menu, videoMenu, Add, Transition effect, :effectsmenu
-	Menu, videoMenu, Icon, 1&, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, videoMenu, Icon, Transition effect, %A_AppData%\MPC-HC Video Editor\icons\test2.ico, 1
 	Menu, videoMenu, Add, Current: None, no_action
-	Menu, videoMenu, Icon, 2&, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, videoMenu, Icon, 2&, %A_AppData%\MPC-HC Video Editor\icons\question.ico, 1
 	Menu, videoMenu, Default, 2&
 	Menu, videoMenu, Add, _____________, no_action
 	Menu, videoMenu, Add, Effect duration, :durationmenu
-	Menu, videoMenu, Icon, 4&, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, videoMenu, Icon, Effect duration, %A_AppData%\MPC-HC Video Editor\icons\test2.ico, 1
 	Menu, videoMenu, Add, Current: 2s, no_action
-	Menu, videoMenu, Icon, 5&, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, videoMenu, Icon, 5&, %A_AppData%\MPC-HC Video Editor\icons\2.ico, 1
 	Menu, quickhistorymenu, Add, 5, history_number_maximum
-	Menu, quickhistorymenu, Icon, 5, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, quickhistorymenu, Icon, 5, %A_AppData%\MPC-HC Video Editor\icons\dash.ico, 1
 	Menu, quickhistorymenu, Add, 10, history_number_maximum
-	Menu, quickhistorymenu, Icon, 10, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, quickhistorymenu, Icon, 10, %A_AppData%\MPC-HC Video Editor\icons\dash.ico, 1
 	Menu, quickhistorymenu, Add, 15, history_number_maximum
-	Menu, quickhistorymenu, Icon, 15, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, quickhistorymenu, Icon, 15, %A_AppData%\MPC-HC Video Editor\icons\dash.ico, 1
 	Menu, quickhistorymenu, Add, 20, history_number_maximum
-	Menu, quickhistorymenu, Icon, 20, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, quickhistorymenu, Icon, 20, %A_AppData%\MPC-HC Video Editor\icons\dash.ico, 1
 	Menu, historyMenu, Add, Maximum to show, :quickhistorymenu
-	menu, historyMenu, icon, Maximum to show, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	menu, historyMenu, icon, Maximum to show, %A_AppData%\MPC-HC Video Editor\icons\test2.ico, 1
 	Menu, historyMenu, Add, Clear history, clear_history
-	menu, historyMenu, icon, Clear history, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	menu, historyMenu, icon, Clear history, %A_AppData%\MPC-HC Video Editor\icons\clear.ico, 1
 	menu, historymenu, add,  _________________, no_action
 	iniread, history_number_maximum, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_number_maximum
 	iniread, history_number_actual, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_number_actual
@@ -291,22 +385,24 @@ menu_show2(var) {
 	if (history_number_actual = "" or history_number_actual = "ERROR" or history_number_actual = 0) {
 		delete_no_history := 1
 		Menu, historyMenu, Add, <no history>, no_action
-		menu, historyMenu, icon, <no history>, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+		menu, historyMenu, icon, <no history>, %A_AppData%\MPC-HC Video Editor\icons\question.ico, 1
 		iniwrite, 0, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_number_actual
 	}
 	if (history_number_actual != 0) {
 		loop, %history_number_actual% {
 			IniRead, history_video_path,  %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_video%A_Index%
-			if (history_video_path != "") {
-				Menu, historyMenu, Add, %A_Index%: %history_video_path%, history_video_action
-				menu, historyMenu, icon, %a_index%: %history_video_path%, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
-			}
+            if (history_video_path != "" && history_video_path != "ERROR") {
+				Menu, historyMenu, Add, %history_video_path%, history_video_action
+				if !fileexist(history_video_path)
+					menu, historymenu, disable, %history_video_path%
+                menu, historyMenu, icon, %history_video_path%, %A_AppData%\MPC-HC Video Editor\icons\%a_index%.ico, 1
+            }
 		}
 	}
 	Menu, StatsMenu, Add, Enable, stats
-	Menu, StatsMenu, Icon, Enable, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, StatsMenu, Icon, Enable, %A_AppData%\MPC-HC Video Editor\icons\dash.ico, 1
 	Menu, StatsMenu, Add, Advanced, stats
-	Menu, StatsMenu, Icon, Advanced, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1
+	Menu, StatsMenu, Icon, Advanced, %A_AppData%\MPC-HC Video Editor\icons\dash.ico, 1
 	Menu, StatsMenu, Disable, Advanced
 	Menu, %var%, Add, &Save to, :SaveToMenu
 	Menu, %var%, Add, &Add, :AddMenu
@@ -407,8 +503,8 @@ update_menus2(var:="") {
 		Menu, ActionsMenu, Disable, 4&
 		Menu, ActionsMenu, Disable, Undo last bookmark
 		Menu, ActionsMenu, Disable, Clear all bookmarks
+		Menu, ActionsMenu, Disable, Check for errors
 		Menu, ActionsMenu, Enable, Reset everything	
-		Menu, ActionsMenu, Disable, 8&
 		Menu, LoadMenu, Disable, Edit
 		Menu, LoadMenu, Disable, Delete
 		Menu, LoadMenu, Disable, Unload
@@ -439,13 +535,9 @@ update_menus2(var:="") {
 	iniread, shortcut_number, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, shortcut_number
 	loop, %shortcut_number% {
 		iniread, shortcut_path, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, shortcut_path%a_index%
-		Menu, savetomenu, Add, %a_index%: %shortcut_path%, shortcut_actions
-		menu, savetomenu, icon, %a_index%: %shortcut_path%, %A_AppData%\MPC-HC Video Editor\icons\test.ico, 1	
+		Menu, savetomenu, Add, %shortcut_path%, shortcut_actions
+		menu, savetomenu, icon, %shortcut_path%, %A_AppData%\MPC-HC Video Editor\icons\%a_index%.ico, 1	
 	}	
-;	iniread, history_number_maximum, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_number_maximum
-;	iniread, history_number_actual, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_number_actual
-;	if (history_number_actual = "")
-;		iniwrite, 0, %A_AppData%\MPC-HC Video Editor\compile_data.ini, settings, history_number_actual
 	menu, effectsmenu, check, none
 	menu, videomenu, uncheck, 2&
 	if (!errorlevel) {
@@ -584,7 +676,6 @@ csv_repair2(file_path_csv) {
 			wait(500)
 			file_write2(file_path_csv, new_data)
 			file_path_csv := old_csv
-			
 		}
 	}
 	data := ""
@@ -643,7 +734,7 @@ csv_repair2(file_path_csv) {
 				corrected_content .= "`n"
 		}
 		if (corrected_content = "") {
-			file_recycle(file_path_csv)
+			file_recycle2(file_path_csv)
 			file_path_csv := ""
 		} else
 			file_write2(file_path_csv, corrected_content, "w")
@@ -692,7 +783,7 @@ folder_rename2(file_path) {
 		Progress, fs14, Renaming folder
 		Loop {
 			window_kill2("ahk_class MediaPlayerClassicW")
-			if !window_exist("ahk_class MediaPlayerClassicW")
+			if !window_exist2("ahk_class MediaPlayerClassicW")
 				break
 		}
 		FileMoveDir, %old_folder_path%, %new_folder_path%
@@ -749,7 +840,7 @@ file_rename2(file_path) {
 		Progress, fs14, Renaming file
 		Loop {
 			window_kill2("ahk_class MediaPlayerClassicW")
-			if !window_exist("ahk_class MediaPlayerClassicW")
+			if !window_exist2("ahk_class MediaPlayerClassicW")
 				break
 		}
 		FileMove, %old_file_path%, %new_file_path%
@@ -757,14 +848,16 @@ file_rename2(file_path) {
 			if fileexist(new_file_path)
 				break
 		}
-		file_path := new_file_path
 		if (pause = 1)
-			wait(1)
-		file_csv_path := strreplace(new_file_path,file_extension,"csv")
-		run, %file_path%
+			wait2(1)
+		new_file_csv_path := strreplace(new_file_path,file_extension,"csv")
+		FileMove, %old_csv_path%, %new_file_csv_path%
+		menu, loadmenu, rename, 1&, Bookmarks: %new_file_csv_path%
+		update_menus2()
+		run, %new_file_path%
 		Loop {
 			file_path := window_title2("ahk_class MediaPlayerClassicW")
-			if !instr(file_path, "Media Player Classic")
+			if !instr(file_path, "Media Player Classic" and file_path != "")
 				break
 		}
 		splitpath, file_path, file_both, file_directory, file_extension, file_name, file_drive
@@ -773,26 +866,27 @@ file_rename2(file_path) {
 		file_extension_dot := "." . file_extension
 		Progress, off
 	}
-	iniwrite, %file_path%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, file_path
+	iniwrite, %new_file_path%, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, file_path
 	if (pause = 1) {
 		latest := 1
 		timer := "on"
 		seek_steps2()
 		timer := "off"
 	}
-	return file_path
+	iniread, file_path_get, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, file_path
+	return file_path_get
 }
 
 file_time2() {
 	if (pause = 1)
-		wait(2)
+		wait2(2)
 	Loop {
 		current_time := mpc_getTime2()
 		if (current_time != "")
 			break
 	}
 	if (pause = 1)
-		wait(2)
+		wait2(2)
 	total_time := mpc_getDuration2()
 	if (total_time != 0 or total_time != "")
 		time_total := time_longToAlt2(total_time)
@@ -934,7 +1028,7 @@ csv_linewrite2(file_path_csv, string, num) {
 
 edit_duration2(file_path_csv:="") {
 	data := file_read2(file_path_csv)
-	line_count := csv_linecount(file_path_csv)
+	line_count := csv_linecount2(file_path_csv)
 	loop, parse, % data, `n	
 		{
 		if regexmatch(a_loopfield, "imO)(\d+)\,(\d+)\,Bookmark(\d+)", time) {
@@ -961,79 +1055,6 @@ ffmpeg_time2(file_path_csv) {
 		}
 	}
 	return ffmpeg_time
-}
-
-seek_steps2(t_time:="") {   
-	if (latest = 1) {
-		iniread, previous_time, %A_AppData%\MPC-HC Video Editor\compile_data.ini, stored_data, latest_time
-		latest := ""
-	}
-	if (timer = "on") {
-		if !instr(previous_time, ":")
-			previous_time := time_secToShort2(previous_time)
-		prefix := special2(previous_time)
-		get_clicked_time := previous_time
-	} else {
-		prefix := special2(t_time)
-		get_clicked_time := t_time
-	}
-	get_clicked_time2 := time_shortToSec2(get_clicked_time)
-	time_total2 := time_altToSec2(time_total)
-	if 	(get_clicked_time2 > time_total2 AND time_total2 != "" AND time_total2 != 0) {
-		msg2("Warning: The last bookmark time exceeds the length of the video. `n`nLast bookmark time: " . time_shortToAlt2(get_clicked_time) . "`nVideo length: " . time_total2)
-		return
-	}
-	num := number_countdigits2(get_clicked_time)
-	if (num = 6)
-		regexmatch(get_clicked_time, "imO)(..):(..):(..)", time)
-	else if (num = 5)
-		regexmatch(get_clicked_time, "imO)(.):(..):(..)", time)
-	else if (num = 4)
-		regexmatch(get_clicked_time, "imO)(..):(..)", time)
-	else if (num = 3)
-		regexmatch(get_clicked_time, "imO)(.):(..)", time)
-	else if (num = 2)
-		regexmatch(get_clicked_time, "imO)(..)", time)
-	else if (num = 1)
-		regexmatch(get_clicked_time, "imO)(.)", time)
-	;msg("prefix = " . prefix . "`rnum = " . num . "`rt_time = " . t_time . "`rtime[1] = " . time[1] . "`rtime[2] = " . time[2] . "`rget_clicked_time = " . get_clicked_time)
-	new_time := prefix . time[1] . time[2] . time[3] . ".000"
-	window_activate2("ahk_class MediaPlayerClassicW")
-	send2("{ctrl}{g}", "down")
-	window_activate2("Go To...")
-	Controlfocus, MFCMaskedEdit1, Go To...
-	sendraw % new_time
-	send2("{enter}")
-}	
-
-special2(var1) {
-	total_time := mpc_getDuration2("raw")
-	if regexmatch(total_time, "imO)(\d{2}):(\d{2}):(\d{2})", time_seek) {
-		num := number_countDigits2(var1)
-		if (num = 6)
-			prefix :=
-		else if (num = 5)
-			prefix := 0
-		else if (num = 4) 
-			prefix := 00
-		else if (num = 3) 
-			prefix := 000
-		else if (num = 2) 
-			prefix := 0000
-		else if (num = 1)
-			prefix := 00000
-	} else if regexmatch(total_time, "imO)(\d{2}):(\d{2})", time_seek) {
-		num := number_countDigits2(var1)
-		if (num = 4) 
-			prefix := 
-		else if (num = 3) 
-			prefix := 0
-		else if (num = 2) 
-			prefix := 00
-		else if (num = 1)
-			prefix := 000
-	}
-	return prefix
 }
 
 preserve_stats2() {
@@ -1098,7 +1119,7 @@ ParsePairsFromString2(ffmpeg_time) {
 ffmpeg_transition2(input, output, ffmpeg_time, effect:="", duration:="") {
     tmpDir := A_Temp . "\mpcbe_temp"
     FileCreateDir, %tmpDir%
-    ff := "C:\Program Files\ffmpeg\tools\ffmpeg\bin\ffmpeg.exe"
+    ff := A_AppData . "\MPC-HC Video Editor\ffmpeg.exe"
 
     if (input = "" || !FileExist(input)) {
         MsgBox, 16, ERROR, Source file missing:`n%src%
@@ -1119,7 +1140,7 @@ ffmpeg_transition2(input, output, ffmpeg_time, effect:="", duration:="") {
 		ee := p.end
 		st := p.dur - duration
 		dt := duration
-		ff := "C:\Program Files\ffmpeg\tools\ffmpeg\bin\ffmpeg.exe"
+		ff := A_AppData . "\MPC-HC Video Editor\ffmpeg.exe"
 		num := pairs.MaxIndex()
 		v_a := num * 0.5
 		if (effect = "fadeblack") {
@@ -1281,7 +1302,7 @@ info2(var) {
 		return data . "`n" . advanced
 }
 
-check_matching_video(file_path_csv) {
+check_matching_video2(file_path_csv) {
 	extensions := []
 	extensions.push("mp4", "avi", "mpg", "mkv", "avi", "mov", "wmv", "flv", "webm", "mpeg", "m4v", "ts")
 	Loop % extensions.MaxIndex() 
@@ -1293,7 +1314,7 @@ check_matching_video(file_path_csv) {
 	}
 }
 
-check_matching_csv(file_path) {
+check_matching_csv2(file_path) {
 	splitpath, file_path, file_both, file_directory, file_extension, file_name, file_drive
 	file_name := string_caseLower2(file_name)
 	file_extension_dot := "." . file_extension
@@ -1827,7 +1848,6 @@ string_caseUpper2(string:="") {
 }
 
 string_caseTitle2(string:="") {
-	
 	if (string != "") {
 		StringUpper, caseTitle, string, T
 		return caseTitle
@@ -1853,7 +1873,6 @@ string_caseLower2(string:="") {
 }
 
 string_caseBlend2(string:="") {
-	
 	if (string != "") {
 		string := string_caseLower2(string)
 		return RegExReplace(string, "(((^|([.!?]\s+))[a-z])| i | i')", "$u1")
@@ -1867,7 +1886,6 @@ string_caseBlend2(string:="") {
 }
 
 string_caseSentence2(string:="") {
-	
 	X = I,AHK,AutoHotkey
 
 	string := RegExReplace(string, "[\.\!\?]\s+|\R+", "$0þ") ; mark 1st letters of sentences with char 254
@@ -2169,7 +2187,6 @@ ui_setup2(name, options:="+owner +border -resize -maximizebox -sysmenu -caption 
 }
 
 ui_pos2(options) {
-	
 	if regexmatch(options, "imO)(\+)(left|absolute-left|right|absolute-right|center|top|absolute-top|bottom)", wcp) {
 		pos := wcp[2] = "center" ? "center" : pos
 		pos := wcp[2] = "absolute-left" ? "x0" : pos
@@ -2185,12 +2202,10 @@ ui_pos2(options) {
 		options := get_xypos[0]
 	else
 		options := "center"
-	
 	gui, %options%
 }
 
 ui_color2(options, control:="") {
-	
 	colors := "black|silver|gray|maroon|red|purple|fuschia|green|lime|olive|navy|blue|teal|yellow|aqua|orange|white"
 	if regexmatch(options, "imO)\+(wc|cc)(" . colors . ")\s?\+?(wc|cc)?(" . colors . ")?", wcc) {
 		wc := wcc[1] = "wc" ? wcc[2] : wc
@@ -2201,13 +2216,11 @@ ui_color2(options, control:="") {
 			gui, font, cBlack
 		if (wc = "black")
 			gui, font, cWhite
-		
 		gui, color, %wc%, %cc%
 	}
 }
 
 ui_font2(options) {
-	
 	if ff = ""
 		ff := "Segoe UI"
 	if regexmatch(options, "imO)(?<=\+)?(bold|italic|underline|norm)(\d+)?", ft) {
@@ -2222,7 +2235,6 @@ ui_font2(options) {
 		options := strreplace(options, fs[0], " s" . fs[1])
 	if regexmatch(options, "imO)(\+)(black|silver|gray|maroon|red|purple|fuschia|green|lime|olive|navy|blue|teal|yellow|aqua|orange|white)", fc)
 		options := strreplace(options, fc[0], " c" . fc[2])
-	
 	gui, font, %options%, %ff%
 }
 
@@ -2259,7 +2271,6 @@ ui_add_picture2(value, options:="") {
 
 ui_add_text2(value, options:="") {
 	global
-	
 	options := strreplace(options, "+transparent", "backgroundtrans 0x4000000")
 	if !regexmatch(options, "im)backgroundtrans 0x4000000")
 		options .= " backgroundtrans 0x4000000"
@@ -2285,7 +2296,6 @@ ui_add_text2(value, options:="") {
 
 ui_add_button2(value:="OK", options:="") {
 	global
-	
 	options := strreplace(options, "+transparent", "backgroundtrans")
 	if regexmatch(options, "imO)(\+w)(\d+)", bcw) 
 		options := strreplace(options, bcw[1], "w")
@@ -2305,7 +2315,6 @@ ui_add_button2(value:="OK", options:="") {
 
 ui_add_radio2(value:="", options:="Checked") {
 	global
-	
 	if regexmatch(options, "imO)(\+w)(\d+)", rcw) 
 		options := strreplace(options, rcw[1], "w")
 	if !regexmatch(options, "imO)(w)(\d+)") && regexmatch(gui_size, "imO)(\d+)x(\d+)", wh)
@@ -2316,13 +2325,11 @@ ui_add_radio2(value:="", options:="Checked") {
 		options := strreplace(options ,rg[1], " g")
 	if regexmatch(options, "imO)(\+)(checked)", checked)
 		options := strreplace(options, checked[1])
-	
 	gui, add, radio, %options%, %value%
 }
 
 ui_add_checkbox2(value:="", options:="checkedGray") {
 	global
-	
 	if regexmatch(options, "imO)(\+w)(\d+)", rcw) 
 		options := strreplace(options, rcw[1], "w")
 	if !regexmatch(options, "imO)(w)(\d+)") && regexmatch(gui_size, "imO)(\d+)x(\d+)", wh)
@@ -2432,19 +2439,14 @@ window_activate2(title:="a") {
 }
 
 window_kill2(title:="a") {
-	
 	winkill, %title%
-	
 }
 
 window_hide2(title:="a") {
-	
 	winhide, %title%
-	
 }
 
 window_show2(title:="a") {
-	
 	winshow, %title%
 	
 }
@@ -2510,13 +2512,11 @@ window_title2(title = "a") {
 }
 
 window_setTitle2(new_title, title:="a") {
-	
 	winsettitle, %title%, , %new_title%
 	
 }
 
 window_text2(title:="a") {
-	
 	wingettext, uservar, text, %title%
 	return uservar
 	
@@ -2602,4 +2602,145 @@ copy2(byref var:="") {
 	sendinput % "{ctrl down}{c down}{c up}{ctrl up}"
 	var := clipboard
 	return var
+}
+
+SB_SetProgress2(Value=0,Seg=1,Ops="")
+{
+   ; Definition of Constants   
+   Static SB_GETRECT      := 0x40a      ; (WM_USER:=0x400) + 10
+        , SB_GETPARTS     := 0x406
+        , SB_PROGRESS                   ; Container for all used hwndBar:Seg:hProgress
+        , PBM_SETPOS      := 0x402      ; (WM_USER:=0x400) + 2
+        , PBM_SETRANGE32  := 0x406
+        , PBM_SETBARCOLOR := 0x409
+        , PBM_SETBKCOLOR  := 0x2001 
+        , dwStyle         := 0x50000001 ; forced dwStyle WS_CHILD|WS_VISIBLE|PBS_SMOOTH
+
+   ; Find the hWnd of the currentGui's StatusbarControl
+   Gui,+LastFound
+   ControlGet,hwndBar,hWnd,,msctls_statusbar321
+
+   if (!StrLen(hwndBar)) { 
+      rErrorLevel := "FAIL: No StatusBar Control"     ; Drop ErrorLevel on Error
+   } else If (Seg<=0) {
+      rErrorLevel := "FAIL: Wrong Segment Parameter"  ; Drop ErrorLevel on Error
+   } else if (Seg>0) {
+      ; Segment count
+      SendMessage, SB_GETPARTS, 0, 0,, ahk_id %hwndBar%
+      SB_Parts :=  ErrorLevel - 1
+      If ((SB_Parts!=0) && (SB_Parts<Seg)) {
+         rErrorLevel := "FAIL: Wrong Segment Count"  ; Drop ErrorLevel on Error
+      } else {
+         ; Get Segment Dimensions in any case, so that the progress control
+         ; can be readjusted in position if neccessary
+         if (SB_Parts) {
+            VarSetCapacity(RECT,16,0)     ; RECT = 4*4 Bytes / 4 Byte <=> Int
+            ; Segment Size :: 0-base Index => 1. Element -> #0
+            SendMessage,SB_GETRECT,Seg-1,&RECT,,ahk_id %hwndBar%
+            If ErrorLevel
+               Loop,4
+                  n%A_index% := NumGet(RECT,(a_index-1)*4,"Int")
+            else
+               rErrorLevel := "FAIL: Segmentdimensions" ; Drop ErrorLevel on Error
+         } else { ; We dont have any parts, so use the entire statusbar for our progress
+            n1 := n2 := 0
+            ControlGetPos,,,n3,n4,,ahk_id %hwndBar%
+         } ; if SB_Parts
+
+         If (InStr(SB_Progress,":" Seg ":")) {
+
+            hWndProg := (RegExMatch(SB_Progress, hwndBar "\:" seg "\:(?P<hWnd>([^,]+|.+))",p)) ? phWnd :
+
+         } else {
+
+            If (RegExMatch(Ops,"i)-smooth"))
+               dwStyle ^= 0x1
+
+            hWndProg := DllCall("CreateWindowEx","uint",0,"str","msctls_progress32"
+               ,"uint",0,"uint", dwStyle
+               ,"int",0,"int",0,"int",0,"int",0 ; segment-progress :: X/Y/W/H
+               ,"uint",DllCall("GetAncestor","uInt",hwndBar,"uInt",1) ; gui hwnd
+               ,"uint",0,"uint",0,"uint",0)
+
+            SB_Progress .= (StrLen(SB_Progress) ? "," : "") hwndBar ":" Seg ":" hWndProg
+
+         } ; If InStr Prog <-> Seg
+
+         ; HTML Colors
+         Black:=0x000000,Green:=0x008000,Silver:=0xC0C0C0,Lime:=0x00FF00,Gray:=0x808080
+         Olive:=0x808000,White:=0xFFFFFF,Yellow:=0xFFFF00,Maroon:=0x800000,Navy:=0x000080
+         Red:=0xFF0000,Blue:=0x0000FF,Fuchsia:=0xFF00FF,Aqua:=0x00FFFF
+
+         If (RegExMatch(ops,"i)\bBackground(?P<C>[a-z0-9]+)\b",bg)) {
+              if ((strlen(bgC)=6)&&(RegExMatch(bgC,"i)([0-9a-f]{6})")))
+                  bgC := "0x" bgC
+              else if !(RegExMatch(bgC,"i)^0x([0-9a-f]{1,6})"))
+                  bgC := %bgC%
+              if (bgC+0!="")
+                  SendMessage, PBM_SETBKCOLOR, 0
+                      , ((bgC&255)<<16)+(((bgC>>8)&255)<<8)+(bgC>>16) ; BGR
+                      ,, ahk_id %hwndProg%
+         } ; If RegEx BGC
+         If (RegExMatch(ops,"i)\bc(?P<C>[a-z0-9]+)\b",fg)) {
+              if ((strlen(fgC)=6)&&(RegExMatch(fgC,"i)([0-9a-f]{6})")))
+                  fgC := "0x" fgC
+              else if !(RegExMatch(fgC,"i)^0x([0-9a-f]{1,6})"))
+                  fgC := %fgC%
+              if (fgC+0!="")
+                  SendMessage, PBM_SETBARCOLOR, 0
+                      , ((fgC&255)<<16)+(((fgC>>8)&255)<<8)+(fgC>>16) ; BGR
+                      ,, ahk_id %hwndProg%
+         } ; If RegEx FGC
+
+         If ((RegExMatch(ops,"i)(?P<In>[^ ])?range((?P<Lo>\-?\d+)\-(?P<Hi>\-?\d+))?",r)) 
+              && (rIn!="-") && (rHi>rLo)) {    ; Set new LowRange and HighRange
+              SendMessage,0x406,rLo,rHi,,ahk_id %hWndProg%
+         } else if ((rIn="-") || (rLo>rHi)) {  ; restore defaults on remove or invalid values
+              SendMessage,0x406,0,100,,ahk_id %hWndProg%
+         } ; If RegEx Range
+      
+         If (RegExMatch(ops,"i)\bEnable\b"))
+            Control, Enable,,, ahk_id %hWndProg%
+         If (RegExMatch(ops,"i)\bDisable\b"))
+            Control, Disable,,, ahk_id %hWndProg%
+         If (RegExMatch(ops,"i)\bHide\b"))
+            Control, Hide,,, ahk_id %hWndProg%
+         If (RegExMatch(ops,"i)\bShow\b"))
+            Control, Show,,, ahk_id %hWndProg%
+
+         ControlGetPos,xb,yb,,,,ahk_id %hwndBar%
+         ControlMove,,xb+n1,yb+n2,n3-n1,n4-n2,ahk_id %hwndProg%
+         SendMessage,PBM_SETPOS,value,0,,ahk_id %hWndProg%
+
+      } ; if Seg greater than count
+   } ; if Seg greater zero
+
+   If (regExMatch(rErrorLevel,"^FAIL")) {
+      ErrorLevel := rErrorLevel
+      Return -1
+   } else 
+      Return hWndProg
+
+}
+
+GetMenuItemText2(MenuName, Position) {
+    hMenu := MenuGetHandle(MenuName)
+    if !hMenu
+        return ""  ; Invalid menu
+
+    pos := Position - 1  ; Convert to 0-based
+    MF_BYPOSITION := 0x400
+
+    ; Get required length (excluding null terminator)
+    length := DllCall("GetMenuString", "Ptr", hMenu, "UInt", pos, "Ptr", 0, "Int", 0, "UInt", MF_BYPOSITION)
+    if (length <= 0)
+        return ""  ; Invalid position or no text
+
+    ; Allocate buffer (adjust for Unicode)
+    VarSetCapacity(text, length * (A_IsUnicode ? 2 : 1) + 1, 0)
+
+    ; Retrieve the text
+    DllCall("GetMenuString", "Ptr", hMenu, "UInt", pos, "Str", text, "Int", length + 1, "UInt", MF_BYPOSITION)
+
+    return text
 }

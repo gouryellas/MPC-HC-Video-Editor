@@ -71,4 +71,3 @@ echo Conversion summary:
 echo Converted: %converted%
 echo Failed: %failed%
 echo Script completed at %date% %time%.
-pause
