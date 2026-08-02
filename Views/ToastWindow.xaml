@@ -1,0 +1,52 @@
+<Window x:Class="MpcHcVideoEditor.Views.ToastWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="MPC-HC Video Editor notification"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        Topmost="True"
+        ShowActivated="False"
+        Focusable="False"
+        IsHitTestVisible="False"
+        ResizeMode="NoResize"
+        SizeToContent="WidthAndHeight"
+        Opacity="0">
+
+    <!-- Deliberately borderless + transparent: the visible chrome is the
+         Border below, so the toast reads as an overlay rather than a window.
+         Clicks pass straight through to whatever is underneath (MPC-HC) —
+         see the WS_EX_TRANSPARENT / WS_EX_NOACTIVATE styles applied in the
+         code-behind. -->
+    <Border Background="#F0202020"
+            BorderBrush="#4A4A4F"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="18,13"
+            MinWidth="240">
+        <Border.Effect>
+            <DropShadowEffect Color="#000000" BlurRadius="14" ShadowDepth="2" Opacity="0.55"/>
+        </Border.Effect>
+
+        <StackPanel Orientation="Horizontal">
+            <TextBlock x:Name="IconText"
+                       Text="📍"
+                       FontSize="20"
+                       VerticalAlignment="Center"
+                       Margin="0,0,12,0"/>
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock x:Name="TitleText"
+                           Text="Timestamp set"
+                           Foreground="#FFFFFF"
+                           FontSize="14"
+                           FontWeight="SemiBold"/>
+                <TextBlock x:Name="DetailText"
+                           Text=""
+                           Foreground="#B8B8B8"
+                           FontSize="12"
+                           Margin="0,3,0,0"/>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>
