@@ -1,0 +1,370 @@
+<Window x:Class="MpcHcVideoEditor.Dialogs.SettingsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Settings"
+        Height="600" Width="560"
+        MinHeight="500" MinWidth="500"
+        Background="#1E1E1E"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        ResizeMode="CanResize">
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="#2D2D30"/>
+            <Setter Property="Foreground" Value="#E0E0E0"/>
+            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Margin" Value="3"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#3E3E42"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="RadioButton">
+            <Setter Property="Foreground" Value="#DDDDDD"/>
+            <Setter Property="Margin" Value="0,3"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#DDDDDD"/>
+            <Setter Property="Margin" Value="0,3"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#2D2D30"/>
+            <Setter Property="Foreground" Value="#E8E8E8"/>
+            <Setter Property="CaretBrush" Value="#E8E8E8"/>
+            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+        </Style>
+
+        <Style x:Key="Heading" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#4EC9B0"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+
+        <Style x:Key="Hint" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#888"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,4,0,0"/>
+        </Style>
+
+        <Style x:Key="Label" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#DDDDDD"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,10,0"/>
+        </Style>
+
+        <!-- Section card. Every group sits in one of these. -->
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="#252526"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="12"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TabControl Grid.Row="0" Background="#1E1E1E" BorderBrush="#3F3F46">
+
+            <!-- ============================ GENERAL ============================ -->
+            <TabItem Header="General">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10,10,16,10">
+                    <StackPanel>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Running" Style="{StaticResource Heading}"/>
+                                <RadioButton x:Name="ModeApplication" GroupName="RunMode"
+                                             Content="Run as application"/>
+                                <TextBlock Style="{StaticResource Hint}" Margin="22,0,0,6"
+                                           Text="Minimises to the taskbar. Closing the window exits the program."/>
+                                <RadioButton x:Name="ModeTray" GroupName="RunMode"
+                                             Content="Run in system tray"/>
+                                <TextBlock Style="{StaticResource Hint}" Margin="22,0,0,0"
+                                           Text="Minimises to the notification area, and closing the window leaves it running there. To exit, right-click the tray icon and choose Exit."/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Views" Style="{StaticResource Heading}"/>
+                                <CheckBox x:Name="AutoSwitchCheck"
+                                          Content="Switch views automatically"/>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Drop to the compact overlay whenever MPC-HC becomes the active window. Picking View ▸ Minimal by hand does the same thing until you choose View ▸ Full. Either way, the full window always comes back the moment MPC-HC stops being active — the overlay is never left floating over another application."/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Notifications" Style="{StaticResource Heading}"/>
+                                <CheckBox x:Name="ToastsCheck"
+                                          Content="Show a toast when a timestamp is set"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                    <TextBlock Text="Hold for" Style="{StaticResource Label}"/>
+                                    <TextBox x:Name="ToastSecondsBox" Width="60"/>
+                                    <TextBlock Text="seconds" Style="{StaticResource Label}" Margin="10,0,0,0"/>
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="The toast appears over MPC-HC, where the status bar can't be seen. 0.5 to 10 seconds."/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="History" Style="{StaticResource Heading}"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Remember" Style="{StaticResource Label}"/>
+                                    <TextBox x:Name="MaxHistoryBox" Width="60"/>
+                                    <TextBlock Text="recent videos" Style="{StaticResource Label}" Margin="10,0,0,0"/>
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Shown in the History menu. 1 to 50. Lowering this trims the list on the next launch."/>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ============================ OUTPUT ============================= -->
+            <TabItem Header="Output">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10,10,16,10">
+                    <StackPanel>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Default output format" Style="{StaticResource Heading}"/>
+                                <!-- Left on the default light chrome deliberately. The
+                                     default ComboBox template draws its dropdown with
+                                     system colours that a dark Background does not
+                                     follow, so restyling only the closed box gives
+                                     black text on a dark popup. -->
+                                <ComboBox x:Name="FormatCombo" Padding="6,4"/>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Used by merge, trim, split and convert. MP4, MKV and MOV are written by copying the cut segments, so they are lossless and fast. The other containers cannot hold H.264, so choosing one re-encodes the video — WEBM especially is slow."/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Encoding quality" Style="{StaticResource Heading}"/>
+                                <RadioButton x:Name="QualityFast" GroupName="Quality"
+                                             Content="Fast — smaller effort, larger file"/>
+                                <RadioButton x:Name="QualityBalanced" GroupName="Quality"
+                                             Content="Balanced"/>
+                                <RadioButton x:Name="QualityHigh" GroupName="Quality"
+                                             Content="High quality — slowest"/>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Only applies where video is actually re-encoded: a flip, a speed change, a convert, or a container that cannot hold H.264. A plain merge to MP4 copies its segments and ignores this entirely."/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="When the output name already exists" Style="{StaticResource Heading}"/>
+                                <RadioButton x:Name="CollisionAsk" GroupName="Collision"
+                                             Content="Ask each time"/>
+                                <RadioButton x:Name="CollisionIncrement" GroupName="Collision"
+                                             Content="Number it and carry on — [done], [done2], [done3]…"/>
+                                <RadioButton x:Name="CollisionOverwrite" GroupName="Collision"
+                                             Content="Overwrite the existing file"/>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Overwrite replaces files without a prompt and without the Recycle Bin — ffmpeg writes straight over them."/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Save to folder" Style="{StaticResource Heading}"/>
+                                <CheckBox x:Name="RememberSaveToCheck"
+                                          Content="Remember the &quot;Save to&quot; folder between sessions"/>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Off by default: the destination follows whichever video is loaded until you pin one, and the pin lasts for the session only."/>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- =========================== CLEANUP ============================= -->
+            <TabItem Header="Cleanup">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10,10,16,10">
+                    <StackPanel>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="After an operation finishes — original video" Style="{StaticResource Heading}"/>
+                                <RadioButton x:Name="VideoNever" GroupName="Video"
+                                             Content="Keep it"/>
+                                <RadioButton x:Name="VideoAsk" GroupName="Video"
+                                             Content="Ask whether to delete the original video file"/>
+                                <RadioButton x:Name="VideoAlways" GroupName="Video"
+                                             Content="Delete the original video file without asking"/>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Applies to merge, trim, split and convert. Only ever to a file the operation actually consumed successfully, and never to a file it just wrote."/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="After an operation finishes — bookmarks file" Style="{StaticResource Heading}"/>
+                                <RadioButton x:Name="CsvNever" GroupName="Csv"
+                                             Content="Keep it"/>
+                                <RadioButton x:Name="CsvAsk" GroupName="Csv"
+                                             Content="Ask whether to delete the bookmarks file"/>
+                                <RadioButton x:Name="CsvAlways" GroupName="Csv"
+                                             Content="Delete the bookmarks file without asking"/>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Applies to merge, trim and split — the operations that consume the bookmark list. Convert has no bookmarks of its own and never touches it."/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Deleted files go to the Recycle Bin" Style="{StaticResource Heading}"/>
+                                <TextBlock Style="{StaticResource Hint}" Margin="0"
+                                           Text="Nothing here deletes permanently. On a volume with no Recycle Bin — a network share, most removable media — the file is removed outright, because leaving it would be worse than the alternative you asked for."/>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ============================ PLAYER ============================= -->
+            <TabItem Header="Player">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10,10,16,10">
+                    <StackPanel>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="MPC-HC web interface port" Style="{StaticResource Heading}"/>
+                                <TextBox x:Name="PortBox" Width="100" HorizontalAlignment="Left"/>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Must match MPC-HC's Options ▸ Player ▸ Web Interface ▸ &quot;Listen on port&quot;. Default 13579. Used for seeking; if it is wrong, seeking falls back to clicking the seek bar, which is slower and skin-dependent."/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Polling" Style="{StaticResource Heading}"/>
+                                <RadioButton x:Name="PollResponsive" GroupName="Poll"
+                                             Content="Responsive — 150 ms"/>
+                                <RadioButton x:Name="PollBalanced" GroupName="Poll"
+                                             Content="Balanced — 300 ms"/>
+                                <RadioButton x:Name="PollLight" GroupName="Poll"
+                                             Content="Light — 750 ms"/>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="How often MPC-HC is checked for position and focus. This is what decides how quickly the view switches when you click between windows."/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="ffmpeg folder" Style="{StaticResource Heading}"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0" x:Name="FfmpegBox" VerticalAlignment="Center"/>
+                                    <Button Grid.Column="1" Content="Browse…" Click="BrowseFfmpeg_Click"/>
+                                </Grid>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Folder containing ffmpeg.exe and ffprobe.exe. Leave blank to search beside the application, then an &quot;ffmpeg&quot; subfolder, then PATH. Takes effect after a restart."/>
+                                <TextBlock x:Name="FfmpegStatus" Style="{StaticResource Hint}" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- =========================== OVERLAY ============================= -->
+            <TabItem Header="Overlay">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10,10,16,10">
+                    <StackPanel>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Corner" Style="{StaticResource Heading}"/>
+                                <RadioButton x:Name="CornerTopRight" GroupName="Corner" Content="Top right"/>
+                                <RadioButton x:Name="CornerTopLeft" GroupName="Corner" Content="Top left"/>
+                                <RadioButton x:Name="CornerBottomRight" GroupName="Corner" Content="Bottom right"/>
+                                <RadioButton x:Name="CornerBottomLeft" GroupName="Corner" Content="Bottom left"/>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Where the compact bookmark overlay parks on the primary screen."/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Background opacity" Style="{StaticResource Heading}"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Grid.Column="0" x:Name="OpacitySlider"
+                                            Minimum="0.3" Maximum="1.0"
+                                            TickFrequency="0.05" IsSnapToTickEnabled="True"
+                                            VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1" x:Name="OpacityValue"
+                                               Style="{StaticResource Label}" Margin="12,0,0,0"
+                                               MinWidth="44"/>
+                                </Grid>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Affects the panel behind the text, not the text itself — a dim overlay stays readable. Applied the next time the overlay appears."/>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+        </TabControl>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <!-- IsCancel alone: it sets DialogResult to false and closes the
+                 window by itself. A Click handler doing the same would set
+                 DialogResult twice, the second time on a closed window. -->
+            <Button Content="Cancel" Width="90" IsCancel="True"/>
+            <Button Content="Save" Width="90" IsDefault="True" Click="Save_Click"
+                    Background="#0E639C" BorderBrush="#1177BB" Foreground="White"/>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -4,6 +4,7 @@
         xmlns:vm="clr-namespace:MpcHcVideoEditor.ViewModels"
         xmlns:helpers="clr-namespace:MpcHcVideoEditor.Helpers"
         Title="MPC-HC Video Editor 3.0"
+        Icon="pack://application:,,,/Assets/app.ico"
         Height="780" Width="1100"
         MinHeight="560" MinWidth="900"
         Background="#1E1E1E"
@@ -119,6 +120,9 @@
                 <Separator x:Name="ShortcutsEndSeparator"/>
                 <MenuItem Header="Add quick save shortcut…" Command="{Binding AddQuickSaveShortcutCommand}"
                           ToolTip="Pick a folder to add to the quick save shortcut list above"/>
+                <Separator/>
+                <MenuItem Header="Settings…" Command="{Binding OpenSettingsCommand}"
+                          ToolTip="Output format, view switching, and what happens to source files after an operation"/>
                 <MenuItem Header="Reset everything…" Command="{Binding ResetEverythingCommand}"
                           ToolTip="Restart the application (settings, history, naming styles, and shortcuts are preserved)"/>
                 <MenuItem Header="Exit" Click="Exit_Click"/>
@@ -150,7 +154,7 @@
             </MenuItem>
             <MenuItem Header="_Actions">
                 <MenuItem Header="Merge selected / all / any" Command="{Binding MergeSelectedCommand}"
-                          ToolTip="Merges the checked cuts, or every cut, or — with no video loaded — files you pick">
+                          ToolTip="Merges the checked cuts, or every cut, or — with no video loaded — files you pick. A single cut is written out on its own as a trim.">
                     <MenuItem.Icon>
                         <Rectangle Width="12" Height="12" Fill="#0E639C" RadiusX="2" RadiusY="2"/>
                     </MenuItem.Icon>
@@ -170,6 +174,22 @@
                     <MenuItem.Icon>
                         <Rectangle Width="12" Height="12" Fill="#8B5A1A" RadiusX="2" RadiusY="2"/>
                     </MenuItem.Icon>
+                </MenuItem>
+                <Separator/>
+                <!-- Target format is the CommandParameter, so picking one is a
+                     single gesture rather than a menu click then a dialog. -->
+                <MenuItem Header="Image conversion" ToolTip="Convert image files to another format">
+                    <MenuItem.Icon>
+                        <Rectangle Width="12" Height="12" Fill="#2E7D5B" RadiusX="2" RadiusY="2"/>
+                    </MenuItem.Icon>
+                    <MenuItem Header="To PNG…"  Command="{Binding ConvertImagesCommand}" CommandParameter="png"/>
+                    <MenuItem Header="To JPG…"  Command="{Binding ConvertImagesCommand}" CommandParameter="jpg"/>
+                    <MenuItem Header="To JPEG…" Command="{Binding ConvertImagesCommand}" CommandParameter="jpeg"/>
+                    <MenuItem Header="To BMP…"  Command="{Binding ConvertImagesCommand}" CommandParameter="bmp"/>
+                    <MenuItem Header="To GIF…"  Command="{Binding ConvertImagesCommand}" CommandParameter="gif"/>
+                    <MenuItem Header="To TIFF…" Command="{Binding ConvertImagesCommand}" CommandParameter="tiff"/>
+                    <MenuItem Header="To ICO…"  Command="{Binding ConvertImagesCommand}" CommandParameter="ico"
+                              ToolTip="Scaled to 256px if larger — the ICO format cannot express more"/>
                 </MenuItem>
             </MenuItem>
             <MenuItem Header="_Playlist">
@@ -232,12 +252,6 @@
                 <Separator x:Name="SuffixListEndSeparator"/>
                 <MenuItem Header="Add new naming style…" Command="{Binding AddSuffixCommand}"/>
                 <MenuItem Header="Manage naming styles…" Command="{Binding ManageSuffixesCommand}"/>
-                <Separator/>
-                <!-- Sits outside the Suffix* separators above, which bound the
-                     range the dynamic naming-style list rebuilds. -->
-                <MenuItem Header="Switch views automatically" IsCheckable="True"
-                          IsChecked="{Binding AutoSwitchViews, Mode=TwoWay}"
-                          ToolTip="Drop to the minimal overlay when a bookmark file loads, and return to the full window when it unloads"/>
             </MenuItem>
             <!-- Shortcuts menu — lets the user add folder shortcuts that then
                  appear as clickable items at the bottom of the File menu. -->
@@ -265,12 +279,32 @@
                 <MenuItem Header="Bring MPC-HC to front" Command="{Binding BringMpcToFrontCommand}"/>
                 <Separator/>
                 <!-- Minimal drops to a click-through overlay showing just the
-                     bookmark list, for when the video covers this window.
-                     Ctrl+Escape brings the full window back. -->
+                     bookmark list, and from then on the view follows focus:
+                     overlay while the player is active, full window as soon as
+                     it is not. X, or Full below, stops following entirely. -->
                 <MenuItem Header="Minimal" Command="{Binding ShowMinimalViewCommand}"
-                          ToolTip="Compact always-on-top bookmark list — Ctrl+Escape returns here"/>
+                          ToolTip="Compact always-on-top bookmark list, shown whenever MPC-HC is the active window — this window returns as soon as it isn't"/>
                 <MenuItem Header="Full" Command="{Binding ShowFullViewCommand}"
                           ToolTip="The normal window"/>
+                <Separator/>
+                <!-- Lives here rather than under Options: it governs the two
+                     items directly above it. -->
+                <MenuItem Header="Switch views automatically" IsCheckable="True"
+                          IsChecked="{Binding AutoSwitchViews, Mode=TwoWay}"
+                          ToolTip="Drop to the minimal overlay whenever MPC-HC becomes the active window. Either way, this window returns as soon as MPC-HC stops being active."/>
+            </MenuItem>
+
+            <MenuItem Header="_Help">
+                <MenuItem Header="About…" Command="{Binding ShowAboutCommand}"
+                          ToolTip="Version, licensing and third-party components"/>
+                <Separator/>
+                <MenuItem Header="GitHub repository" Command="{Binding OpenRepositoryCommand}"
+                          ToolTip="https://github.com/gouryellas/MPC-HC-Video-Editor"/>
+                <MenuItem Header="Report an issue" Command="{Binding OpenIssuesCommand}"
+                          ToolTip="Open the issue tracker in your browser"/>
+                <Separator/>
+                <MenuItem Header="Licences" Command="{Binding ShowAboutCommand}"
+                          ToolTip="Licence terms for this app and the components it uses"/>
             </MenuItem>
         </Menu>
 

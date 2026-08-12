@@ -38,6 +38,51 @@ public class FFmpegService
 
     public event EventHandler<string>? LogReceived;
 
+    /// <summary>
+    /// x264 preset and CRF applied wherever this service re-encodes.
+    /// </summary>
+    /// <remarks>
+    /// Settable rather than constructor-injected so a change in the Settings
+    /// dialog takes effect on the next operation without rebuilding the
+    /// service — and with it the ffmpeg path resolution, which shells out and
+    /// is not worth repeating.
+    ///
+    /// Defaults to what the two re-encode paths used to hardcode, so a caller
+    /// that never sets it behaves exactly as before.
+    /// </remarks>
+    public string QualityArgs { get; set; } = "-preset faster -crf 20";
+
+    /// <summary>
+    /// Every ffmpeg this service has started and not yet seen exit.
+    /// </summary>
+    /// <remarks>
+    /// Exists so <see cref="KillAll"/> can clean up on shutdown. An encode
+    /// outlives the window that started it otherwise: nothing cancels the
+    /// operation when the app closes, so ffmpeg carries on writing to a file
+    /// nobody is waiting for, holding a handle on it.
+    /// </remarks>
+    private readonly List<Process> _running = new();
+
+    /// <summary>
+    /// Kills any ffmpeg still running. Called when the app is shutting down.
+    /// </summary>
+    /// <remarks>
+    /// <c>entireProcessTree</c> because ffmpeg can spawn helpers of its own.
+    /// Every failure is swallowed: this runs during teardown, where the
+    /// process is about to disappear and there is nobody left to tell.
+    /// </remarks>
+    public void KillAll()
+    {
+        List<Process> snapshot;
+        lock (_running) snapshot = _running.ToList();
+
+        foreach (var p in snapshot)
+        {
+            try { if (!p.HasExited) p.Kill(entireProcessTree: true); }
+            catch { /* already gone, or never ours to kill */ }
+        }
+    }
+
     public FFmpegService(string? ffmpegDir = null)
     {
         // Search order:
@@ -163,20 +208,34 @@ public class FFmpegService
     }
 
     // ------------------------------------------------------------------
-    // Convert single file → MP4
+    // Convert single file → the configured container
     // ------------------------------------------------------------------
-    public async Task ConvertToMp4Async(string inputPath, string? outputPath = null, 
+
+    /// <summary>
+    /// Re-encodes <paramref name="inputPath"/> into <paramref name="format"/>.
+    /// </summary>
+    /// <param name="format">
+    /// Target container. Null means MP4, which is what this method did
+    /// unconditionally before the output format became configurable.
+    /// </param>
+    public async Task ConvertVideoAsync(string inputPath, string? outputPath = null,
+        VideoFormats.Format? format = null,
         IProgress<FFmpegProgressEventArgs>? progress = null, CancellationToken ct = default)
     {
-        outputPath ??= Path.ChangeExtension(inputPath, ".mp4");
+        format ??= VideoFormats.Default;
+        outputPath ??= Path.ChangeExtension(inputPath, format.Extension);
 
         var args = $"-hide_banner -y -fflags +igndts -i \"{inputPath}\" " +
-                   $"-c:v libx264 -preset veryfast -pix_fmt yuv420p " +
-                   $"-c:a aac -b:a 192k -ar 48000 -ac 2 \"{outputPath}\"";
+                   $"{VideoFormats.ApplyQuality(format, QualityArgs)} \"{outputPath}\"";
 
         // Probe first so the progress bar has something to divide by.
         await RunAsync(args, progress, ct, await GetDurationAsync(inputPath));
     }
+
+    /// <summary>Converts to MP4. Retained for callers that want MP4 regardless of settings.</summary>
+    public Task ConvertToMp4Async(string inputPath, string? outputPath = null,
+        IProgress<FFmpegProgressEventArgs>? progress = null, CancellationToken ct = default) =>
+        ConvertVideoAsync(inputPath, outputPath, VideoFormats.Default, progress, ct);
 
     // ------------------------------------------------------------------
     // Strip audio → MP3
@@ -195,15 +254,24 @@ public class FFmpegService
     // ------------------------------------------------------------------
     // Merge selected bookmarks (with optional flip + speed)
     // ------------------------------------------------------------------
+    /// <param name="format">
+    /// Container to write. Segments are always cut as H.264/AAC MP4 — that is
+    /// what the cutter produces and what copies fastest — so a format whose
+    /// mux accepts H.264 concatenates by stream copy, and one that does not
+    /// re-encodes once at the concat step. Null means MP4.
+    /// </param>
     public async Task MergeBookmarksAsync(
         string inputVideo,
         string outputPath,
         IList<Bookmark> bookmarks,
         IProgress<FFmpegProgressEventArgs>? progress = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        VideoFormats.Format? format = null)
     {
         if (bookmarks.Count == 0)
             throw new ArgumentException("No bookmarks provided");
+
+        format ??= VideoFormats.Default;
 
         var tempDir = Path.Combine(Path.GetTempPath(), "mpc-editor-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(tempDir);
@@ -238,18 +306,23 @@ public class FFmpegService
 
             progress?.Report(new FFmpegProgressEventArgs
             {
-                Message = "Concatenating segments…",
+                Message = format.CanCopyH264 ? "Concatenating segments…" : $"Encoding to {format.Key.ToUpperInvariant()}…",
                 Current = total,
                 Total = total
             });
 
-            // Final concat (copy when possible)
-            var concatArgs = $"-hide_banner -y -f concat -safe 0 -i \"{concatList}\" " +
-                             $"-c copy \"{outputPath}\"";
+            // Segments are already H.264/AAC, whether they were copied or
+            // re-encoded for a flip or speed change. A container that accepts
+            // those streams therefore needs no second encode; one that does
+            // not — WebM, MPEG-2, ASF, AVI — pays for it here, once, rather
+            // than per segment.
+            var outputArgs = format.CanCopyH264
+                ? "-c copy"
+                : VideoFormats.ApplyQuality(format, QualityArgs);
 
-            // If any segment used filters (flip/speed) we already re-encoded,
-            // so -c copy is safe. If pure copy failed we could fall back, but
-            // for now we keep it simple.
+            var concatArgs = $"-hide_banner -y -f concat -safe 0 -i \"{concatList}\" " +
+                             $"{outputArgs} \"{outputPath}\"";
+
             await RunAsync(concatArgs, null, ct);
         }
         finally
@@ -295,7 +368,10 @@ public class FFmpegService
 
         if (reencode)
         {
-            sb.Append("-c:v libx264 -preset veryfast -crf 18 -pix_fmt yuv420p ");
+            // Segments stay H.264/AAC whatever the final container is — the
+            // concat step converts once at the end if it has to, which is
+            // cheaper than encoding every segment into the target codec.
+            sb.Append($"-c:v libx264 {QualityArgs} -pix_fmt yuv420p ");
             sb.Append("-c:a aac -b:a 192k -ar 48000 -ac 2 ");
         }
         else
@@ -439,18 +515,40 @@ public class FFmpegService
         if (!process.Start())
             throw new InvalidOperationException("Failed to start FFmpeg");
 
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
+        // Registered after a successful start and removed in the finally
+        // below, so the list only ever holds processes that are actually ours
+        // and actually running.
+        lock (_running) _running.Add(process);
 
-        await using var reg = ct.Register(() =>
+        try
         {
-            try { if (!process.HasExited) process.Kill(true); } catch { }
-            tcs.TrySetCanceled(ct);
-        });
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
 
-        var exitCode = await tcs.Task;
-        if (exitCode != 0)
-            throw new Exception($"FFmpeg exited with code {exitCode}");
+            await using var reg = ct.Register(() =>
+            {
+                try { if (!process.HasExited) process.Kill(true); } catch { }
+                tcs.TrySetCanceled(ct);
+            });
+
+            var exitCode = await tcs.Task;
+
+            // The Exited event fires before the redirected output readers have
+            // drained and before the handles ffmpeg held on its input and
+            // output files are necessarily released. The parameterless
+            // WaitForExit is the documented way to block for exactly that —
+            // without it, deleting the source immediately after an operation
+            // could fail with a sharing violation on a process that had, as
+            // far as the event was concerned, already finished.
+            try { process.WaitForExit(); } catch { /* already reaped */ }
+
+            if (exitCode != 0)
+                throw new Exception($"FFmpeg exited with code {exitCode}");
+        }
+        finally
+        {
+            lock (_running) _running.Remove(process);
+        }
     }
 
     public async Task<double> GetDurationAsync(string filePath)

@@ -16,18 +16,35 @@ public partial class ConflictDialog : Window
     /// <summary>The new base name, without the bracket suffix or extension.</summary>
     public string? NewName { get; private set; }
 
+    /// <summary>
+    /// True when the user asked not to be prompted for the rest of the batch.
+    /// </summary>
+    /// <remarks>
+    /// Only meaningful alongside Overwrite or Increment. A name typed into
+    /// Rename cannot be reused on a later file — it would collide with itself
+    /// — so the caller ignores this when the result is Rename.
+    /// </remarks>
+    public bool ApplyToAll => ApplyToAllCheck.IsChecked == true;
+
     /// <param name="fileName">The colliding filename, for display.</param>
     /// <param name="incrementPreview">
     /// What Increment would produce, shown as a hint so the choice is not a
     /// guess.
     /// </param>
-    public ConflictDialog(string fileName, string? incrementPreview = null)
+    /// <param name="offerApplyToAll">
+    /// Show the "do this for all remaining files" option. Only meaningful when
+    /// more than one file is being processed.
+    /// </param>
+    public ConflictDialog(string fileName, string? incrementPreview = null,
+                          bool offerApplyToAll = false)
     {
         InitializeComponent();
         FileNameText.Text = fileName;
         IncrementHint.Text = incrementPreview == null
             ? string.Empty
             : $"Increment would save as:  {incrementPreview}";
+
+        ApplyToAllCheck.Visibility = offerApplyToAll ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void Overwrite_Click(object sender, RoutedEventArgs e)

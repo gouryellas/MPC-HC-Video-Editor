@@ -1,7 +1,10 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Interop;
+using System.Windows.Media;
 using System.Windows.Threading;
 using System.Runtime.InteropServices;
+using MpcHcVideoEditor.Services;
 
 namespace MpcHcVideoEditor.Views;
 
@@ -88,13 +91,62 @@ public partial class MinimalWindow : Window
     /// Parks the overlay in the top-right corner.
     /// </summary>
     /// <remarks>
+    /// Retained for callers that do not care which corner. Prefer
+    /// <see cref="PositionInCorner"/>.
+    /// </remarks>
+    public void PositionTopRight() => PositionInCorner(OverlayCorner.TopRight);
+
+    /// <summary>
+    /// Parks the overlay in the requested corner of the primary screen.
+    /// </summary>
+    /// <remarks>
     /// Uses the full screen bounds, not the work area: over a full-screened
     /// player there is no taskbar to avoid, and the work area would leave the
     /// overlay floating oddly inset.
+    ///
+    /// <c>SizeToContent="Height"</c> means <see cref="Window.ActualHeight"/> is
+    /// only meaningful after a layout pass, so the bottom corners force one.
+    /// Without it a freshly-created overlay measures as zero-height and lands
+    /// flush against the bottom edge.
     /// </remarks>
-    public void PositionTopRight()
+    public void PositionInCorner(OverlayCorner corner)
     {
-        Left = SystemParameters.PrimaryScreenWidth - Width - 16;
-        Top = 16;
+        const double margin = 16;
+
+        var screenWidth = SystemParameters.PrimaryScreenWidth;
+        var screenHeight = SystemParameters.PrimaryScreenHeight;
+
+        var left = corner is OverlayCorner.TopLeft or OverlayCorner.BottomLeft;
+        Left = left ? margin : screenWidth - Width - margin;
+
+        if (corner is OverlayCorner.TopLeft or OverlayCorner.TopRight)
+        {
+            Top = margin;
+            return;
+        }
+
+        UpdateLayout();
+        Top = screenHeight - ActualHeight - margin;
+    }
+
+    /// <summary>
+    /// Sets the panel's background opacity, 0.3–1.0. Fully opaque by default.
+    /// </summary>
+    /// <remarks>
+    /// Applied to the inner <see cref="Border"/>, not to the window: the
+    /// window itself is transparent by design, and lowering
+    /// <see cref="UIElement.Opacity"/> on it would fade the text along with
+    /// the backing, making a dim overlay unreadable rather than merely
+    /// unobtrusive.
+    ///
+    /// The colour matches the Background in XAML, so the default value here
+    /// repaints the panel exactly as designed rather than subtly shifting it.
+    /// </remarks>
+    public void SetBackgroundOpacity(double opacity)
+    {
+        if (Content is not Border border) return;
+
+        border.Background = new SolidColorBrush(
+            Color.FromArgb((byte)(Math.Clamp(opacity, 0.3, 1.0) * 255), 0x14, 0x14, 0x14));
     }
 }

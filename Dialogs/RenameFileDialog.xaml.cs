@@ -20,12 +20,28 @@ public partial class RenameFileDialog : Window
     /// <summary>The accepted stem, without suffix or extension.</summary>
     public string? NewStem { get; private set; }
 
+    /// <summary>
+    /// True when the user asked not to be prompted for the rest of the batch.
+    /// </summary>
+    /// <remarks>
+    /// It cannot mean "use this same name again" — every later file has a
+    /// different name and they would all collide. It means "correct the rest
+    /// automatically", i.e. take the suggested sanitisation for each without
+    /// asking. The name typed here still applies to this file.
+    /// </remarks>
+    public bool ApplyToAll => ApplyToAllCheck.IsChecked == true;
+
     /// <param name="originalName">Filename with extension, for display.</param>
     /// <param name="stem">The renameable part, without suffix or extension.</param>
     /// <param name="suffix">Trailing bracket suffix, kept as-is.</param>
     /// <param name="extension">Extension including the dot, kept as-is.</param>
     /// <param name="reason">Why the rename is being asked for.</param>
-    public RenameFileDialog(string originalName, string stem, string suffix, string extension, string reason)
+    /// <param name="offerApplyToAll">
+    /// Show the "do this for all remaining files" option. Only meaningful when
+    /// more than one file is being processed.
+    /// </param>
+    public RenameFileDialog(string originalName, string stem, string suffix, string extension,
+                            string reason, bool offerApplyToAll = false)
     {
         InitializeComponent();
 
@@ -36,6 +52,10 @@ public partial class RenameFileDialog : Window
         ReasonText.Text = reason;
         OriginalText.Text = originalName;
 
+        ApplyToAllCheck.Visibility = offerApplyToAll
+            ? System.Windows.Visibility.Visible
+            : System.Windows.Visibility.Collapsed;
+
         // Always open on a name that would be accepted.
         NameBox.Text = FileNameRules.IsValid(stem) ? stem : _suggested;
         NameBox.CaretIndex = NameBox.Text.Length;
@@ -44,18 +64,46 @@ public partial class RenameFileDialog : Window
 
     /// <summary>
     /// Blocks disallowed characters at the keystroke, explaining the policy
-    /// rather than silently swallowing the input.
+    /// rather than silently swallowing the input — except for spaces, which
+    /// are typed straight through as dashes.
     /// </summary>
+    /// <remarks>
+    /// Rejecting the space key made the box tell the user to press a
+    /// different key than the one they meant, every time. Substituting
+    /// matches what the automatic correction does to the incoming filename,
+    /// so typing and importing agree.
+    /// </remarks>
     private void NameBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
     {
+        if (e.Text.Any(char.IsWhiteSpace))
+        {
+            e.Handled = true;
+
+            // Substituted per character rather than through NormalizeSpaces:
+            // that trims edge dashes, which would swallow the space entirely
+            // when typed at the end of the name — exactly where a space is
+            // usually typed.
+            var substituted = new string(e.Text
+                .Select(c => char.IsWhiteSpace(c) ? '-' : c)
+                .ToArray());
+
+            if (!substituted.All(FileNameRules.IsAllowedChar)) return;
+
+            // Assigning SelectedText replaces a selection, or inserts at the
+            // caret when there is none.
+            var insertAt = NameBox.SelectionStart;
+            NameBox.SelectedText = substituted;
+            NameBox.CaretIndex = insertAt + substituted.Length;
+            NameBox.SelectionLength = 0;
+            return;
+        }
+
         foreach (var c in e.Text)
         {
             if (FileNameRules.IsAllowedChar(c)) continue;
 
             e.Handled = true;
-            MessageText.Text = c == ' '
-                ? "Spaces are not allowed — use a dash instead.\n\n" + FileNameRules.Description
-                : $"'{c}' is not allowed.\n\n" + FileNameRules.Description;
+            MessageText.Text = $"'{c}' is not allowed.\n\n" + FileNameRules.Description;
             return;
         }
     }

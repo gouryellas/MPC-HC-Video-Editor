@@ -1,5 +1,3 @@
-<img width="800" height="600" alt="mpchcvideoeditor" src="https://github.com/user-attachments/assets/ec64030a-8efa-48ab-bd74-deb01385bf36" />
-
 # MPC-HC Video Editor 3.0 (C# / WPF)
 
 Modern rewrite of the original AutoHotkey **MPC-HC Video Editor v2.1**.

@@ -12,7 +12,6 @@ public class Bookmark : INotifyPropertyChanged
     private bool _isSelected;
     private bool _isFlipped;
     private double _speed = 1.0;
-    private bool _isIncomplete;
 
     public int Index
     {
@@ -30,10 +29,20 @@ public class Bookmark : INotifyPropertyChanged
             OnPropertyChanged(nameof(StartDisplay));
             OnPropertyChanged(nameof(DurationSeconds));
             OnPropertyChanged(nameof(DurationDisplay));
-            OnPropertyChanged(nameof(IsValid));
+            AnnounceOpenState();
         }
     }
 
+    /// <summary>
+    /// The closing time. Zero — or anything not after <see cref="StartSeconds"/>
+    /// — means the bookmark is still open.
+    /// </summary>
+    /// <remarks>
+    /// This is the single fact that decides whether a bookmark is open, and
+    /// therefore whether the next timestamp opens a new one or closes this
+    /// one. Setting it is the only way to close a bookmark, and zeroing it is
+    /// the only way to reopen one.
+    /// </remarks>
     public double EndSeconds
     {
         get => _endSeconds;
@@ -44,8 +53,26 @@ public class Bookmark : INotifyPropertyChanged
             OnPropertyChanged(nameof(EndDisplay));
             OnPropertyChanged(nameof(DurationSeconds));
             OnPropertyChanged(nameof(DurationDisplay));
-            OnPropertyChanged(nameof(IsValid));
+            AnnounceOpenState();
         }
+    }
+
+    /// <summary>
+    /// Raises the notifications for everything derived from whether this
+    /// bookmark is open, and drops the selection if it no longer has a range.
+    /// </summary>
+    private void AnnounceOpenState()
+    {
+        // An open bookmark has no range to act on, so it cannot stay checked.
+        if (IsIncomplete && _isSelected)
+        {
+            _isSelected = false;
+            OnPropertyChanged(nameof(IsSelected));
+        }
+
+        OnPropertyChanged(nameof(IsIncomplete));
+        OnPropertyChanged(nameof(IsValid));
+        OnPropertyChanged(nameof(DisplayText));
     }
 
     /// <summary>
@@ -90,27 +117,23 @@ public class Bookmark : INotifyPropertyChanged
         }
     }
 
-    public bool IsIncomplete
-    {
-        get => _isIncomplete;
-        set
-        {
-            _isIncomplete = value;
-
-            // Reopening a bookmark takes its range away, so it can no longer
-            // be part of a selection.
-            if (value) IsSelected = false;
-
-            OnPropertyChanged();
-
-            // IsValid reads IsIncomplete, so it has to be announced here too.
-            // Without this, closing a bookmark left the row's one-click split
-            // button (bound to IsValid) hidden until something else forced a
-            // refresh.
-            OnPropertyChanged(nameof(IsValid));
-            OnPropertyChanged(nameof(DisplayText));
-        }
-    }
+    /// <summary>
+    /// True while this bookmark is still waiting for its closing timestamp.
+    /// </summary>
+    /// <remarks>
+    /// Derived, not stored. It used to be an independently settable flag,
+    /// which meant a bookmark could claim to be complete while holding an end
+    /// time of zero — and it did: the row rendered as "6:11 → 0:00 (0s)" and
+    /// the app, asking the flag rather than the data, decided the next
+    /// timestamp should open a new bookmark instead of closing that one.
+    ///
+    /// A flag that can contradict the data it describes will eventually
+    /// contradict it. Computing the answer from <see cref="EndSeconds"/>
+    /// leaves nothing to keep in sync: it is right after a CSV reload, after
+    /// an undo, after a hand-edit of the file, and after any code path nobody
+    /// remembered to update — because there is nothing to update.
+    /// </remarks>
+    public bool IsIncomplete => EndSeconds <= StartSeconds;
 
     // Computed properties
     public string StartDisplay => FormatTime(StartSeconds);
@@ -119,7 +142,12 @@ public class Bookmark : INotifyPropertyChanged
     public string DurationDisplay => FormatDuration(DurationSeconds);
     public string EffectiveDurationDisplay => FormatDuration(DurationSeconds / Speed);
     public string SpeedDisplay => Math.Abs(Speed - 1.0) < 0.01 ? "1x" : $"{Speed:0.##}x";
-    public bool IsValid => EndSeconds > StartSeconds && !IsIncomplete;
+
+    /// <summary>
+    /// True when this bookmark describes a real range. The exact complement of
+    /// <see cref="IsIncomplete"/> — the two cannot disagree.
+    /// </summary>
+    public bool IsValid => EndSeconds > StartSeconds;
 
     public string Prefix
     {

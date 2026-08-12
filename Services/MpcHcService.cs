@@ -54,6 +54,12 @@ public class MpcHcService
     private static extern bool SetForegroundWindow(IntPtr hWnd);
 
     [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetAncestor(IntPtr hWnd, uint flags);
+
+    [DllImport("user32.dll")]
     private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     [DllImport("user32.dll")]
@@ -111,6 +117,20 @@ public class MpcHcService
     private const int CMD_PAUSE = 890;
     private const int CMD_STOP = 891;
     private const int CMD_PLAYPAUSE = 888;
+
+    /// <summary>
+    /// <c>ID_FILE_CLOSEMEDIA</c> — closes the open file and leaves the player
+    /// running.
+    /// </summary>
+    /// <remarks>
+    /// Taken from MPC-HC's own <c>resource.h</c>, not from the several online
+    /// command tables that give 804. 804 is <c>ID_FILE_CLOSE_AND_RESTORE</c>,
+    /// which is a different action.
+    ///
+    /// Stop is not a substitute: MPC-HC keeps its handle on the file when
+    /// stopped, so the file stays locked. Only closing the media releases it.
+    /// </remarks>
+    private const int CMD_CLOSE_FILE = 803;
 
     #endregion
 
@@ -460,7 +480,12 @@ public class MpcHcService
     /// default (Options → Player → Web Interface → Listen on port); change
     /// here if you've configured MPC-HC to use a different port.
     /// </summary>
-    private const int WebInterfacePort = 13579;
+    /// <remarks>
+    /// Settable, because MPC-HC's own port is settable. It was a <c>const</c>,
+    /// which left anyone who had moved it with seeking silently falling back
+    /// to the slower window-message path and no way to say so.
+    /// </remarks>
+    public int WebInterfacePort { get; set; } = 13579;
 
     /// <summary>
     /// Seeks MPC-HC's currently loaded video to the given position (in seconds).
@@ -533,7 +558,7 @@ public class MpcHcService
         {
             LastSeekFailureReason = "Couldn't reach MPC-HC's Web Interface, and couldn't read " +
                 "position/duration from its status bar either. Easiest fix: in MPC-HC, go to " +
-                "Options → Player → Web Interface, check \"Listen on port\" (default 13579), " +
+                $"Options → Player → Web Interface, check \"Listen on port\" (this app expects {WebInterfacePort}), " +
                 "click Apply, then try again.";
             return false;
         }
@@ -545,7 +570,7 @@ public class MpcHcService
         {
             LastSeekFailureReason = "Couldn't reach MPC-HC's Web Interface, and couldn't find a seek bar " +
                 "control to click instead. Easiest fix: in MPC-HC, go to Options → Player → Web Interface, " +
-                "check \"Listen on port\" (default 13579), click Apply, then try again.";
+                $"check \"Listen on port\" (this app expects {WebInterfacePort}), click Apply, then try again.";
             return false;
         }
 
@@ -593,7 +618,7 @@ public class MpcHcService
             LastSeekFailureReason = "Clicked MPC-HC's seek bar, but the position didn't actually change " +
                 "(this control likely isn't the real seek bar in your MPC-HC skin/theme). " +
                 "Easiest fix: in MPC-HC, go to Options → Player → Web Interface, check \"Listen on port\" " +
-                "(default 13579), click Apply, then try again — that path doesn't depend on clicking a control at all.";
+                $"(this app expects {WebInterfacePort}), click Apply, then try again — that path doesn't depend on clicking a control at all.";
             return false;
         }
 
@@ -704,10 +729,50 @@ public class MpcHcService
         return IsZoomed(hwnd) ? PlayerWindowState.Maximized : PlayerWindowState.Normal;
     }
 
+    /// <summary>
+    /// True when MPC-HC is the window the user is currently working in.
+    /// </summary>
+    /// <remarks>
+    /// Compares against the foreground window's <em>root</em>, not the
+    /// foreground window itself. MPC-HC's video area, its seek bar and its
+    /// playlist are child windows in their own right, and clicking one makes
+    /// that child the focus — so a direct handle comparison reports "not
+    /// focused" precisely when the user is most obviously using the player.
+    /// GA_ROOT walks back up to the top-level window in every case.
+    ///
+    /// Returns false when the player is not running at all, which is the
+    /// answer the caller wants anyway.
+    /// </remarks>
+    public bool IsForeground()
+    {
+        var mpc = FindMpcWindow();
+        if (mpc == IntPtr.Zero || !IsWindow(mpc)) return false;
+
+        var foreground = GetForegroundWindow();
+        if (foreground == IntPtr.Zero) return false;
+
+        const uint GA_ROOT = 2;
+        var root = GetAncestor(foreground, GA_ROOT);
+        if (root == IntPtr.Zero) root = foreground;
+
+        return root == mpc;
+    }
+
     public void Play() => SendCommand(CMD_PLAY);
     public void Pause() => SendCommand(CMD_PAUSE);
     public void Stop() => SendCommand(CMD_STOP);
     public void PlayPause() => SendCommand(CMD_PLAYPAUSE);
+
+    /// <summary>
+    /// Closes whatever file the player has open, without closing the player.
+    /// </summary>
+    /// <remarks>
+    /// The reason this exists is deletion: MPC-HC holds an open handle on the
+    /// file it is playing, so the source video cannot be removed while it is
+    /// loaded — waiting does not help, because nothing is going to let go on
+    /// its own.
+    /// </remarks>
+    public void CloseFile() => SendCommand(CMD_CLOSE_FILE);
 
     public bool HasVideoLoaded()
     {

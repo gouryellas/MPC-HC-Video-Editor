@@ -32,11 +32,21 @@
         <TextBlock Grid.Row="4" x:Name="MessageText" Foreground="#DCDCAA"
                    TextWrapping="Wrap" Margin="0,10,0,0" VerticalAlignment="Top"/>
 
-        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Content="Use suggested" Width="120" Margin="4" Click="Suggested_Click" Padding="8,4"/>
-            <Button Content="OK" Width="90" Margin="4" Click="Ok_Click"
-                    Background="#0E639C" Foreground="White" Padding="8,4"/>
-            <Button Content="Cancel" Width="80" Margin="4" Click="Cancel_Click" Padding="8,4"/>
-        </StackPanel>
+        <Grid Grid.Row="5">
+            <!-- Left of the buttons so it reads as a modifier on the choice
+                 about to be made, not as another action. Hidden when only one
+                 file is being processed, where "remaining" means nothing. -->
+            <CheckBox x:Name="ApplyToAllCheck" HorizontalAlignment="Left" VerticalAlignment="Center"
+                      Foreground="#CCCCCC" Visibility="Collapsed"
+                      ToolTip="Silently apply the suggested correction to every later file that breaks the rules"
+                      Content="Do this for all remaining files"/>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Use suggested" Width="120" Margin="4" Click="Suggested_Click" Padding="8,4"/>
+                <Button Content="OK" Width="90" Margin="4" Click="Ok_Click"
+                        Background="#0E639C" Foreground="White" Padding="8,4"/>
+                <Button Content="Cancel" Width="80" Margin="4" Click="Cancel_Click" Padding="8,4"/>
+            </StackPanel>
+        </Grid>
     </Grid>
 </Window>

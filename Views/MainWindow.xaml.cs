@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 using MpcHcVideoEditor.Models;
+using MpcHcVideoEditor.Services;
 using MpcHcVideoEditor.ViewModels;
 
 namespace MpcHcVideoEditor.Views;
@@ -27,6 +28,142 @@ public partial class MainWindow : Window
             _vm?.ReloadBookmarksFromDisk();
         };
         Deactivated += (_, _) => _vm?.PausePollTimer();
+
+        StateChanged += MainWindow_StateChanged;
+    }
+
+    // ------------------------------------------------------------------
+    // Run mode: application vs system tray
+    // ------------------------------------------------------------------
+
+    private TrayIconService? _tray;
+
+    /// <summary>
+    /// Set when the user has chosen Exit from the tray menu, so the close that
+    /// follows is allowed through instead of being turned back into a hide.
+    /// </summary>
+    private bool _exitConfirmed;
+
+    /// <summary>Whether the tray is currently the configured behaviour.</summary>
+    private bool InTrayMode => _vm?.RunMode == RunMode.SystemTray;
+
+    /// <summary>
+    /// Creates or removes the tray icon to match the current setting. Called at
+    /// startup and again whenever Settings is saved.
+    /// </summary>
+    public void ApplyRunMode()
+    {
+        if (InTrayMode)
+        {
+            if (_tray == null)
+            {
+                _tray = new TrayIconService("MPC-HC Video Editor");
+                _tray.ShowRequested += RestoreFromTray;
+                _tray.ExitRequested += ExitFromTray;
+            }
+
+            _tray.Visible = true;
+            return;
+        }
+
+        // Switching back to a plain application while hidden would strand the
+        // window with no icon and no taskbar button to reach it by.
+        if (!IsVisible) RestoreFromTray();
+
+        _tray?.Dispose();
+        _tray = null;
+    }
+
+    private void RestoreFromTray()
+    {
+        Show();
+        WindowState = WindowState.Normal;
+        Activate();
+    }
+
+    private void ExitFromTray()
+    {
+        _exitConfirmed = true;
+        Close();
+    }
+
+    /// <summary>
+    /// In tray mode, minimising hides the window rather than parking it on the
+    /// taskbar — otherwise it would be in both places at once.
+    /// </summary>
+    private void MainWindow_StateChanged(object? sender, EventArgs e)
+    {
+        if (WindowState == WindowState.Minimized && InTrayMode)
+            Hide();
+    }
+
+    /// <summary>
+    /// In tray mode, closing the window hides it instead. Exit is then only
+    /// available from the tray icon's menu.
+    /// </summary>
+    /// <remarks>
+    /// Cancelling the close is what keeps the process alive: the window is
+    /// never actually closed, so <c>ShutdownMode.OnMainWindowClose</c> never
+    /// fires. The balloon appears once per run, because a program that
+    /// vanishes from the taskbar without exiting is worth explaining the first
+    /// time and nagging about no further.
+    /// </remarks>
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        if (InTrayMode && !_exitConfirmed)
+        {
+            e.Cancel = true;
+            Hide();
+
+            if (!_explainedTrayOnce)
+            {
+                _explainedTrayOnce = true;
+                _tray?.ShowMessage("Still running",
+                    "MPC-HC Video Editor is in the notification area. Right-click its icon and choose Exit to close it.");
+            }
+
+            return;
+        }
+
+        base.OnClosing(e);
+    }
+
+    private bool _explainedTrayOnce;
+
+    /// <summary>
+    /// Tears down everything that outlives this window.
+    /// </summary>
+    /// <remarks>
+    /// The process used to survive its own UI. Two reasons, both fixed here
+    /// and in App.xaml:
+    ///
+    /// The overlay and the toast are shown once and thereafter only hidden, so
+    /// both stayed open — hidden, but open — for the life of the app. Under
+    /// the default <c>ShutdownMode.OnLastWindowClose</c> that meant closing
+    /// this window was never the last close, and WPF kept a message loop
+    /// running with nothing on screen. App.xaml now uses
+    /// <c>OnMainWindowClose</c>, and they are closed explicitly here anyway.
+    ///
+    /// And <see cref="MainViewModel.Dispose"/> was never called by anything,
+    /// so the low-level input hooks, the stall monitor's threads and any
+    /// running ffmpeg carried on. Those threads are all background threads and
+    /// would not block exit by themselves, but an orphaned ffmpeg.exe holding
+    /// a file handle is its own kind of lingering.
+    /// </remarks>
+    protected override void OnClosed(EventArgs e)
+    {
+        // Close, not Hide: a hidden window is still an open one.
+        try { _minimal?.Close(); } catch { /* going away regardless */ }
+        _minimal = null;
+
+        // Before the ViewModel, so the icon is out of the tray while the
+        // dispatcher is still alive to remove it.
+        try { _tray?.Dispose(); } catch { }
+        _tray = null;
+
+        try { _vm?.Dispose(); } catch { /* ditto */ }
+
+        base.OnClosed(e);
     }
 
     // ------------------------------------------------------------------
@@ -40,7 +177,13 @@ public partial class MainWindow : Window
     /// The overlay shares this window's DataContext, so it tracks the bookmark
     /// list with no extra plumbing.
     /// </summary>
-    private void SetMinimalView(bool minimal)
+    /// <param name="activate">
+    /// Whether the restored window should also be brought to the front. False
+    /// when the restore happened because focus moved to some other
+    /// application — showing the window is wanted, stealing focus back from
+    /// whatever the user just switched to is not.
+    /// </param>
+    private void SetMinimalView(bool minimal, bool activate)
     {
         if (minimal)
         {
@@ -51,7 +194,13 @@ public partial class MainWindow : Window
             }
 
             _minimal.Show();
-            _minimal.PositionTopRight();
+
+            // Appearance is re-applied on every show, not just on creation, so
+            // a change in Settings takes effect the next time the overlay
+            // appears rather than only after a restart.
+            _minimal.SetBackgroundOpacity(_vm?.OverlayOpacity ?? 1.0);
+            _minimal.PositionInCorner(_vm?.OverlayCorner ?? OverlayCorner.TopRight);
+
             Hide();
             return;
         }
@@ -59,7 +208,8 @@ public partial class MainWindow : Window
         _minimal?.Hide();
         Show();
         WindowState = WindowState.Normal;
-        Activate();
+
+        if (activate) Activate();
     }
 
     // ------------------------------------------------------------------
@@ -87,12 +237,30 @@ public partial class MainWindow : Window
         _vm.OpenDroppedFileCommand.Execute(paths[0]);
     }
 
+    /// <summary>Guards <see cref="MainWindow_Loaded"/> against running twice.</summary>
+    /// <remarks>
+    /// A WPF Window raises Loaded again when it is hidden and shown, which
+    /// this window now does constantly — the view follows focus, and in tray
+    /// mode minimising hides it too. Every subscription below would otherwise
+    /// be added again on each restore, so menus would rebuild several times
+    /// per change and handlers would fire in multiples.
+    /// </remarks>
+    private bool _wired;
+
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         _vm = DataContext as MainViewModel;
         if (_vm == null) return;
 
+        if (_wired) return;
+        _wired = true;
+
         _vm.MinimalViewRequested += SetMinimalView;
+
+        // The tray icon belongs to the window, not the ViewModel, so the
+        // ViewModel just says when the setting changed.
+        _vm.RunModeChanged += ApplyRunMode;
+        ApplyRunMode();
 
         _vm.Shortcuts.CollectionChanged += Shortcuts_CollectionChanged;
 

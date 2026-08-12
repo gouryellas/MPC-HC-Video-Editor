@@ -23,12 +23,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly BookmarkService _bookmarks;
     private readonly SettingsService _settings;
     private readonly PlaylistService _playlists;
+    private readonly ImageConversionService _images;
     private readonly HotkeyService _hotkeys;
     private readonly ToastService _toast;
     private readonly StallMonitor _stalls;
     private readonly System.Windows.Threading.DispatcherTimer _pollTimer;
     private string? _lastLoadedPath;
-    private bool _awaitingEnd;
     private (double Current, double Duration) _cachedPlaybackPosition;
     private DateTime _lastPositionUpdate = DateTime.MinValue;
     private bool _autoLoadingVideo;
@@ -174,8 +174,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public bool HasNoBookmarks => Session.Bookmarks.Count == 0;
 
     /// <summary>
-    /// When set, the view follows the bookmark file — see
-    /// <see cref="OnIsBookmarkFileLoadedChanged"/>. Persisted.
+    /// When set, the view follows focus: the overlay while MPC-HC is the
+    /// active window, the full window while this one is. See
+    /// <see cref="ApplyAutoViewSwitch"/>. Persisted.
     /// </summary>
     [ObservableProperty] private bool _autoSwitchViews;
 
@@ -185,68 +186,230 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _settings.Save();
 
         // Apply straight away rather than waiting for the next poll tick.
+        // Clearing the edge marker makes the next evaluation act rather than
+        // treat the current focus as "already handled".
+        _lastMpcFocused = null;
         if (value) ApplyAutoViewSwitch();
     }
+
+    /// <summary>
+    /// Whether the window minimises to the tray and survives being closed.
+    /// Read by the View, which owns the tray icon.
+    /// </summary>
+    public RunMode RunMode => _settings.Current.RunMode;
+
+    /// <summary>Raised when <see cref="RunMode"/> changes, so the View can add or remove the tray icon.</summary>
+    public event Action? RunModeChanged;
+
+    /// <summary>Corner the overlay parks in. Read by the View when it shows it.</summary>
+    public OverlayCorner OverlayCorner => _settings.Current.OverlayCorner;
+
+    /// <summary>Overlay background opacity. Read by the View when it shows it.</summary>
+    public double OverlayOpacity => _settings.Current.OverlayOpacity;
 
     /// <summary>Whether the compact overlay is the view currently showing.</summary>
     private bool _minimalViewActive;
 
     /// <summary>
-    /// With auto-switching on, the view follows the player: minimal while the
-    /// video is fullscreen or maximised and a bookmark file is loaded, full
-    /// window otherwise.
+    /// Set when the user picks View ▸ Minimal by hand, so the overlay follows
+    /// focus afterwards even with automatic switching turned off. Cleared by
+    /// View ▸ Full and by the X restore key.
+    /// </summary>
+    private bool _followFocusArmed;
+
+    /// <summary>
+    /// Whether the view should track which window has focus. True when the
+    /// setting is on, or when the user asked for the overlay by hand.
+    /// </summary>
+    private bool FollowingFocus => AutoSwitchViews || _followFocusArmed;
+
+    /// <summary>
+    /// Whether MPC-HC had focus at the last evaluation, or null when none has
+    /// happened yet. Makes <see cref="ApplyAutoViewSwitch"/> edge-triggered —
+    /// see there.
+    /// </summary>
+    private bool? _lastMpcFocused;
+
+    /// <summary>
+    /// Whether the player has held focus at any point since the overlay went
+    /// up. Gates the "focus left the player, restore the window" rule.
     /// </summary>
     /// <remarks>
-    /// Driven from the poll rather than from a one-off state change, because
-    /// the thing being followed — the player's window — changes without
-    /// telling us. Both switches are no-ops when the view is already where it
-    /// should be, so running this every tick costs nothing.
+    /// Choosing View ▸ Minimal necessarily happens from this window, so the
+    /// player does not have focus at that moment. Without this gate the very
+    /// next poll tick saw "player not focused, overlay up" and put the window
+    /// straight back — the overlay appeared and vanished, which is exactly
+    /// what the menu item looked like it was failing to do.
     ///
-    /// With auto-switching off this does nothing at all: the overlay is then
-    /// entirely manual and stays up until X dismisses it.
+    /// The overlay therefore holds until the user has actually been in the
+    /// player once. After that, leaving the player restores the window as
+    /// normal. Going somewhere else entirely without ever touching the player
+    /// leaves the overlay up, which is what was asked for.
+    /// </remarks>
+    private bool _seenPlayerFocusSinceOverlay;
+
+    /// <summary>
+    /// Follows focus: the overlay while MPC-HC is the active window, the full
+    /// window while this one is.
+    /// </summary>
+    /// <remarks>
+    /// Focus, not window size. This used to key off the player being
+    /// fullscreen or maximised, which missed the ordinary case of a windowed
+    /// player being worked in and fired on a maximised player sitting behind
+    /// something else. What actually decides whether the full window is worth
+    /// showing is whether the user is looking at it.
+    ///
+    /// Driven from the poll rather than from an event, because focus changes
+    /// in another process do not notify us.
+    ///
+    /// The two directions are not symmetric, deliberately:
+    ///
+    /// Leaving the player always restores the full window — whether or not
+    /// automatic switching is on, and whatever took focus. The overlay exists
+    /// to sit over the video; anywhere else it is a box in the way. It used to
+    /// treat focus landing on a third application as "no decision" and leave
+    /// the overlay up, which meant switching to a browser left a bookmark list
+    /// floating on top of it.
+    ///
+    /// Returning to the player only drops back to the overlay when the view is
+    /// following focus — the setting is on, or the user asked for the overlay
+    /// by hand. That direction stays edge-triggered so a manual View ▸ Minimal
+    /// is not reversed by the very next poll tick.
     /// </remarks>
     private void ApplyAutoViewSwitch()
     {
-        if (!AutoSwitchViews) return;
+        var mpcFocused = _mpc.IsForeground();
 
-        var state = _mpc.GetWindowState();
-        var covering = state is MpcHcService.PlayerWindowState.Fullscreen
-                             or MpcHcService.PlayerWindowState.Maximized;
+        if (!mpcFocused)
+        {
+            _lastMpcFocused = false;
 
-        var wantMinimal = covering && IsBookmarkFileLoaded;
-        if (wantMinimal == _minimalViewActive) return;
+            // Level-triggered on the way out, but guarded, so it acts once and
+            // then leaves the restored window alone.
+            //
+            // The second guard is what keeps a hand-picked View ▸ Minimal on
+            // screen: that click comes from this window, so the player is not
+            // focused when the overlay appears, and restoring on that alone
+            // would undo the request a tick later.
+            //
+            // Without activating: the user just moved to something else, and
+            // taking focus back off whatever they chose would be worse than
+            // the overlay was. If they came back to this window, it already
+            // has focus and there is nothing to take.
+            if (_minimalViewActive && _seenPlayerFocusSinceOverlay)
+                RestoreFullView(activate: false);
 
-        if (wantMinimal) ShowMinimalView();
-        else ShowFullView();
+            return;
+        }
+
+        // The player has focus, so any later loss of it is a real departure
+        // rather than the moment just after the overlay was asked for.
+        _seenPlayerFocusSinceOverlay = true;
+
+        if (!FollowingFocus)
+        {
+            // Record the focus so a later transition still reads as an edge,
+            // but do not act on it.
+            _lastMpcFocused = true;
+            return;
+        }
+
+        if (_lastMpcFocused == true) return;
+        _lastMpcFocused = true;
+
+        if (IsBookmarkFileLoaded && !_minimalViewActive) ShowMinimalView();
     }
 
     /// <summary>
-    /// Raised when the user asks for the compact overlay or the full window.
-    /// The View owns the windows; the ViewModel only signals the intent.
+    /// Raised when the view should change. The View owns the windows; the
+    /// ViewModel only signals the intent.
     /// </summary>
-    public event Action<bool>? MinimalViewRequested;
+    /// <remarks>
+    /// The second argument says whether the full window should also be
+    /// activated. An explicit request — the View menu, the X key — should
+    /// bring the window to the front, because the user just asked for it. A
+    /// restore that happens because focus moved to some third application
+    /// should not, or the app would snatch focus back from whatever they
+    /// switched to.
+    /// </remarks>
+    public event Action<bool, bool>? MinimalViewRequested;
 
     /// <summary>
-    /// The overlay exists to show bookmarks, so it is only offered when there
-    /// are some — otherwise it is an empty box the user has to dismiss.
+    /// Shows the overlay, takes automatic switching off, and arms manual
+    /// focus-following in its place.
     /// </summary>
-    private bool CanShowMinimalView() => IsBookmarkFileLoaded;
-
-    [RelayCommand(CanExecute = nameof(CanShowMinimalView))]
+    /// <remarks>
+    /// Never disabled. It used to be gated on a bookmark file being loaded, on
+    /// the grounds that an empty overlay is a box the user has to dismiss —
+    /// but a greyed-out menu item is a worse answer than an empty list, and
+    /// this is also the way out of automatic switching, which has to stay
+    /// reachable whatever the session holds.
+    ///
+    /// Choosing it explicitly turns the automatic setting off. The two are
+    /// alternatives, not layers: leaving auto on would mean the view kept
+    /// moving on its own straight after the user took manual control of it.
+    ///
+    /// Asking for the overlay is asking for the mode, not for one window swap.
+    /// The next thing the user does is click into the player, and having the
+    /// overlay stay put — and give way again when they leave — is what makes
+    /// it useful.
+    ///
+    /// The current focus is recorded as the baseline so this very call does
+    /// not read as an edge on the next poll tick and immediately undo itself.
+    /// </remarks>
+    [RelayCommand]
     private void ShowMinimalView()
     {
+        // Assigning the observable property persists it and re-evaluates the
+        // view, so it is set before the rest of the state below.
+        if (AutoSwitchViews) AutoSwitchViews = false;
+
+        _followFocusArmed = true;
+        _lastMpcFocused = _mpc.IsForeground();
+
+        // If the player already has focus this is the automatic switch and the
+        // overlay is where it belongs straight away. If it does not, the user
+        // just picked this from the menu of the window they are looking at, and
+        // the overlay must hold until they have had a chance to click into the
+        // player — see the field's remarks.
+        _seenPlayerFocusSinceOverlay = _lastMpcFocused == true;
+
         // Arm the X restore key only while the overlay is up.
         _hotkeys.RestoreArmed = true;
         _minimalViewActive = true;
-        MinimalViewRequested?.Invoke(true);
+        MinimalViewRequested?.Invoke(true, false);
     }
 
-    [RelayCommand]
-    private void ShowFullView()
+    /// <summary>
+    /// Puts the full window back without changing whether the view is
+    /// following focus.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="ShowFullView"/> because the two mean different
+    /// things. Focus leaving the player is a reason to show the window, not a
+    /// statement that the user is done with the overlay — so following stays
+    /// armed and the overlay returns when they go back to the player. Only an
+    /// explicit View ▸ Full or the X key ends that.
+    /// </remarks>
+    private void RestoreFullView(bool activate)
     {
         _hotkeys.RestoreArmed = false;
         _minimalViewActive = false;
-        MinimalViewRequested?.Invoke(false);
+        MinimalViewRequested?.Invoke(false, activate);
+    }
+
+    /// <summary>
+    /// Returns to the full window and stops following focus, unless the
+    /// setting is on — in which case following is not the user's to disarm.
+    /// </summary>
+    [RelayCommand]
+    private void ShowFullView()
+    {
+        _followFocusArmed = false;
+        _lastMpcFocused = _mpc.IsForeground();
+
+        // Asked for explicitly, so bring the window to the front.
+        RestoreFullView(activate: true);
     }
 
     /// <summary>
@@ -365,11 +528,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public MainViewModel()
     {
-        _ffmpeg = new FFmpegService();
+        // Settings first: the ffmpeg folder override is a constructor argument,
+        // and the port, quality and poll interval are pushed into their
+        // services immediately below.
+        _settings = new SettingsService();
+
+        _ffmpeg = new FFmpegService(_settings.Current.FfmpegFolder);
         _mpc = new MpcHcService();
         _bookmarks = new BookmarkService();
-        _settings = new SettingsService();
         _playlists = new PlaylistService();
+        _images = new ImageConversionService();
         _hotkeys = new HotkeyService();
 
         // Toasts appear over MPC-HC's monitor — the hotkey is usually pressed
@@ -396,6 +564,27 @@ public partial class MainViewModel : ObservableObject, IDisposable
         UpdateActiveSuffixDisplay();
 
         AutoSwitchViews = _settings.Current.AutoSwitchViews;
+
+        // Restore the pinned output folder from the last session, if the user
+        // asked for it to be remembered and it still exists. A folder that has
+        // since been deleted falls back to following the video, which is the
+        // unpinned behaviour and needs no explanation.
+        if (_settings.Current.RememberSaveToFolder &&
+            !string.IsNullOrWhiteSpace(_settings.Current.SaveToFolder) &&
+            Directory.Exists(_settings.Current.SaveToFolder))
+        {
+            _pinnedSaveToFolder = _settings.Current.SaveToFolder;
+        }
+
+        // Created before the settings are applied so ApplyServiceSettings can
+        // set its interval unconditionally. Started at the end of the
+        // constructor, once there is something worth polling for.
+        _pollTimer = new System.Windows.Threading.DispatcherTimer();
+        _pollTimer.Tick += (_, _) => PollMpc();
+
+        // Everything the services need from settings, in one place so the
+        // Settings dialog can re-run exactly this on save.
+        ApplyServiceSettings();
 
         // Single configurable hotkey for the "set bookmark timestamp"
         // action. Migrated from the legacy MiddleMouseHotkeyEnabled /
@@ -428,9 +617,28 @@ public partial class MainViewModel : ObservableObject, IDisposable
         RefreshPlaylistState();
         RefreshCommandStates();
 
-        _pollTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
-        _pollTimer.Tick += (_, _) => PollMpc();
         _pollTimer.Start();
+    }
+
+    /// <summary>
+    /// Pushes the settings that live inside services into those services.
+    /// Called at startup and again whenever Settings is saved.
+    /// </summary>
+    /// <remarks>
+    /// The ffmpeg folder is the one exception — it is resolved once in
+    /// <see cref="FFmpegService"/>'s constructor, and re-resolving means
+    /// shelling out to <c>where.exe</c>. Changing it therefore asks for a
+    /// restart rather than silently doing nothing.
+    /// </remarks>
+    private void ApplyServiceSettings()
+    {
+        _mpc.WebInterfacePort = _settings.Current.MpcWebInterfacePort;
+        _ffmpeg.QualityArgs = _settings.GetQualityArgs();
+
+        _toast.Enabled = _settings.Current.ToastsEnabled;
+        _toast.HoldDuration = TimeSpan.FromSeconds(_settings.Current.ToastSeconds);
+
+        _pollTimer.Interval = _settings.GetPollInterval();
     }
 
     // ------------------------------------------------------------------
@@ -501,7 +709,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         RefreshCommandStates();
 
         // The bookmark file is only half the condition — the player also has
-        // to be covering the screen. ApplyAutoViewSwitch weighs both.
+        // to have focus. Clearing the edge marker lets the check act on the
+        // current focus rather than waiting for it to move: loading a bookmark
+        // file while already in the player should drop straight to the overlay.
+        _lastMpcFocused = null;
         ApplyAutoViewSwitch();
     }
 
@@ -533,7 +744,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         EnterTimeManualCommand.NotifyCanExecuteChanged();
         DeleteSelectedCommand.NotifyCanExecuteChanged();
         ToggleFlipCommand.NotifyCanExecuteChanged();
-        ShowMinimalViewCommand.NotifyCanExecuteChanged();
         PlayAllCommand.NotifyCanExecuteChanged();
         PlaySelectedCommand.NotifyCanExecuteChanged();
         SelectAllCommand.NotifyCanExecuteChanged();
@@ -575,11 +785,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private bool CanSelectAll() => HasActiveVideo && IsBookmarkFileLoaded && CompletePairCount >= 1;
     private bool CanSelectNone() => HasActiveVideo && IsBookmarkFileLoaded && SelectedPairCount >= 1;
 
-    // Play and Merge need something to sequence or join, so they want two
-    // or more pairs. Split works on a single pair.
+    // Play needs something to sequence, so it wants two or more pairs. Split
+    // works on a single pair, and so does Merge — one cut is a trim.
     private bool CanPlayAll() => HasActiveVideo && IsBookmarkFileLoaded && CompletePairCount > 1;
     private bool CanPlaySelected() => CanPlayAll() && SelectedPairCount > 1;
-    private bool CanMergeSelected() => HasActiveVideo && IsBookmarkFileLoaded && CompletePairCount > 1;
+    private bool CanMergeSelected() => HasActiveVideo && IsBookmarkFileLoaded && CompletePairCount >= 1;
     private bool CanSplitSelected() => HasActiveVideo && IsBookmarkFileLoaded && CompletePairCount >= 1;
 
     private bool CanAddCurrentToPlaylist() => HasActiveVideo;
@@ -650,7 +860,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // menu shows "done", the example below it shows where the brackets
         // actually land.
         ActiveSuffixDisplay = $"Current rename style: {text}";
-        SuffixExampleDisplay = $"Example: filename.mp4  →  filename[{text}].mp4";
+        SuffixExampleDisplay = BuildSuffixExample(text);
+    }
+
+    /// <summary>
+    /// The "filename.mp4 → filename[done].mp4" line under the naming styles.
+    /// </summary>
+    /// <remarks>
+    /// Uses the configured output container, so changing the format in
+    /// Settings updates the example to match what will actually be written
+    /// rather than leaving a stale <c>.mp4</c> on screen.
+    /// </remarks>
+    private string BuildSuffixExample(string suffixText)
+    {
+        var ext = OutputFormat.Extension;
+        return $"Example: filename{ext}  →  filename[{suffixText}]{ext}";
     }
 
     /// <summary>
@@ -743,6 +967,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// the user has picked a folder it wins for the rest of the session;
     /// until then it follows the loaded video's own folder.
     /// </summary>
+    /// <remarks>
+    /// With "remember Save to folder" set, a folder picked in a previous
+    /// session is restored into the pin at startup, so it wins here just as a
+    /// freshly-picked one would.
+    /// </remarks>
     private string ResolveSaveToDirectory()
     {
         if (!string.IsNullOrWhiteSpace(_pinnedSaveToFolder))
@@ -876,9 +1105,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (IsBusy) return;
         IsMpcRunning = _mpc.IsRunning;
 
-        // The player's window can be fullscreened or restored at any moment
-        // without notifying us, so the auto-switch condition is re-evaluated
-        // on every tick. It returns immediately when nothing needs to change.
+        // Focus moves between processes without notifying us, so the view
+        // condition is re-evaluated on every tick. It returns immediately when
+        // nothing needs to change.
         ApplyAutoViewSwitch();
         if (!IsMpcRunning)
         {
@@ -968,7 +1197,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private async Task LoadVideoAsync(string path)
     {
         _lastLoadedPath = path;
-        _awaitingEnd = false;
 
         // Hold the poll off while MPC-HC gets around to opening the file and
         // reporting it; see _loadGraceUntilUtc.
@@ -1057,6 +1285,25 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// the configurable hotkey. The old separate "Add bookmark (Start)"
     /// and "Complete last (End)" commands have been folded into this.
     /// </summary>
+    /// <summary>
+    /// The bookmark waiting for its closing timestamp, or null when the next
+    /// press should open a new one.
+    /// </summary>
+    /// <remarks>
+    /// This is the anchor that decides what a press does, and it is a question
+    /// asked of the bookmark list rather than a flag kept beside it.
+    ///
+    /// It was a flag — <c>_awaitingEnd</c> — assigned from twelve places, four
+    /// of which recomputed it from this very expression. That is two sources
+    /// of truth, and they drifted: a press that should have closed bookmark 1
+    /// opened bookmark 2 instead, because the flag said "not waiting" while
+    /// the list plainly held an open bookmark.
+    ///
+    /// Last rather than first, so a file hand-edited to contain several open
+    /// bookmarks closes the most recent one — the one the user was working on.
+    /// </remarks>
+    private Bookmark? OpenBookmark => Session.Bookmarks.LastOrDefault(b => b.IsIncomplete);
+
     [RelayCommand(CanExecute = nameof(CanSetTimestamp))]
     private void SetTimestamp()
     {
@@ -1071,10 +1318,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (!_awaitingEnd)
+        // Read once: the list must not be consulted again between deciding and
+        // acting, or the two could disagree.
+        var open = OpenBookmark;
+
+        if (open == null)
             BeginNewBookmark();
         else
-            FinalizeBookmark();
+            FinalizeBookmark(open);
     }
 
     /// <summary>
@@ -1092,8 +1343,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // unreliable anyway — start at the first second instead.
         var timestamp = Session.CurrentTimeSeconds <= 0 ? 1 : Session.CurrentTimeSeconds;
 
+        // No end time is what makes it open — there is no separate flag to set.
         var nextIndex = Session.Bookmarks.Count + 1;
-        var bookmark = new Bookmark { Index = nextIndex, StartSeconds = timestamp, IsIncomplete = true };
+        var bookmark = new Bookmark { Index = nextIndex, StartSeconds = timestamp, EndSeconds = 0 };
         Session.Bookmarks.Add(bookmark);
 
         // Persist immediately rather than waiting for the closing timestamp.
@@ -1105,18 +1357,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
         StatusText = $"Timestamp {nextIndex} set at {Bookmark.FormatTime(timestamp)}  (press again to close)";
         _toast.Show($"Timestamp {nextIndex} set",
                     $"{Bookmark.FormatTime(timestamp)} — press again to close");
-        _awaitingEnd = true;
     }
 
     /// <summary>
-    /// Closes the most recent incomplete bookmark at the current playback
-    /// position. Called by <see cref="SetTimestamp"/> when an incomplete
-    /// bookmark is awaiting its closing timestamp.
+    /// Closes <paramref name="incomplete"/> at the current playback position.
     /// </summary>
-    private void FinalizeBookmark()
+    /// <remarks>
+    /// The bookmark is passed in rather than looked up again, so the one this
+    /// closes is provably the one <see cref="SetTimestamp"/> decided on.
+    /// </remarks>
+    private void FinalizeBookmark(Bookmark incomplete)
     {
-        var incomplete = Session.Bookmarks.LastOrDefault(b => b.IsIncomplete);
-        if (incomplete == null) { StatusText = "No incomplete bookmark to close."; return; }
         var (current, _) = _mpc.GetPlaybackPosition();
         if (current > 0) Session.CurrentTimeSeconds = current;
         var closing = Session.CurrentTimeSeconds;
@@ -1133,15 +1384,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        // Setting the end time is what closes it; there is nothing else to say.
         incomplete.EndSeconds = closing;
-        incomplete.IsIncomplete = false;
         SaveBookmarks();
         Session.NotifyDurationChanged();
         StatusText = $"Bookmark {incomplete.Index} closed ({incomplete.DurationDisplay})";
         _toast.Show($"Bookmark {incomplete.Index} closed",
                     $"{incomplete.StartDisplay} → {incomplete.EndDisplay}  ({incomplete.DurationDisplay})",
                     "✅");
-        _awaitingEnd = false;
     }
 
     /// <summary>
@@ -1156,7 +1406,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void DiscardOpenBookmark(Bookmark bookmark, string reason)
     {
         Session.Bookmarks.Remove(bookmark);
-        _awaitingEnd = Session.Bookmarks.Any(b => b.IsIncomplete);
 
         if (Session.Bookmarks.Count == 0)
         {
@@ -1234,6 +1483,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// the conventional "video.csv next to video.mp4" path, so a later
     /// timestamp recreates the file in the right place.
     /// </summary>
+    /// <remarks>
+    /// Goes to the Recycle Bin rather than being unlinked. A bookmark file is
+    /// a hand-built list of timestamps that can represent a lot of watching,
+    /// and it is small — there is no case for making it unrecoverable.
+    /// </remarks>
     private bool TryDeleteBookmarkFile(out string error)
     {
         error = string.Empty;
@@ -1241,8 +1495,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         if (!string.IsNullOrEmpty(csvPath) && File.Exists(csvPath))
         {
-            try { File.Delete(csvPath); }
-            catch (Exception ex) { error = ex.Message; return false; }
+            if (!RecycleBin.TryDelete(csvPath, out var failure))
+            {
+                error = failure ?? "unknown error";
+                return false;
+            }
         }
 
         IsBookmarkFileLoaded = false;
@@ -1288,13 +1545,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         // Completed pair: take back the closing timestamp and leave it open,
         // exactly as it was before the last press.
-        if (!last.IsIncomplete && last.EndSeconds > last.StartSeconds)
+        if (last.IsValid)
         {
             var removedEnd = last.EndDisplay;
 
+            // Clearing the end time is what reopens it, and what clears its
+            // selection — the bookmark has no range to be selected for.
             last.EndSeconds = 0;
-            last.IsIncomplete = true;   // also clears IsSelected
-            _awaitingEnd = true;
 
             SaveBookmarks();
             Session.NotifyDurationChanged();
@@ -1306,7 +1563,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var removedStart = last.StartDisplay;
         var removedIndex = last.Index;
         Session.Bookmarks.RemoveAt(Session.Bookmarks.Count - 1);
-        _awaitingEnd = Session.Bookmarks.Any(b => b.IsIncomplete);
 
         // Nothing left to store, so the file goes with it rather than
         // lingering empty and still counting as "loaded".
@@ -1715,7 +1971,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             // Saved with everything deleted — take that at face value.
             Session.Bookmarks.Clear();
-            _awaitingEnd = false;
             TryDeleteBookmarkFile(out _);
             Session.NotifyDurationChanged();
             StatusText = "Bookmark file was emptied — deleted it";
@@ -1729,7 +1984,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
             b.Index = i++;
             Session.Bookmarks.Add(b);
         }
-        _awaitingEnd = Session.Bookmarks.Any(b => b.IsIncomplete);
         Session.NotifyDurationChanged();
         StatusText = $"Reloaded {loaded.Count} bookmark(s) from disk";
     }
@@ -1757,11 +2011,31 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         while (File.Exists(candidate))
         {
+            // Already told how to handle the rest of the batch.
+            if (_conflictAllChoice == ConflictResult.Overwrite)
+                return Task.FromResult<string?>(candidate);
+
+            if (_conflictAllChoice == ConflictResult.Increment)
+            {
+                candidate = IncrementSuffix(candidate);
+                continue;
+            }
+
             var dlg = new ConflictDialog(Path.GetFileName(candidate),
-                                         Path.GetFileName(IncrementSuffix(candidate)))
+                                         Path.GetFileName(IncrementSuffix(candidate)),
+                                         offerApplyToAll: _batchRemaining > 1)
             { Owner = null };
 
             if (dlg.ShowDialog() != true) return Task.FromResult<string?>(null);
+
+            // Remember it only for the choices that can repeat. A name typed
+            // into Rename would collide with itself on the next file, so that
+            // one always asks again.
+            if (dlg.ApplyToAll &&
+                dlg.Result is ConflictResult.Overwrite or ConflictResult.Increment)
+            {
+                _conflictAllChoice = dlg.Result;
+            }
 
             switch (dlg.Result)
             {
@@ -1801,6 +2075,49 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// alone — only what we are about to write has to comply.
     /// </summary>
     /// <param name="cancelled">True if the user backed out.</param>
+    /// <summary>
+    /// How many files remain in the current batch, so the rename prompt knows
+    /// whether "do this for all remaining files" is worth offering.
+    /// </summary>
+    private int _batchRemaining;
+
+    /// <summary>
+    /// Set once the user ticks "do this for all remaining files": later names
+    /// that break the rules are corrected silently instead of prompting.
+    /// </summary>
+    private bool _autoCorrectNames;
+
+    /// <summary>
+    /// Set once the user ticks "do this for all remaining files" on the
+    /// file-exists prompt. Only ever Overwrite or Increment.
+    /// </summary>
+    private ConflictResult? _conflictAllChoice;
+
+    /// <summary>
+    /// Starts a batch of <paramref name="fileCount"/> files, resetting the
+    /// "apply to all" choice to whatever Settings says. A decision made during
+    /// one batch must not silently carry into the next — least of all
+    /// Overwrite, which would destroy files without asking.
+    /// </summary>
+    /// <remarks>
+    /// The collision preference is seeded here rather than checked at the
+    /// prompt, because "apply to all" and "always do this" want identical
+    /// behaviour and this is already the one place that decides it. A setting
+    /// of Ask leaves it null, which is exactly the old behaviour.
+    /// </remarks>
+    private void BeginNameBatch(int fileCount)
+    {
+        _batchRemaining = fileCount;
+        _autoCorrectNames = false;
+
+        _conflictAllChoice = _settings.Current.OnNameCollision switch
+        {
+            CollisionPolicy.Increment => ConflictResult.Increment,
+            CollisionPolicy.Overwrite => ConflictResult.Overwrite,
+            _ => null
+        };
+    }
+
     private string EnforceFileNamePolicy(string candidate, out bool cancelled)
     {
         cancelled = false;
@@ -1809,14 +2126,28 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var ext = Path.GetExtension(candidate);
         var (stem, suffix) = FileNameRules.SplitSuffix(Path.GetFileNameWithoutExtension(candidate));
 
+        // Spaces are corrected without asking. They are in most media
+        // filenames, dashes are the only sensible substitution, and there is
+        // nothing here for the user to weigh up — being prompted on virtually
+        // every operation was the whole problem. Anything else still asks.
+        stem = FileNameRules.NormalizeSpaces(stem);
+
         // The bracket suffix comes from the naming style, which is already
         // constrained, so only the stem is worth checking.
         while (!FileNameRules.IsValid(stem))
         {
+            // Already told to handle the rest — take the suggestion and move on.
+            if (_autoCorrectNames)
+            {
+                stem = FileNameRules.Sanitize(stem);
+                continue;
+            }
+
             var dlg = new RenameFileDialog(
                 Path.GetFileName(candidate), stem, suffix, ext,
                 "This output filename contains characters that are not allowed. " +
-                "Enter a name to save it as.")
+                "Enter a name to save it as.",
+                offerApplyToAll: _batchRemaining > 1)
             { Owner = null };
 
             if (dlg.ShowDialog() != true || string.IsNullOrWhiteSpace(dlg.NewStem))
@@ -1825,11 +2156,22 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 return candidate;
             }
 
+            // Applies from the NEXT file onward — the name typed here is still
+            // used for this one.
+            if (dlg.ApplyToAll) _autoCorrectNames = true;
+
             stem = dlg.NewStem;
         }
 
         return Path.Combine(dir, stem + suffix + ext);
     }
+
+    /// <summary>
+    /// The container every video operation writes, from settings. Read fresh
+    /// each time rather than cached, so a change in the Settings dialog
+    /// applies to the very next operation.
+    /// </summary>
+    private VideoFormats.Format OutputFormat => _settings.GetDefaultVideoFormat();
 
     /// <summary>
     /// The suffixed output path without any collision handling —
@@ -1983,6 +2325,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         var basePath = GetUniqueOutputPath(ofd.FileNames[0], ".mp4",
             outputDirectory: Path.GetDirectoryName(ofd.FileNames[0]));
+        // Single output: reset so a previous batch cannot carry its
+        // "apply to all" decision into this prompt.
+        BeginNameBatch(1);
         var outPath = await ResolveOutputPathAsync(basePath);
         if (outPath == null) return;
 
@@ -2016,7 +2361,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
             MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
 
         Session.Bookmarks.Clear();
-        _awaitingEnd = false;
 
         if (!TryDeleteBookmarkFile(out var error))
         {
@@ -2093,9 +2437,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 {
                     Index = Session.Bookmarks.Count + 1,
                     StartSeconds = start,
-                    IsIncomplete = true
+                    EndSeconds = 0
                 });
-                _awaitingEnd = true;
                 StatusText = $"Opened bookmark at {Bookmark.FormatTime(start)}";
             }
 
@@ -2181,26 +2524,38 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// video and bookmarks to work from it falls back to asking which files
     /// to join, so the command is always available.
     /// </summary>
+    /// <remarks>
+    /// One cut is a legitimate job, not a failed merge: the result is that
+    /// single span written out on its own — a trim. It runs down exactly the
+    /// same path as a many-cut merge (the concat of one segment is that
+    /// segment), so nothing downstream needs to special-case it.
+    ///
+    /// Because a lone cut is now workable, an explicit single check is
+    /// honoured as such. Previously one checked cut was indistinguishable
+    /// from none and quietly merged everything instead.
+    /// </remarks>
     [RelayCommand(CanExecute = nameof(CanMergeAlways))]
     private async Task MergeSelectedAsync()
     {
         var haveSource = !string.IsNullOrEmpty(Session.VideoPath) && File.Exists(Session.VideoPath);
 
         var toMerge = Session.Bookmarks.Where(b => b.IsSelected && b.IsValid).ToList();
-        if (toMerge.Count < 2) toMerge = Session.Bookmarks.Where(b => b.IsValid).ToList();
+        if (toMerge.Count == 0) toMerge = Session.Bookmarks.Where(b => b.IsValid).ToList();
 
-        // Nothing to join from the current session — merge arbitrary files.
-        if (!haveSource || toMerge.Count < 2)
+        // Nothing to work from in the current session — merge arbitrary files.
+        if (!haveSource || toMerge.Count == 0)
         {
             await MergeArbitraryFilesAsync();
             return;
         }
 
-        // Default filename uses the active suffix: <name>[done].mp4
-        var defaultName = GetSuffixedOutputPath(Session.VideoPath, ".mp4", ResolveSaveToDirectory());
+        // Default filename uses the active suffix and the configured
+        // container: <name>[done].mp4
+        var format = OutputFormat;
+        var defaultName = GetSuffixedOutputPath(Session.VideoPath, format.Extension, ResolveSaveToDirectory());
         var dlg = new SaveFileDialog
         {
-            Filter = "MP4 Video|*.mp4",
+            Filter = VideoFormats.SaveFilter(format),
             FileName = Path.GetFileName(defaultName),
             InitialDirectory = ResolveSaveToDirectory(),
             // Our own conflict flow handles this, and it offers Increment as
@@ -2209,11 +2564,22 @@ public partial class MainViewModel : ObservableObject, IDisposable
         };
         if (dlg.ShowDialog() != true) return;
 
+        // Single output: reset so a previous batch cannot carry its
+        // "apply to all" decision into this prompt.
+        BeginNameBatch(1);
         var outPath = await ResolveOutputPathAsync(dlg.FileName);
         if (outPath == null) return;
 
-        IsBusy = true; ProgressPercent = 0; StatusText = "Merging…";
-        Job.Begin("Merge cuts");
+        // A single cut is a trim; say so rather than reporting a merge of one.
+        var trimming = toMerge.Count == 1;
+
+        // Captured before the operation: cleanup must act on the file this run
+        // consumed, not on whatever happens to be loaded when it finishes.
+        var source = Session.VideoPath;
+        var succeeded = false;
+
+        IsBusy = true; ProgressPercent = 0; StatusText = trimming ? "Trimming…" : "Merging…";
+        Job.Begin(trimming ? "Trim cut" : "Merge cuts");
         Job.SetFile(1, Path.GetFileName(outPath));
         try
         {
@@ -2223,14 +2589,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 StatusText = p.Message;
                 Job.Report(p.Message, p.Percent);
             });
-            await _ffmpeg.MergeBookmarksAsync(Session.VideoPath, outPath, toMerge, progress);
+            await _ffmpeg.MergeBookmarksAsync(Session.VideoPath, outPath, toMerge, progress, default, format);
 
             Job.Report("Complete", 100);
             await Task.Delay(600);
             StatusText = $"Created {Path.GetFileName(outPath)}";
+            succeeded = true;
         }
-        catch (Exception ex) { StatusText = "Merge failed"; MessageBox.Show(ex.Message); }
+        catch (Exception ex) { StatusText = trimming ? "Trim failed" : "Merge failed"; MessageBox.Show(ex.Message); }
         finally { IsBusy = false; ProgressPercent = 0; Job.End(); }
+
+        // Only after the panel is down and the output is on disk.
+        if (succeeded) await RunPostOperationCleanup(source, includeBookmarks: true, justWrote: outPath);
     }
 
     [RelayCommand(CanExecute = nameof(CanSplitSelected))]
@@ -2242,6 +2612,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         var outDir = Path.Combine(Session.OutputDirectory, Path.GetFileNameWithoutExtension(Session.VideoFileName) + "_clips");
         Directory.CreateDirectory(outDir);
+
+        var format = OutputFormat;
+        var source = Session.VideoPath;
+        var succeeded = false;
+
         IsBusy = true; ProgressPercent = 0;
         try
         {
@@ -2249,18 +2624,20 @@ public partial class MainViewModel : ObservableObject, IDisposable
             // Collisions are put to the user rather than silently skipped past,
             // so a second split into the same folder is a deliberate choice.
             Job.Begin("Split clips", toSplit.Count);
+            BeginNameBatch(toSplit.Count);
             int i = 0, written = 0;
             foreach (var b in toSplit)
             {
                 i++; ProgressPercent = (double)i / toSplit.Count * 100; StatusText = $"Splitting {i}/{toSplit.Count}";
+                _batchRemaining = toSplit.Count - i + 1;
                 Job.SetFile(i, Path.GetFileName(Session.VideoPath));
                 Job.Report($"Cutting {b.StartDisplay} → {b.EndDisplay}", (double)(i - 1) / toSplit.Count * 100);
 
                 var outPath = await ResolveOutputPathAsync(
-                    BuildSplitPath(outDir, Session.VideoFileName, i));
+                    BuildSplitPath(outDir, Session.VideoFileName, i, format.Extension));
                 if (outPath == null) continue;   // cancelled this clip
 
-                await _ffmpeg.MergeBookmarksAsync(Session.VideoPath, outPath, new[] { b });
+                await _ffmpeg.MergeBookmarksAsync(Session.VideoPath, outPath, new[] { b }, null, default, format);
                 written++;
             }
             // Let the bar land on 100% and hold it briefly. Previously a "Done"
@@ -2270,9 +2647,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
             await Task.Delay(600);
 
             StatusText = $"Created {written} clip(s) in {outDir}";
+
+            // A run in which every clip was cancelled wrote nothing, so there
+            // is nothing the originals are redundant to.
+            succeeded = written > 0;
         }
         catch (Exception ex) { StatusText = "Split failed"; MessageBox.Show(ex.Message); }
         finally { IsBusy = false; ProgressPercent = 0; Job.End(); }
+
+        if (succeeded) await RunPostOperationCleanup(source, includeBookmarks: true);
     }
 
     /// <summary>
@@ -2281,12 +2664,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <c>&lt;name&gt;[done].mp4</c>; index 2+ produces
     /// <c>&lt;name&gt;[done2].mp4</c>, <c>&lt;name&gt;[done3].mp4</c>, etc.
     /// </summary>
-    private string BuildSplitPath(string outDir, string videoFileName, int index)
+    private string BuildSplitPath(string outDir, string videoFileName, int index, string? extension = null)
     {
         var nameWithoutExt = Path.GetFileNameWithoutExtension(videoFileName);
         var suffix = _settings.GetActiveSuffixText();
         var bracket = index == 1 ? $"[{suffix}]" : $"[{suffix}{index}]";
-        return Path.Combine(outDir, $"{nameWithoutExt}{bracket}.mp4");
+        return Path.Combine(outDir, $"{nameWithoutExt}{bracket}{extension ?? OutputFormat.Extension}");
     }
 
     /// <summary>
@@ -2332,9 +2715,32 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        var outPath = await ResolveOutputPathAsync(
-            GetSuffixedOutputPath(Session.VideoPath, ".mp4", outDir));
-        if (outPath == null) return;
+        BeginNameBatch(1);
+        var format = OutputFormat;
+
+        // Correct the name first, then walk for a free one. The other order
+        // looks equivalent and is not: correcting a name after checking it is
+        // free can land right back on an existing file.
+        var named = EnforceFileNamePolicy(
+            GetSuffixedOutputPath(Session.VideoPath, format.Extension, outDir),
+            out var nameCancelled);
+        if (nameCancelled) return;
+
+        // Every row builds its name from the video rather than the bookmark,
+        // so all of them propose the same file. GetUniqueOutputPath walks
+        // [done], [done2], [done3]… until one is free, which keeps the click a
+        // single action as intended.
+        //
+        // This used to call ResolveOutputPathAsync, which prompts instead: the
+        // first click wrote video[done].mp4 and every click after it reported
+        // that file as already existing — which, by then, it was.
+        var correctedStem = FileNameRules.SplitSuffix(
+            Path.GetFileNameWithoutExtension(named)).Stem;
+
+        var outPath = GetUniqueOutputPath(
+            Path.Combine(outDir, correctedStem + format.Extension),
+            format.Extension,
+            outputDirectory: outDir);
 
         IsBusy = true;
         ProgressPercent = 0;
@@ -2345,7 +2751,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             // Reuse the same FFmpeg path that SplitSelected uses — it
             // honours Speed and IsFlipped on the bookmark.
-            await _ffmpeg.MergeBookmarksAsync(Session.VideoPath, outPath, new[] { bookmark });
+            await _ffmpeg.MergeBookmarksAsync(Session.VideoPath, outPath, new[] { bookmark }, null, default, format);
 
             ProgressPercent = 100;
             StatusText = $"Created clip → {outPath}";
@@ -2366,22 +2772,325 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Converts picked images to <paramref name="formatKey"/>, following the
+    /// same naming style, filename policy and collision handling as every
+    /// other action.
+    /// </summary>
+    /// <param name="formatKey">
+    /// One of <see cref="ImageConversionService.Formats"/>, supplied as the
+    /// CommandParameter of the menu item that was clicked.
+    /// </param>
+    [RelayCommand]
+    private async Task ConvertImages(string? formatKey)
+    {
+        var format = ImageConversionService.FindFormat(formatKey);
+        if (format == null)
+        {
+            StatusText = $"Unknown image format '{formatKey}'.";
+            return;
+        }
+
+        var pattern = string.Join(";", ImageConversionService.ReadableExtensions.Select(e => "*" + e));
+        var ofd = new OpenFileDialog
+        {
+            Filter = $"Image Files|{pattern}|All Files|*.*",
+            Multiselect = true,
+            Title = $"Select images to convert to {format.Display}"
+        };
+        if (ofd.ShowDialog() != true) return;
+
+        IsBusy = true;
+        int done = 0;
+        var errors = new List<string>();
+
+        // Sources that converted cleanly, and so are safe to offer for
+        // deletion afterwards. Skipped, cancelled and failed files never make
+        // it in, so a failure can never cost the original.
+        var convertedSources = new List<string>();
+
+        Job.Begin($"Convert images to {format.Display}", ofd.FileNames.Length);
+        BeginNameBatch(ofd.FileNames.Length);
+
+        foreach (var file in ofd.FileNames)
+        {
+            _batchRemaining = ofd.FileNames.Length - done;
+            Job.SetFile(done + 1, Path.GetFileName(file));
+            Job.Report($"Writing {format.Display}", (double)done / ofd.FileNames.Length * 100);
+            StatusText = $"Converting {Path.GetFileName(file)}…";
+
+            var outPath = await ResolveOutputPathAsync(
+                GetSuffixedOutputPath(file, format.Extension, ResolveSaveToDirectory()));
+            if (outPath == null) { done++; continue; }
+
+            try
+            {
+                // Quick, but pushed off the UI thread so a large batch cannot
+                // freeze the window mid-run.
+                await Task.Run(() => _images.Convert(file, outPath, format));
+
+                // Overwriting in place means the "original" is the file we just
+                // wrote — deleting it would throw away the conversion.
+                if (!string.Equals(file, outPath, StringComparison.OrdinalIgnoreCase))
+                    convertedSources.Add(file);
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"{Path.GetFileName(file)}: {ex.Message}");
+            }
+
+            done++;
+            ProgressPercent = (double)done / ofd.FileNames.Length * 100;
+            Job.Report($"Writing {format.Display}", ProgressPercent);
+        }
+
+        Job.Report("Complete", 100);
+        await Task.Delay(600);
+
+        IsBusy = false; ProgressPercent = 0;
+        Job.End();
+
+        StatusText = errors.Count == 0
+            ? $"Converted {done} image(s) to {format.Display}"
+            : $"Finished with {errors.Count} error(s)";
+
+        if (errors.Count > 0)
+            MessageBox.Show(string.Join("\n", errors), "Image conversion",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+
+        OfferToDeleteSources(convertedSources, format);
+    }
+
+    // ------------------------------------------------------------------
+    // Post-operation cleanup
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Single-source overload — see the list version.
+    /// </summary>
+    private Task RunPostOperationCleanup(string? sourceVideo, bool includeBookmarks, string? justWrote = null)
+    {
+        var sources = string.IsNullOrWhiteSpace(sourceVideo)
+            ? new List<string>()
+            : new List<string> { sourceVideo };
+
+        return RunPostOperationCleanup(sources, includeBookmarks, justWrote);
+    }
+
+    /// <summary>
+    /// Applies the File ▸ Settings cleanup preferences once an operation has
+    /// succeeded: the source video, and for the operations that consume it,
+    /// the bookmark file.
+    /// </summary>
+    /// <param name="sourceVideos">
+    /// Only files the operation actually consumed successfully. A failed,
+    /// skipped or cancelled file must never reach here — a cleanup that can
+    /// fire after a failure is a cleanup that destroys work.
+    /// </param>
+    /// <param name="includeBookmarks">
+    /// False for Convert, which operates on files it picked itself and has no
+    /// claim on whatever bookmark file the session happens to hold.
+    /// </param>
+    /// <param name="justWrote">
+    /// The output path, when the operation had one. The save dialog will
+    /// happily aim the output at the source file, and deleting "the original"
+    /// would then delete the result — so it is excluded by name.
+    /// </param>
+    /// <remarks>
+    /// Everything goes to the Recycle Bin rather than being unlinked, which is
+    /// what makes "delete without asking" a defensible option at all: the
+    /// worst case is a trip to the bin, not lost footage.
+    ///
+    /// Deliberately not awaited anywhere — it runs after the progress panel is
+    /// down, so its prompts read as a follow-up question rather than as part
+    /// of the operation.
+    /// </remarks>
+    private async Task RunPostOperationCleanup(List<string> sourceVideos, bool includeBookmarks, string? justWrote = null)
+    {
+        // A source that no longer exists (already cleaned up by an earlier
+        // run, or moved) is silently dropped rather than reported — the user
+        // wanted it gone and it is.
+        var videos = sourceVideos
+            .Where(p => !string.IsNullOrWhiteSpace(p) && File.Exists(p))
+            .Where(p => !string.Equals(p, justWrote, StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var csv = includeBookmarks ? Session.CsvPath : null;
+        var haveCsv = !string.IsNullOrWhiteSpace(csv) && File.Exists(csv);
+
+        var videoMode = _settings.Current.DeleteOriginalVideo;
+        var csvMode = _settings.Current.DeleteBookmarksFile;
+
+        var deleted = new List<string>();
+        var failed = new List<string>();
+
+        if (videos.Count > 0 && videoMode != CleanupMode.Never)
+        {
+            var ask = videoMode == CleanupMode.Ask;
+            var prompt = videos.Count == 1
+                ? $"Delete the original video?\n\n{Path.GetFileName(videos[0])}\n\nIt will go to the Recycle Bin."
+                : $"Delete the {videos.Count} original video files this operation used?\n\nThey will go to the Recycle Bin.";
+
+            if (!ask || Confirm(prompt, "Delete original video"))
+            {
+                // MPC-HC holds an open handle on the file it is playing, and
+                // will not let go on its own — no amount of retrying gets past
+                // that. Closing the media releases it; the player stays up.
+                var playing = videos.FirstOrDefault(p =>
+                    string.Equals(p, Session.VideoPath, StringComparison.OrdinalIgnoreCase));
+
+                if (playing != null) _mpc.CloseFile();
+
+                foreach (var path in videos)
+                    await RecycleAsync(path, deleted, failed);
+
+                // The session still points at a file that is now in the bin,
+                // and the player has nothing loaded either. Leaving the old
+                // path on screen invites the next action to fail on it.
+                if (playing != null && deleted.Contains(playing))
+                    ClearLoadedSession();
+            }
+        }
+
+        if (haveCsv && csvMode != CleanupMode.Never)
+        {
+            var ask = csvMode == CleanupMode.Ask;
+            var prompt = $"Delete the bookmarks file?\n\n{Path.GetFileName(csv!)}\n\nIt will go to the Recycle Bin.";
+
+            if (!ask || Confirm(prompt, "Delete bookmarks file"))
+            {
+                // The list on screen would otherwise describe a file that is
+                // gone, so clear it first and let the shared helper do the
+                // delete — it is the same path Bookmarks ▸ Delete bookmarks
+                // takes, including marking the file unloaded.
+                Session.Bookmarks.Clear();
+
+                if (TryDeleteBookmarkFile(out var csvError))
+                {
+                    deleted.Add(csv!);
+                    Session.NotifyDurationChanged();
+                }
+                else
+                {
+                    failed.Add($"{Path.GetFileName(csv!)}: {csvError}");
+                }
+            }
+        }
+
+        if (deleted.Count > 0)
+            StatusText = deleted.Count == 1
+                ? $"Moved {Path.GetFileName(deleted[0])} to the Recycle Bin"
+                : $"Moved {deleted.Count} file(s) to the Recycle Bin";
+
+        if (failed.Count > 0)
+            MessageBox.Show(string.Join("\n", failed), "Delete after operation",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
+
+    /// <summary>Yes/No prompt that defaults to No, so Enter can never delete.</summary>
+    private static bool Confirm(string prompt, string caption) =>
+        MessageBox.Show(prompt, caption, MessageBoxButton.YesNo,
+                        MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes;
+
+    /// <summary>
+    /// Recycles one file, waiting for it to be released first.
+    /// </summary>
+    /// <remarks>
+    /// Async so the wait does not freeze the window. Cleanup runs the moment
+    /// an operation reports success, and ffmpeg's handle on the source
+    /// outlives its own exit by a fraction of a second — long enough for a
+    /// delete issued immediately to fail with a sharing violation.
+    /// </remarks>
+    private static async Task<bool> RecycleAsync(string path, List<string> deleted, List<string> failed)
+    {
+        var (ok, error) = await RecycleBin.TryDeleteAsync(path);
+
+        if (ok)
+        {
+            deleted.Add(path);
+            return true;
+        }
+
+        failed.Add($"{Path.GetFileName(path)}: {error}");
+        return false;
+    }
+
+    private static bool Recycle(string path, List<string> deleted, List<string> failed)
+    {
+        if (RecycleBin.TryDelete(path, out var error))
+        {
+            deleted.Add(path);
+            return true;
+        }
+
+        failed.Add($"{Path.GetFileName(path)}: {error}");
+        return false;
+    }
+
+    /// <summary>
+    /// Asks whether the originals should be deleted once conversion is done.
+    /// </summary>
+    /// <remarks>
+    /// Only the sources that actually converted are offered, so a file that
+    /// failed, was skipped or was cancelled can never be lost. This keeps its
+    /// dialog — deleting the user's images is precisely the sort of thing a
+    /// status-bar line should not decide silently, and it defaults to No.
+    /// </remarks>
+    private void OfferToDeleteSources(List<string> sources, ImageConversionService.Format format)
+    {
+        if (sources.Count == 0) return;
+
+        var prompt =
+            $"Delete the {sources.Count} original image(s) that were converted to {format.Display}?\n\n" +
+            "They will go to the Recycle Bin.";
+
+        if (!Confirm(prompt, "Delete originals")) return;
+
+        var deletedPaths = new List<string>();
+        var failed = new List<string>();
+
+        foreach (var file in sources)
+            Recycle(file, deletedPaths, failed);
+
+        int deleted = deletedPaths.Count;
+
+        StatusText = failed.Count == 0
+            ? $"Moved {deleted} original image(s) to the Recycle Bin"
+            : $"Deleted {deleted}, could not delete {failed.Count}";
+
+        if (failed.Count > 0)
+            MessageBox.Show(string.Join("\n", failed), "Delete originals",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
+
     [RelayCommand]
     private async Task ConvertFilesAsync()
     {
         var ofd = new OpenFileDialog { Filter = "Video Files|*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.webm;*.mpeg;*.mpg;*.ts;*.m4v|All Files|*.*", Multiselect = true };
         if (ofd.ShowDialog() != true) return;
+
+        var format = OutputFormat;
+        var label = format.Key.ToUpperInvariant();
+
+        // Sources that converted cleanly, and so are safe to offer for
+        // deletion afterwards. Skipped, cancelled and failed files never make
+        // it in, so a failure can never cost the original.
+        var convertedSources = new List<string>();
+
         IsBusy = true; int done = 0; var errors = new List<string>();
         Job.Begin("Convert video", ofd.FileNames.Length);
+        BeginNameBatch(ofd.FileNames.Length);
         foreach (var file in ofd.FileNames)
         {
+            _batchRemaining = ofd.FileNames.Length - done;
             Job.SetFile(done + 1, Path.GetFileName(file));
-            Job.Report("Encoding to MP4", (double)done / ofd.FileNames.Length * 100);
+            Job.Report($"Encoding to {label}", (double)done / ofd.FileNames.Length * 100);
             // Suffix-based output: <name>[done].mp4 in the "Save to" folder.
             // A name that is already taken is put to the user rather than
             // silently skipped past.
             var outPath = await ResolveOutputPathAsync(
-                GetSuffixedOutputPath(file, ".mp4", ResolveSaveToDirectory()));
+                GetSuffixedOutputPath(file, format.Extension, ResolveSaveToDirectory()));
             if (outPath == null) { done++; continue; }
 
             StatusText = $"Converting {Path.GetFileName(file)}…";
@@ -2397,7 +3106,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 ProgressPercent = basePct + p.Percent / 100.0 * slice;
             });
 
-            try { await _ffmpeg.ConvertToMp4Async(file, outPath, fileProgress); }
+            try
+            {
+                await _ffmpeg.ConvertVideoAsync(file, outPath, format, fileProgress);
+
+                // Converting in place means the "original" is the file we just
+                // wrote — deleting it would throw away the conversion.
+                if (!string.Equals(file, outPath, StringComparison.OrdinalIgnoreCase))
+                    convertedSources.Add(file);
+            }
             catch (Exception ex) { errors.Add($"{Path.GetFileName(file)}: {ex.Message}"); }
             done++;
         }
@@ -2407,8 +3124,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         IsBusy = false; ProgressPercent = 0;
         Job.End();
-        StatusText = errors.Count == 0 ? $"Converted {done} file(s)" : $"Finished with {errors.Count} error(s)";
+        StatusText = errors.Count == 0 ? $"Converted {done} file(s) to {label}" : $"Finished with {errors.Count} error(s)";
         if (errors.Count > 0) MessageBox.Show(string.Join("\n", errors));
+
+        // Convert has no bookmark file of its own — the loaded session's CSV
+        // belongs to a different video and must not be swept up here.
+        await RunPostOperationCleanup(convertedSources, includeBookmarks: false);
     }
 
     [RelayCommand]
@@ -2418,8 +3139,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (ofd.ShowDialog() != true) return;
         IsBusy = true; int done = 0;
         Job.Begin("Strip audio", ofd.FileNames.Length);
+        BeginNameBatch(ofd.FileNames.Length);
         foreach (var file in ofd.FileNames)
         {
+            _batchRemaining = ofd.FileNames.Length - done;
             StatusText = $"Extracting: {Path.GetFileName(file)}";
             ProgressPercent = (double)done / ofd.FileNames.Length * 100;
             Job.SetFile(done + 1, Path.GetFileName(file));
@@ -2797,6 +3520,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         _pinnedSaveToFolder = dlg.FolderName.TrimEnd('\\') + "\\";
         Session.OutputDirectory = _pinnedSaveToFolder;
+
+        // Only written when the user asked for it to persist. Otherwise the
+        // pin stays a session-scoped decision, as it always has been.
+        if (_settings.Current.RememberSaveToFolder)
+        {
+            _settings.Current.SaveToFolder = _pinnedSaveToFolder;
+            _settings.Save();
+        }
+
         RefreshFolderDisplays();
         StatusText = SaveToFolderDisplay;
     }
@@ -3013,7 +3745,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IsBookmarkFileLoaded = File.Exists(csvPath);
         RefreshBookmarksFileDisplay();
         Session.NotifyDurationChanged();
-        _awaitingEnd = Session.Bookmarks.Any(b => b.IsIncomplete);
 
         // If a video path with the same base name as the CSV happens to
         // exist alongside it, treat that as the source video too — this
@@ -3321,6 +4052,116 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     // ------------------------------------------------------------------
+    // Settings and Help
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Opens File ▸ Settings and applies the result.
+    /// </summary>
+    /// <remarks>
+    /// The dialog edits a copy and returns it; persistence happens here. That
+    /// keeps Cancel meaningful for <see cref="AutoSwitchViews"/>, which has a
+    /// visible effect the instant it is set, and keeps the ViewModel's own
+    /// reaction to a changed setting next to the save rather than split
+    /// across two files.
+    /// </remarks>
+    [RelayCommand]
+    private void OpenSettings()
+    {
+        var dlg = new SettingsDialog(_settings.Current, AutoSwitchViews)
+        {
+            Owner = Application.Current?.MainWindow
+        };
+
+        if (dlg.ShowDialog() != true) return;
+
+        var s = _settings.Current;
+
+        s.DefaultVideoFormat = VideoFormats.FromKey(dlg.VideoFormatKey).Key;
+        s.DeleteOriginalVideo = dlg.DeleteOriginalVideo;
+        s.DeleteBookmarksFile = dlg.DeleteBookmarksFile;
+        s.Quality = dlg.Quality;
+        s.OnNameCollision = dlg.OnNameCollision;
+        s.PollSpeed = dlg.PollSpeed;
+        s.MpcWebInterfacePort = dlg.MpcWebInterfacePort;
+        s.FfmpegFolder = dlg.FfmpegFolder;
+        s.ToastsEnabled = dlg.ToastsEnabled;
+        s.ToastSeconds = dlg.ToastSeconds;
+        s.RememberSaveToFolder = dlg.RememberSaveToFolder;
+        s.OverlayCorner = dlg.OverlayCorner;
+
+        var runModeChanged = s.RunMode != dlg.RunMode;
+        s.RunMode = dlg.RunMode;
+        s.OverlayOpacity = dlg.OverlayOpacity;
+        s.MaxHistory = dlg.MaxHistory;
+
+        // Turning "remember" on adopts whatever folder is pinned right now,
+        // rather than waiting for the user to pick one again. Turning it off
+        // forgets the stored folder so it cannot come back on a later restart.
+        s.SaveToFolder = dlg.RememberSaveToFolder ? _pinnedSaveToFolder : "";
+
+        _settings.Save();
+
+        // Push the settings that live inside services into them, so the next
+        // operation and the next poll tick use the new values.
+        ApplyServiceSettings();
+
+        // Assigning the observable property runs OnAutoSwitchViewsChanged,
+        // which persists it and re-evaluates the view — so it is set after the
+        // save rather than written into settings above.
+        AutoSwitchViews = dlg.AutoSwitchViews;
+
+        // The suffix example spells out an extension, and the overlay reads
+        // its appearance when it next appears.
+        SuffixExampleDisplay = BuildSuffixExample(_settings.GetActiveSuffixText());
+        OnPropertyChanged(nameof(OverlayCorner));
+        OnPropertyChanged(nameof(OverlayOpacity));
+
+        // The View owns the tray icon, so it is told rather than asked.
+        if (runModeChanged)
+        {
+            OnPropertyChanged(nameof(RunMode));
+            RunModeChanged?.Invoke();
+        }
+
+        TrimRecentVideosToLimit();
+
+        StatusText = dlg.FfmpegFolderChanged
+            ? "Settings saved — restart to pick up the new ffmpeg folder"
+            : $"Settings saved — output format: {OutputFormat.Key.ToUpperInvariant()}";
+    }
+
+    /// <summary>
+    /// Drops recent entries beyond the configured limit, in the list and on
+    /// disk, so lowering the setting takes effect immediately rather than at
+    /// the next launch.
+    /// </summary>
+    private void TrimRecentVideosToLimit()
+    {
+        var limit = _settings.Current.MaxHistory;
+        if (RecentVideos.Count <= limit) return;
+
+        while (RecentVideos.Count > limit)
+            RecentVideos.RemoveAt(RecentVideos.Count - 1);
+
+        _settings.Current.RecentVideos = RecentVideos.ToList();
+        _settings.Save();
+    }
+
+    [RelayCommand]
+    private void ShowAbout()
+    {
+        var dlg = new AboutDialog { Owner = Application.Current?.MainWindow };
+        dlg.ShowDialog();
+    }
+
+    [RelayCommand]
+    private void OpenRepository() => AboutDialog.OpenUrl(AboutDialog.RepositoryUrl);
+
+    [RelayCommand]
+    private void OpenIssues() => AboutDialog.OpenUrl(AboutDialog.RepositoryUrl + "/issues");
+
+    // ------------------------------------------------------------------
     // Suffix commands
     // ------------------------------------------------------------------
 
@@ -3558,5 +4399,44 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return text.Trim();
     }
 
-    public void Dispose() { _hotkeys.Dispose(); _toast.Dispose(); _stalls.Dispose(); _pollTimer.Stop(); }
+    /// <summary>
+    /// Stops everything that would otherwise keep running after the window is
+    /// gone. Called from <c>MainWindow.OnClosed</c>.
+    /// </summary>
+    /// <remarks>
+    /// Nothing called this before, so the low-level input hooks stayed
+    /// installed, the poll timer kept ticking, the stall monitor kept its
+    /// threads, and any running ffmpeg carried on writing.
+    ///
+    /// Order matters at the front: the timer is stopped first so a tick
+    /// already queued on the dispatcher cannot run against services that are
+    /// mid-teardown. Every step is guarded independently — one failure during
+    /// shutdown must not skip the rest, particularly not the ffmpeg kill.
+    /// </remarks>
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        Try(() => _pollTimer.Stop());
+
+        // Cancel an in-flight "play all cuts" walk, which otherwise keeps
+        // seeking a player the app no longer has any business driving.
+        Try(() => _playbackCts?.Cancel());
+
+        // Before the hooks: killing ffmpeg is the one step with a visible
+        // consequence if it is skipped.
+        Try(() => _ffmpeg.KillAll());
+
+        Try(() => _hotkeys.Dispose());
+        Try(() => _toast.Dispose());
+        Try(() => _stalls.Dispose());
+
+        static void Try(Action action)
+        {
+            try { action(); } catch { /* teardown: nobody left to tell */ }
+        }
+    }
+
+    private bool _disposed;
 }

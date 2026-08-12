@@ -36,12 +36,15 @@ public class BookmarkService
                 // Auto-correct reversed times
                 if (end < start) (start, end) = (end, start);
 
+                // No IsIncomplete to set: the times decide it. A three-field
+                // row whose end is zero — which older builds could write —
+                // therefore loads as the open bookmark it always was, rather
+                // than as a "complete" one with no range.
                 result.Add(new Bookmark
                 {
                     Index = index++,
                     StartSeconds = start,
-                    EndSeconds = end,
-                    IsIncomplete = false
+                    EndSeconds = end
                 });
                 continue;
             }
@@ -54,8 +57,7 @@ public class BookmarkService
                 {
                     Index = index++,
                     StartSeconds = double.Parse(incomplete.Groups[1].Value, CultureInfo.InvariantCulture),
-                    EndSeconds = 0,
-                    IsIncomplete = true
+                    EndSeconds = 0
                 });
             }
         }

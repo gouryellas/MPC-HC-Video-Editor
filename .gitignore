@@ -1,0 +1,14 @@
+# Build output
+bin/
+obj/
+publish/
+
+# User-specific and runtime files
+settings.json
+stalls.log
+*.user
+*.suo
+
+# IDE
+.vs/
+.idea/

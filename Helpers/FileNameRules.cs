@@ -18,8 +18,9 @@ public static class FileNameRules
     /// <summary>Human-readable description, shown when input is rejected.</summary>
     public const string Description =
         "Filenames may contain letters, numbers, dashes (-), underscores (_), " +
-        "square brackets ([ ]) and parentheses ( ). Spaces are not allowed, and " +
-        "none of those punctuation characters may repeat back to back.";
+        "square brackets ([ ]) and parentheses ( ). Spaces become dashes " +
+        "automatically, and none of those punctuation characters may repeat " +
+        "back to back.";
 
     private const string Punctuation = "-_[]()";
 
@@ -45,6 +46,56 @@ public static class FileNameRules
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Replaces whitespace with dashes, and does nothing else.
+    /// </summary>
+    /// <remarks>
+    /// Spaces are the one policy violation that is fixed silently — they are
+    /// in most media filenames, the correction is obvious, and there is
+    /// nothing for the user to decide. Everything else still gets asked
+    /// about, so this is deliberately not <see cref="Sanitize"/>: a name with
+    /// dots or ampersands comes back from here still invalid, and goes on to
+    /// prompt.
+    ///
+    /// A whitespace run collapses to a single dash, and no dash is added
+    /// beside one that is already there, so "My - Video" gives "My-Video"
+    /// rather than the doubled dash that would itself be invalid.
+    ///
+    /// A name with no whitespace is returned untouched — including one that
+    /// is invalid for some other reason, such as "clip--final", which must
+    /// still be put to the user rather than quietly repaired.
+    /// </remarks>
+    public static string NormalizeSpaces(string? name)
+    {
+        if (string.IsNullOrEmpty(name)) return name ?? string.Empty;
+        if (!name.Any(char.IsWhiteSpace)) return name;
+
+        var sb = new StringBuilder(name.Length);
+
+        int i = 0;
+        while (i < name.Length)
+        {
+            if (!char.IsWhiteSpace(name[i]))
+            {
+                sb.Append(name[i]);
+                i++;
+                continue;
+            }
+
+            // Consume the whole run, so "a   b" gives one dash rather than three.
+            while (i < name.Length && char.IsWhiteSpace(name[i])) i++;
+
+            // A dash on either side of the run already separates the words.
+            var dashBefore = sb.Length > 0 && sb[^1] == '-';
+            var dashAfter = i < name.Length && name[i] == '-';
+            if (!dashBefore && !dashAfter) sb.Append('-');
+        }
+
+        // Leading and trailing dashes here are artefacts of the substitution,
+        // never something the user typed.
+        return sb.ToString().Trim('-');
     }
 
     /// <summary>

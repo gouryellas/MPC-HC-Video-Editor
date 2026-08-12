@@ -7,8 +7,189 @@ using MpcHcVideoEditor.Helpers;
 
 namespace MpcHcVideoEditor.Services;
 
+/// <summary>
+/// What happens to a source file once the operation that consumed it has
+/// finished successfully.
+/// </summary>
+/// <remarks>
+/// Serialized by name, so the order of these members is not load-bearing and
+/// an unrecognised value falls back to <see cref="Never"/>.
+/// </remarks>
+public enum CleanupMode
+{
+    /// <summary>Leave it alone. The default — nothing disappears unasked.</summary>
+    Never,
+
+    /// <summary>Prompt after the operation, defaulting to No.</summary>
+    Ask,
+
+    /// <summary>Send it to the Recycle Bin without prompting.</summary>
+    Always
+}
+
+/// <summary>
+/// Encoder effort. Trades file size and visual quality against how long an
+/// operation takes.
+/// </summary>
+/// <remarks>
+/// Only reaches ffmpeg when something is actually re-encoded — a flip, a speed
+/// change, a convert, or a container that cannot hold H.264. A plain merge to
+/// MP4 copies its segments and is unaffected by this setting.
+/// </remarks>
+public enum EncodingQuality
+{
+    /// <summary>Fastest, largest, softest. CRF 23, veryfast.</summary>
+    Fast,
+
+    /// <summary>The previous hardcoded behaviour. CRF 20, faster.</summary>
+    Balanced,
+
+    /// <summary>Slowest and best. CRF 17, medium.</summary>
+    High
+}
+
+/// <summary>
+/// What to do when an output filename is already taken.
+/// </summary>
+public enum CollisionPolicy
+{
+    /// <summary>Show the conflict dialog. The default.</summary>
+    Ask,
+
+    /// <summary>Bump the number inside the suffix bracket and carry on.</summary>
+    Increment,
+
+    /// <summary>Replace the existing file without comment.</summary>
+    Overwrite
+}
+
+/// <summary>
+/// How hard the app polls MPC-HC for position, window state and focus.
+/// </summary>
+public enum PollSpeed
+{
+    /// <summary>150 ms. Snappiest view switching, most CPU.</summary>
+    Responsive,
+
+    /// <summary>300 ms. The long-standing default.</summary>
+    Balanced,
+
+    /// <summary>750 ms. Noticeably lazier, near-zero cost.</summary>
+    Light
+}
+
+/// <summary>
+/// How the window behaves when it is minimised or closed.
+/// </summary>
+public enum RunMode
+{
+    /// <summary>
+    /// Minimises to the taskbar; closing the window exits. The conventional
+    /// desktop-application behaviour, and the default.
+    /// </summary>
+    Application,
+
+    /// <summary>
+    /// Minimises to the notification area and stays running when the window is
+    /// closed. Exit is then only available from the tray icon's menu.
+    /// </summary>
+    SystemTray
+}
+
+/// <summary>Which corner of the primary screen the overlay parks in.</summary>
+public enum OverlayCorner
+{
+    TopRight,
+    TopLeft,
+    BottomRight,
+    BottomLeft
+}
+
 public class AppSettings
 {
+    /// <summary>
+    /// Container written by merge, trim, split and convert. Stored as a
+    /// <see cref="Services.VideoFormats.Format.Key"/>, not an extension, so
+    /// the codec choices behind it can change without invalidating the file.
+    /// </summary>
+    public string DefaultVideoFormat { get; set; } = "mp4";
+
+    /// <summary>
+    /// What to do with the source video after merge, trim, split or convert
+    /// completes. Only ever applied to sources that actually succeeded.
+    /// </summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public CleanupMode DeleteOriginalVideo { get; set; } = CleanupMode.Never;
+
+    /// <summary>
+    /// What to do with the bookmark CSV after merge, trim or split completes.
+    /// Never applies to convert, which has no bookmarks of its own.
+    /// </summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public CleanupMode DeleteBookmarksFile { get; set; } = CleanupMode.Never;
+
+    /// <summary>Encoder effort for anything that re-encodes.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public EncodingQuality Quality { get; set; } = EncodingQuality.Balanced;
+
+    /// <summary>Default answer when an output filename already exists.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public CollisionPolicy OnNameCollision { get; set; } = CollisionPolicy.Ask;
+
+    /// <summary>How often MPC-HC is polled.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public PollSpeed PollSpeed { get; set; } = PollSpeed.Balanced;
+
+    /// <summary>
+    /// Port MPC-HC's web interface listens on — Options ▸ Player ▸ Web
+    /// Interface. Only used for seeking; everything else goes through window
+    /// messages and works regardless.
+    /// </summary>
+    /// <remarks>
+    /// Was a <c>const</c>. Anyone who had moved the player off 13579 had a
+    /// half-working app and no way to say so.
+    /// </remarks>
+    public int MpcWebInterfacePort { get; set; } = 13579;
+
+    /// <summary>
+    /// Folder holding ffmpeg.exe and ffprobe.exe. Empty means search the usual
+    /// places — beside the executable, an <c>ffmpeg</c> subfolder, then PATH.
+    /// </summary>
+    public string FfmpegFolder { get; set; } = "";
+
+    /// <summary>
+    /// Whether the window minimises to the notification area and survives
+    /// being closed. Defaults to a plain application, which is what someone
+    /// who has never opened Settings will expect.
+    /// </summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public RunMode RunMode { get; set; } = RunMode.Application;
+
+    /// <summary>Whether the hotkey confirmation toast appears at all.</summary>
+    public bool ToastsEnabled { get; set; } = true;
+
+    /// <summary>How long a toast holds before fading, in seconds.</summary>
+    public double ToastSeconds { get; set; } = 2.2;
+
+    /// <summary>
+    /// When set, the "Save to" folder survives a restart instead of reverting
+    /// to the loaded video's own folder.
+    /// </summary>
+    public bool RememberSaveToFolder { get; set; }
+
+    /// <summary>Persisted "Save to" folder, used only when the above is set.</summary>
+    public string SaveToFolder { get; set; } = "";
+
+    /// <summary>Corner of the primary screen the minimal overlay parks in.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public OverlayCorner OverlayCorner { get; set; } = OverlayCorner.TopRight;
+
+    /// <summary>
+    /// Overlay background opacity, 0.3–1.0. Opaque by default — at 0.75 the
+    /// text competed with whatever was playing behind it.
+    /// </summary>
+    public double OverlayOpacity { get; set; } = 1.0;
+
     public string QuickSaveFolder { get; set; } = "";
     public string PlaylistFolder { get; set; } = "";
     public List<string> RecentVideos { get; set; } = new();
@@ -130,6 +311,17 @@ public class SettingsService
             Current = new AppSettings();
         }
 
+        // Normalise the output container up front: a settings file written by
+        // an older build has no key at all, and a hand-edited one may name a
+        // format that no longer exists. Either way every later read of this
+        // field can then be taken at face value.
+        Current.DefaultVideoFormat = VideoFormats.FromKey(Current.DefaultVideoFormat).Key;
+
+        // Same reasoning for the numeric settings: clamp once here so no
+        // caller has to defend against a settings.json that says the port is
+        // 0 or the overlay is invisible.
+        ClampNumericSettings();
+
         // Older settings files (or a user-lowered MaxHistory) may have
         // more entries than the current cap. Trim once on load so the
         // File → Recent submenu never shows more than MaxHistory items.
@@ -190,6 +382,11 @@ public class SettingsService
     {
         try
         {
+            // The settings dialog validates its own input, but commands and
+            // migrations write here too — clamping on the way out means the
+            // file on disk is always in range.
+            ClampNumericSettings();
+
             var json = JsonSerializer.Serialize(Current, _jsonOptions);
             File.WriteAllText(_path, json);
         }
@@ -320,6 +517,74 @@ public class SettingsService
     public void ReorderShortcuts(IEnumerable<ShortcutEntry> reordered)
     {
         Current.Shortcuts = reordered.ToList();
+        Save();
+    }
+
+    /// <summary>
+    /// Forces every numeric setting into a range the app can actually work
+    /// with. Called on load and again on save.
+    /// </summary>
+    private void ClampNumericSettings()
+    {
+        // 1–65535 is the whole legal port space; anything outside it cannot be
+        // what the user meant, so fall back rather than guess.
+        if (Current.MpcWebInterfacePort is < 1 or > 65535)
+            Current.MpcWebInterfacePort = 13579;
+
+        // Below 1 the recent list is pointless; the File menu stops being a
+        // menu somewhere above 50.
+        Current.MaxHistory = Math.Clamp(Current.MaxHistory, 1, 50);
+
+        // Under half a second a toast cannot be read; over ten it is in the way.
+        Current.ToastSeconds = Math.Clamp(Current.ToastSeconds, 0.5, 10.0);
+
+        // Fully transparent would be an invisible overlay reported as broken.
+        Current.OverlayOpacity = Math.Clamp(Current.OverlayOpacity, 0.3, 1.0);
+    }
+
+    // ------------------------------------------------------------------
+    // Derived settings
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// ffmpeg output flags for the configured quality, used wherever video is
+    /// actually re-encoded.
+    /// </summary>
+    /// <remarks>
+    /// CRF and preset only; the codec choice belongs to the container and
+    /// lives in <see cref="VideoFormats"/>. Returned without a trailing space
+    /// — callers join with one.
+    /// </remarks>
+    public string GetQualityArgs() => Current.Quality switch
+    {
+        EncodingQuality.Fast => "-preset veryfast -crf 23",
+        EncodingQuality.High => "-preset medium -crf 17",
+        _ => "-preset faster -crf 20"
+    };
+
+    /// <summary>Poll interval for the MPC-HC watcher.</summary>
+    public TimeSpan GetPollInterval() => Current.PollSpeed switch
+    {
+        PollSpeed.Responsive => TimeSpan.FromMilliseconds(150),
+        PollSpeed.Light => TimeSpan.FromMilliseconds(750),
+        _ => TimeSpan.FromMilliseconds(300)
+    };
+
+    // ------------------------------------------------------------------
+    // Output format
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// The container merge, trim, split and convert write. Always returns a
+    /// usable format — an unknown key resolves to MP4.
+    /// </summary>
+    public VideoFormats.Format GetDefaultVideoFormat() =>
+        VideoFormats.FromKey(Current.DefaultVideoFormat);
+
+    /// <summary>Persists the default output container by key.</summary>
+    public void SetDefaultVideoFormat(string? key)
+    {
+        Current.DefaultVideoFormat = VideoFormats.FromKey(key).Key;
         Save();
     }
 
