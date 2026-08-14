@@ -1,15 +1,34 @@
-# MPC-HC Video Editor 3.0 (C# / WPF)
+# MPC-HC Video Editor (C# / WPF)
 
 Modern rewrite of the original AutoHotkey **MPC-HC Video Editor v2.1**.
 
 Bookmark ranges in a video playing in MPC-HC, then cut, join, convert or
 extract audio from them with ffmpeg.
 
+![The main window with thirteen bookmark pairs selected, range marks on the timeline, and the total edit length](Assets/screenshots/main-window.png)
+
 **Fully portable.** Everything the app writes — `settings.json`, `stalls.log` —
 lives beside the executable. Nothing goes to `%APPDATA%` and there is no
 installer. Copy the folder anywhere and it runs. On first launch it copies an
 existing `%APPDATA%\MPC-HC Video Editor\settings.json` in, if one is there, so
 an earlier non-portable install's configuration carries over.
+
+---
+
+## Screenshots
+
+The compact overlay, for when the video covers the window. It is click-through,
+never takes focus, and lists every bookmark without scrolling:
+
+![The minimal overlay in the corner of a video playing in MPC-HC, listing all thirteen timestamp pairs](Assets/screenshots/minimal-overlay.png)
+
+Naming tags — the bracket suffix every output gets, switchable from the menu:
+
+![The Options menu showing the current rename tag, an example filename, and the list of tags to switch between](Assets/screenshots/naming-tags.png)
+
+Settings, in five tabs:
+
+<img src="Assets/screenshots/settings.png" alt="The Settings window on the General tab, showing the run mode, single-instance and view-switching options" width="480">
 
 ---
 
