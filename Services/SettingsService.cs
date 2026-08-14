@@ -165,6 +165,13 @@ public class AppSettings
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public RunMode RunMode { get; set; } = RunMode.Application;
 
+    /// <summary>
+    /// Whether more than one copy of this install can run at the same time.
+    /// Off by default — a second launch instead hands off to the copy that
+    /// is already running. See <see cref="SingleInstanceService"/>.
+    /// </summary>
+    public bool AllowMultipleInstances { get; set; } = false;
+
     /// <summary>Whether the hotkey confirmation toast appears at all.</summary>
     public bool ToastsEnabled { get; set; } = true;
 
@@ -278,7 +285,7 @@ public class SettingsService
 
     /// <summary>
     /// Copies a pre-portable %APPDATA% settings file next to the executable
-    /// the first time this build runs, so shortcuts, naming styles and history
+    /// the first time this build runs, so shortcuts, naming tags and history
     /// survive the move. Only ever copies — the original is left in place.
     /// </summary>
     private void MigrateFromAppDataIfNeeded()

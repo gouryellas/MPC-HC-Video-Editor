@@ -62,7 +62,7 @@ public partial class ConflictDialog : Window
     private void Rename_Click(object sender, RoutedEventArgs e)
     {
         // Only the base name is editable — the bracket suffix is part of the
-        // naming style and is reapplied by the caller.
+        // naming tag and is reapplied by the caller.
         var current = System.IO.Path.GetFileNameWithoutExtension(FileNameText.Text);
         var bracket = current.LastIndexOf('[');
         if (bracket > 0) current = current[..bracket];

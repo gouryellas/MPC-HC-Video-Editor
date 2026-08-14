@@ -60,6 +60,15 @@ public class MpcHcService
     private static extern IntPtr GetAncestor(IntPtr hWnd, uint flags);
 
     [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out POINT lpPoint);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr WindowFromPoint(POINT point);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT { public int X, Y; }
+
+    [DllImport("user32.dll")]
     private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     [DllImport("user32.dll")]
@@ -754,6 +763,37 @@ public class MpcHcService
         const uint GA_ROOT = 2;
         var root = GetAncestor(foreground, GA_ROOT);
         if (root == IntPtr.Zero) root = foreground;
+
+        return root == mpc;
+    }
+
+    /// <summary>
+    /// True when the mouse cursor is currently over MPC-HC's window, whether
+    /// or not that window has focus.
+    /// </summary>
+    /// <remarks>
+    /// Same GA_ROOT walk as <see cref="IsForeground"/>, applied to
+    /// <c>WindowFromPoint</c> instead of <c>GetForegroundWindow</c> — the
+    /// point under the cursor lands on a child control (the video area, the
+    /// seek bar) just as often as a click does, for the same reason a direct
+    /// handle comparison would misreport there too.
+    ///
+    /// Returns false when the player is not running, same as
+    /// <see cref="IsForeground"/>.
+    /// </remarks>
+    public bool IsPointerOver()
+    {
+        var mpc = FindMpcWindow();
+        if (mpc == IntPtr.Zero || !IsWindow(mpc)) return false;
+
+        if (!GetCursorPos(out var pt)) return false;
+
+        var hit = WindowFromPoint(pt);
+        if (hit == IntPtr.Zero) return false;
+
+        const uint GA_ROOT = 2;
+        var root = GetAncestor(hit, GA_ROOT);
+        if (root == IntPtr.Zero) root = hit;
 
         return root == mpc;
     }

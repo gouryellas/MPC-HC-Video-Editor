@@ -50,7 +50,7 @@ video, and an empty one is never created.
 
 ## Actions
 
-Output filenames use the active **naming style** (see Options), e.g.
+Output filenames use the active **naming tag** (see Options), e.g.
 `vacation.mp4` → `vacation[done].mp4`.
 
 - **Merge selected / all / any** — always available. With cuts loaded it joins
@@ -81,14 +81,28 @@ renamed — only what the app is about to write has to comply.
 
 ## Views
 
-- **View ▸ Minimal** drops to a compact always-on-top overlay listing just the
+- **View ▸ Minimal** pins a compact always-on-top overlay listing just the
   bookmarks, for when the video covers the window. It is click-through and never
-  takes focus. Press **X** to return.
+  takes focus, and it makes MPC-HC the active window as it switches, so the
+  result is the same whatever happened to be behind this window. The pin lasts
+  until you press **X** or pick **Full** — no amount of clicking between windows
+  ends it. While pinned it shows whenever this app or MPC-HC has focus and hides
+  while anything else does, so it stays out of the way of an unrelated window
+  without being closed or losing its place. Disabled when there are no
+  bookmarks — the overlay is the bookmark list, so there would be nothing in it.
+- **X** is live only while the overlay is actually on screen, so a stray "x"
+  typed in another application cannot pull this window back. If a pinned overlay
+  has hidden itself, click MPC-HC (or this window) to bring it back and X works
+  again.
 - **View ▸ Full** returns to the normal window.
-- **Options ▸ Switch views automatically** makes the view follow the player:
-  minimal while the video is fullscreen or maximized *and* a bookmark file is
-  loaded, full window otherwise. With it off, minimal is entirely manual and
-  stays up until X dismisses it.
+- **View ▸ Switch views automatically** makes the view follow focus instead:
+  minimal while MPC-HC is the active window, full window as soon as it is not.
+  It layers under a pinned overlay rather than competing with it — pinning holds
+  the overlay still while the setting stays on, and X hands control back to it.
+  The setting changes only when you change it.
+
+Either way the overlay comes down if the bookmark list empties (opening another
+video in the player clears it), and returns with the next bookmark.
 
 ### Timeline
 
@@ -152,10 +166,10 @@ recorded.
 
 ## Options
 
-- **Current rename style:** shows the active suffix, with an **Example:** line
-  beneath it. Click any style in the list to activate it (marked ✓).
-- **Add new naming style…** (letters and numbers, max 50 characters) and
-  **Manage naming styles…** (drag to reorder, double-click to rename).
+- **Current rename tag:** shows the active suffix, with an **Example:** line
+  beneath it. Click any tag in the list to activate it (marked ✓).
+- **Add new naming tag…** (letters and numbers, max 50 characters) and
+  **Manage naming tags…** (drag to reorder, double-click to rename).
 - **Switch views automatically** — see Views.
 
 ## Hotkey
@@ -164,6 +178,12 @@ recorded.
 appears: press any key, key combination, or the middle / side mouse buttons, and
 the field updates live. Click OK to set it. **Disable hotkey** turns it off.
 The binding persists in `settings.json`.
+
+The hotkey is global — it has to be, to work while MPC-HC has focus — but it
+only ever fires when **MPC-HC is the active window and has a video open**.
+Everywhere else the press is ignored and passed along untouched, so the default
+middle-mouse binding still opens links in a browser rather than quietly
+bookmarking whatever the player last had loaded.
 
 ---
 
@@ -176,8 +196,9 @@ loaded, how many complete pairs exist, and how many are checked.
 Worth knowing because they are not uniform: **both Play commands need 2+ pairs,
 Split needs only 1, and Merge is always available.** Undo, Edit bookmarks,
 Delete bookmarks and Remove-selected key off the bookmark file being loaded, not
-off a video being active. Convert, Strip audio and the playlist folder / load /
-new items are always enabled.
+off a video being active. **View ▸ Minimal** needs at least one bookmark — an
+overlay with nothing in it has nothing to show. Convert, Strip audio and the
+playlist folder / load / new items are always enabled.
 
 ---
 

@@ -1,9 +1,13 @@
-﻿<Window x:Class="MpcHcVideoEditor.Views.MainWindow"
+﻿<!-- Title is set in the constructor from the assembly version — see AppVersion.
+     The literal that used to be on the Title attribute below is why 3.0.1
+     shipped with a window still captioned 3.0; what is left there is only what
+     the XAML designer shows. -->
+<Window x:Class="MpcHcVideoEditor.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:MpcHcVideoEditor.ViewModels"
         xmlns:helpers="clr-namespace:MpcHcVideoEditor.Helpers"
-        Title="MPC-HC Video Editor 3.0"
+        Title="MPC-HC Video Editor"
         Icon="pack://application:,,,/Assets/app.ico"
         Height="780" Width="1100"
         MinHeight="560" MinWidth="900"
@@ -124,7 +128,7 @@
                 <MenuItem Header="Settings…" Command="{Binding OpenSettingsCommand}"
                           ToolTip="Output format, view switching, and what happens to source files after an operation"/>
                 <MenuItem Header="Reset everything…" Command="{Binding ResetEverythingCommand}"
-                          ToolTip="Restart the application (settings, history, naming styles, and shortcuts are preserved)"/>
+                          ToolTip="Restart the application (settings, history, naming tags, and shortcuts are preserved)"/>
                 <MenuItem Header="Exit" Click="Exit_Click"/>
             </MenuItem>
             <MenuItem Header="_Bookmarks">
@@ -241,7 +245,12 @@
                  The first item shows the currently-active suffix; the dynamic
                  list below lets the user switch by clicking. -->
             <MenuItem Header="_Options">
-                <MenuItem Header="{Binding ActiveSuffixDisplay}" IsEnabled="False"/>
+                <!-- Not IsEnabled="False", unlike the example line below it: the
+                     MenuItem style greys disabled items to #888888, and this is
+                     the one line here that says which tag is actually in use, so
+                     it stays at full contrast. It has no Command, so it is still
+                     a label — clicking it just closes the menu. -->
+                <MenuItem Header="{Binding ActiveSuffixDisplay}"/>
                 <MenuItem Header="{Binding SuffixExampleDisplay}" IsEnabled="False"/>
                 <Separator x:Name="SuffixListStartSeparator"/>
                 <!-- Dynamic per-suffix entries inserted here at runtime by
@@ -250,8 +259,8 @@
                      doubles as the divider before "Add suffix…" — no extra
                      static separator needed. -->
                 <Separator x:Name="SuffixListEndSeparator"/>
-                <MenuItem Header="Add new naming style…" Command="{Binding AddSuffixCommand}"/>
-                <MenuItem Header="Manage naming styles…" Command="{Binding ManageSuffixesCommand}"/>
+                <MenuItem Header="Add new naming tag…" Command="{Binding AddSuffixCommand}"/>
+                <MenuItem Header="Manage naming tags…" Command="{Binding ManageSuffixesCommand}"/>
             </MenuItem>
             <!-- Shortcuts menu — lets the user add folder shortcuts that then
                  appear as clickable items at the bottom of the File menu. -->
@@ -278,12 +287,16 @@
             <MenuItem Header="_View">
                 <MenuItem Header="Bring MPC-HC to front" Command="{Binding BringMpcToFrontCommand}"/>
                 <Separator/>
-                <!-- Minimal drops to a click-through overlay showing just the
-                     bookmark list, and from then on the view follows focus:
-                     overlay while the player is active, full window as soon as
-                     it is not. X, or Full below, stops following entirely. -->
+                <!-- Minimal pins a click-through overlay of just the bookmark
+                     list; X, or Full below, is what unpins it. Focus decides
+                     whether a pinned overlay is on screen, never whether it is
+                     still pinned — it hides for an unrelated window and comes
+                     back for this one or MPC-HC. Deliberately not the same as
+                     "Switch views automatically" further down, which restores
+                     this window outright when the player loses focus. Disabled
+                     with no bookmarks — see CanShowMinimalView. -->
                 <MenuItem Header="Minimal" Command="{Binding ShowMinimalViewCommand}"
-                          ToolTip="Compact always-on-top bookmark list, shown whenever MPC-HC is the active window — this window returns as soon as it isn't"/>
+                          ToolTip="Compact always-on-top bookmark list. Stays until you press X or pick Full, and hides itself while another application is in front — needs at least one bookmark"/>
                 <MenuItem Header="Full" Command="{Binding ShowFullViewCommand}"
                           ToolTip="The normal window"/>
                 <Separator/>

@@ -130,7 +130,7 @@ public static class FileNameRules
 
     /// <summary>
     /// Splits a filename into the part the user may rename and the trailing
-    /// bracket suffix that belongs to the naming style. <c>"clip[done]"</c>
+    /// bracket suffix that belongs to the naming tag. <c>"clip[done]"</c>
     /// gives <c>("clip", "[done]")</c>; a name with no suffix gives an empty
     /// second element.
     /// </summary>

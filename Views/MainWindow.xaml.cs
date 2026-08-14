@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
+using MpcHcVideoEditor.Helpers;
 using MpcHcVideoEditor.Models;
 using MpcHcVideoEditor.Services;
 using MpcHcVideoEditor.ViewModels;
@@ -18,6 +19,11 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+
+        // From the assembly, not from the XAML: a literal caption there is what
+        // let the window still say 3.0 in the 3.0.1 release. See AppVersion.
+        Title = $"MPC-HC Video Editor {AppVersion.Display}";
+
         Loaded += MainWindow_Loaded;
         Activated += (_, _) =>
         {
@@ -187,20 +193,7 @@ public partial class MainWindow : Window
     {
         if (minimal)
         {
-            if (_minimal == null)
-            {
-                _minimal = new MinimalWindow { DataContext = DataContext };
-                _minimal.Closed += (_, _) => _minimal = null;
-            }
-
-            _minimal.Show();
-
-            // Appearance is re-applied on every show, not just on creation, so
-            // a change in Settings takes effect the next time the overlay
-            // appears rather than only after a restart.
-            _minimal.SetBackgroundOpacity(_vm?.OverlayOpacity ?? 1.0);
-            _minimal.PositionInCorner(_vm?.OverlayCorner ?? OverlayCorner.TopRight);
-
+            ShowOverlay();
             Hide();
             return;
         }
@@ -210,6 +203,77 @@ public partial class MainWindow : Window
         WindowState = WindowState.Normal;
 
         if (activate) Activate();
+    }
+
+    /// <summary>
+    /// Shows or hides just the overlay, leaving this window exactly as it is.
+    /// </summary>
+    /// <remarks>
+    /// This is how a pinned overlay gets out of the way of an unrelated
+    /// application without the pin being dropped — see
+    /// <see cref="MainViewModel.OverlayVisibilityRequested"/>. Deliberately
+    /// does not touch this window: bringing it back is what
+    /// <see cref="SetMinimalView"/> is for, and doing it here would undo the
+    /// pin the user asked for.
+    /// </remarks>
+    private void SetOverlayVisible(bool visible)
+    {
+        if (visible) ShowOverlay();
+        else _minimal?.Hide();
+    }
+
+    /// <summary>
+    /// Creates the overlay on first use, applies its configured appearance, and
+    /// shows it.
+    /// </summary>
+    /// <remarks>
+    /// Appearance is re-applied on every show, not just on creation, so a change
+    /// in Settings takes effect the next time the overlay appears rather than
+    /// only after a restart. Positioning also has to be re-applied per show
+    /// because it is sized to the monitor.
+    /// </remarks>
+    private void ShowOverlay()
+    {
+        if (_minimal == null)
+        {
+            _minimal = new MinimalWindow { DataContext = DataContext };
+            _minimal.Closed += (_, _) => _minimal = null;
+        }
+
+        _minimal.Show();
+        _minimal.SetBackgroundOpacity(_vm?.OverlayOpacity ?? 1.0);
+        _minimal.PositionInCorner(_vm?.OverlayCorner ?? OverlayCorner.TopRight);
+    }
+
+    /// <summary>
+    /// Called when a second launch of this install was blocked by the "only
+    /// one instance" setting and handed off to this one instead. Brings the
+    /// app to the front regardless of whether it is minimised to the tray,
+    /// hidden behind the minimal overlay, or just sitting in the background.
+    /// </summary>
+    /// <remarks>
+    /// Routed through <see cref="MainViewModel.ShowFullViewCommand"/> rather
+    /// than calling <c>Show</c>/<c>Activate</c> directly here: that command is
+    /// already the full "come back to the full window" behaviour — it also
+    /// drops the minimal overlay and stops the view from following focus back
+    /// to it, which a second launch asking to be seen should do too. The
+    /// direct fallback only matters for the narrow race where the wake signal
+    /// arrives before <see cref="MainWindow_Loaded"/> has wired up
+    /// <see cref="_vm"/> — the window itself already exists by then (see
+    /// <see cref="App.TryClaimSingleInstance"/>), so it still has something to
+    /// act on.
+    /// </remarks>
+    public void BringToFront()
+    {
+        if (_vm != null)
+        {
+            _vm.ShowFullViewCommand.Execute(null);
+            return;
+        }
+
+        Show();
+        WindowState = WindowState.Normal;
+        Activate();
     }
 
     // ------------------------------------------------------------------
@@ -256,6 +320,7 @@ public partial class MainWindow : Window
         _wired = true;
 
         _vm.MinimalViewRequested += SetMinimalView;
+        _vm.OverlayVisibilityRequested += SetOverlayVisible;
 
         // The tray icon belongs to the window, not the ViewModel, so the
         // ViewModel just says when the setting changed.
@@ -676,7 +741,7 @@ public partial class MainWindow : Window
 
         // "_Options" — the menu was renamed from "_Suffix". Looking up the old
         // header found nothing and this whole rebuild silently did nothing, so
-        // newly added naming styles never appeared in the menu.
+        // newly added naming tags never appeared in the menu.
         var suffixMenu = FindMenuItem(HeaderMenu, "_Options");
         if (suffixMenu == null) return;
 
@@ -699,7 +764,7 @@ public partial class MainWindow : Window
             var isActive = string.Equals(entry.Text, _vm.ActiveSuffixText,
                                          StringComparison.OrdinalIgnoreCase);
             // Plain text, not entry.Display — the brackets are an output
-            // detail shown by the "Example:" line, not part of the style name.
+            // detail shown by the "Example:" line, not part of the tag name.
             var header = isActive ? $"✓  {entry.Text}" : $"    {entry.Text}";
             var item = new MenuItem
             {

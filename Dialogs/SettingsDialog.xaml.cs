@@ -40,6 +40,7 @@ public partial class SettingsDialog : Window
     public double ToastSeconds { get; private set; }
     public bool RememberSaveToFolder { get; private set; }
     public RunMode RunMode { get; private set; }
+    public bool AllowMultipleInstances { get; private set; }
     public OverlayCorner OverlayCorner { get; private set; }
     public double OverlayOpacity { get; private set; }
     public int MaxHistory { get; private set; }
@@ -71,6 +72,7 @@ public partial class SettingsDialog : Window
         ToastSeconds = current.ToastSeconds;
         RememberSaveToFolder = current.RememberSaveToFolder;
         RunMode = current.RunMode;
+        AllowMultipleInstances = current.AllowMultipleInstances;
         OverlayCorner = current.OverlayCorner;
         OverlayOpacity = current.OverlayOpacity;
         MaxHistory = current.MaxHistory;
@@ -118,6 +120,8 @@ public partial class SettingsDialog : Window
         }).IsChecked = true;
 
         (current.RunMode == RunMode.SystemTray ? ModeTray : ModeApplication).IsChecked = true;
+
+        (current.AllowMultipleInstances ? InstanceMultiple : InstanceSingle).IsChecked = true;
 
         (current.OverlayCorner switch
         {
@@ -233,6 +237,8 @@ public partial class SettingsDialog : Window
                   : PollSpeed.Balanced;
 
         RunMode = ModeTray.IsChecked == true ? RunMode.SystemTray : RunMode.Application;
+
+        AllowMultipleInstances = InstanceMultiple.IsChecked == true;
 
         OverlayCorner = CornerTopLeft.IsChecked == true ? OverlayCorner.TopLeft
                       : CornerBottomRight.IsChecked == true ? OverlayCorner.BottomRight

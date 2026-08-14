@@ -17,6 +17,21 @@ The app looks for them beside itself, then in an `ffmpeg\` subfolder, and only
 then on PATH — so a bundled pair makes the folder self-sufficient rather than
 depending on what the host machine happens to have installed.
 
+`publish\portable\settings.json` is the portable build's own configuration and
+is meant to stay there. Republishing does not touch it — `dotnet publish` only
+overwrites what it produces, the same reason the two ffmpeg binaries survive —
+so seed it once and it persists from then on. To carry a dev build's
+configuration over, copy that build's file across before the first run:
+
+```
+copy bin\Release\net8.0-windows\settings.json publish\portable\settings.json
+```
+
+Do that *before* first launching the portable build, not after: with no local
+file present the first run seeds one (from `%APPDATA%`, if a pre-portable
+install left one there), and once the app has written its own, copying over it
+discards whatever it saved.
+
 ## Notes
 
 **Do not add `PublishTrimmed`.** It cuts size substantially but breaks WPF:

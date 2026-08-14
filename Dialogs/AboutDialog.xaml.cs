@@ -18,20 +18,7 @@ public partial class AboutDialog : Window
     {
         InitializeComponent();
 
-        var asm = Assembly.GetExecutingAssembly();
-
-        // InformationalVersion carries the full string including any suffix;
-        // AssemblyVersion is the padded four-part form and reads oddly here.
-        var version = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-                      ?? asm.GetName().Version?.ToString()
-                      ?? "unknown";
-
-        // Strip the source-control hash MSBuild appends to
-        // InformationalVersion — "3.0.0+9a1b2c3" reads as noise here.
-        var plus = version.IndexOf('+');
-        if (plus > 0) version = version[..plus];
-
-        VersionText.Text = $"Version {version}";
+        VersionText.Text = $"Version {AppVersion.Display}";
 
         LicenseText.Text = ReadLicense();
     }

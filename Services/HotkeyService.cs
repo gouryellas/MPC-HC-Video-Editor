@@ -141,8 +141,11 @@ public sealed class HotkeyService : IDisposable
     public event Action? RestoreRequested;
 
     /// <summary>
-    /// Whether the <c>X</c> restore key is live. Set while the minimal overlay
-    /// is showing and cleared as soon as the full window returns.
+    /// Whether the <c>X</c> restore key is live. Set for exactly as long as the
+    /// overlay is on screen — which is not the same as for as long as the
+    /// overlay exists, since a pinned one hides itself while another
+    /// application is in front. The caller keeps the two in step; see
+    /// <c>MainViewModel.SetOverlayShown</c>.
     /// </summary>
     public bool RestoreArmed { get; set; }
 
@@ -213,9 +216,9 @@ public sealed class HotkeyService : IDisposable
             }
 
             // The keyboard hook goes in regardless of the binding kind: it also
-            // carries Ctrl+Escape, which restores the window from the minimal
-            // overlay and has to work even when the timestamp hotkey is a mouse
-            // button. The callback returns immediately for anything else.
+            // carries the X restore key, which brings the window back from the
+            // minimal overlay and has to work even when the timestamp hotkey is
+            // a mouse button. The callback returns immediately for anything else.
             _keyboardProc ??= KeyboardHookCallback;
             _keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, _keyboardProc, hMod, 0);
         }

@@ -8,7 +8,10 @@
         Focusable="False" IsHitTestVisible="False"
         xmlns:helpers="clr-namespace:MpcHcVideoEditor.Helpers">
 
-    <!-- A fixed Height, not SizeToContent.
+    <!-- A fixed Height, not SizeToContent. PositionInCorner replaces the value
+         below with the monitor height less a small reserve; 300 is only what
+         the designer shows.
+
          This window is layered (AllowsTransparency gives it per-pixel alpha),
          and a layered window that changes height does not reliably repaint the
          region it vacated. With SizeToContent the height moved every time the
@@ -18,8 +21,10 @@
          re-assertion then swapped which frame was on top, so it read as a
          flicker between two states rather than as a stale frame.
 
-         A constant height means the layer is allocated once and only ever
-         redrawn in place, and the list scrolls instead. -->
+         So the window is a pane the height of the screen, allocated once and
+         only ever redrawn in place, and the card inside it is what grows with
+         the bookmark list. Every pair is visible without the layer ever being
+         resized, and the list scrolls only once the card runs out of screen. -->
 
     <Window.Resources>
         <helpers:BoolToVisibilityConverter x:Key="MinimalBoolToVis"/>
@@ -29,9 +34,12 @@
          text competing with whatever was behind it; the alpha channel bought
          nothing here, since the point of the overlay is to be read. The
          opacity setting can still take it back down. -->
+    <!-- Top-aligned, so the card is only as tall as its content instead of
+         filling the pane. PositionInCorner flips this to Bottom when the
+         overlay is parked in a bottom corner. -->
     <Border x:Name="Panel" Background="#FF141414" CornerRadius="8" Padding="14" Margin="8"
             BorderBrush="#5A5A60" BorderThickness="1"
-            HorizontalAlignment="Stretch">
+            HorizontalAlignment="Stretch" VerticalAlignment="Top">
         <Border.Effect>
             <!-- Separates the card from the video underneath it, which a flat
                  rectangle of near-black does not do on a dark scene. -->

@@ -119,6 +119,20 @@
 
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
+                                <TextBlock Text="Instances" Style="{StaticResource Heading}"/>
+                                <RadioButton x:Name="InstanceSingle" GroupName="Instances"
+                                             Content="Only allow one instance"/>
+                                <TextBlock Style="{StaticResource Hint}" Margin="22,0,0,6"
+                                           Text="Starting the program again brings the running copy to the front instead of opening a second one."/>
+                                <RadioButton x:Name="InstanceMultiple" GroupName="Instances"
+                                             Content="Allow multiple instances"/>
+                                <TextBlock Style="{StaticResource Hint}" Margin="22,0,0,0"
+                                           Text="Each copy runs independently. This only ever counts copies started from this same install folder — a portable copy in a different folder is never affected either way. Applies the next time the program is started; it does not change whether an already-running copy is currently holding the lock."/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
                                 <TextBlock Text="Views" Style="{StaticResource Heading}"/>
                                 <CheckBox x:Name="AutoSwitchCheck"
                                           Content="Switch views automatically"/>
