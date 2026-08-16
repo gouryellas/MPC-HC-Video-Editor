@@ -167,6 +167,34 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     public int SelectedPairCount => Session.Bookmarks.Count(b => b.IsSelected && b.IsValid);
 
+    /// <summary>
+    /// What to call the merge command right now: "Merge", "Merge selected",
+    /// "Extract" or "Extract selected". Bound by the toolbar button and the
+    /// Actions menu item, so both always say the same thing.
+    /// </summary>
+    /// <remarks>
+    /// The verb follows the number of cuts the command would actually act on.
+    /// Joining implies more than one thing to join; with a single cut there is
+    /// nothing to join and the result is that one span written out on its own,
+    /// which is an extract. Calling that "merge" describes an operation the
+    /// user is not performing.
+    /// </remarks>
+    public string MergeActionLabel
+    {
+        get
+        {
+            // Checked cuts win; with none checked the command falls back to
+            // every cut, so that is the count the label has to describe.
+            var onSelection = SelectedPairCount > 0;
+            var count = onSelection ? SelectedPairCount : CompletePairCount;
+
+            // Zero is not an extract: with nothing loaded the command asks for
+            // files to join instead, so it stays "Merge".
+            var verb = count == 1 ? "Extract" : "Merge";
+            return onSelection ? verb + " selected" : verb;
+        }
+    }
+
     /// <summary>Progress state for the panel above the status bar.</summary>
     public JobProgress Job { get; } = new();
 
@@ -903,6 +931,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasEditLength));
         OnPropertyChanged(nameof(HasNoBookmarks));
 
+        // Both counts are in the key above, so this fires exactly when the
+        // label can actually have changed — including on every tick of a
+        // checkbox, which is what moves it between Merge and Extract.
+        OnPropertyChanged(nameof(MergeActionLabel));
+
         SetTimestampCommand.NotifyCanExecuteChanged();
         ShowMinimalViewCommand.NotifyCanExecuteChanged();
         UndoLastBookmarkCommand.NotifyCanExecuteChanged();
@@ -953,7 +986,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private bool CanSelectNone() => HasActiveVideo && IsBookmarkFileLoaded && SelectedPairCount >= 1;
 
     // Play needs something to sequence, so it wants two or more pairs. Split
-    // works on a single pair, and so does Merge — one cut is a trim.
+    // works on a single pair, and so does Merge — one cut is an extract.
     private bool CanPlayAll() => HasActiveVideo && IsBookmarkFileLoaded && CompletePairCount > 1;
     private bool CanPlaySelected() => CanPlayAll() && SelectedPairCount > 1;
     private bool CanMergeSelected() => HasActiveVideo && IsBookmarkFileLoaded && CompletePairCount >= 1;
@@ -2723,7 +2756,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     /// <remarks>
     /// One cut is a legitimate job, not a failed merge: the result is that
-    /// single span written out on its own — a trim. It runs down exactly the
+    /// single span written out on its own — an extract. It runs down exactly the
     /// same path as a many-cut merge (the concat of one segment is that
     /// segment), so nothing downstream needs to special-case it.
     ///
@@ -2767,16 +2800,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var outPath = await ResolveOutputPathAsync(dlg.FileName);
         if (outPath == null) return;
 
-        // A single cut is a trim; say so rather than reporting a merge of one.
-        var trimming = toMerge.Count == 1;
+        // A single cut is an extract; say so rather than reporting a merge of
+        // one. Same wording as MergeActionLabel, so the button the user pressed
+        // and the progress it reports agree.
+        var extracting = toMerge.Count == 1;
 
         // Captured before the operation: cleanup must act on the file this run
         // consumed, not on whatever happens to be loaded when it finishes.
         var source = Session.VideoPath;
         var succeeded = false;
 
-        IsBusy = true; ProgressPercent = 0; StatusText = trimming ? "Trimming…" : "Merging…";
-        Job.Begin(trimming ? "Trim cut" : "Merge cuts");
+        IsBusy = true; ProgressPercent = 0; StatusText = extracting ? "Extracting…" : "Merging…";
+        Job.Begin(extracting ? "Extract cut" : "Merge cuts");
         Job.SetFile(1, Path.GetFileName(outPath));
         try
         {
@@ -2793,7 +2828,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             StatusText = $"Created {Path.GetFileName(outPath)}";
             succeeded = true;
         }
-        catch (Exception ex) { StatusText = trimming ? "Trim failed" : "Merge failed"; MessageBox.Show(ex.Message); }
+        catch (Exception ex) { StatusText = extracting ? "Extract failed" : "Merge failed"; MessageBox.Show(ex.Message); }
         finally { IsBusy = false; ProgressPercent = 0; Job.End(); }
 
         // Only after the panel is down and the output is on disk.

@@ -188,7 +188,7 @@
                                      black text on a dark popup. -->
                                 <ComboBox x:Name="FormatCombo" Padding="6,4"/>
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="Used by merge, trim, split and convert. MP4, MKV and MOV are written by copying the cut segments, so they are lossless and fast. The other containers cannot hold H.264, so choosing one re-encodes the video — WEBM especially is slow."/>
+                                           Text="Used by merge, extract, split and convert. MP4, MKV and MOV are written by copying the cut segments, so they are lossless and fast. The other containers cannot hold H.264, so choosing one re-encodes the video — WEBM especially is slow."/>
                             </StackPanel>
                         </Border>
 
@@ -249,7 +249,7 @@
                                 <RadioButton x:Name="VideoAlways" GroupName="Video"
                                              Content="Delete the original video file without asking"/>
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="Applies to merge, trim, split and convert. Only ever to a file the operation actually consumed successfully, and never to a file it just wrote."/>
+                                           Text="Applies to merge, extract, split and convert. Only ever to a file the operation actually consumed successfully, and never to a file it just wrote."/>
                             </StackPanel>
                         </Border>
 
@@ -263,7 +263,7 @@
                                 <RadioButton x:Name="CsvAlways" GroupName="Csv"
                                              Content="Delete the bookmarks file without asking"/>
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="Applies to merge, trim and split — the operations that consume the bookmark list. Convert has no bookmarks of its own and never touches it."/>
+                                           Text="Applies to merge, extract and split — the operations that consume the bookmark list. Convert has no bookmarks of its own and never touches it."/>
                             </StackPanel>
                         </Border>
 
