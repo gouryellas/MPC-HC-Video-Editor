@@ -31,6 +31,7 @@ public partial class SettingsDialog : Window
     public bool AutoSwitchViews { get; private set; }
     public CleanupMode DeleteOriginalVideo { get; private set; }
     public CleanupMode DeleteBookmarksFile { get; private set; }
+    public bool DeleteToRecycleBin { get; private set; }
     public EncodingQuality Quality { get; private set; }
     public CollisionPolicy OnNameCollision { get; private set; }
     public PollSpeed PollSpeed { get; private set; }
@@ -63,6 +64,7 @@ public partial class SettingsDialog : Window
         AutoSwitchViews = autoSwitchViews;
         DeleteOriginalVideo = current.DeleteOriginalVideo;
         DeleteBookmarksFile = current.DeleteBookmarksFile;
+        DeleteToRecycleBin = current.DeleteToRecycleBin;
         Quality = current.Quality;
         OnNameCollision = current.OnNameCollision;
         PollSpeed = current.PollSpeed;
@@ -97,6 +99,11 @@ public partial class SettingsDialog : Window
 
         Pick(current.DeleteOriginalVideo, VideoNever, VideoAsk, VideoAlways);
         Pick(current.DeleteBookmarksFile, CsvNever, CsvAsk, CsvAlways);
+
+        RecycleBinCheck.IsChecked = current.DeleteToRecycleBin;
+        RecycleBinCheck.Checked += (_, _) => ShowRecycleBinWarning();
+        RecycleBinCheck.Unchecked += (_, _) => ShowRecycleBinWarning();
+        ShowRecycleBinWarning();
 
         (current.Quality switch
         {
@@ -141,6 +148,19 @@ public partial class SettingsDialog : Window
 
     private void ShowOpacity() =>
         OpacityValue.Text = $"{OpacitySlider.Value * 100:0}%";
+
+    /// <summary>
+    /// Shows the "permanently" warning only while the box is unchecked.
+    /// </summary>
+    /// <remarks>
+    /// Kept out of sight in the safe state: a standing warning next to a
+    /// setting that is behaving itself is noise, and noise is what stops the
+    /// warning being read in the state that matters.
+    /// </remarks>
+    private void ShowRecycleBinWarning() =>
+        RecycleBinWarning.Visibility = RecycleBinCheck.IsChecked == true
+            ? Visibility.Collapsed
+            : Visibility.Visible;
 
     /// <summary>
     /// Says whether the folder in the box actually holds ffmpeg, so a typo is
@@ -223,6 +243,7 @@ public partial class SettingsDialog : Window
 
         DeleteOriginalVideo = ReadCleanup(VideoAsk, VideoAlways);
         DeleteBookmarksFile = ReadCleanup(CsvAsk, CsvAlways);
+        DeleteToRecycleBin = RecycleBinCheck.IsChecked == true;
 
         Quality = QualityFast.IsChecked == true ? EncodingQuality.Fast
                 : QualityHigh.IsChecked == true ? EncodingQuality.High

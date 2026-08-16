@@ -6,15 +6,17 @@ using Microsoft.VisualBasic.FileIO;
 namespace MpcHcVideoEditor.Helpers;
 
 /// <summary>
-/// Deletes files to the Windows Recycle Bin rather than destroying them,
-/// waiting for whatever is still holding them to let go.
+/// Deletes the files this app removes on the user's behalf, waiting for
+/// whatever is still holding them to let go. Sends them to the Windows Recycle
+/// Bin unless <see cref="SendToBin"/> has been turned off.
 /// </summary>
 /// <remarks>
 /// <see cref="File.Delete"/> is unrecoverable, which is the wrong default for
 /// anything this app removes on the user's behalf — especially the settings
 /// that delete without asking first. The bin is what makes those settings
 /// defensible: the worst case becomes a trip to the bin rather than lost
-/// footage.
+/// footage. It is therefore the default, and turning it off is a deliberate
+/// choice made in Settings.
 ///
 /// Uses <see cref="FileSystem.DeleteFile(string, UIOption, RecycleOption)"/>
 /// rather than a hand-rolled <c>SHFileOperation</c> P/Invoke. It is the same
@@ -25,6 +27,22 @@ namespace MpcHcVideoEditor.Helpers;
 /// </remarks>
 public static class RecycleBin
 {
+    /// <summary>
+    /// Whether deletions go to the Recycle Bin. True unless the user has turned
+    /// it off; see <c>AppSettings.DeleteToRecycleBin</c>.
+    /// </summary>
+    /// <remarks>
+    /// Static, and pushed in by <c>MainViewModel.ApplyServiceSettings</c>
+    /// alongside every other setting a service needs, because the callers are
+    /// scattered across the ViewModel and threading the flag through each one
+    /// would put a delete-policy parameter on methods that have no business
+    /// deciding it.
+    ///
+    /// Defaults to true so that any path which runs before settings are applied
+    /// — or a caller that forgets — still lands on the recoverable behaviour.
+    /// </remarks>
+    public static bool SendToBin { get; set; } = true;
+
     /// <summary>
     /// How long the non-blocking path keeps trying. Generous, because the
     /// thing being waited on is usually an ffmpeg that has just exited, and
@@ -70,9 +88,9 @@ public static class RecycleBin
     }
 
     /// <summary>
-    /// Sends one file to the Recycle Bin, retrying while it is still in use.
-    /// Blocks the calling thread — prefer <see cref="TryDeleteAsync"/> from the
-    /// UI thread.
+    /// Deletes one file, retrying while it is still in use — to the Recycle Bin
+    /// unless <see cref="SendToBin"/> is off. Blocks the calling thread; prefer
+    /// <see cref="TryDeleteAsync"/> from the UI thread.
     /// </summary>
     public static bool TryDelete(string path, out string? error) =>
         TryDelete(path, SyncTimeout, out error);
@@ -92,8 +110,8 @@ public static class RecycleBin
     }
 
     /// <summary>
-    /// Sends one file to the Recycle Bin, waiting without blocking for
-    /// whatever still holds it to release it.
+    /// Deletes one file — to the Recycle Bin unless <see cref="SendToBin"/> is
+    /// off — waiting without blocking for whatever still holds it to release it.
     /// </summary>
     /// <remarks>
     /// The wait exists because cleanup runs the instant an operation reports
@@ -141,6 +159,14 @@ public static class RecycleBin
             try
             {
                 if (!File.Exists(path)) return true;
+
+                if (!SendToBin)
+                {
+                    // Asked for explicitly in Settings. No fallback and no
+                    // second-guessing: the file is gone.
+                    File.Delete(path);
+                    return true;
+                }
 
                 // OnlyErrorDialogs, not AllDialogs: the caller has already
                 // asked (or the user chose not to be asked), so a second

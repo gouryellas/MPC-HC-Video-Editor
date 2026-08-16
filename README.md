@@ -193,6 +193,17 @@ recorded.
   **Manage naming tags…** (drag to reorder, double-click to rename).
 - **Switch views automatically** — see Views.
 
+### Deleting
+
+**Delete files to the Recycle Bin** (Settings ▸ Cleanup) is on by default, so
+anything the app removes can be undone. It covers every deletion, including the
+post-operation cleanup that runs without asking — which is what makes those
+settings safe to turn on.
+
+Turn it off and deletions are permanent. On a volume that has no Recycle Bin —
+a network share, most removable media — files are removed outright either way,
+because leaving one behind would be worse than the deletion you asked for.
+
 ## Hotkey
 
 **Set timestamp hotkey…** opens a dialog that captures from the moment it

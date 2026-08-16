@@ -23,7 +23,10 @@ public enum CleanupMode
     /// <summary>Prompt after the operation, defaulting to No.</summary>
     Ask,
 
-    /// <summary>Send it to the Recycle Bin without prompting.</summary>
+    /// <summary>
+    /// Delete it without prompting — to the Recycle Bin unless
+    /// <see cref="AppSettings.DeleteToRecycleBin"/> has been turned off.
+    /// </summary>
     Always
 }
 
@@ -127,6 +130,17 @@ public class AppSettings
     /// </summary>
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public CleanupMode DeleteBookmarksFile { get; set; } = CleanupMode.Never;
+
+    /// <summary>
+    /// Whether files this app deletes go to the Recycle Bin. On by default.
+    /// </summary>
+    /// <remarks>
+    /// Turning it off makes every deletion unrecoverable, including the ones
+    /// the cleanup settings perform without asking. Defaulting to on is what
+    /// makes those settings defensible: the worst case is a trip to the bin
+    /// rather than lost footage.
+    /// </remarks>
+    public bool DeleteToRecycleBin { get; set; } = true;
 
     /// <summary>Encoder effort for anything that re-encodes.</summary>
     [JsonConverter(typeof(JsonStringEnumConverter))]

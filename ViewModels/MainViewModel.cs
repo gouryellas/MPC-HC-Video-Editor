@@ -827,6 +827,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _toast.Enabled = _settings.Current.ToastsEnabled;
         _toast.HoldDuration = TimeSpan.FromSeconds(_settings.Current.ToastSeconds);
 
+        // Static rather than injected — see RecycleBin.SendToBin. Pushed here
+        // so it is set before anything can delete, and re-pushed when Settings
+        // is saved.
+        RecycleBin.SendToBin = _settings.Current.DeleteToRecycleBin;
+
         _pollTimer.Interval = _settings.GetPollInterval();
     }
 
@@ -4312,6 +4317,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         s.DefaultVideoFormat = VideoFormats.FromKey(dlg.VideoFormatKey).Key;
         s.DeleteOriginalVideo = dlg.DeleteOriginalVideo;
         s.DeleteBookmarksFile = dlg.DeleteBookmarksFile;
+        s.DeleteToRecycleBin = dlg.DeleteToRecycleBin;
         s.Quality = dlg.Quality;
         s.OnNameCollision = dlg.OnNameCollision;
         s.PollSpeed = dlg.PollSpeed;

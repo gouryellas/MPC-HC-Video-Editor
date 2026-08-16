@@ -269,9 +269,14 @@
 
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
-                                <TextBlock Text="Deleted files go to the Recycle Bin" Style="{StaticResource Heading}"/>
-                                <TextBlock Style="{StaticResource Hint}" Margin="0"
-                                           Text="Nothing here deletes permanently. On a volume with no Recycle Bin — a network share, most removable media — the file is removed outright, because leaving it would be worse than the alternative you asked for."/>
+                                <TextBlock Text="Where deleted files go" Style="{StaticResource Heading}"/>
+                                <CheckBox x:Name="RecycleBinCheck"
+                                          Content="Delete files to the Recycle Bin"/>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="On: deletions can be undone from the Recycle Bin. On a volume that has no Recycle Bin — a network share, most removable media — the file is removed outright anyway, because leaving it would be worse than the deletion you asked for."/>
+                                <TextBlock x:Name="RecycleBinWarning" Style="{StaticResource Hint}"
+                                           Foreground="#E09B78" FontWeight="SemiBold"
+                                           Text="Off: files are deleted permanently and cannot be recovered. This applies to the two settings above as well, which delete without asking."/>
                             </StackPanel>
                         </Border>
 
