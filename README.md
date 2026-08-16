@@ -72,10 +72,8 @@ video, and an empty one is never created.
 Output filenames use the active **naming tag** (see Options), e.g.
 `vacation.mp4` → `vacation[done].mp4`.
 
-- **Merge / Extract** — always available, and the label says which it would do:
-  joining two or more cuts is a *merge*, writing a single one out on its own is
-  an *extract*. It acts on the checked cuts, or on all of them when none are
-  checked, and reads "selected" whenever cuts are checked. With no video or cuts
+- **Merge selected / all / any** — always available. With cuts loaded it joins
+  the checked ones, or all of them when none are checked. With no video or cuts
   it falls back to a file picker and joins whatever you select.
 - **Split selected / all** — one clip per cut.
 - **Convert files to MP4…** and **Strip audio to MP3…** — both take multiple
@@ -226,7 +224,7 @@ pieces of state: whether a video is active in MPC-HC, whether a bookmark file is
 loaded, how many complete pairs exist, and how many are checked.
 
 Worth knowing because they are not uniform: **both Play commands need 2+ pairs,
-Split needs only 1, and Merge / Extract is always available.** Undo, Edit bookmarks,
+Split needs only 1, and Merge is always available.** Undo, Edit bookmarks,
 Delete bookmarks and Remove-selected key off the bookmark file being loaded, not
 off a video being active. **View ▸ Minimal** needs at least one bookmark — an
 overlay with nothing in it has nothing to show. Convert, Strip audio and the

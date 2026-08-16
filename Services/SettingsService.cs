@@ -111,21 +111,21 @@ public enum OverlayCorner
 public class AppSettings
 {
     /// <summary>
-    /// Container written by merge, extract, split and convert. Stored as a
+    /// Container written by merge, trim, split and convert. Stored as a
     /// <see cref="Services.VideoFormats.Format.Key"/>, not an extension, so
     /// the codec choices behind it can change without invalidating the file.
     /// </summary>
     public string DefaultVideoFormat { get; set; } = "mp4";
 
     /// <summary>
-    /// What to do with the source video after merge, extract, split or convert
+    /// What to do with the source video after merge, trim, split or convert
     /// completes. Only ever applied to sources that actually succeeded.
     /// </summary>
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public CleanupMode DeleteOriginalVideo { get; set; } = CleanupMode.Never;
 
     /// <summary>
-    /// What to do with the bookmark CSV after merge, extract or split completes.
+    /// What to do with the bookmark CSV after merge, trim or split completes.
     /// Never applies to convert, which has no bookmarks of its own.
     /// </summary>
     [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -596,7 +596,7 @@ public class SettingsService
     // ------------------------------------------------------------------
 
     /// <summary>
-    /// The container merge, extract, split and convert write. Always returns a
+    /// The container merge, trim, split and convert write. Always returns a
     /// usable format — an unknown key resolves to MP4.
     /// </summary>
     public VideoFormats.Format GetDefaultVideoFormat() =>

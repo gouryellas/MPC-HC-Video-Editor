@@ -157,13 +157,8 @@
                 <Separator/>
             </MenuItem>
             <MenuItem Header="_Actions">
-                <!-- Header follows MergeActionLabel: joining several cuts is a
-                     merge, writing a single one out on its own is an extract.
-                     The tooltip carries what the old "selected / all / any"
-                     header used to say, since the label now only names the job
-                     it would do right now. -->
-                <MenuItem Header="{Binding MergeActionLabel}" Command="{Binding MergeSelectedCommand}"
-                          ToolTip="Acts on the checked cuts, or on every cut when none are checked, or — with no video loaded — on files you pick. A single cut is written out on its own.">
+                <MenuItem Header="Merge selected / all / any" Command="{Binding MergeSelectedCommand}"
+                          ToolTip="Merges the checked cuts, or every cut, or — with no video loaded — files you pick. A single cut is written out on its own as a trim.">
                     <MenuItem.Icon>
                         <Rectangle Width="12" Height="12" Fill="#0E639C" RadiusX="2" RadiusY="2"/>
                     </MenuItem.Icon>
@@ -425,13 +420,7 @@
                      None of these set an explicit Width — the button style
                      pads around the content, so each one is as wide as its
                      text needs. A fixed width was clipping "Convert video". -->
-                <!-- Same label as the Actions menu item, with the glyph kept in
-                     the format string so one property serves both. Colour does
-                     not change with it: extract and merge are the same command
-                     doing the same kind of work, and a button that changed
-                     colour as cuts are ticked would read as a different one. -->
-                <Button Content="{Binding MergeActionLabel, StringFormat='🎬 {0}'}"
-                        Command="{Binding MergeSelectedCommand}"
+                <Button Content="🎬 Merge" Command="{Binding MergeSelectedCommand}"
                         Background="#0E639C" BorderBrush="#1177BB" FontWeight="SemiBold"/>
                 <Button Content="✂ Split" Command="{Binding SplitSelectedCommand}"
                         Background="#3D5A40" BorderBrush="#4E6B50"/>
