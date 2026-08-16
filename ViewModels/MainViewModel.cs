@@ -2812,7 +2812,22 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (toSplit.Count == 0) toSplit = Session.Bookmarks.Where(b => b.IsValid).ToList();
         if (toSplit.Count == 0) { Notify("No valid bookmarks."); return; }
 
-        var outDir = Path.Combine(Session.OutputDirectory, Path.GetFileNameWithoutExtension(Session.VideoFileName) + "_clips");
+        // Straight into "Save to", like every other action. This used to make a
+        // "<name>_clips" folder and put them in there, which meant Split was the
+        // one operation whose output did not appear where the user had pointed
+        // it — and left a folder behind for a single cut.
+        //
+        // Nothing is lost by dropping it: the clips are named [done], [done2],
+        // [done3]… by index, so they do not collide with each other, and a name
+        // already taken by something else goes through the same collision
+        // prompt as the rest of the app.
+        var outDir = ResolveSaveToDirectory();
+        if (string.IsNullOrWhiteSpace(outDir))
+        {
+            Notify("Could not determine where to save the clips.", "Split",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
         Directory.CreateDirectory(outDir);
 
         var format = OutputFormat;
