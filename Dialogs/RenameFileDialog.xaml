@@ -4,7 +4,8 @@
         Title="Rename output file" Height="290" Width="520"
         WindowStartupLocation="CenterOwner"
         Background="#2D2D30" ResizeMode="NoResize"
-        ShowInTaskbar="False">
+        ShowInTaskbar="False"
+        Topmost="True">
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>

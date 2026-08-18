@@ -6,6 +6,7 @@ using System.Globalization;
 using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows;
+using System.Windows.Interop;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
@@ -301,6 +302,23 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </remarks>
     private void ApplyAutoViewSwitch()
     {
+        // The app is blocked on a prompt — "this file exists", a rename, a save
+        // dialog, a message box. The view must not move underneath it.
+        //
+        // A modal loop still pumps messages, so the poll goes on ticking while
+        // the prompt waits, and clicking the player was enough to switch to the
+        // overlay and hide the main window with the prompt behind it. Since the
+        // prompt is modal, the app then accepted no input anywhere and there was
+        // nothing left on screen to answer: only Alt+Tab got it back, and these
+        // dialogs are ShowInTaskbar="False", so even that is awkward.
+        //
+        // Checked before everything else, including the pin: whatever the view
+        // is when a prompt opens is the view it keeps until the prompt is
+        // answered. IsThreadModal is set by WPF's own ShowDialog and MessageBox,
+        // so this covers every prompt without each one having to remember to
+        // announce itself.
+        if (ComponentDispatcher.IsThreadModal) return;
+
         // Nothing to show, so nothing goes up — checked ahead of the pin,
         // because an overlay listing nothing is not what was pinned, and it is
         // why View ▸ Minimal is disabled in this state (CanShowMinimalView).
