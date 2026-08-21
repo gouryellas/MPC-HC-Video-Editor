@@ -67,8 +67,8 @@
                     <TextBlock Text="Third-party components" Foreground="#4EC9B0" FontWeight="SemiBold"
                                FontSize="13" Margin="0,14,0,6"/>
                     <TextBlock Foreground="#BBBBBB" FontSize="11" TextWrapping="Wrap">
-                        <Run Text="ffmpeg"  Foreground="#DCDCAA"/><LineBreak/>
-                        <Run Text="Does all encoding, cutting and concatenation. Licensed under the LGPL v2.1 or GPL v2 depending on the build you supply. ffmpeg is not distributed as part of this application."/>
+                        <Run Text="ffmpeg 9.0.1"  Foreground="#DCDCAA"/><LineBreak/>
+                        <Run Text="Does all encoding, cutting and concatenation. Distributed with this application, in a build configured with --enable-gpl and --enable-version3 and therefore licensed under the GNU GPL v3 or later. The corresponding source and the scripts that produced these binaries are at github.com/BtbN/FFmpeg-Builds."/>
                         <LineBreak/><LineBreak/>
                         <Run Text="Media Player Classic - Home Cinema"  Foreground="#DCDCAA"/><LineBreak/>
                         <Run Text="The player this tool drives, via its web interface. GPL v3. Separately installed and separately licensed."/>
