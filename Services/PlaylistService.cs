@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
+using MpcHcVideoEditor.Helpers;
 
 namespace MpcHcVideoEditor.Services;
 
@@ -124,18 +125,17 @@ public class PlaylistService
     /// file didn't exist or couldn't be deleted (e.g. locked by another
     /// process).
     /// </summary>
+    /// <remarks>
+    /// Goes through <see cref="RecycleBin"/> like every other deletion the app
+    /// makes, so it honours the "delete files to the Recycle Bin" setting. It
+    /// used to call <see cref="File.Delete"/> directly, which meant a playlist
+    /// was destroyed outright even while everything else was recoverable — and
+    /// a playlist is a hand-built list that can represent a lot of collecting.
+    /// </remarks>
     public bool DeletePlaylist(string plsPath)
     {
         if (!File.Exists(plsPath)) return false;
-        try
-        {
-            File.Delete(plsPath);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+        return RecycleBin.TryDelete(plsPath, out _);
     }
 
     /// <summary>

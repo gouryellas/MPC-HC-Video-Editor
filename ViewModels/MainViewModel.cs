@@ -3164,8 +3164,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             var ask = videoMode == CleanupMode.Ask;
             var prompt = videos.Count == 1
-                ? $"Delete the original video?\n\n{Path.GetFileName(videos[0])}\n\nIt will go to the Recycle Bin."
-                : $"Delete the {videos.Count} original video files this operation used?\n\nThey will go to the Recycle Bin.";
+                ? $"Delete the original video?\n\n{Path.GetFileName(videos[0])}\n\n{DeletionNote(1)}"
+                : $"Delete the {videos.Count} original video files this operation used?\n\n{DeletionNote(videos.Count)}";
 
             if (!ask || Confirm(prompt, "Delete original video"))
             {
@@ -3191,7 +3191,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (haveCsv && csvMode != CleanupMode.Never)
         {
             var ask = csvMode == CleanupMode.Ask;
-            var prompt = $"Delete the bookmarks file?\n\n{Path.GetFileName(csv!)}\n\nIt will go to the Recycle Bin.";
+            var prompt = $"Delete the bookmarks file?\n\n{Path.GetFileName(csv!)}\n\n{DeletionNote(1)}";
 
             if (!ask || Confirm(prompt, "Delete bookmarks file"))
             {
@@ -3215,13 +3215,37 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         if (deleted.Count > 0)
             StatusText = deleted.Count == 1
-                ? $"Moved {Path.GetFileName(deleted[0])} to the Recycle Bin"
-                : $"Moved {deleted.Count} file(s) to the Recycle Bin";
+                ? DeletedNote(Path.GetFileName(deleted[0]))
+                : DeletedNote($"{deleted.Count} file(s)");
 
         if (failed.Count > 0)
             MessageBox.Show(string.Join("\n", failed), "Delete after operation",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
     }
+
+    /// <summary>
+    /// How a deletion about to be offered should be described, according to
+    /// where the files will actually go.
+    /// </summary>
+    /// <remarks>
+    /// These prompts used to promise the Recycle Bin unconditionally, which
+    /// stopped being true the moment that became a setting: with it off, the
+    /// dialog the user clicks Yes on was telling them a permanent deletion was
+    /// recoverable. A confirmation that misdescribes what it is confirming is
+    /// worse than no confirmation.
+    /// </remarks>
+    private string DeletionNote(int count) =>
+        _settings.Current.DeleteToRecycleBin
+            ? (count == 1 ? "It will go to the Recycle Bin."
+                          : "They will go to the Recycle Bin.")
+            : (count == 1 ? "It will be deleted permanently and cannot be recovered."
+                          : "They will be deleted permanently and cannot be recovered.");
+
+    /// <summary>Past-tense counterpart of <see cref="DeletionNote"/>, for the status bar.</summary>
+    private string DeletedNote(string what) =>
+        _settings.Current.DeleteToRecycleBin
+            ? $"Moved {what} to the Recycle Bin"
+            : $"Permanently deleted {what}";
 
     /// <summary>Yes/No prompt that defaults to No, so Enter can never delete.</summary>
     private static bool Confirm(string prompt, string caption) =>
@@ -3278,7 +3302,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         var prompt =
             $"Delete the {sources.Count} original image(s) that were converted to {format.Display}?\n\n" +
-            "They will go to the Recycle Bin.";
+            DeletionNote(sources.Count);
 
         if (!Confirm(prompt, "Delete originals")) return;
 
@@ -3291,7 +3315,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         int deleted = deletedPaths.Count;
 
         StatusText = failed.Count == 0
-            ? $"Moved {deleted} original image(s) to the Recycle Bin"
+            ? DeletedNote($"{deleted} original image(s)")
             : $"Deleted {deleted}, could not delete {failed.Count}";
 
         if (failed.Count > 0)
