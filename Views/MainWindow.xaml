@@ -459,10 +459,31 @@
                 <!-- List -->
                 <Border Grid.Column="0" Background="#252526" CornerRadius="6" Padding="6" Margin="0,0,10,0">
                     <DockPanel>
+                        <!-- Columns mirror the row template below so the captions
+                             sit over the controls they name. The speed slider had
+                             nothing labelling it at all: what it did was only
+                             discoverable by dragging one and watching the clip
+                             length change. -->
                         <Grid DockPanel.Dock="Top" Margin="4,2,4,8">
-                            <TextBlock Text="Bookmarks" FontWeight="SemiBold" Foreground="#CCCCCC"/>
-                            <TextBlock HorizontalAlignment="Right" Foreground="#888"
-                                       Text="{Binding Session.Bookmarks.Count, StringFormat={}{0} items}"/>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="28"/>
+                                <ColumnDefinition Width="26"/>
+                                <ColumnDefinition Width="34"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="70"/>
+                                <ColumnDefinition Width="90"/>
+                                <ColumnDefinition Width="110"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Grid.ColumnSpan="3" Text="Bookmarks"
+                                       FontWeight="SemiBold" Foreground="#CCCCCC"/>
+                            <TextBlock Grid.Column="3" HorizontalAlignment="Right" Foreground="#888"
+                                       Text="{Binding Session.Bookmarks.Count, StringFormat={}{0} items}"
+                                       Margin="0,0,10,0"/>
+                            <TextBlock Grid.Column="5" Grid.ColumnSpan="2" Text="PLAY SPEED OF THE SAVED CLIP"
+                                       FontSize="10" FontWeight="SemiBold" Foreground="#888"
+                                       TextWrapping="Wrap" LineHeight="11"
+                                       ToolTip="Each clip can be written out slower or faster than it was recorded. Drag a row's slider to change that clip; the length beside it updates to match."/>
                         </Grid>
 
                         <ListView ItemsSource="{Binding Session.Bookmarks}"
@@ -494,9 +515,9 @@
                                             <ColumnDefinition Width="26"/>
                                             <ColumnDefinition Width="34"/>
                                             <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="60"/>
+                                            <ColumnDefinition Width="70"/>
                                             <ColumnDefinition Width="90"/>
-                                            <ColumnDefinition Width="44"/>
+                                            <ColumnDefinition Width="110"/>
                                         </Grid.ColumnDefinitions>
 
                                         <!-- One-click split: clicking this radio button
@@ -545,14 +566,21 @@
                                                        Visibility="{Binding IsIncomplete, Converter={StaticResource BoolToVis}}"/>
                                         </StackPanel>
 
-                                        <TextBlock Grid.Column="4" Text="{Binding Prefix}" Foreground="#CE9178" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        <!-- Flip only. The speed has its own column, so the
+                                             two are not squeezed into one marker — the
+                                             overlay still combines them, where there is no
+                                             room for columns (see Bookmark.Prefix). -->
+                                        <TextBlock Grid.Column="4" Text="{Binding FlipDisplay}" Foreground="#CE9178"
+                                                   FontWeight="Bold" VerticalAlignment="Center"/>
 
                                         <Slider Grid.Column="5" Minimum="0.25" Maximum="2.0" TickFrequency="0.25"
                                                 IsSnapToTickEnabled="True" Value="{Binding Speed, Mode=TwoWay}"
-                                                VerticalAlignment="Center" Width="80" ToolTip="Speed"/>
+                                                VerticalAlignment="Center" Width="80"
+                                                ToolTip="How fast this clip plays when it is saved. Left is slower, right is faster; the clip's length changes to match."/>
 
                                         <TextBlock Grid.Column="6" Text="{Binding SpeedDisplay}" Foreground="#9CDCFE"
-                                                   VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                                                   VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                   ToolTip="{Binding EffectiveDurationDisplay, StringFormat=Saved clip will run {0}}"/>
                                     </Grid>
                                 </DataTemplate>
                             </ListView.ItemTemplate>

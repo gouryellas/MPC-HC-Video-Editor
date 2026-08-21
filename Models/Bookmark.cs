@@ -100,7 +100,13 @@ public class Bookmark : INotifyPropertyChanged
     public bool IsFlipped
     {
         get => _isFlipped;
-        set { _isFlipped = value; OnPropertyChanged(); OnPropertyChanged(nameof(Prefix)); }
+        set
+        {
+            _isFlipped = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(Prefix));
+            OnPropertyChanged(nameof(FlipDisplay));
+        }
     }
 
     public double Speed
@@ -141,7 +147,32 @@ public class Bookmark : INotifyPropertyChanged
     public double DurationSeconds => Math.Max(0, EndSeconds - StartSeconds);
     public string DurationDisplay => FormatDuration(DurationSeconds);
     public string EffectiveDurationDisplay => FormatDuration(DurationSeconds / Speed);
-    public string SpeedDisplay => Math.Abs(Speed - 1.0) < 0.01 ? "1x" : $"{Speed:0.##}x";
+
+    /// <summary>
+    /// What the speed slider will do to this clip, in words — "half speed",
+    /// "double speed", "normal".
+    /// </summary>
+    /// <remarks>
+    /// This used to read "0.5x", and the row marker "[S0.5]", which say what
+    /// the number is rather than what it does to the clip. The quarter points
+    /// the slider snaps to have ordinary names, so they get them; anything else
+    /// falls back to the multiplier with the direction spelled out, because
+    /// "1.25x" alone leaves the reader to work out which way it goes.
+    /// </remarks>
+    public string SpeedDisplay => DescribeSpeed(Speed);
+
+    /// <summary>Whether the clip will be inverted, in the same voice.</summary>
+    public string FlipDisplay => IsFlipped ? "flipped" : string.Empty;
+
+    private static bool Is(double speed, double value) => Math.Abs(speed - value) < 0.01;
+
+    private static string DescribeSpeed(double speed) =>
+        Is(speed, 1.0)  ? "normal"
+      : Is(speed, 0.25) ? "quarter speed"
+      : Is(speed, 0.5)  ? "half speed"
+      : Is(speed, 2.0)  ? "double speed"
+      : speed < 1.0     ? $"{speed:0.##}× (slower)"
+                        : $"{speed:0.##}× (faster)";
 
     /// <summary>
     /// True when this bookmark describes a real range. The exact complement of
@@ -149,16 +180,26 @@ public class Bookmark : INotifyPropertyChanged
     /// </summary>
     public bool IsValid => EndSeconds > StartSeconds;
 
+    /// <summary>
+    /// Everything that will be done to this clip beyond cutting it, as one
+    /// phrase. Empty when it will be cut as-is, which is the usual case.
+    /// </summary>
+    /// <remarks>
+    /// Read by the compact overlay, where there is no slider to look at and the
+    /// row has to speak for itself. The main window shows the two halves in
+    /// their own columns instead — see <see cref="FlipDisplay"/> and
+    /// <see cref="SpeedDisplay"/> — so it does not repeat the speed twice.
+    /// </remarks>
     public string Prefix
     {
         get
         {
-            if (IsFlipped && Math.Abs(Speed - 1.0) > 0.01)
-                return $"[FS{Speed:0.##}]";
-            if (IsFlipped)
-                return "[F]";
-            if (Math.Abs(Speed - 1.0) > 0.01)
-                return $"[S{Speed:0.##}]";
+            var flipped = IsFlipped;
+            var respeed = !Is(Speed, 1.0);
+
+            if (flipped && respeed) return $"flipped + {DescribeSpeed(Speed)}";
+            if (flipped) return "flipped";
+            if (respeed) return DescribeSpeed(Speed);
             return string.Empty;
         }
     }
@@ -179,7 +220,10 @@ public class Bookmark : INotifyPropertyChanged
     public static string FormatDuration(double totalSeconds)
     {
         if (totalSeconds < 0) totalSeconds = 0;
-        var ts = TimeSpan.FromSeconds(totalSeconds);
+
+        // Rounded, not truncated. Only whole seconds are shown, and truncating
+        // reported a 2.5s clip as "2s" — always short, never long.
+        var ts = TimeSpan.FromSeconds(Math.Round(totalSeconds, MidpointRounding.AwayFromZero));
         var parts = new List<string>();
         if (ts.Hours > 0) parts.Add($"{ts.Hours}h");
         if (ts.Minutes > 0) parts.Add($"{ts.Minutes}m");
