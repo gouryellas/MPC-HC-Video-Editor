@@ -868,6 +868,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // could survive. Re-subscribing is idempotent enough here because the
         // cleared instances are dropped entirely.
         RefreshCommandStates();
+
+        // Adding or removing a cut changes both of these. They used to be
+        // raised from a handler attached in OnSessionChanged, which never runs:
+        // Session is only ever its field initialiser, and the generated partial
+        // fires on assignment, not on construction. Here they are wired by
+        // HookSession, which the constructor does call.
+        OnPropertyChanged(nameof(HasValidBookmarks));
+        Session.NotifyDurationChanged();
     }
 
     private void Bookmark_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -878,6 +886,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
                            or nameof(Bookmark.StartSeconds)
                            or nameof(Bookmark.EndSeconds))
             RefreshCommandStates();
+
+        // Edit length is the length of what the next action would actually
+        // produce: the checked cuts, or every cut when none are checked. So
+        // ticking a checkbox changes it, and so does moving a timestamp or a
+        // speed slider. It was computed correctly and simply never re-read —
+        // the figure on screen was whatever it had been when something else
+        // happened to refresh it.
+        if (e.PropertyName is nameof(Bookmark.IsSelected)
+                           or nameof(Bookmark.StartSeconds)
+                           or nameof(Bookmark.EndSeconds)
+                           or nameof(Bookmark.Speed))
+            Session.NotifyDurationChanged();
     }
 
     private void Session_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -1218,11 +1238,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
             if (e.PropertyName == nameof(EditSession.CsvPath))
                 RefreshBookmarksFileDisplay();
         };
-        value.Bookmarks.CollectionChanged += (_, _) =>
-        {
-            OnPropertyChanged(nameof(HasValidBookmarks));
-            Session.NotifyDurationChanged();
-        };
+
+        // The collection subscription that used to be added here has moved into
+        // Bookmarks_CollectionChanged, which HookSession wires for the initial
+        // Session as well as for any replacement. Adding it here reached only a
+        // reassignment — something that never happens.
         HookSession(value);
         RefreshBookmarksFileDisplay();
     }
