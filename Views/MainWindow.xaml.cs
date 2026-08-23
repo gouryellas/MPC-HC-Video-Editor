@@ -864,17 +864,25 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Builds a single playlist's parent MenuItem for the Playlist menu.
-    /// Header is the playlist's filename (e.g. <c>"my_videos.pls"</c>);
-    /// expands into the action items first (Open playlist file /
-    /// Load this playlist / Add current video / Delete playlist), then
-    /// a separator, then the numbered video entries (1, 2, 3, …).
+    /// Header is the playlist's filename followed by how many entries it
+    /// lists (e.g. <c>"my_videos.pls (50)"</c>); expands into the action
+    /// items first (View playlist content / Load this playlist / Add current
+    /// video / Remove missing entries / Delete playlist), then a separator,
+    /// then the numbered video entries (1, 2, 3, …).
     /// </summary>
     private MenuItem BuildPlaylistMenuItem(string plsPath)
     {
         var plsName = System.IO.Path.GetFileName(plsPath);
+        // Entries listed, not entries present. Counting what still exists
+        // would mean a File.Exists per video on every rebuild, which is the
+        // per-video stat cost the lazy submenu below exists to avoid.
+        var entryCount = _vm?.CountPlaylistEntriesForMenu(plsPath) ?? 0;
         var parent = new MenuItem
         {
-            Header = $"📋  {plsName}",
+            // A MenuItem's string header renders through AccessText, which
+            // swallows a single underscore as an access-key marker — without
+            // doubling them, "my_videos.pls" shows up as "myvideos.pls".
+            Header = $"📋  {plsName.Replace("_", "__")} ({entryCount})",
             ToolTip = plsPath,
             Tag = plsPath
         };
@@ -912,6 +920,30 @@ public partial class MainWindow : Window
         };
         parent.Items.Add(addCurrent);
 
+        // Drops entries whose files are gone, then rebuilds so the list and the
+        // header count reflect it. No ellipsis in the header and no
+        // confirmation behind it: this runs on the click and reports to the
+        // status bar, matching the per-entry Remove below.
+        //
+        // Deliberately never greyed out, either: knowing in advance whether
+        // anything is missing means a File.Exists per entry, and doing that on
+        // every menu rebuild is exactly the stat storm the lazy submenu avoids.
+        // Clicking it when nothing is gone simply says so afterwards.
+        var removeMissing = new MenuItem
+        {
+            Header = "Remove missing entries",
+            Tag = plsPath,
+            ToolTip = "Removes entries whose file is gone and whose drive is connected — " +
+                      "immediately, without asking. Entries on a disconnected drive cannot " +
+                      "be checked and are always left alone."
+        };
+        removeMissing.Click += (_, e) =>
+        {
+            e.Handled = true;
+            _vm?.RemoveMissingPlaylistEntriesCommand.Execute(plsPath);
+        };
+        parent.Items.Add(removeMissing);
+
         // Delete playlist
         var delete = new MenuItem { Header = "Delete playlist…", Tag = plsPath };
         delete.Click += (_, e) =>
@@ -942,16 +974,16 @@ public partial class MainWindow : Window
             if (populated) return;
             populated = true;
 
-            List<string> entries;
+            List<PlaylistEntry> entries;
             try
             {
                 entries = _vm != null
-                    ? _vm.ReadPlaylistEntriesForMenu(plsPath)
-                    : new List<string>();
+                    ? _vm.ClassifyPlaylistEntriesForMenu(plsPath)
+                    : new List<PlaylistEntry>();
             }
             catch
             {
-                entries = new List<string>();
+                entries = new List<PlaylistEntry>();
             }
 
             parent.Items.Remove(placeholder);
@@ -963,42 +995,59 @@ public partial class MainWindow : Window
             }
 
             int position = 1;
-            foreach (var videoPath in entries)
-                parent.Items.Add(BuildPlaylistEntryItem(plsPath, position++, videoPath));
+            foreach (var entry in entries)
+                parent.Items.Add(BuildPlaylistEntryItem(plsPath, position++, entry));
         };
 
         return parent;
     }
 
     /// <summary>
-    /// Builds a single video-entry MenuItem for a playlist's submenu.
-    /// Header shows the entry's 1-based position and the video's filename;
-    /// tooltip is the full path. Clicking the parent opens the video in
-    /// MPC-HC; a "Remove entry" sub-item removes it from the .pls file.
+    /// Builds a single video-entry MenuItem for a playlist's submenu. The
+    /// header shows the entry's 1-based position, the video's filename, and —
+    /// when the file is not simply there — which of the two possible reasons
+    /// applies. Clicking a present entry opens it in MPC-HC; a "Remove"
+    /// sub-item takes it out of the .pls file.
     /// </summary>
-    private MenuItem BuildPlaylistEntryItem(string plsPath, int index, string videoPath)
+    private MenuItem BuildPlaylistEntryItem(string plsPath, int index, PlaylistEntry entry)
     {
-        var fileName = System.IO.Path.GetFileName(videoPath);
-        var fileExists = System.IO.File.Exists(videoPath);
-        // A missing entry gets a "Remove" sub-item only — there is nothing to
-        // open, and offering it just produces an error dialog.
-        var header = fileExists
-            ? $"{index}.  {fileName}"
-            : $"{index}.  {fileName}  (missing)";
+        var videoPath = entry.Path;
+        // Underscores doubled for the same AccessText reason as the playlist
+        // header above; video filenames carry them far more often than
+        // playlist names do.
+        var fileName = System.IO.Path.GetFileName(videoPath).Replace("_", "__");
+        var fileExists = entry.Status == PlaylistEntryStatus.Present;
+
+        // Three states, three labels. "(missing)" is now reserved for a file
+        // whose drive is connected and which genuinely is not there. A file
+        // behind a detached drive is labelled for what is actually known —
+        // that the drive is away — rather than given a verdict the app is in
+        // no position to reach.
+        var (suffix, colour) = entry.Status switch
+        {
+            PlaylistEntryStatus.Present => (string.Empty, Brushes.Black),
+            PlaylistEntryStatus.Missing => ("  (missing)", Brushes.Salmon),
+            _                           => ("  (drive offline)", Brushes.DarkOrange)
+        };
+
         var parent = new MenuItem
         {
-            Header = header,
-            ToolTip = videoPath,
+            Header = $"{index}.  {fileName}{suffix}",
+            ToolTip = entry.Status == PlaylistEntryStatus.Unknown
+                ? $"{videoPath}\n\n{DriveAvailability.RootOf(videoPath)} is not connected — " +
+                  "whether this file still exists is unknown."
+                : videoPath,
             Tag = videoPath,
             // NOTE: do NOT use `null` here — assigning null to a dependency
             // property becomes an explicit local value that overrides the
             // implicit MenuItem style's Foreground=Black, making the header
-            // text invisible. Use an explicit Brushes.Black so existing-file
-            // entries render the same as every other menu item, while missing
-            // files keep the Salmon warning color.
-            Foreground = fileExists ? Brushes.Black : Brushes.Salmon
+            // text invisible. Use an explicit brush so present entries render
+            // the same as every other menu item, while the other two states
+            // keep their warning colour.
+            Foreground = colour
         };
-        // Clicking a missing entry must not try to play it.
+        // Only a file that is actually there can be opened; the other two
+        // states would produce nothing but an error dialog.
         if (fileExists)
             parent.Click += (_, _) => _vm?.OpenPlaylistEntryCommand.Execute(videoPath);
 
@@ -1020,6 +1069,10 @@ public partial class MainWindow : Window
             parent.Items.Add(open);
         }
 
+        // Removal by hand stays available whatever the status, including for an
+        // entry that cannot currently be verified — that is the user's call to
+        // make. What changed is that the bulk action no longer makes it for
+        // them on the strength of a disconnected drive.
         var remove = new MenuItem { Header = "Remove", Tag = (plsPath, index) };
         remove.Click += (_, e) =>
         {

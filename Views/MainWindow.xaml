@@ -217,9 +217,11 @@
                           ToolTip="Forget the currently-loaded playlist — Add-to-playlist will prompt again"/>
                 <Separator x:Name="PlaylistStartSeparator" Visibility="Collapsed"/>
                 <!-- Dynamic per-playlist entries inserted here at runtime
-                     by MainWindow.xaml.cs. Each playlist expands to show
-                     its video entries (numbered 1, 2, 3, …) plus actions:
-                     Open playlist file / Load this playlist / Add current video / Delete playlist.
+                     by MainWindow.xaml.cs. Each playlist is headed by its
+                     name and the number of entries it lists — "clips.pls (50)"
+                     — and expands to show those entries (numbered 1, 2, 3, …)
+                     plus actions: View playlist content / Load this playlist /
+                     Add current video / Remove missing entries / Delete playlist.
                      PlaylistEndSeparator doubles as the divider before
                      "New playlist…" — no extra static separator needed. -->
                 <MenuItem Header="(no playlist folder set)" IsEnabled="False" x:Name="PlaylistEmptyPlaceholder"/>
@@ -608,6 +610,42 @@
                         <StackPanel Visibility="{Binding HasEditLength, Converter={StaticResource BoolToVis}}">
                             <TextBlock Text="EDIT LENGTH" FontSize="11" FontWeight="SemiBold" Foreground="#888"/>
                             <TextBlock Text="{Binding Session.SelectedDurationDisplay}" FontSize="20" FontWeight="SemiBold" Foreground="#DCDCAA" Margin="0,2,0,18"/>
+                        </StackPanel>
+
+                        <!-- First and last frame of the highlighted clip. Only the
+                             selected one is rendered: two frames per selection is
+                             free, two per bookmark across a long list is hundreds
+                             of ffmpeg launches for pictures nobody looks at. The
+                             frames appear a moment after the labels, which is why
+                             the placeholders below carry a background. -->
+                        <StackPanel Visibility="{Binding HasClipPreview, Converter={StaticResource BoolToVis}}">
+                            <Border BorderBrush="#3F3F46" BorderThickness="0,1,0,0" Margin="0,4,0,12"/>
+                            <TextBlock Text="SELECTED CLIP" FontSize="11" FontWeight="SemiBold" Foreground="#888" Margin="0,0,0,6"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <Border Background="#1B1B1C" CornerRadius="3" Height="76">
+                                        <Image Source="{Binding ClipInThumbnail}" Stretch="Uniform"/>
+                                    </Border>
+                                    <TextBlock Text="IN" FontSize="10" FontWeight="SemiBold" Foreground="#4EC9B0"
+                                               HorizontalAlignment="Center" Margin="0,3,0,0"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2">
+                                    <Border Background="#1B1B1C" CornerRadius="3" Height="76">
+                                        <Image Source="{Binding ClipOutThumbnail}" Stretch="Uniform"/>
+                                    </Border>
+                                    <TextBlock Text="OUT" FontSize="10" FontWeight="SemiBold" Foreground="#DCDCAA"
+                                               HorizontalAlignment="Center" Margin="0,3,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Foreground="#777" FontSize="11" Margin="0,6,0,16" TextWrapping="Wrap"
+                                       Text="{Binding SelectedBookmark.EffectiveDurationDisplay, StringFormat=Saved clip will run {0}}"/>
                         </StackPanel>
 
                         <Border BorderBrush="#3F3F46" BorderThickness="0,1,0,0" Margin="0,4,0,12"/>

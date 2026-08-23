@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
+using MpcHcVideoEditor.Helpers;
 
 namespace MpcHcVideoEditor.Services;
 
@@ -432,6 +433,45 @@ public class MpcHcService
     }
 
     /// <summary>
+    /// Reads the Web Interface settings out of the player's own configuration,
+    /// or returns <c>null</c> when they cannot be found.
+    /// </summary>
+    /// <remarks>
+    /// Lives here because locating the player is already this service's job,
+    /// and a portable install's settings sit beside its executable.
+    /// </remarks>
+    public static MpcHcWebConfig? DetectWebInterface()
+        => MpcHcConfig.Detect(FindMpcExecutable());
+
+    /// <summary>
+    /// The Web Interface configuration read at the last call to
+    /// <see cref="DetectWebInterface"/> that the app acted on, so a failure
+    /// message can say what the player is actually set to rather than guessing.
+    /// </summary>
+    public MpcHcWebConfig? LastDetectedWebConfig { get; set; }
+
+    /// <summary>
+    /// One line describing what the player's own settings say, for the Settings
+    /// dialog.
+    /// </summary>
+    /// <remarks>
+    /// Gives the Web Interface being switched off the same prominence as the
+    /// port. A wrong port is the problem people expect; an interface that was
+    /// never turned on is the one they actually have.
+    /// </remarks>
+    public static string DescribeWebInterface()
+    {
+        var config = DetectWebInterface();
+        if (config is null)
+            return "MPC-HC's settings could not be read — the port below will be used.";
+
+        return config.Enabled
+            ? $"MPC-HC is serving on port {config.Port} (read from {config.Source})."
+            : $"MPC-HC's Web Interface is turned OFF. Its port is set to {config.Port}, but nothing " +
+              "will answer until \"Listen on port\" is ticked in Options → Player → Web Interface.";
+    }
+
+    /// <summary>
     /// Looks in the common install locations for MPC-HC or MPC-BE.
     /// Returns the first executable found, or <c>null</c> if none match.
     /// </summary>
@@ -565,10 +605,26 @@ public class MpcHcService
         var (_, duration) = GetPlaybackPosition();
         if (duration <= 0)
         {
-            LastSeekFailureReason = "Couldn't reach MPC-HC's Web Interface, and couldn't read " +
-                "position/duration from its status bar either. Easiest fix: in MPC-HC, go to " +
-                $"Options → Player → Web Interface, check \"Listen on port\" (this app expects {WebInterfacePort}), " +
-                "click Apply, then try again.";
+            // The player's own settings usually say exactly what is wrong, so
+            // read them rather than repeating generic advice at someone whose
+            // port was never the problem.
+            var config = LastDetectedWebConfig ?? DetectWebInterface();
+            LastSeekFailureReason =
+                "Couldn't reach MPC-HC's Web Interface, and couldn't read position/duration " +
+                "from its status bar either. " +
+                (config is null
+                    ? "MPC-HC's settings couldn't be read, so check Options → Player → Web Interface: " +
+                      $"tick \"Listen on port\" and set it to {WebInterfacePort}, then click Apply."
+                    : !config.Enabled
+                        ? "MPC-HC's own settings say the Web Interface is turned off — that is the " +
+                          "problem, not the port. Tick \"Listen on port\" in Options → Player → " +
+                          "Web Interface, click Apply, then try again."
+                        : config.Port != WebInterfacePort
+                            ? $"MPC-HC is set to port {config.Port} but this app is using " +
+                              $"{WebInterfacePort}. Turn on automatic detection in Settings → Player, " +
+                              "or set the port to match."
+                            : $"MPC-HC is set to serve on port {config.Port}, which matches. It may " +
+                              "still be starting up, or something is blocking the connection.");
             return false;
         }
 

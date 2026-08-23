@@ -7,6 +7,7 @@ using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
@@ -20,6 +21,7 @@ namespace MpcHcVideoEditor.ViewModels;
 public partial class MainViewModel : ObservableObject, IDisposable
 {
     private readonly FFmpegService _ffmpeg;
+    private readonly ThumbnailService _thumbnails;
     private readonly MpcHcService _mpc;
     private readonly BookmarkService _bookmarks;
     private readonly SettingsService _settings;
@@ -66,6 +68,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private double _progressPercent;
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private Bookmark? _selectedBookmark;
+
+    /// <summary>First frame of the selected clip, or null while it is being made.</summary>
+    [ObservableProperty] private BitmapSource? _clipInThumbnail;
+
+    /// <summary>Last frame of the selected clip, or null while it is being made.</summary>
+    [ObservableProperty] private BitmapSource? _clipOutThumbnail;
+
+    /// <summary>
+    /// Whether the preview pane has anything to show. Kept separate from the
+    /// two images so the pane can appear the moment a clip is selected rather
+    /// than popping in once the frames finish rendering.
+    /// </summary>
+    [ObservableProperty] private bool _hasClipPreview;
     [ObservableProperty] private bool _isMpcRunning;
     [ObservableProperty] private string _currentTimeDisplay = "00:00";
     [ObservableProperty] private string _durationDisplay = "00:00";
@@ -713,6 +728,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _settings = new SettingsService();
 
         _ffmpeg = new FFmpegService(_settings.Current.FfmpegFolder);
+        _thumbnails = new ThumbnailService(_ffmpeg);
         _mpc = new MpcHcService();
         _bookmarks = new BookmarkService();
         _playlists = new PlaylistService();
@@ -811,8 +827,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </remarks>
     private void ApplyServiceSettings()
     {
-        _mpc.WebInterfacePort = _settings.Current.MpcWebInterfacePort;
+        _mpc.WebInterfacePort = ResolveWebInterfacePort();
+        // Encoder and quality flags travel together — the flags are only valid
+        // for the encoder they were built for.
+        _ffmpeg.Encoder = _settings.Current.VideoEncoder;
         _ffmpeg.QualityArgs = _settings.GetQualityArgs();
+        _ffmpeg.PreciseCuts = _settings.Current.PreciseCuts;
 
         _toast.Enabled = _settings.Current.ToastsEnabled;
         _toast.HoldDuration = TimeSpan.FromSeconds(_settings.Current.ToastSeconds);
@@ -823,6 +843,123 @@ public partial class MainViewModel : ObservableObject, IDisposable
         RecycleBin.SendToBin = _settings.Current.DeleteToRecycleBin;
 
         _pollTimer.Interval = _settings.GetPollInterval();
+    }
+
+    /// <summary>
+    /// The port to talk to MPC-HC on: taken from the player's own settings when
+    /// automatic detection is on, and from the manual setting otherwise.
+    /// </summary>
+    /// <remarks>
+    /// Detection failing is not an error. An unusual install simply falls back
+    /// to the manual value, which is exactly where this feature started, so
+    /// nobody ends up worse off than before it existed.
+    /// </remarks>
+    private int ResolveWebInterfacePort()
+    {
+        var manual = _settings.Current.MpcWebInterfacePort;
+        if (!_settings.Current.AutoDetectMpcWebInterface)
+        {
+            _mpc.LastDetectedWebConfig = null;
+            return manual;
+        }
+
+        var detected = MpcHcService.DetectWebInterface();
+        _mpc.LastDetectedWebConfig = detected;
+        return detected?.Port ?? manual;
+    }
+
+    // ------------------------------------------------------------------
+    // Selected-clip preview
+    // ------------------------------------------------------------------
+
+    /// <summary>Cancels the in-flight preview render when the selection moves on.</summary>
+    private CancellationTokenSource? _previewCts;
+
+    /// <summary>The bookmark the preview is currently listening to.</summary>
+    private Bookmark? _previewSource;
+
+    /// <summary>
+    /// Re-renders the preview when a different clip is selected, and follows
+    /// that clip's ends while it stays selected.
+    /// </summary>
+    partial void OnSelectedBookmarkChanged(Bookmark? value)
+    {
+        if (_previewSource is not null)
+            _previewSource.PropertyChanged -= PreviewSource_PropertyChanged;
+
+        _previewSource = value;
+
+        if (_previewSource is not null)
+            _previewSource.PropertyChanged += PreviewSource_PropertyChanged;
+
+        RefreshClipPreview();
+    }
+
+    private void PreviewSource_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        // Only the two ends move the frames. Ticking the row's checkbox or
+        // dragging its speed slider changes neither.
+        if (e.PropertyName is nameof(Bookmark.StartSeconds) or nameof(Bookmark.EndSeconds))
+            RefreshClipPreview();
+    }
+
+    /// <summary>
+    /// Renders the selected clip's first and last frame into the side panel.
+    /// </summary>
+    /// <remarks>
+    /// Every call cancels the one before it. Arrowing down a list fires this
+    /// once per row, and without cancellation the panel would end up showing
+    /// whichever ffmpeg happened to finish last rather than the clip that is
+    /// actually selected.
+    /// </remarks>
+    private void RefreshClipPreview()
+    {
+        _previewCts?.Cancel();
+        _previewCts?.Dispose();
+        _previewCts = null;
+
+        var bookmark = SelectedBookmark;
+        var video = Session.VideoPath;
+
+        if (bookmark is null || !bookmark.IsValid || string.IsNullOrWhiteSpace(video))
+        {
+            HasClipPreview = false;
+            ClipInThumbnail = null;
+            ClipOutThumbnail = null;
+            return;
+        }
+
+        // The pane appears immediately and fills in, rather than popping into
+        // existence a few hundred milliseconds later.
+        HasClipPreview = true;
+        ClipInThumbnail = null;
+        ClipOutThumbnail = null;
+
+        var cts = new CancellationTokenSource();
+        _previewCts = cts;
+        _ = RenderClipPreviewAsync(video, bookmark.StartSeconds, bookmark.EndSeconds, cts.Token);
+    }
+
+    private async Task RenderClipPreviewAsync(string video, double start, double end, CancellationToken ct)
+    {
+        try
+        {
+            var first = await _thumbnails.GetAsync(video, start, ct);
+            if (ct.IsCancellationRequested) return;
+            ClipInThumbnail = first;
+
+            // A shade before the end rather than exactly on it: asking for the
+            // end timestamp can land one frame past the last one and come back
+            // with nothing at all.
+            var lastAt = Math.Max(start, end - 0.1);
+            var last = await _thumbnails.GetAsync(video, lastAt, ct);
+            if (ct.IsCancellationRequested) return;
+            ClipOutThumbnail = last;
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer selection; nothing to report.
+        }
     }
 
     // ------------------------------------------------------------------
@@ -3516,17 +3653,39 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public event Action? PlaylistsChanged;
 
     /// <summary>
-    /// Reads the video file paths from a .pls playlist, in order.
-    /// Exposed so MainWindow.xaml.cs can build the Playlist menu's
+    /// Reads a .pls playlist's entries in order, each paired with whether its
+    /// file is present, confirmed gone, or unreachable because its drive is
+    /// detached. Exposed so MainWindow.xaml.cs can build the Playlist menu's
     /// per-entry sub-items without taking a direct dependency on
     /// <see cref="PlaylistService"/>.
     /// </summary>
-    public List<string> ReadPlaylistEntriesForMenu(string plsPath)
+    public List<PlaylistEntry> ClassifyPlaylistEntriesForMenu(string plsPath)
     {
-        var result = new List<string>();
-        _stalls.Time($"ReadPlaylistEntries({Path.GetFileName(plsPath)})",
-            () => result = _playlists.ReadEntries(plsPath));
+        var result = new List<PlaylistEntry>();
+        _stalls.Time($"ClassifyPlaylistEntries({Path.GetFileName(plsPath)})",
+            () => result = _playlists.ClassifyEntries(plsPath));
         return result;
+    }
+
+    /// <summary>
+    /// Counts the entries listed in a .pls, for the count shown beside the
+    /// playlist's name in the Playlist menu.
+    /// </summary>
+    /// <remarks>
+    /// This is the number of entries the playlist <em>lists</em>, not the
+    /// number whose files still exist. The distinction is deliberate: reading
+    /// the .pls is one small local file per playlist, while confirming each
+    /// video is a stat per entry against whatever drive it lives on — the
+    /// per-video cost that keeps the submenu below lazy. A count that made the
+    /// menu wait on a spun-down drive would be a bad trade for a number in a
+    /// header.
+    /// </remarks>
+    public int CountPlaylistEntriesForMenu(string plsPath)
+    {
+        int count = 0;
+        _stalls.Time($"CountPlaylistEntries({Path.GetFileName(plsPath)})",
+            () => count = _playlists.ReadEntries(plsPath).Count);
+        return count;
     }
 
     /// <summary>
@@ -3552,20 +3711,30 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         if (!File.Exists(path))
         {
-            var result = MessageBox.Show(
-                $"This video file no longer exists:\n\n{path}\n\n" +
-                "Remove the dead entry from its playlist?",
-                "File not found",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
-            if (result != MessageBoxResult.Yes) return;
+            // "Not found" covers two different facts. Announcing that a file
+            // no longer exists when its drive is merely unplugged is a claim
+            // the application cannot support — and one that talks the user
+            // into discarding a perfectly good entry.
+            var root = DriveAvailability.RootOf(path);
+            if (!new DriveAvailability().IsAvailable(root))
+            {
+                MessageBox.Show(
+                    $"{root} is not connected, so this file cannot be reached:\n\n{path}\n\n" +
+                    "Whether it still exists is unknown. Reconnect the drive and try again.",
+                    "Drive not connected", MessageBoxButton.OK, MessageBoxImage.Information);
+                StatusText = $"{root} is not connected — this entry cannot be checked.";
+                return;
+            }
 
-            // The caller (MainWindow.xaml.cs) passes the plsPath + index
-            // via the Tag, but since this command only takes the path,
-            // we can't remove it from here. The code-behind's click
-            // handler is responsible for offering removal — this branch
-            // is a fallback that just informs the user.
-            StatusText = "File not found — use 'Remove entry' on the playlist menu item.";
+            // This was a Yes/No prompt offering removal, which the command has
+            // no way to carry out: it receives a path, not a playlist and an
+            // index. Both answers arrived here anyway, so it now states what
+            // is true and points at the item that can actually act.
+            MessageBox.Show(
+                "This video file is gone — its drive is connected and the file is not " +
+                $"there:\n\n{path}",
+                "File not found", MessageBoxButton.OK, MessageBoxImage.Warning);
+            StatusText = "File is gone — use 'Remove' on the playlist menu item.";
             return;
         }
 
@@ -3611,6 +3780,94 @@ public partial class MainViewModel : ObservableObject, IDisposable
             StatusText = "Could not remove entry — it may already be gone.";
         }
     }
+
+    /// <summary>
+    /// Removes every entry in a playlist whose video file cannot be found,
+    /// then raises <see cref="PlaylistsChanged"/> so the menu — and the entry
+    /// count beside the playlist's name — rebuilds.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Runs immediately, with no confirmation — the same as the per-entry
+    /// Remove beside it, which has never asked either. The status bar reports
+    /// what happened afterwards.
+    /// </para>
+    /// <para>
+    /// What keeps that safe is not a dialog but
+    /// <see cref="PlaylistService.RemoveMissingEntries"/>, which will not touch
+    /// an entry whose drive is disconnected however it is called. A playlist
+    /// pointing at an external disk therefore survives this action intact while
+    /// that disk is away, rather than relying on the user reading a warning in
+    /// time. Only files confirmed gone — drive present, file absent — are
+    /// removed.
+    /// </para>
+    /// </remarks>
+    [RelayCommand]
+    private void RemoveMissingPlaylistEntries(string? plsPath)
+    {
+        if (string.IsNullOrWhiteSpace(plsPath))
+        {
+            StatusText = "No playlist selected.";
+            return;
+        }
+        if (!File.Exists(plsPath))
+        {
+            StatusText = "Playlist file not found.";
+            PlaylistsChanged?.Invoke();
+            return;
+        }
+
+        var name = Path.GetFileName(plsPath);
+
+        // One pass. There is no prompt to go stale between deciding and
+        // acting, so the classification the service makes as it writes is the
+        // only one anybody needs.
+        var result = default(PlaylistCleanup);
+        _stalls.Time($"RemoveMissingEntries({name})",
+            () => result = _playlists.RemoveMissingEntries(plsPath));
+
+        var removed = result.Removed.Count;
+        var skipped = result.Unverifiable.Count;
+
+        // Entries left behind because their drive is away are always named.
+        // Reporting "removed 3" while silently passing over another forty
+        // would leave the user with a false picture of the playlist.
+        var aside = skipped == 0
+            ? string.Empty
+            : $" — {skipped} left alone, {JoinRoots(RootsOf(result.Unverifiable))} not connected";
+
+        StatusText = removed > 0
+            ? $"Removed {removed} {Entries(removed)} from {name}{aside}"
+            : skipped > 0
+                ? $"{name}: nothing confirmed gone{aside}"
+                : $"{name}: every entry's file is present.";
+
+        PlaylistsChanged?.Invoke();
+    }
+
+    /// <summary>"entry" or "entries", so the prompt and status line read.</summary>
+    private static string Entries(int count) => count == 1 ? "entry" : "entries";
+
+    /// <summary>The distinct drives a set of paths lives on, in order.</summary>
+    private static List<string> RootsOf(IEnumerable<string> paths)
+        => paths
+            .Select(DriveAvailability.RootOf)
+            .Where(r => !string.IsNullOrEmpty(r))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(r => r, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+    /// <summary>
+    /// Names drives for a sentence — <c>"H:\"</c>, <c>"H:\ and I:\"</c>,
+    /// <c>"F:\, H:\ and I:\"</c> — so the status line can say which
+    /// disconnected volume is responsible instead of gesturing at "some drive".
+    /// </summary>
+    private static string JoinRoots(List<string> roots) => roots.Count switch
+    {
+        0 => "their location",
+        1 => roots[0],
+        _ => string.Join(", ", roots.Take(roots.Count - 1)) + " and " + roots[^1]
+    };
 
     /// <summary>
     /// Deletes an entire .pls playlist file from disk after confirming
@@ -4347,7 +4604,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void OpenSettings()
     {
-        var dlg = new SettingsDialog(_settings.Current, AutoSwitchViews)
+        var dlg = new SettingsDialog(_settings.Current, AutoSwitchViews, _ffmpeg)
         {
             Owner = Application.Current?.MainWindow
         };
@@ -4361,9 +4618,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         s.DeleteBookmarksFile = dlg.DeleteBookmarksFile;
         s.DeleteToRecycleBin = dlg.DeleteToRecycleBin;
         s.Quality = dlg.Quality;
+        s.VideoEncoder = dlg.VideoEncoder;
+        s.PreciseCuts = dlg.PreciseCuts;
         s.OnNameCollision = dlg.OnNameCollision;
         s.PollSpeed = dlg.PollSpeed;
         s.MpcWebInterfacePort = dlg.MpcWebInterfacePort;
+        s.AutoDetectMpcWebInterface = dlg.AutoDetectMpcWebInterface;
         s.FfmpegFolder = dlg.FfmpegFolder;
         s.ToastsEnabled = dlg.ToastsEnabled;
         s.ToastSeconds = dlg.ToastSeconds;

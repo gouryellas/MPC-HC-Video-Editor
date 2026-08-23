@@ -42,8 +42,17 @@ public static class VideoFormats
     /// </summary>
     public const string QualityToken = "{quality}";
 
+    /// <summary>
+    /// Placeholder replaced with the H.264 encoder chosen in Settings — x264 on
+    /// the CPU, or one of the GPU encoders. Only the H.264 formats carry it;
+    /// the legacy containers name their own codecs outright, because there is
+    /// nothing to choose.
+    /// </summary>
+    public const string VideoCodecToken = "{vcodec}";
+
     private const string H264 =
-        "-c:v libx264 " + QualityToken + " -pix_fmt yuv420p -c:a aac -b:a 192k -ar 48000 -ac 2";
+        "-c:v " + VideoCodecToken + " " + QualityToken +
+        " -pix_fmt yuv420p -c:a aac -b:a 192k -ar 48000 -ac 2";
 
     /// <summary>Offered formats, in the order the settings dialog lists them.</summary>
     /// <remarks>
@@ -104,6 +113,20 @@ public static class VideoFormats
     /// own tuned arguments rather than being handed a translated x264 setting,
     /// which would be a guess dressed up as a preference.
     /// </remarks>
-    public static string ApplyQuality(Format format, string qualityArgs) =>
-        format.EncodeArgs.Replace(QualityToken, qualityArgs);
+    /// <summary>
+    /// Substitutes both the encoder and its quality flags into a format's
+    /// arguments. Formats that name their own codec are returned unchanged
+    /// apart from the quality token, since neither placeholder appears.
+    /// </summary>
+    public static string ApplyEncoder(Format format, string videoCodec, string qualityArgs) =>
+        format.EncodeArgs
+            .Replace(VideoCodecToken, videoCodec)
+            .Replace(QualityToken, qualityArgs);
+
+    /// <summary>
+    /// True when the format's video codec is the one Settings can change —
+    /// i.e. an H.264 container, where a GPU encoder is an option.
+    /// </summary>
+    public static bool UsesConfigurableEncoder(Format format) =>
+        format.EncodeArgs.Contains(VideoCodecToken, StringComparison.Ordinal);
 }

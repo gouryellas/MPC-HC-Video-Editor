@@ -53,6 +53,39 @@ public class FFmpegService
     public string QualityArgs { get; set; } = "-preset faster -crf 20";
 
     /// <summary>
+    /// Which H.264 encoder the re-encode paths use.
+    /// </summary>
+    /// <remarks>
+    /// Paired with <see cref="QualityArgs"/>, which must already match it — the
+    /// two are set together from Settings, because a CRF handed to NVENC is not
+    /// merely suboptimal, it is rejected.
+    /// </remarks>
+    public VideoEncoder Encoder { get; set; } = VideoEncoder.Software;
+
+    /// <summary>The ffmpeg encoder name for <see cref="Encoder"/>.</summary>
+    private string VideoCodec => VideoEncoders.CodecFor(Encoder);
+
+    /// <summary>
+    /// Cut exactly where asked, at the cost of re-encoding.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A stream-copied cut cannot start anywhere but a keyframe. ffmpeg is
+    /// given the requested time, copies from the keyframe at or before it, and
+    /// the clip therefore opens early — by a frame or two on a densely-keyed
+    /// file, by several seconds on a sparsely-keyed one. Nothing about the
+    /// output says this happened.
+    /// </para>
+    /// <para>
+    /// Setting this decodes and re-encodes the segment so the first frame is
+    /// the one asked for. It costs encode time and a generation of quality on
+    /// every cut, including the ones that would otherwise have been a lossless
+    /// copy — which is why it is off by default rather than simply better.
+    /// </para>
+    /// </remarks>
+    public bool PreciseCuts { get; set; }
+
+    /// <summary>
     /// Every ffmpeg this service has started and not yet seen exit.
     /// </summary>
     /// <remarks>
@@ -187,6 +220,74 @@ public class FFmpegService
 
     public bool IsAvailable => File.Exists(_ffmpegPath) || !string.IsNullOrEmpty(Which("ffmpeg"));
 
+    /// <summary>Results of <see cref="CanEncodeAsync"/>, which never change within a run.</summary>
+    private readonly Dictionary<VideoEncoder, bool> _encoderProbes = new();
+
+    /// <summary>
+    /// Whether this machine can actually encode with the given encoder.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Asking ffmpeg for its encoder list proves nothing: the GPU encoders are
+    /// compiled in unconditionally, so <c>h264_nvenc</c> is listed on a machine
+    /// with no NVIDIA card in it at all. The failure only appears when one is
+    /// opened, and by then it is in the middle of a job the user asked for.
+    /// </para>
+    /// <para>
+    /// So this encodes a fraction of a second of generated video to the null
+    /// muxer and reports whether ffmpeg got through it. That costs a second or
+    /// so the first time and is cached thereafter — hardware does not appear
+    /// or vanish mid-session.
+    /// </para>
+    /// </remarks>
+    public async Task<bool> CanEncodeAsync(VideoEncoder encoder, CancellationToken ct = default)
+    {
+        // x264 ships inside the binary; if ffmpeg runs at all, it works.
+        if (encoder == VideoEncoder.Software) return true;
+
+        lock (_encoderProbes)
+            if (_encoderProbes.TryGetValue(encoder, out var cached)) return cached;
+
+        var codec = VideoEncoders.CodecFor(encoder);
+        var args = "-hide_banner -loglevel error -f lavfi " +
+                   "-i testsrc=size=320x240:rate=25:duration=0.2 " +
+                   $"-c:v {codec} {VideoEncoders.QualityArgsFor(encoder, EncodingQuality.Fast)} -f null -";
+
+        bool ok;
+        try
+        {
+            var psi = new ProcessStartInfo(_ffmpegPath, args)
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var p = Process.Start(psi);
+            if (p == null) return false;
+
+            // Drain both pipes so a full buffer cannot deadlock the wait.
+            var outTask = p.StandardOutput.ReadToEndAsync(ct);
+            var errTask = p.StandardError.ReadToEndAsync(ct);
+            await Task.WhenAll(outTask, errTask);
+
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(20));
+            await p.WaitForExitAsync(timeout.Token);
+
+            ok = p.ExitCode == 0;
+        }
+        catch
+        {
+            // A probe that cannot even be run is a "no", not a crash.
+            ok = false;
+        }
+
+        lock (_encoderProbes) _encoderProbes[encoder] = ok;
+        return ok;
+    }
+
     private static string? Which(string cmd)
     {
         try
@@ -226,7 +327,7 @@ public class FFmpegService
         outputPath ??= Path.ChangeExtension(inputPath, format.Extension);
 
         var args = $"-hide_banner -y -fflags +igndts -i \"{inputPath}\" " +
-                   $"{VideoFormats.ApplyQuality(format, QualityArgs)} \"{outputPath}\"";
+                   $"{VideoFormats.ApplyEncoder(format, VideoCodec, QualityArgs)} \"{outputPath}\"";
 
         // Probe first so the progress bar has something to divide by.
         await RunAsync(args, progress, ct, await GetDurationAsync(inputPath));
@@ -318,7 +419,7 @@ public class FFmpegService
             // than per segment.
             var outputArgs = format.CanCopyH264
                 ? "-c copy"
-                : VideoFormats.ApplyQuality(format, QualityArgs);
+                : VideoFormats.ApplyEncoder(format, VideoCodec, QualityArgs);
 
             var concatArgs = $"-hide_banner -y -f concat -safe 0 -i \"{concatList}\" " +
                              $"{outputArgs} \"{outputPath}\"";
@@ -338,7 +439,10 @@ public class FFmpegService
 
         var vf = new List<string>();
         var af = new List<string>();
-        bool reencode = false;
+
+        // A stream copy can only begin at a keyframe, so an exact cut has to be
+        // re-encoded whether or not any filter asked for it.
+        bool reencode = PreciseCuts;
 
         if (b.IsFlipped)
         {
@@ -371,7 +475,7 @@ public class FFmpegService
             // Segments stay H.264/AAC whatever the final container is — the
             // concat step converts once at the end if it has to, which is
             // cheaper than encoding every segment into the target codec.
-            sb.Append($"-c:v libx264 {QualityArgs} -pix_fmt yuv420p ");
+            sb.Append($"-c:v {VideoCodec} {QualityArgs} -pix_fmt yuv420p ");
             sb.Append("-c:a aac -b:a 192k -ar 48000 -ac 2 ");
         }
         else
@@ -412,9 +516,14 @@ public class FFmpegService
                 });
 
                 var seg = Path.Combine(tempDir, $"s{i:D3}.mp4");
+                // Deliberately the Fast profile whatever Settings says: these
+                // are throwaway intermediates that the concat step copies, so
+                // effort spent here buys nothing. Routed through the chosen
+                // encoder all the same, since x264's presets mean nothing to a
+                // GPU encoder.
                 var args = $"-hide_banner -y -i \"{files[i]}\" " +
-                           $"-c:v libx264 -preset veryfast -pix_fmt yuv420p " +
-                           $"-c:a aac -ar 48000 -ac 2 \"{seg}\"";
+                           $"-c:v {VideoCodec} {VideoEncoders.QualityArgsFor(Encoder, EncodingQuality.Fast)} " +
+                           $"-pix_fmt yuv420p -c:a aac -ar 48000 -ac 2 \"{seg}\"";
                 await RunAsync(args, null, ct);
                 segments.Add(seg);
             }
@@ -548,6 +657,69 @@ public class FFmpegService
         finally
         {
             lock (_running) _running.Remove(process);
+        }
+    }
+
+    /// <summary>
+    /// Grabs a single frame at <paramref name="seconds"/> as PNG bytes, scaled
+    /// to <paramref name="height"/> pixels tall. Returns <c>null</c> if the
+    /// frame could not be read.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Piped out of ffmpeg's stdout rather than written to a file: a thumbnail
+    /// is a throwaway, and a portable app that scatters temp images beside
+    /// itself — or leaves them behind when it is killed — is worse than one
+    /// that keeps them in memory for as long as they are on screen.
+    /// </para>
+    /// <para>
+    /// <c>-ss</c> before <c>-i</c> so ffmpeg seeks rather than decoding from
+    /// the start; because the frame is then re-encoded to PNG it still lands on
+    /// the exact timestamp, unlike a stream copy.
+    /// </para>
+    /// </remarks>
+    public async Task<byte[]?> ExtractFrameAsync(
+        string videoPath, double seconds, int height = 76, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(videoPath) || !File.Exists(videoPath)) return null;
+        if (seconds < 0) seconds = 0;
+
+        var timestamp = seconds.ToString("0.###", CultureInfo.InvariantCulture);
+        var args = $"-hide_banner -loglevel error -ss {timestamp} -i \"{videoPath}\" " +
+                   $"-frames:v 1 -vf scale=-2:{height} -f image2pipe -c:v png -";
+
+        try
+        {
+            var psi = new ProcessStartInfo(_ffmpegPath, args)
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(psi);
+            if (process == null) return null;
+
+            using var buffer = new MemoryStream();
+            // Both pipes drained together — leaving stderr unread deadlocks the
+            // moment ffmpeg says anything longer than the pipe buffer.
+            var copy = process.StandardOutput.BaseStream.CopyToAsync(buffer, ct);
+            var errors = process.StandardError.ReadToEndAsync(ct);
+            await Task.WhenAll(copy, errors).ConfigureAwait(false);
+
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(20));
+            await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+
+            if (process.ExitCode != 0 || buffer.Length == 0) return null;
+            return buffer.ToArray();
+        }
+        catch
+        {
+            // A thumbnail is a nicety. Failing to make one must never surface
+            // as an error, let alone interrupt an edit.
+            return null;
         }
     }
 

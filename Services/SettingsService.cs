@@ -146,6 +146,25 @@ public class AppSettings
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public EncodingQuality Quality { get; set; } = EncodingQuality.Balanced;
 
+    /// <summary>
+    /// Which H.264 encoder to use where video is re-encoded.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to software. A GPU encoder is several times faster but larger
+    /// at a given quality, and it is not available on every machine — so it is
+    /// something the user turns on having tested it, not something assumed.
+    /// </remarks>
+    public VideoEncoder VideoEncoder { get; set; } = VideoEncoder.Software;
+
+    /// <summary>
+    /// Cut exactly on the requested frame, re-encoding to do it.
+    /// </summary>
+    /// <remarks>
+    /// Off by default because the fast path is lossless. See
+    /// <see cref="FFmpegService.PreciseCuts"/> for what the trade actually is.
+    /// </remarks>
+    public bool PreciseCuts { get; set; }
+
     /// <summary>Default answer when an output filename already exists.</summary>
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public CollisionPolicy OnNameCollision { get; set; } = CollisionPolicy.Ask;
@@ -164,6 +183,18 @@ public class AppSettings
     /// half-working app and no way to say so.
     /// </remarks>
     public int MpcWebInterfacePort { get; set; } = 13579;
+
+    /// <summary>
+    /// Take the Web Interface port from MPC-HC's own configuration instead of
+    /// <see cref="MpcWebInterfacePort"/>.
+    /// </summary>
+    /// <remarks>
+    /// On by default, because the manual value only ever had to exist to keep
+    /// two numbers in step — and the player already knows the right one.
+    /// <see cref="MpcWebInterfacePort"/> is still honoured when detection finds
+    /// nothing, so an unusual install is no worse off than before.
+    /// </remarks>
+    public bool AutoDetectMpcWebInterface { get; set; } = true;
 
     /// <summary>
     /// Folder holding ffmpeg.exe and ffprobe.exe. Empty means search the usual
@@ -572,16 +603,13 @@ public class SettingsService
     /// actually re-encoded.
     /// </summary>
     /// <remarks>
-    /// CRF and preset only; the codec choice belongs to the container and
-    /// lives in <see cref="VideoFormats"/>. Returned without a trailing space
-    /// — callers join with one.
+    /// Rate control only; which encoder those flags belong to is
+    /// <see cref="Current"/>'s <see cref="AppSettings.VideoEncoder"/>, and the
+    /// two must be applied together — a CRF handed to NVENC is rejected
+    /// outright. Returned without a trailing space; callers join with one.
     /// </remarks>
-    public string GetQualityArgs() => Current.Quality switch
-    {
-        EncodingQuality.Fast => "-preset veryfast -crf 23",
-        EncodingQuality.High => "-preset medium -crf 17",
-        _ => "-preset faster -crf 20"
-    };
+    public string GetQualityArgs() =>
+        VideoEncoders.QualityArgsFor(Current.VideoEncoder, Current.Quality);
 
     /// <summary>Poll interval for the MPC-HC watcher.</summary>
     public TimeSpan GetPollInterval() => Current.PollSpeed switch

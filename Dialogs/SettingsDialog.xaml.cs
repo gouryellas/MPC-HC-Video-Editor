@@ -36,6 +36,12 @@ public partial class SettingsDialog : Window
     public CollisionPolicy OnNameCollision { get; private set; }
     public PollSpeed PollSpeed { get; private set; }
     public int MpcWebInterfacePort { get; private set; }
+
+    /// <summary>
+    /// Whether to read the port out of MPC-HC's own settings rather than use
+    /// <see cref="MpcWebInterfacePort"/>.
+    /// </summary>
+    public bool AutoDetectMpcWebInterface { get; private set; }
     public string FfmpegFolder { get; private set; }
     public bool ToastsEnabled { get; private set; }
     public double ToastSeconds { get; private set; }
@@ -52,11 +58,26 @@ public partial class SettingsDialog : Window
     /// </summary>
     public bool FfmpegFolderChanged { get; private set; }
 
+    /// <summary>Chosen H.264 encoder.</summary>
+    public VideoEncoder VideoEncoder { get; private set; }
+
+    /// <summary>Whether cuts are re-encoded to land on the exact frame.</summary>
+    public bool PreciseCuts { get; private set; }
+
     private readonly string _originalFfmpegFolder;
 
-    public SettingsDialog(AppSettings current, bool autoSwitchViews)
+    /// <summary>
+    /// Used to ask this machine which GPU encoders actually work. Optional so
+    /// the dialog can still be constructed without one; the hardware options
+    /// simply stay unavailable.
+    /// </summary>
+    private readonly FFmpegService? _ffmpeg;
+
+    public SettingsDialog(AppSettings current, bool autoSwitchViews, FFmpegService? ffmpeg = null)
     {
         InitializeComponent();
+
+        _ffmpeg = ffmpeg;
 
         // Seed every control from the live settings. Nothing is bound: the
         // dialog must not write through to the real object before Save.
@@ -66,9 +87,12 @@ public partial class SettingsDialog : Window
         DeleteBookmarksFile = current.DeleteBookmarksFile;
         DeleteToRecycleBin = current.DeleteToRecycleBin;
         Quality = current.Quality;
+        VideoEncoder = current.VideoEncoder;
+        PreciseCuts = current.PreciseCuts;
         OnNameCollision = current.OnNameCollision;
         PollSpeed = current.PollSpeed;
         MpcWebInterfacePort = current.MpcWebInterfacePort;
+        AutoDetectMpcWebInterface = current.AutoDetectMpcWebInterface;
         FfmpegFolder = current.FfmpegFolder ?? "";
         ToastsEnabled = current.ToastsEnabled;
         ToastSeconds = current.ToastSeconds;
@@ -95,6 +119,17 @@ public partial class SettingsDialog : Window
         ToastSecondsBox.Text = current.ToastSeconds.ToString("0.#", CultureInfo.CurrentCulture);
         MaxHistoryBox.Text = current.MaxHistory.ToString(CultureInfo.CurrentCulture);
         PortBox.Text = current.MpcWebInterfacePort.ToString(CultureInfo.CurrentCulture);
+        AutoDetectPortCheck.IsChecked = current.AutoDetectMpcWebInterface;
+        RefreshDetectedPort();
+
+        CutFast.IsChecked = !current.PreciseCuts;
+        CutPrecise.IsChecked = current.PreciseCuts;
+
+        // The saved encoder is selected up front even if it turns out to be
+        // unavailable — silently demoting someone's choice because a driver is
+        // temporarily missing would lose the setting on the next Save.
+        Pick(current.VideoEncoder);
+        _ = ProbeEncodersAsync();
         FfmpegBox.Text = FfmpegFolder;
 
         Pick(current.DeleteOriginalVideo, VideoNever, VideoAsk, VideoAlways);
@@ -249,6 +284,13 @@ public partial class SettingsDialog : Window
                 : QualityHigh.IsChecked == true ? EncodingQuality.High
                 : EncodingQuality.Balanced;
 
+        VideoEncoder = EncoderNvenc.IsChecked == true ? VideoEncoder.Nvenc
+                     : EncoderQsv.IsChecked == true ? VideoEncoder.QuickSync
+                     : EncoderAmf.IsChecked == true ? VideoEncoder.Amf
+                     : VideoEncoder.Software;
+
+        PreciseCuts = CutPrecise.IsChecked == true;
+
         OnNameCollision = CollisionIncrement.IsChecked == true ? CollisionPolicy.Increment
                         : CollisionOverwrite.IsChecked == true ? CollisionPolicy.Overwrite
                         : CollisionPolicy.Ask;
@@ -267,6 +309,7 @@ public partial class SettingsDialog : Window
                       : OverlayCorner.TopRight;
 
         MpcWebInterfacePort = port;
+        AutoDetectMpcWebInterface = AutoDetectPortCheck.IsChecked == true;
         MaxHistory = history;
         ToastSeconds = toastSeconds;
         OverlayOpacity = OpacitySlider.Value;
@@ -278,6 +321,89 @@ public partial class SettingsDialog : Window
         // Setting DialogResult closes a modal window on its own; no Close()
         // call, which would be a second close.
         DialogResult = true;
+    }
+
+    /// <summary>Selects the radio button for an encoder.</summary>
+    private void Pick(VideoEncoder encoder)
+    {
+        EncoderSoftware.IsChecked = encoder == VideoEncoder.Software;
+        EncoderNvenc.IsChecked    = encoder == VideoEncoder.Nvenc;
+        EncoderQsv.IsChecked      = encoder == VideoEncoder.QuickSync;
+        EncoderAmf.IsChecked      = encoder == VideoEncoder.Amf;
+    }
+
+    /// <summary>The radio button representing an encoder.</summary>
+    private RadioButton ButtonFor(VideoEncoder encoder) => encoder switch
+    {
+        VideoEncoder.Nvenc     => EncoderNvenc,
+        VideoEncoder.QuickSync => EncoderQsv,
+        VideoEncoder.Amf       => EncoderAmf,
+        _                      => EncoderSoftware
+    };
+
+    /// <summary>
+    /// Asks this machine which GPU encoders actually run, and enables only
+    /// those.
+    /// </summary>
+    /// <remarks>
+    /// Each probe is a real encode of a fraction of a second, so this takes a
+    /// moment per encoder and runs in the background rather than holding the
+    /// dialog closed. The labels say "checking…" until an answer arrives, so a
+    /// greyed-out option is never mistaken for a settled "no".
+    /// </remarks>
+    private async Task ProbeEncodersAsync()
+    {
+        foreach (var encoder in VideoEncoders.All)
+        {
+            if (encoder == VideoEncoder.Software) continue;
+
+            var button = ButtonFor(encoder);
+            var name = VideoEncoders.DisplayName(encoder);
+
+            if (_ffmpeg is null)
+            {
+                button.Content = $"{name} — ffmpeg unavailable";
+                continue;
+            }
+
+            bool ok;
+            try { ok = await _ffmpeg.CanEncodeAsync(encoder); }
+            catch { ok = false; }
+
+            button.IsEnabled = ok;
+            button.Content = ok ? name : $"{name} — not available on this machine";
+
+            // A saved choice that no longer works must not stay selected, or
+            // Save would write back an encoder that fails on the next job.
+            if (!ok && button.IsChecked == true)
+            {
+                Pick(VideoEncoder.Software);
+                button.Content = $"{name} — not available, switched to software";
+            }
+        }
+    }
+
+    /// <summary>
+    /// Re-reads MPC-HC's settings and reflects them in the Player tab.
+    /// </summary>
+    /// <remarks>
+    /// The manual port box stays enabled even while detection is on: it is
+    /// still the fallback when nothing is found, so greying it out would hide
+    /// the value that a portable or unusual install actually ends up using.
+    /// </remarks>
+    private void RefreshDetectedPort()
+    {
+        var auto = AutoDetectPortCheck.IsChecked == true;
+        DetectedPortText.Text = auto
+            ? MpcHcService.DescribeWebInterface()
+            : "Detection is off — the port below is used as typed.";
+    }
+
+    private void AutoDetectPort_Changed(object sender, RoutedEventArgs e)
+    {
+        // Fires during InitializeComponent before the TextBlock exists.
+        if (DetectedPortText is null) return;
+        RefreshDetectedPort();
     }
 
     private bool TryReadInt(TextBox box, string what, int min, int max, out int value)

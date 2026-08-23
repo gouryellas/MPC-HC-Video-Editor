@@ -208,6 +208,39 @@
 
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
+                                <TextBlock Text="H.264 encoder" Style="{StaticResource Heading}"/>
+                                <!-- Availability is probed when this dialog opens: the
+                                     GPU encoders are compiled into ffmpeg regardless of
+                                     what hardware is present, so the list alone proves
+                                     nothing. Each is disabled until it has encoded a
+                                     test frame on this machine. -->
+                                <RadioButton x:Name="EncoderSoftware" GroupName="Encoder"
+                                             Content="Software (x264) — best quality per megabyte"/>
+                                <RadioButton x:Name="EncoderNvenc" GroupName="Encoder" IsEnabled="False"
+                                             Content="NVIDIA (NVENC) — checking…"/>
+                                <RadioButton x:Name="EncoderQsv" GroupName="Encoder" IsEnabled="False"
+                                             Content="Intel (Quick Sync) — checking…"/>
+                                <RadioButton x:Name="EncoderAmf" GroupName="Encoder" IsEnabled="False"
+                                             Content="AMD (AMF) — checking…"/>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="A GPU encoder is typically several times faster, and larger at the same visual quality. Only affects MP4, MKV and MOV; the legacy containers carry their own codecs. Options that cannot run on this machine stay greyed out."/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Cut accuracy" Style="{StaticResource Heading}"/>
+                                <RadioButton x:Name="CutFast" GroupName="CutAccuracy"
+                                             Content="Fast — copy without re-encoding"/>
+                                <RadioButton x:Name="CutPrecise" GroupName="CutAccuracy"
+                                             Content="Precise — cut exactly on the marked frame"/>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="A copied cut can only start at a keyframe, so a clip may begin earlier than marked — a frame or two on some files, several seconds on others. Precise re-encodes every segment to land on the exact frame, which costs time and one generation of quality on cuts that would otherwise have been lossless."/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
                                 <TextBlock Text="When the output name already exists" Style="{StaticResource Heading}"/>
                                 <RadioButton x:Name="CollisionAsk" GroupName="Collision"
                                              Content="Ask each time"/>
@@ -292,9 +325,18 @@
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
                                 <TextBlock Text="MPC-HC web interface port" Style="{StaticResource Heading}"/>
+                                <CheckBox x:Name="AutoDetectPortCheck"
+                                          Content="Detect automatically from MPC-HC"
+                                          Checked="AutoDetectPort_Changed" Unchecked="AutoDetectPort_Changed"/>
+                                <!-- Filled in from the player's own settings when the
+                                     dialog opens; says outright when the Web Interface
+                                     is switched off, which is the failure people
+                                     actually hit rather than a mismatched port. -->
+                                <TextBlock x:Name="DetectedPortText" Style="{StaticResource Hint}"
+                                           TextWrapping="Wrap" Margin="0,4,0,6"/>
                                 <TextBox x:Name="PortBox" Width="100" HorizontalAlignment="Left"/>
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="Must match MPC-HC's Options ▸ Player ▸ Web Interface ▸ &quot;Listen on port&quot;. Default 13579. Used for seeking; if it is wrong, seeking falls back to clicking the seek bar, which is slower and skin-dependent."/>
+                                           Text="Used when detection is off or finds nothing. Must match MPC-HC's Options ▸ Player ▸ Web Interface ▸ &quot;Listen on port&quot;. Default 13579. Used for seeking; if it is wrong, seeking falls back to clicking the seek bar, which is slower and skin-dependent."/>
                             </StackPanel>
                         </Border>
 
