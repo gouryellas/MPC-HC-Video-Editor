@@ -77,10 +77,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Whether the preview pane has anything to show. Kept separate from the
-    /// two images so the pane can appear the moment a clip is selected rather
+    /// two images so the pane can appear the moment a clip is chosen rather
     /// than popping in once the frames finish rendering.
     /// </summary>
     [ObservableProperty] private bool _hasClipPreview;
+
+    /// <summary>Heading over the preview, naming which clip is shown.</summary>
+    [ObservableProperty] private string _clipPreviewHeading = string.Empty;
+
+    /// <summary>Line under the preview: what the clip will run to, and how to change it.</summary>
+    [ObservableProperty] private string _clipPreviewSubtext = string.Empty;
     [ObservableProperty] private bool _isMpcRunning;
     [ObservableProperty] private string _currentTimeDisplay = "00:00";
     [ObservableProperty] private string _durationDisplay = "00:00";
@@ -872,36 +878,28 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // Selected-clip preview
     // ------------------------------------------------------------------
 
-    /// <summary>Cancels the in-flight preview render when the selection moves on.</summary>
+    /// <summary>Cancels the in-flight preview render when the target moves on.</summary>
     private CancellationTokenSource? _previewCts;
 
-    /// <summary>The bookmark the preview is currently listening to.</summary>
-    private Bookmark? _previewSource;
-
     /// <summary>
-    /// Re-renders the preview when a different clip is selected, and follows
-    /// that clip's ends while it stays selected.
+    /// The clip the pane shows: the selected one, or the first complete clip
+    /// when nothing is selected.
     /// </summary>
-    partial void OnSelectedBookmarkChanged(Bookmark? value)
-    {
-        if (_previewSource is not null)
-            _previewSource.PropertyChanged -= PreviewSource_PropertyChanged;
+    /// <remarks>
+    /// The fallback exists because the pane originally required a row to be
+    /// clicked and said so nowhere. With one bookmark in the list and no
+    /// selection, the whole feature was invisible — and the most inviting thing
+    /// to click on a row is its timestamp, which seeks the player instead of
+    /// selecting anything. Showing the first clip means the pane is there to be
+    /// noticed, and clicking a row still changes it.
+    /// </remarks>
+    private Bookmark? PreviewTarget =>
+        SelectedBookmark is { IsValid: true } selected
+            ? selected
+            : Session.Bookmarks.FirstOrDefault(b => b.IsValid);
 
-        _previewSource = value;
-
-        if (_previewSource is not null)
-            _previewSource.PropertyChanged += PreviewSource_PropertyChanged;
-
-        RefreshClipPreview();
-    }
-
-    private void PreviewSource_PropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        // Only the two ends move the frames. Ticking the row's checkbox or
-        // dragging its speed slider changes neither.
-        if (e.PropertyName is nameof(Bookmark.StartSeconds) or nameof(Bookmark.EndSeconds))
-            RefreshClipPreview();
-    }
+    /// <summary>Re-renders when a different clip is selected.</summary>
+    partial void OnSelectedBookmarkChanged(Bookmark? value) => RefreshClipPreview();
 
     /// <summary>
     /// Renders the selected clip's first and last frame into the side panel.
@@ -918,16 +916,28 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _previewCts?.Dispose();
         _previewCts = null;
 
-        var bookmark = SelectedBookmark;
+        var bookmark = PreviewTarget;
         var video = Session.VideoPath;
 
-        if (bookmark is null || !bookmark.IsValid || string.IsNullOrWhiteSpace(video))
+        if (bookmark is null || string.IsNullOrWhiteSpace(video))
         {
             HasClipPreview = false;
+            ClipPreviewHeading = string.Empty;
+            ClipPreviewSubtext = string.Empty;
             ClipInThumbnail = null;
             ClipOutThumbnail = null;
+            _previewedBookmark = null;
             return;
         }
+
+        // Numbered rather than called "selected": with nothing selected this is
+        // the first clip, and a heading claiming otherwise would be a small lie
+        // repeated every time the app opens.
+        ClipPreviewHeading = $"CLIP [{bookmark.Index}]";
+        ClipPreviewSubtext = Session.Bookmarks.Count(b => b.IsValid) > 1
+            ? $"Will run {bookmark.EffectiveDurationDisplay} · click a row to preview another"
+            : $"Will run {bookmark.EffectiveDurationDisplay}";
+        _previewedBookmark = bookmark;
 
         // The pane appears immediately and fills in, rather than popping into
         // existence a few hundred milliseconds later.
@@ -939,6 +949,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _previewCts = cts;
         _ = RenderClipPreviewAsync(video, bookmark.StartSeconds, bookmark.EndSeconds, cts.Token);
     }
+
+    /// <summary>The clip currently drawn, so a change to it can be noticed.</summary>
+    private Bookmark? _previewedBookmark;
 
     private async Task RenderClipPreviewAsync(string video, double start, double end, CancellationToken ct)
     {
@@ -1006,6 +1019,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // cleared instances are dropped entirely.
         RefreshCommandStates();
 
+        // The first bookmark appearing is what makes the preview pane possible
+        // at all, and a removed one may have been the clip it was drawing.
+        RefreshClipPreview();
+
         // Adding or removing a cut changes both of these. They used to be
         // raised from a handler attached in OnSessionChanged, which never runs:
         // Session is only ever its field initialiser, and the generated partial
@@ -1035,12 +1052,32 @@ public partial class MainViewModel : ObservableObject, IDisposable
                            or nameof(Bookmark.EndSeconds)
                            or nameof(Bookmark.Speed))
             Session.NotifyDurationChanged();
+
+        // Moving the ends of the clip on screen moves the frames on screen.
+        // Only for the one actually drawn — editing clip 9 while clip 1 is
+        // shown should not re-run ffmpeg.
+        if (e.PropertyName is nameof(Bookmark.StartSeconds) or nameof(Bookmark.EndSeconds)
+            && ReferenceEquals(sender, _previewedBookmark))
+            RefreshClipPreview();
+
+        // A bookmark becoming complete can make it the first valid one, which
+        // is what the pane falls back to when nothing is selected.
+        if (e.PropertyName is nameof(Bookmark.IsIncomplete) && _previewedBookmark is null)
+            RefreshClipPreview();
     }
 
     private void Session_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(EditSession.VideoPath) or nameof(EditSession.CsvPath))
             RefreshCommandStates();
+
+        // A different video makes every cached frame useless, and the pane has
+        // to be redrawn from the new one.
+        if (e.PropertyName is nameof(EditSession.VideoPath))
+        {
+            _thumbnails.Clear();
+            RefreshClipPreview();
+        }
     }
 
     partial void OnIsMpcRunningChanged(bool value) => RefreshCommandStates();

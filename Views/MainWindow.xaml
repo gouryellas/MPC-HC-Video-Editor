@@ -620,7 +620,7 @@
                              the placeholders below carry a background. -->
                         <StackPanel Visibility="{Binding HasClipPreview, Converter={StaticResource BoolToVis}}">
                             <Border BorderBrush="#3F3F46" BorderThickness="0,1,0,0" Margin="0,4,0,12"/>
-                            <TextBlock Text="SELECTED CLIP" FontSize="11" FontWeight="SemiBold" Foreground="#888" Margin="0,0,0,6"/>
+                            <TextBlock Text="{Binding ClipPreviewHeading}" FontSize="11" FontWeight="SemiBold" Foreground="#888" Margin="0,0,0,6"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -645,7 +645,7 @@
                                 </StackPanel>
                             </Grid>
                             <TextBlock Foreground="#777" FontSize="11" Margin="0,6,0,16" TextWrapping="Wrap"
-                                       Text="{Binding SelectedBookmark.EffectiveDurationDisplay, StringFormat=Saved clip will run {0}}"/>
+                                       Text="{Binding ClipPreviewSubtext}"/>
                         </StackPanel>
 
                         <Border BorderBrush="#3F3F46" BorderThickness="0,1,0,0" Margin="0,4,0,12"/>
