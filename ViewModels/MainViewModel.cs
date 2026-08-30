@@ -85,6 +85,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Heading over the preview, naming which clip is shown.</summary>
     [ObservableProperty] private string _clipPreviewHeading = string.Empty;
 
+    /// <summary>
+    /// The loaded video's audio drawn as a waveform, shown behind the timeline.
+    /// Null when there is no video, no audio track, or it is still rendering.
+    /// </summary>
+    [ObservableProperty] private BitmapSource? _waveform;
+
     /// <summary>Line under the preview: what the clip will run to, and how to change it.</summary>
     [ObservableProperty] private string _clipPreviewSubtext = string.Empty;
     [ObservableProperty] private bool _isMpcRunning;
@@ -839,6 +845,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _ffmpeg.Encoder = _settings.Current.VideoEncoder;
         _ffmpeg.QualityArgs = _settings.GetQualityArgs();
         _ffmpeg.PreciseCuts = _settings.Current.PreciseCuts;
+        _ffmpeg.NormaliseAudio = _settings.Current.NormaliseAudio;
 
         _toast.Enabled = _settings.Current.ToastsEnabled;
         _toast.HoldDuration = TimeSpan.FromSeconds(_settings.Current.ToastSeconds);
@@ -956,6 +963,59 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>The clip currently drawn, so a change to it can be noticed.</summary>
     private Bookmark? _previewedBookmark;
+
+    /// <summary>Cancels an in-flight waveform render when the video changes.</summary>
+    private CancellationTokenSource? _waveformCts;
+
+    /// <summary>
+    /// Redraws the waveform for the loaded video.
+    /// </summary>
+    /// <remarks>
+    /// Decoding a whole audio track takes seconds on a long file, so this runs
+    /// in the background and the timeline simply gains its backdrop when it is
+    /// ready. A video with no audio leaves it null, which the view treats as
+    /// nothing to draw rather than as an error.
+    /// </remarks>
+    private void RefreshWaveform()
+    {
+        _waveformCts?.Cancel();
+        _waveformCts = null;
+        Waveform = null;
+
+        var video = Session.VideoPath;
+        if (string.IsNullOrWhiteSpace(video) || !File.Exists(video)) return;
+
+        var cts = new CancellationTokenSource();
+        _waveformCts = cts;
+        _ = RenderWaveformAsync(video, cts.Token);
+    }
+
+    private async Task RenderWaveformAsync(string video, CancellationToken ct)
+    {
+        try
+        {
+            var png = await _ffmpeg.RenderWaveformAsync(video, ct: ct);
+            if (ct.IsCancellationRequested || png is null) return;
+
+            using var stream = new MemoryStream(png);
+            var image = new BitmapImage();
+            image.BeginInit();
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.StreamSource = stream;
+            image.EndInit();
+            image.Freeze();
+
+            if (!ct.IsCancellationRequested) Waveform = image;
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by another video.
+        }
+        catch
+        {
+            // A waveform is decoration. Failing to draw one must not surface.
+        }
+    }
 
     private async Task RenderClipPreviewAsync(string video, double start, double end, CancellationToken ct)
     {
@@ -1084,6 +1144,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             _thumbnails.Clear();
             RefreshClipPreview();
+            RefreshWaveform();
         }
     }
 
@@ -1286,20 +1347,31 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <param name="outputDirectory">Optional directory override. When null
     /// or empty the file lands next to <paramref name="basePath"/>; the
     /// one-click split passes the quick save folder here.</param>
+    /// <param name="bookmark">
+    /// The clip being written, when there is one. Only the naming template uses
+    /// it — for the position and length tokens — so every existing caller can
+    /// keep passing nothing and get exactly the behaviour it had before.
+    /// </param>
     private string GetUniqueOutputPath(string basePath, string extension, int startIndex = 1,
-                                       string? outputDirectory = null)
+                                       string? outputDirectory = null, Bookmark? bookmark = null)
     {
         var dir = string.IsNullOrWhiteSpace(outputDirectory)
             ? Path.GetDirectoryName(basePath) ?? ""
             : outputDirectory;
         var nameWithoutExt = Path.GetFileNameWithoutExtension(basePath);
         var suffix = _settings.GetActiveSuffixText();
+        var template = _settings.Current.NameTemplate;
 
         int counter = Math.Max(1, startIndex);
         while (true)
         {
+            // The counter lives inside the bracket exactly as before, so a
+            // collision still reads [done2] rather than gaining a suffix of its
+            // own. With a custom template the bracket is whatever {suffix}
+            // expanded to, and the counter follows the same rule.
             var bracket = counter == 1 ? $"[{suffix}]" : $"[{suffix}{counter}]";
-            var candidate = Path.Combine(dir, $"{nameWithoutExt}{bracket}{extension}");
+            var stem = NameTemplate.Build(template, nameWithoutExt, bracket, bookmark);
+            var candidate = Path.Combine(dir, $"{stem}{extension}");
             if (!File.Exists(candidate)) return candidate;
             counter++;
         }
@@ -3014,7 +3086,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             Job.Report("Complete", 100);
             await Task.Delay(600);
-            StatusText = $"Created {Path.GetFileName(outPath)}";
+
+            // The app now checks what it produced against what was asked for.
+            // A keyframe-aligned cut running over a second long used to pass
+            // silently; saying so is the whole point of measuring.
+            StatusText = _ffmpeg.LastOutputWarning is null
+                ? $"Created {Path.GetFileName(outPath)}"
+                : $"Created {Path.GetFileName(outPath)} — {_ffmpeg.LastOutputWarning}";
             succeeded = true;
         }
         catch (Exception ex) { StatusText = trimming ? "Trim failed" : "Merge failed"; MessageBox.Show(ex.Message); }
@@ -3173,10 +3251,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var correctedStem = FileNameRules.SplitSuffix(
             Path.GetFileNameWithoutExtension(named)).Stem;
 
+        // The bookmark goes through so a template can use its position and
+        // length; without one the extra argument changes nothing.
         var outPath = GetUniqueOutputPath(
             Path.Combine(outDir, correctedStem + format.Extension),
             format.Extension,
-            outputDirectory: outDir);
+            outputDirectory: outDir,
+            bookmark: bookmark);
 
         IsBusy = true;
         ProgressPercent = 0;
@@ -3190,7 +3271,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
             await _ffmpeg.MergeBookmarksAsync(Session.VideoPath, outPath, new[] { bookmark }, null, default, format);
 
             ProgressPercent = 100;
-            StatusText = $"Created clip → {outPath}";
+            StatusText = _ffmpeg.LastOutputWarning is null
+                ? $"Created clip → {outPath}"
+                : $"Created clip → {outPath} — {_ffmpeg.LastOutputWarning}";
             _toast.Show($"Clip {bookmark.Index} saved",
                         Path.GetFileName(outPath),
                         "🎬");
@@ -3889,6 +3972,169 @@ public partial class MainViewModel : ObservableObject, IDisposable
         PlaylistsChanged?.Invoke();
     }
 
+    /// <summary>
+    /// Scans the loaded video for clip boundaries and adds whatever the user
+    /// accepts.
+    /// </summary>
+    /// <remarks>
+    /// Nothing is applied by scanning alone. The dialog proposes and the user
+    /// disposes — detection is a first guess, and one that quietly rewrote a
+    /// bookmark list would be worse than no detection at all.
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(HasActiveVideo))]
+    private void DetectBookmarks()
+    {
+        if (string.IsNullOrWhiteSpace(Session.VideoPath)) return;
+
+        var dlg = new DetectBookmarksDialog(_ffmpeg, Session.VideoPath)
+        {
+            Owner = Application.Current?.MainWindow
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        if (dlg.ReplaceExisting) Session.Bookmarks.Clear();
+
+        foreach (var r in dlg.Accepted)
+        {
+            Session.Bookmarks.Add(new Bookmark
+            {
+                Index = Session.Bookmarks.Count + 1,
+                StartSeconds = r.Start,
+                EndSeconds = r.End
+            });
+        }
+
+        // Indexes are positional, so anything appended after a replace needs
+        // them rewritten rather than continued.
+        int i = 1;
+        foreach (var b in Session.Bookmarks) b.Index = i++;
+
+        HookSession(Session);
+        Session.NotifyDurationChanged();
+        RefreshCommandStates();
+        StatusText = $"Added {dlg.Accepted.Count} {Entries(dlg.Accepted.Count)} from the scan";
+    }
+
+    /// <summary>
+    /// Writes the whole video out once with the bookmarks attached as chapters,
+    /// instead of cutting it into pieces.
+    /// </summary>
+    /// <remarks>
+    /// For material you want to keep whole but navigate — the bookmarks become
+    /// chapter marks a player can jump between. Streams are copied, so it is
+    /// quick and lossless whatever the cut-accuracy setting says.
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(CanExportChapters))]
+    private async Task ExportChapters()
+    {
+        var usable = Session.Bookmarks.Where(b => b.IsValid).ToList();
+        if (usable.Count == 0 || string.IsNullOrWhiteSpace(Session.VideoPath))
+        {
+            StatusText = "Need a video and at least one complete bookmark.";
+            return;
+        }
+
+        // MKV first: it carries chapters more reliably than MP4 across players.
+        var sfd = new SaveFileDialog
+        {
+            Title = "Save video with chapters",
+            Filter = "Matroska|*.mkv|MP4|*.mp4",
+            FileName = Path.GetFileNameWithoutExtension(Session.VideoPath) + "[chapters].mkv",
+            InitialDirectory = Path.GetDirectoryName(Session.VideoPath)
+        };
+        if (sfd.ShowDialog() != true) return;
+
+        IsBusy = true;
+        Job.Begin("Writing chapters");
+        try
+        {
+            var progress = new Progress<FFmpegProgressEventArgs>(e => Job.Report(e.Message, e.Current));
+            await _ffmpeg.ExportChaptersAsync(Session.VideoPath, sfd.FileName, usable, progress);
+            Job.Report("Complete", 100);
+            await Task.Delay(400);
+            StatusText = $"Wrote {usable.Count} chapters → {Path.GetFileName(sfd.FileName)}";
+        }
+        catch (Exception ex)
+        {
+            StatusText = "Chapter export failed";
+            MessageBox.Show(ex.Message, "Chapter export failed",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            IsBusy = false;
+            Job.End();
+        }
+    }
+
+    private bool CanExportChapters() =>
+        HasActiveVideo && Session.Bookmarks.Any(b => b.IsValid);
+
+    /// <summary>
+    /// Finds the files of confirmed-gone entries somewhere else and repoints
+    /// the playlist at them, instead of deleting the entries.
+    /// </summary>
+    /// <remarks>
+    /// The counterpart to removal, and usually the one wanted: a file that is
+    /// not where the playlist says has more often been moved than deleted.
+    /// Asks for a folder to search rather than guessing, then also searches the
+    /// folders the surviving entries live in — which is where a reorganised
+    /// library normally puts things.
+    /// </remarks>
+    [RelayCommand]
+    private async Task RelocatePlaylistEntries(string? plsPath)
+    {
+        if (string.IsNullOrWhiteSpace(plsPath) || !File.Exists(plsPath))
+        {
+            StatusText = "Playlist file not found.";
+            return;
+        }
+
+        var name = Path.GetFileName(plsPath);
+        var classified = _playlists.ClassifyEntries(plsPath);
+        var gone = classified.Count(e => e.Status == PlaylistEntryStatus.Missing);
+
+        if (gone == 0)
+        {
+            StatusText = $"{name}: nothing is confirmed gone, so there is nothing to look for.";
+            return;
+        }
+
+        var picker = new OpenFolderDialog
+        {
+            Title = $"Where should {name}'s {gone} missing {Entries(gone)} be looked for?"
+        };
+        if (picker.ShowDialog() != true) return;
+
+        // The chosen root plus wherever the surviving entries already live: a
+        // library that was reorganised usually moved files between folders it
+        // is already using.
+        var roots = new List<string> { picker.FolderName };
+        roots.AddRange(classified
+            .Where(e => e.Status == PlaylistEntryStatus.Present)
+            .Select(e => Path.GetDirectoryName(e.Path) ?? string.Empty)
+            .Where(d => d.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase));
+
+        StatusText = $"Searching for {gone} missing {Entries(gone)}…";
+        IsBusy = true;
+        try
+        {
+            List<PlaylistService.RelocatedEntry> moved = new();
+            await Task.Run(() => moved = _playlists.RelocateMissingEntries(plsPath, roots));
+
+            StatusText = moved.Count == 0
+                ? $"{name}: none of the {gone} missing {Entries(gone)} could be found under {picker.FolderName}."
+                : $"Relocated {moved.Count} of {gone} {Entries(gone)} in {name}";
+
+            if (moved.Count > 0) PlaylistsChanged?.Invoke();
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     /// <summary>"entry" or "entries", so the prompt and status line read.</summary>
     private static string Entries(int count) => count == 1 ? "entry" : "entries";
 
@@ -4268,10 +4514,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         var ofd = new OpenFileDialog
         {
-            Filter = "All supported|*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.webm;*.mpeg;*.mpg;*.ts;*.m4v;*.csv;*.pls|" +
+            Filter = "All supported|*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.webm;*.mpeg;*.mpg;*.ts;*.m4v;*.csv;*.pls;*.m3u8;*.m3u|" +
                      "Video Files|*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.webm;*.mpeg;*.mpg;*.ts;*.m4v|" +
                      "Bookmark CSV|*.csv|" +
-                     "Playlist|*.pls|" +
+                     "Playlist|*.pls;*.m3u8;*.m3u|" +
                      "All Files|*.*",
             Title = "Open video, bookmark CSV, or playlist"
         };
@@ -4363,7 +4609,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             // folder as well.
             var ofd = new OpenFileDialog
             {
-                Filter = "Playlist|*.pls|All Files|*.*",
+                Filter = "Playlist|*.pls;*.m3u8;*.m3u|All Files|*.*",
                 Title = "Load playlist"
             };
             if (ofd.ShowDialog() != true) return;
@@ -4664,6 +4910,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         s.Quality = dlg.Quality;
         s.VideoEncoder = dlg.VideoEncoder;
         s.PreciseCuts = dlg.PreciseCuts;
+        s.NormaliseAudio = dlg.NormaliseAudio;
+        s.NameTemplate = dlg.NameTemplate;
         s.OnNameCollision = dlg.OnNameCollision;
         s.PollSpeed = dlg.PollSpeed;
         s.MpcWebInterfacePort = dlg.MpcWebInterfacePort;

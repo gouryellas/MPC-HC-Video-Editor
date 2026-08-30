@@ -11,8 +11,11 @@ known to be weak, and how to report something that isn't listed here.
 
 | Version | Supported |
 | ------- | --------- |
-| 3.0.9   | Yes       |
-| 3.0.8 and earlier | No |
+| 4.0     | Yes       |
+| 3.x     | No        |
+
+Versions are two-part from 4.0 onward — 4.0, 4.1, 4.2 — rather than the
+three-part 3.0.x scheme that came before.
 
 This is a single-maintainer project. Only the latest release gets fixes — there
 are no backport branches. If you are on an older build, update before reporting

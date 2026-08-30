@@ -195,10 +195,19 @@
                     <MenuItem Header="To ICO…"  Command="{Binding ConvertImagesCommand}" CommandParameter="ico"
                               ToolTip="Scaled to 256px if larger — the ICO format cannot express more"/>
                 </MenuItem>
+                <Separator/>
+                <MenuItem Header="Find clips automatically…" Command="{Binding DetectBookmarksCommand}"
+                          ToolTip="Scans the video for silence, black frames or scene cuts and proposes bookmarks you can review before accepting"/>
+                <Separator/>
+                <!-- The alternative to cutting: keep the file whole and make
+                     the bookmarks navigable inside it. Streams are copied, so
+                     it is lossless regardless of the cut-accuracy setting. -->
+                <MenuItem Header="Export as chapters…" Command="{Binding ExportChaptersCommand}"
+                          ToolTip="Writes the video out once with the bookmarks as chapter marks, instead of cutting it into separate clips"/>
             </MenuItem>
             <MenuItem Header="_Playlist">
                 <MenuItem Header="{Binding PlaylistFolderDisplay}" Command="{Binding SetPlaylistFolderCommand}"
-                          ToolTip="Folder scanned for .pls playlists"/>
+                          ToolTip="Folder scanned for playlists (.pls, .m3u8)"/>
                 <!-- These three are Click handlers rather than commands, so
                      they cannot be gated by CanExecute — IsEnabled binds to
                      the equivalent ViewModel predicate instead. -->
@@ -440,6 +449,16 @@
                  marks on the bar rather than competing with the position. -->
             <Grid Grid.Row="1" Margin="0,0,0,8" Height="18">
                 <Border Background="#1A1A1A" CornerRadius="3"/>
+
+                <!-- The audio, behind everything else. Stretched to the bar's
+                     width rather than re-rendered on resize: it is a guide to
+                     where sound is, not a measurement, and decoding the whole
+                     track again for a crisper approximation is a poor trade.
+                     Dimmed so the range marks and position stay readable over
+                     it. Absent when the video has no audio, which is simply
+                     nothing to draw. -->
+                <Image Source="{Binding Waveform}" Stretch="Fill" Opacity="0.38"
+                       IsHitTestVisible="False"/>
 
                 <ProgressBar Value="{Binding TimelineProgress}" Minimum="0" Maximum="1"
                              Height="6" Margin="0,6" Background="Transparent"

@@ -241,6 +241,29 @@
 
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
+                                <TextBlock Text="Output filename" Style="{StaticResource Heading}"/>
+                                <TextBox x:Name="NameTemplateBox" TextChanged="NameTemplate_Changed"/>
+                                <TextBlock x:Name="NameTemplatePreview" Style="{StaticResource Hint}"
+                                           Foreground="#B5CEA8" Margin="0,6,0,0"/>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="{}{name} source filename · {suffix} naming tag · {index} clip number · {index2} padded · {start} {end} timestamps · {duration} seconds · {date} today. The result is still put through the filename rules, so anything disallowed is corrected."/>
+                                <Button Content="Reset to default" Click="ResetNameTemplate_Click"
+                                        HorizontalAlignment="Left" Margin="0,8,0,0" Padding="10,4"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Audio" Style="{StaticResource Heading}"/>
+                                <CheckBox x:Name="NormaliseAudioCheck"
+                                          Content="Even out loudness across clips"/>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Brings every written clip to a common loudness (EBU R128, -16 LUFS), so a merge of material recorded at different levels does not jump in volume. Like precise cutting, it forces a re-encode — audio cannot be normalised while being copied."/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
                                 <TextBlock Text="When the output name already exists" Style="{StaticResource Heading}"/>
                                 <RadioButton x:Name="CollisionAsk" GroupName="Collision"
                                              Content="Ask each time"/>

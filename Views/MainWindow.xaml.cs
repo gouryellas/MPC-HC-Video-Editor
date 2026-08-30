@@ -840,7 +840,10 @@ public partial class MainWindow : Window
 
         if (hasFolder)
         {
-            var playlists = System.IO.Directory.GetFiles(plsFolder, "*.pls")
+            // Every format PlaylistService understands, not just .pls — an
+            // m3u8 in the folder is a playlist and belongs in this menu.
+            var playlists = System.IO.Directory.EnumerateFiles(plsFolder)
+                .Where(PlaylistService.IsPlaylist)
                 .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
                 .ToList();
             hasAny = playlists.Count > 0;
@@ -929,6 +932,23 @@ public partial class MainWindow : Window
         // anything is missing means a File.Exists per entry, and doing that on
         // every menu rebuild is exactly the stat storm the lazy submenu avoids.
         // Clicking it when nothing is gone simply says so afterwards.
+        // Offered above removal deliberately: a file that is not where the
+        // playlist says has usually been moved, not deleted, and finding it
+        // again is almost always the better answer than dropping the entry.
+        var relocate = new MenuItem
+        {
+            Header = "Find moved files…",
+            Tag = plsPath,
+            ToolTip = "Searches a folder you choose for the files of entries that are confirmed " +
+                      "gone, and repoints the playlist at them instead of removing them."
+        };
+        relocate.Click += (_, e) =>
+        {
+            e.Handled = true;
+            _vm?.RelocatePlaylistEntriesCommand.Execute(plsPath);
+        };
+        parent.Items.Add(relocate);
+
         var removeMissing = new MenuItem
         {
             Header = "Remove missing entries",

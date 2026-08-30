@@ -86,6 +86,68 @@ public class FFmpegService
     public bool PreciseCuts { get; set; }
 
     /// <summary>
+    /// Even out loudness across the clips being written.
+    /// </summary>
+    /// <remarks>
+    /// Forces a re-encode of anything it applies to, exactly as
+    /// <see cref="PreciseCuts"/> does — audio cannot be normalised while being
+    /// copied. Stated in the settings hint rather than left as a surprise.
+    /// </remarks>
+    public bool NormaliseAudio { get; set; }
+
+    /// <summary>
+    /// EBU R128 target. The broadcast-ish default: quiet enough to leave
+    /// headroom, loud enough to match most streaming material.
+    /// </summary>
+    private const string LoudnormFilter = "loudnorm=I=-16:TP=-1.5:LRA=11";
+
+    /// <summary>
+    /// Set after an operation when the file produced does not match what was
+    /// asked for, or null when it does.
+    /// </summary>
+    /// <remarks>
+    /// Exists because a keyframe-aligned cut can run over a second long with
+    /// nothing in the output saying so — the app knew what it asked for and
+    /// never checked what it got. One ffprobe at the end of a job turns a
+    /// silent discrepancy into a stated one.
+    /// </remarks>
+    public string? LastOutputWarning { get; private set; }
+
+    /// <summary>
+    /// Compares the finished file against the length that was asked for.
+    /// </summary>
+    /// <remarks>
+    /// The tolerance is deliberately loose. Container overhead, audio frame
+    /// alignment and rounding all move the duration slightly, and a warning
+    /// that fires on every job is one nobody reads. Half a second, or 2% for
+    /// longer edits, only trips on something a person would notice.
+    /// </remarks>
+    private async Task VerifyOutputAsync(string outputPath, double expectedSeconds, CancellationToken ct)
+    {
+        LastOutputWarning = null;
+        if (expectedSeconds <= 0 || !File.Exists(outputPath)) return;
+
+        var actual = await GetDurationAsync(outputPath);
+        if (actual <= 0) return;
+
+        var drift = actual - expectedSeconds;
+        var tolerance = Math.Max(0.5, expectedSeconds * 0.02);
+        if (Math.Abs(drift) <= tolerance) return;
+
+        var longer = drift > 0;
+        var amount = $"{Math.Abs(drift):0.0}s {(longer ? "longer" : "shorter")}";
+
+        LastOutputWarning = PreciseCuts
+            ? $"The finished file is {amount} than the marked range " +
+              $"({Bookmark.FormatTime(actual)} against {Bookmark.FormatTime(expectedSeconds)}). " +
+              "Precise cutting is on, so this is worth looking at — the source may have a broken timeline."
+            : $"The finished file is {amount} than the marked range " +
+              $"({Bookmark.FormatTime(actual)} against {Bookmark.FormatTime(expectedSeconds)}). " +
+              "Copied cuts can only start at a keyframe, so a clip may begin before its mark. " +
+              "Turn on Precise in Settings ▸ Encoding ▸ Cut accuracy to cut exactly.";
+    }
+
+    /// <summary>
     /// Every ffmpeg this service has started and not yet seen exit.
     /// </summary>
     /// <remarks>
@@ -425,6 +487,12 @@ public class FFmpegService
                              $"{outputArgs} \"{outputPath}\"";
 
             await RunAsync(concatArgs, null, ct);
+
+            // What was asked for, at the speed each clip will actually play.
+            var expected = bookmarks
+                .Where(b => b.IsValid)
+                .Sum(b => (b.EndSeconds - b.StartSeconds) / (Math.Abs(b.Speed) < 0.01 ? 1.0 : b.Speed));
+            await VerifyOutputAsync(outputPath, expected, ct);
         }
         finally
         {
@@ -441,8 +509,10 @@ public class FFmpegService
         var af = new List<string>();
 
         // A stream copy can only begin at a keyframe, so an exact cut has to be
-        // re-encoded whether or not any filter asked for it.
-        bool reencode = PreciseCuts;
+        // re-encoded whether or not any filter asked for it. Normalising
+        // loudness means touching the audio, which rules out a copy for the
+        // same reason.
+        bool reencode = PreciseCuts || NormaliseAudio;
 
         if (b.IsFlipped)
         {
@@ -461,6 +531,10 @@ public class FFmpegService
             af.Add($"atempo={speed.ToString(CultureInfo.InvariantCulture)}");
             reencode = true;
         }
+
+        // Last in the audio chain: normalising after a tempo change measures
+        // what will actually be heard, not what was there before it.
+        if (NormaliseAudio) af.Add(LoudnormFilter);
 
         var sb = new StringBuilder();
         sb.Append($"-hide_banner -y -fflags +igndts -ss {start} -to {end} -i \"{input}\" ");
@@ -701,6 +775,320 @@ public class FFmpegService
         finally
         {
             lock (_running) _running.Remove(process);
+        }
+    }
+
+    /// <summary>
+    /// Renders the whole audio track as a waveform image, as PNG bytes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Drawn behind the timeline so sound is visible while marking. On
+    /// speech-driven material the gaps are the joins, and seeing them beats
+    /// scrubbing for them.
+    /// </para>
+    /// <para>
+    /// Transparent background and a single colour, because it sits underneath
+    /// the existing range marks rather than replacing them. Rendered once per
+    /// video at a fixed width and stretched — the picture is a guide, not a
+    /// measurement, and re-rendering on every window resize would decode the
+    /// whole track again for a slightly crisper approximation.
+    /// </para>
+    /// </remarks>
+    public async Task<byte[]?> RenderWaveformAsync(
+        string videoPath, int width = 1600, int height = 120, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(videoPath) || !File.Exists(videoPath)) return null;
+
+        var args = $"-hide_banner -loglevel error -nostats -i \"{videoPath}\" " +
+                   $"-filter_complex \"showwavespic=s={width}x{height}:colors=0x4EC9B0|0x4EC9B0:split_channels=0\" " +
+                   $"-frames:v 1 -f image2pipe -c:v png -";
+
+        try
+        {
+            var psi = new ProcessStartInfo(_ffmpegPath, args)
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(psi);
+            if (process == null) return null;
+
+            using var buffer = new MemoryStream();
+            var copy = process.StandardOutput.BaseStream.CopyToAsync(buffer, ct);
+            var errors = process.StandardError.ReadToEndAsync(ct);
+            await Task.WhenAll(copy, errors).ConfigureAwait(false);
+
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromMinutes(3));
+            await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+
+            if (process.ExitCode != 0 || buffer.Length == 0) return null;
+            return buffer.ToArray();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // A video with no audio track is the common case here, and it is
+            // not a failure worth telling anyone about — there is simply no
+            // waveform to draw.
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Scans a video and proposes clip ranges from silence, black frames or
+    /// scene cuts.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Turns marking from "find every boundary yourself" into "correct the
+    /// ones it found". The proposals are never applied here — the caller shows
+    /// them and the user decides, because detection on real footage is a good
+    /// first guess and nothing more.
+    /// </para>
+    /// <para>
+    /// A full decode is unavoidable: these filters have to see every frame or
+    /// sample. On a long video that takes a while, so it reports progress and
+    /// honours cancellation.
+    /// </para>
+    /// </remarks>
+    public async Task<List<DetectedRange>> DetectRangesAsync(
+        string inputPath, DetectionSettings settings,
+        IProgress<FFmpegProgressEventArgs>? progress = null, CancellationToken ct = default)
+    {
+        if (!File.Exists(inputPath)) return new List<DetectedRange>();
+
+        var duration = await GetDurationAsync(inputPath);
+
+        // -an / -vn where the other stream is irrelevant: decoding video for a
+        // silence scan is most of the cost for none of the answer.
+        var filter = settings.Mode switch
+        {
+            DetectionMode.BlackFrames =>
+                $"-vn:__none__ -an -vf blackdetect=d={Fmt(settings.MinBoundarySeconds)}:pic_th={Fmt(settings.Threshold)}",
+            DetectionMode.SceneChanges =>
+                $"-an -vf select='gt(scene\\,{Fmt(settings.Threshold)})',showinfo",
+            _ =>
+                $"-vn -af silencedetect=noise={Fmt(settings.Threshold)}dB:d={Fmt(settings.MinBoundarySeconds)}"
+        };
+
+        // blackdetect needs the video; the placeholder above only existed to
+        // keep the switch arms parallel.
+        filter = filter.Replace("-vn:__none__ ", string.Empty);
+
+        var args = $"-hide_banner -nostats -i \"{inputPath}\" {filter} -f null -";
+        var log = await RunCaptureAsync(args, duration, progress, ct);
+
+        var ranges = settings.Mode switch
+        {
+            DetectionMode.SceneChanges => FromCutPoints(log, duration),
+            DetectionMode.BlackFrames  => Complement(ParsePairs(log, @"black_start:([\d.]+)\s+black_end:([\d.]+)"), duration),
+            _                          => Complement(ParseSilences(log), duration)
+        };
+
+        return ranges
+            .Where(r => r.Duration >= settings.MinClipSeconds)
+            .ToList();
+    }
+
+    private static string Fmt(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// Runs ffmpeg purely to read its log, returning everything it wrote to
+    /// stderr. Unlike <see cref="RunAsync"/> a non-zero exit is not fatal —
+    /// a detection pass that ends early still yields usable findings.
+    /// </summary>
+    private async Task<string> RunCaptureAsync(
+        string arguments, double totalSeconds,
+        IProgress<FFmpegProgressEventArgs>? progress, CancellationToken ct)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = _ffmpegPath,
+            Arguments = arguments,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            StandardErrorEncoding = Encoding.UTF8
+        };
+
+        using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
+        var log = new StringBuilder();
+        var tcs = new TaskCompletionSource<int>();
+
+        process.ErrorDataReceived += (_, e) =>
+        {
+            if (e.Data == null) return;
+            lock (log) log.AppendLine(e.Data);
+
+            if (progress == null || totalSeconds <= 0) return;
+            var m = Regex.Match(e.Data, @"time=(\d+):(\d{2}):(\d{2}(?:\.\d+)?)");
+            if (!m.Success) return;
+
+            var done = int.Parse(m.Groups[1].Value) * 3600
+                     + int.Parse(m.Groups[2].Value) * 60
+                     + double.Parse(m.Groups[3].Value, CultureInfo.InvariantCulture);
+            progress.Report(new FFmpegProgressEventArgs
+            {
+                Message = $"Scanning {Bookmark.FormatTime(done)} of {Bookmark.FormatTime(totalSeconds)}",
+                Current = (int)Math.Clamp(done / totalSeconds * 100, 0, 100),
+                Total = 100
+            });
+        };
+
+        process.Exited += (_, _) => tcs.TrySetResult(process.ExitCode);
+        if (!process.Start()) return string.Empty;
+        lock (_running) _running.Add(process);
+
+        try
+        {
+            process.BeginErrorReadLine();
+            await using var reg = ct.Register(() =>
+            {
+                try { if (!process.HasExited) process.Kill(true); } catch { }
+                tcs.TrySetCanceled(ct);
+            });
+            await tcs.Task;
+            try { process.WaitForExit(); } catch { }
+        }
+        finally
+        {
+            lock (_running) _running.Remove(process);
+        }
+
+        lock (log) return log.ToString();
+    }
+
+    /// <summary>Parses silencedetect's two-line start/end reporting.</summary>
+    private static List<(double Start, double End)> ParseSilences(string log)
+    {
+        var gaps = new List<(double, double)>();
+        double? open = null;
+
+        foreach (Match m in Regex.Matches(log, @"silence_(start|end):\s*(-?[\d.]+)"))
+        {
+            var value = double.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
+            if (m.Groups[1].Value == "start") open = value;
+            else if (open.HasValue) { gaps.Add((open.Value, value)); open = null; }
+        }
+
+        return gaps;
+    }
+
+    private static List<(double Start, double End)> ParsePairs(string log, string pattern)
+        => Regex.Matches(log, pattern)
+            .Select(m => (double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture),
+                          double.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture)))
+            .ToList();
+
+    /// <summary>
+    /// Inverts a list of gaps into the stretches between them — the content, as
+    /// opposed to the joins.
+    /// </summary>
+    private static List<DetectedRange> Complement(List<(double Start, double End)> gaps, double duration)
+    {
+        var result = new List<DetectedRange>();
+        var cursor = 0.0;
+
+        foreach (var (start, end) in gaps.OrderBy(g => g.Start))
+        {
+            if (start > cursor) result.Add(new DetectedRange(cursor, Math.Min(start, duration > 0 ? duration : start)));
+            cursor = Math.Max(cursor, end);
+        }
+
+        if (duration > cursor) result.Add(new DetectedRange(cursor, duration));
+        return result;
+    }
+
+    /// <summary>Turns scene-cut timestamps into the spans between them.</summary>
+    private static List<DetectedRange> FromCutPoints(string log, double duration)
+    {
+        var cuts = Regex.Matches(log, @"pts_time:([\d.]+)")
+            .Select(m => double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture))
+            .Distinct()
+            .OrderBy(t => t)
+            .ToList();
+
+        var result = new List<DetectedRange>();
+        var cursor = 0.0;
+        foreach (var cut in cuts)
+        {
+            if (cut > cursor) result.Add(new DetectedRange(cursor, cut));
+            cursor = cut;
+        }
+        if (duration > cursor) result.Add(new DetectedRange(cursor, duration));
+        return result;
+    }
+
+    /// <summary>
+    /// Writes the video unchanged, with the bookmarks attached as chapters.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The alternative to cutting: one file that a player can navigate, rather
+    /// than N files on disk. The bookmarks are already timestamp pairs, so
+    /// nothing about the model changes — only what is done with it.
+    /// </para>
+    /// <para>
+    /// The video and audio are stream-copied, so this is quick and lossless
+    /// regardless of the cut-accuracy setting; only the metadata is rewritten.
+    /// MKV and MP4 both carry chapters, though some players read MKV's more
+    /// reliably.
+    /// </para>
+    /// </remarks>
+    public async Task ExportChaptersAsync(
+        string inputPath, string outputPath, IList<Bookmark> bookmarks,
+        IProgress<FFmpegProgressEventArgs>? progress = null, CancellationToken ct = default)
+    {
+        var usable = bookmarks.Where(b => b.IsValid).ToList();
+        if (usable.Count == 0) throw new ArgumentException("No complete bookmarks to write as chapters");
+
+        var metaPath = Path.Combine(Path.GetTempPath(), "mpc-chapters-" + Guid.NewGuid().ToString("N")[..8] + ".txt");
+
+        try
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine(";FFMETADATA1");
+
+            int number = 1;
+            foreach (var b in usable)
+            {
+                // Milliseconds, which is what TIMEBASE declares below.
+                var startMs = (long)Math.Round(b.StartSeconds * 1000);
+                var endMs = (long)Math.Round(b.EndSeconds * 1000);
+                if (endMs <= startMs) continue;
+
+                sb.AppendLine("[CHAPTER]");
+                sb.AppendLine("TIMEBASE=1/1000");
+                sb.AppendLine($"START={startMs}");
+                sb.AppendLine($"END={endMs}");
+
+                // Bookmarks carry no name of their own — the CSV's "BookmarkN"
+                // field is positional and discarded on load — so the number and
+                // its start time are the most useful title available.
+                sb.AppendLine($"title=Chapter {number} ({Bookmark.FormatTime(b.StartSeconds)})");
+                number++;
+            }
+
+            await File.WriteAllTextAsync(metaPath, sb.ToString(), new UTF8Encoding(false), ct);
+
+            progress?.Report(new FFmpegProgressEventArgs { Message = $"Writing {number - 1} chapters…" });
+
+            var args = $"-hide_banner -y -i \"{inputPath}\" -i \"{metaPath}\" " +
+                       $"-map_metadata 1 -map_chapters 1 -c copy \"{outputPath}\"";
+            await RunAsync(args, progress, ct);
+        }
+        finally
+        {
+            try { File.Delete(metaPath); } catch { /* temp file */ }
         }
     }
 

@@ -2,6 +2,7 @@ using System.IO;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+using MpcHcVideoEditor.Helpers;
 using MpcHcVideoEditor.Models;
 
 namespace MpcHcVideoEditor.Services;
@@ -18,7 +19,11 @@ public class BookmarkService
         var result = new List<Bookmark>();
         if (!File.Exists(csvPath)) return result;
 
-        var lines = File.ReadAllLines(csvPath);
+        // Detected, not assumed. A CSV written in the legacy Windows code page
+        // — which the AutoHotkey predecessor this app replaces would have
+        // produced — turns every accented character into U+FFFD when read as
+        // UTF-8, and nothing downstream can recover it.
+        var lines = TextFile.ReadAllLines(csvPath);
         int index = 1;
 
         foreach (var raw in lines)

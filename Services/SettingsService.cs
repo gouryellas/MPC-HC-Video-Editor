@@ -165,6 +165,22 @@ public class AppSettings
     /// </remarks>
     public bool PreciseCuts { get; set; }
 
+    /// <summary>
+    /// Even out loudness across written clips. Off by default: it forces a
+    /// re-encode, and material that was already consistent gains nothing.
+    /// </summary>
+    public bool NormaliseAudio { get; set; }
+
+    /// <summary>
+    /// Pattern for output filenames — see <see cref="Helpers.NameTemplate"/>.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to <c>{name}{suffix}</c>, which is precisely what the app did
+    /// before templates existed, so an untouched installation writes the same
+    /// filenames it always has.
+    /// </remarks>
+    public string NameTemplate { get; set; } = Helpers.NameTemplate.Default;
+
     /// <summary>Default answer when an output filename already exists.</summary>
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public CollisionPolicy OnNameCollision { get; set; } = CollisionPolicy.Ask;

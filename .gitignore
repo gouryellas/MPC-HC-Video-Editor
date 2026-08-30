@@ -3,6 +3,12 @@ bin/
 obj/
 publish/
 
+# The WPF markup compiler writes <Project>_<random>_wpftmp.csproj beside the
+# real one and normally removes it again. An interrupted build leaves it there,
+# and a second .csproj in the folder makes bare "dotnet build" refuse to run:
+# "this folder contains more than one project or solution file".
+*_wpftmp.csproj
+
 # User-specific and runtime files
 settings.json
 stalls.log

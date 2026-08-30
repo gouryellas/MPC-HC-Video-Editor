@@ -64,6 +64,12 @@ public partial class SettingsDialog : Window
     /// <summary>Whether cuts are re-encoded to land on the exact frame.</summary>
     public bool PreciseCuts { get; private set; }
 
+    /// <summary>Whether written clips are brought to a common loudness.</summary>
+    public bool NormaliseAudio { get; private set; }
+
+    /// <summary>Pattern for output filenames.</summary>
+    public string NameTemplate { get; private set; } = Helpers.NameTemplate.Default;
+
     private readonly string _originalFfmpegFolder;
 
     /// <summary>
@@ -89,6 +95,10 @@ public partial class SettingsDialog : Window
         Quality = current.Quality;
         VideoEncoder = current.VideoEncoder;
         PreciseCuts = current.PreciseCuts;
+        NormaliseAudio = current.NormaliseAudio;
+        NameTemplate = string.IsNullOrWhiteSpace(current.NameTemplate)
+            ? Helpers.NameTemplate.Default
+            : current.NameTemplate;
         OnNameCollision = current.OnNameCollision;
         PollSpeed = current.PollSpeed;
         MpcWebInterfacePort = current.MpcWebInterfacePort;
@@ -124,6 +134,9 @@ public partial class SettingsDialog : Window
 
         CutFast.IsChecked = !current.PreciseCuts;
         CutPrecise.IsChecked = current.PreciseCuts;
+        NormaliseAudioCheck.IsChecked = current.NormaliseAudio;
+        NameTemplateBox.Text = NameTemplate;
+        RefreshNameTemplatePreview();
 
         // The saved encoder is selected up front even if it turns out to be
         // unavailable — silently demoting someone's choice because a driver is
@@ -290,6 +303,11 @@ public partial class SettingsDialog : Window
                      : VideoEncoder.Software;
 
         PreciseCuts = CutPrecise.IsChecked == true;
+        NormaliseAudio = NormaliseAudioCheck.IsChecked == true;
+
+        // An empty box means the default, not an empty filename.
+        var template = NameTemplateBox.Text?.Trim();
+        NameTemplate = string.IsNullOrWhiteSpace(template) ? Helpers.NameTemplate.Default : template;
 
         OnNameCollision = CollisionIncrement.IsChecked == true ? CollisionPolicy.Increment
                         : CollisionOverwrite.IsChecked == true ? CollisionPolicy.Overwrite
@@ -321,6 +339,28 @@ public partial class SettingsDialog : Window
         // Setting DialogResult closes a modal window on its own; no Close()
         // call, which would be a second close.
         DialogResult = true;
+    }
+
+    /// <summary>
+    /// Shows what the template produces for a made-up clip.
+    /// </summary>
+    /// <remarks>
+    /// Live, because a template is otherwise guesswork until a batch has
+    /// already been written under the wrong name.
+    /// </remarks>
+    private void RefreshNameTemplatePreview()
+    {
+        if (NameTemplatePreview is null) return;
+        NameTemplatePreview.Text = "Example:  " + Helpers.NameTemplate.Preview(NameTemplateBox.Text);
+    }
+
+    private void NameTemplate_Changed(object sender, System.Windows.Controls.TextChangedEventArgs e)
+        => RefreshNameTemplatePreview();
+
+    private void ResetNameTemplate_Click(object sender, RoutedEventArgs e)
+    {
+        NameTemplateBox.Text = Helpers.NameTemplate.Default;
+        RefreshNameTemplatePreview();
     }
 
     /// <summary>Selects the radio button for an encoder.</summary>
