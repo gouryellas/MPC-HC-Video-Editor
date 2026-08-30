@@ -60,6 +60,13 @@ public sealed class ThumbnailService
         // ConfigureAwait(false) here and below: rendering a thumbnail has no
         // business resuming on the UI thread, which the stall log watches.
         var png = await _ffmpeg.ExtractFrameAsync(videoPath, seconds, Height, ct).ConfigureAwait(false);
+
+        // Never record the outcome of an interrupted render. Moving through a
+        // list cancels renders constantly, and caching those nulls left the
+        // frame permanently blank for any clip the user passed over quickly —
+        // the cache turned a momentary interruption into a lasting one.
+        if (ct.IsCancellationRequested) return null;
+
         var image = png is null ? null : Decode(png);
 
         lock (_cache)

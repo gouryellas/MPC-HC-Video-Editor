@@ -557,6 +557,34 @@ public class FFmpegService
     /// caller then gets progress messages with no percentage rather than a
     /// bar that sits at 0% for the whole job.
     /// </param>
+    /// <summary>
+    /// Turns a failed ffmpeg run into something a person can act on.
+    /// </summary>
+    /// <remarks>
+    /// Names the encoder when a GPU one is selected. A hardware encoder that
+    /// opened successfully during the settings probe can still fail on real
+    /// content — an unusual resolution, a bit depth the chip does not do — and
+    /// the encoder is then the first thing worth changing. Nothing else in the
+    /// message would point at it.
+    /// </remarks>
+    private string DescribeFailure(int exitCode, Queue<string> recentErrors)
+    {
+        string[] lines;
+        lock (recentErrors) lines = recentErrors.ToArray();
+
+        var detail = lines.Length > 0
+            ? Environment.NewLine + Environment.NewLine + string.Join(Environment.NewLine, lines)
+            : string.Empty;
+
+        var hint = Encoder != VideoEncoder.Software
+            ? Environment.NewLine + Environment.NewLine +
+              $"This used the {VideoEncoders.DisplayName(Encoder)} encoder. If it keeps failing, " +
+              "switch the H.264 encoder back to Software in Settings ▸ Encoding — it works on any machine."
+            : string.Empty;
+
+        return $"FFmpeg exited with code {exitCode}.{detail}{hint}";
+    }
+
     private async Task RunAsync(string arguments, IProgress<FFmpegProgressEventArgs>? progress,
                                 CancellationToken ct, double totalSeconds = 0)
     {
@@ -581,10 +609,26 @@ public class FFmpegService
             if (e.Data != null) LogReceived?.Invoke(this, e.Data);
         };
 
+        // ffmpeg says why it failed on stderr, and this used to read that
+        // stream purely to scrape a progress percentage out of it — so a
+        // failed job reported nothing but its exit code. "FFmpeg exited with
+        // code -1313558101" is not something anyone can act on. Keeping the
+        // last few lines costs nothing and turns that into an actual reason.
+        var recentErrors = new Queue<string>();
+
         process.ErrorDataReceived += (_, e) =>
         {
             if (e.Data == null) return;
             LogReceived?.Invoke(this, e.Data);
+
+            if (e.Data.Trim().Length > 0)
+            {
+                lock (recentErrors)
+                {
+                    recentErrors.Enqueue(e.Data.Trim());
+                    while (recentErrors.Count > 6) recentErrors.Dequeue();
+                }
+            }
 
             if (progress == null) return;
 
@@ -652,7 +696,7 @@ public class FFmpegService
             try { process.WaitForExit(); } catch { /* already reaped */ }
 
             if (exitCode != 0)
-                throw new Exception($"FFmpeg exited with code {exitCode}");
+                throw new Exception(DescribeFailure(exitCode, recentErrors));
         }
         finally
         {
@@ -714,6 +758,14 @@ public class FFmpegService
 
             if (process.ExitCode != 0 || buffer.Length == 0) return null;
             return buffer.ToArray();
+        }
+        catch (OperationCanceledException)
+        {
+            // Deliberately not folded into the catch below. "You cancelled me"
+            // and "this frame cannot be read" are different answers, and a
+            // caller that caches results must not record the first as the
+            // second — see ThumbnailService.GetAsync.
+            throw;
         }
         catch
         {

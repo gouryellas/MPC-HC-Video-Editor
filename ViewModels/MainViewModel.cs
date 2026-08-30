@@ -912,8 +912,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </remarks>
     private void RefreshClipPreview()
     {
+        // Cancelled but not disposed: the render it belongs to may still be
+        // holding the token, and disposing under it turns an ordinary
+        // cancellation into an ObjectDisposedException. Nothing here registers
+        // callbacks or timers on it, so letting the collector have it costs
+        // nothing.
         _previewCts?.Cancel();
-        _previewCts?.Dispose();
         _previewCts = null;
 
         var bookmark = PreviewTarget;
@@ -1061,8 +1065,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
             RefreshClipPreview();
 
         // A bookmark becoming complete can make it the first valid one, which
-        // is what the pane falls back to when nothing is selected.
-        if (e.PropertyName is nameof(Bookmark.IsIncomplete) && _previewedBookmark is null)
+        // is what the pane falls back to when nothing is selected. A drawn one
+        // becoming incomplete has to be dropped for the same reason — it is no
+        // longer a clip with two ends to show.
+        if (e.PropertyName is nameof(Bookmark.IsIncomplete)
+            && (_previewedBookmark is null || ReferenceEquals(sender, _previewedBookmark)))
             RefreshClipPreview();
     }
 
