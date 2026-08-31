@@ -5,7 +5,7 @@ Modern rewrite of the original AutoHotkey **MPC-HC Video Editor v2.1**.
 Bookmark ranges in a video playing in MPC-HC, then cut, join, convert or
 extract audio from them with ffmpeg.
 
-![The main window with five bookmark pairs, the audio waveform and range marks along the timeline, and a preview of the selected clip's first and last frame](Assets/screenshots/main-window.png)
+![The compact overlay in the top-right corner of a video playing in MPC-HC, listing three timestamp pairs with their start, end and duration](Assets/screenshots/minimal-overlay.png)
 
 **Fully portable.** Everything the app writes — `settings.json`, `stalls.log` —
 lives beside the executable. Nothing goes to `%APPDATA%` and there is no
@@ -17,18 +17,43 @@ an earlier non-portable install's configuration carries over.
 
 ## Screenshots
 
-The compact overlay, for when the video covers the window. It is click-through,
-never takes focus, and lists every bookmark without scrolling:
+The overlay above is what you work in while the video is playing — it is
+click-through, never takes focus, and lists every bookmark without scrolling.
 
-![The minimal overlay in the corner of a video playing in MPC-HC, listing every timestamp pair](Assets/screenshots/minimal-overlay.png)
+The full window is the other half: the bookmark list and its per-cut controls,
+the action toolbar, and the current video, bookmarks and player state down the
+right-hand side.
 
-Naming tags — the bracket suffix every output gets, switchable from the menu:
-
-![The Options menu showing the current rename tag, an example filename, and the list of tags to switch between](Assets/screenshots/naming-tags.png)
+![The main window on the Graphite theme, showing an empty bookmark list, the action toolbar, and the panel reporting no video loaded and MPC-HC not running](Assets/screenshots/main-window.png)
 
 Settings, in five tabs:
 
-<img src="Assets/screenshots/settings.png" alt="The Settings window on the General tab, showing the colour theme picker, the run mode and the single-instance options" width="480">
+<table>
+<tr>
+<td width="50%"><img src="Assets/screenshots/settings-general.png" alt="The Settings window on the General tab, showing the colour theme picker, the run mode and the single-instance options" width="100%"></td>
+<td width="50%"><img src="Assets/screenshots/settings-output.png" alt="The Output tab, showing the default output format, the encoding quality and the H.264 encoder choice with unavailable GPU encoders greyed out" width="100%"></td>
+</tr>
+<tr>
+<td><strong>General</strong> — theme, run mode, instances</td>
+<td><strong>Output</strong> — format, quality, encoder</td>
+</tr>
+<tr>
+<td width="50%"><img src="Assets/screenshots/settings-cleanup.png" alt="The Cleanup tab, showing what happens to the original video and the bookmarks file after an operation, and the Recycle Bin option" width="100%"></td>
+<td width="50%"><img src="Assets/screenshots/settings-player.png" alt="The Player tab, showing the detected MPC-HC web interface port, the polling speed and the ffmpeg folder" width="100%"></td>
+</tr>
+<tr>
+<td><strong>Cleanup</strong> — what is deleted, and where it goes</td>
+<td><strong>Player</strong> — web interface port, polling, ffmpeg</td>
+</tr>
+<tr>
+<td width="50%"><img src="Assets/screenshots/settings-overlay.png" alt="The Overlay tab, showing the corner the compact overlay parks in and its background opacity" width="100%"></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Overlay</strong> — corner and background opacity</td>
+<td></td>
+</tr>
+</table>
 
 ---
 
@@ -105,14 +130,16 @@ renamed — only what the app is about to write has to comply.
   takes focus, and it makes MPC-HC the active window as it switches, so the
   result is the same whatever happened to be behind this window. The pin lasts
   until you press **X** or pick **Full** — no amount of clicking between windows
-  ends it. While pinned it shows whenever this app or MPC-HC has focus and hides
-  while anything else does, so it stays out of the way of an unrelated window
-  without being closed or losing its place. Disabled when there are no
-  bookmarks — the overlay is the bookmark list, so there would be nothing in it.
+  ends it. What the pin holds is the *mode*, not one window: the overlay is up
+  while MPC-HC has focus, and the full window comes back whenever it does not,
+  so the overlay never floats over an unrelated application and the program is
+  never left with nothing on screen. Going back to the player returns to the
+  overlay without the pin being dropped. Disabled when there are no bookmarks —
+  the overlay is the bookmark list, so there would be nothing in it.
 - **X** is live only while the overlay is actually on screen, so a stray "x"
-  typed in another application cannot pull this window back. If a pinned overlay
-  has hidden itself, click MPC-HC (or this window) to bring it back and X works
-  again.
+  typed in another application cannot pull this window back. Nothing is stranded
+  by that: whenever the overlay is down the full window is up in its place, and
+  **View ▸ Full** there ends the pin just as X would.
 - **View ▸ Full** returns to the normal window.
 - **View ▸ Switch views automatically** makes the view follow focus instead:
   minimal while MPC-HC is the active window, full window as soon as it is not.

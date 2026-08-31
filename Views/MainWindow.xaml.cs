@@ -226,23 +226,6 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Shows or hides just the overlay, leaving this window exactly as it is.
-    /// </summary>
-    /// <remarks>
-    /// This is how a pinned overlay gets out of the way of an unrelated
-    /// application without the pin being dropped — see
-    /// <see cref="MainViewModel.OverlayVisibilityRequested"/>. Deliberately
-    /// does not touch this window: bringing it back is what
-    /// <see cref="SetMinimalView"/> is for, and doing it here would undo the
-    /// pin the user asked for.
-    /// </remarks>
-    private void SetOverlayVisible(bool visible)
-    {
-        if (visible) ShowOverlay();
-        else _minimal?.Hide();
-    }
-
-    /// <summary>
     /// Creates the overlay on first use, applies its configured appearance, and
     /// shows it.
     /// </summary>
@@ -340,7 +323,6 @@ public partial class MainWindow : Window
         _wired = true;
 
         _vm.MinimalViewRequested += SetMinimalView;
-        _vm.OverlayVisibilityRequested += SetOverlayVisible;
 
         // The tray icon belongs to the window, not the ViewModel, so the
         // ViewModel just says when the setting changed.

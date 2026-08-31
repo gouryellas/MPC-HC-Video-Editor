@@ -256,30 +256,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// setting then carries on as before. Nothing here writes the setting —
     /// see <see cref="ShowMinimalView"/>.
     ///
-    /// Being pinned is not the same as being on screen: see
-    /// <see cref="_overlayShown"/>.
+    /// Being pinned is not the same as being on screen: the pin outlives the
+    /// overlay, which comes down whenever the player loses focus and goes back
+    /// up when it regains it. See <see cref="ApplyAutoViewSwitch"/>.
     /// </remarks>
     private bool _overlayPinned;
-
-    /// <summary>
-    /// Whether the overlay window is currently on screen, as opposed to merely
-    /// being the current view. Only ever false while <see cref="_overlayPinned"/>
-    /// holds it open behind the scenes.
-    /// </summary>
-    /// <remarks>
-    /// A pinned overlay lasts until X, but "lasts" and "is visible" are
-    /// different questions. Left purely to the pin, it sat on top of whatever
-    /// else the user switched to — a bookmark list floating over a browser.
-    /// So while pinned it is shown only when this app or MPC-HC has focus, and
-    /// hidden otherwise: the window is not closed and the pin is not dropped,
-    /// so going back to either one brings it straight back with no state lost.
-    ///
-    /// Tracked here rather than read back off the window because the View owns
-    /// the windows — the ViewModel only says what should be on screen — and
-    /// comparing against it keeps the poll from re-issuing Show or Hide several
-    /// times a second.
-    /// </remarks>
-    private bool _overlayShown;
 
     /// <summary>
     /// Whether MPC-HC had focus at the last evaluation, or null when there is
@@ -366,14 +347,37 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        // Pinned by hand, so focus does not end it and there is no edge to
-        // track — X and View ▸ Full both re-record the focus as they unpin.
-        // What focus still decides is whether it is on screen, and re-entering
-        // covers an empty list having taken it down before bookmarks returned.
+        // Pinned by hand, so focus does not end it — X and View ▸ Full are the
+        // only things that unpin. What focus still decides is which of the two
+        // windows is the one on screen, and it has to be one of them.
+        //
+        // That is the whole of this branch. The overlay used to hide itself
+        // when focus went to a third application while the full window stayed
+        // hidden behind it, so the application had nothing on screen at all: no
+        // window, no taskbar button, and the X key disarmed along with the
+        // overlay it belongs to. The notification-area icon was the only way
+        // back, and in application run mode there isn't one — leaving the
+        // program running and unreachable.
+        //
+        // Restoring the full window instead keeps the pin, so returning to the
+        // player drops straight back to the overlay on the next tick. That is
+        // what "without losing its place" was meant to mean.
+        //
+        // Keyed off the player alone rather than "this app or the player". The
+        // full window having focus is precisely the case where it should stay
+        // up: folding it back into the overlay the moment it is clicked would
+        // make the window unusable for as long as the pin lasts.
         if (_overlayPinned)
         {
-            if (!_minimalViewActive) EnterMinimalView();
-            ApplyPinnedOverlayVisibility();
+            if (_mpc.IsForeground())
+            {
+                if (!_minimalViewActive) EnterMinimalView();
+            }
+            else if (_minimalViewActive)
+            {
+                RestoreFullView(activate: false);
+            }
+
             return;
         }
 
@@ -427,63 +431,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public event Action<bool, bool>? MinimalViewRequested;
 
     /// <summary>
-    /// Raised to show or hide the overlay window on its own, without leaving
-    /// minimal view. The full window is not touched either way.
+    /// Arms the X restore key to match whether the overlay is on screen.
     /// </summary>
     /// <remarks>
-    /// Separate from <see cref="MinimalViewRequested"/> because it is a
-    /// different question: that one swaps which view the app is in, this one
-    /// only says whether the overlay belonging to the current view is on
-    /// screen. Folding the two together would mean hiding the overlay had to
-    /// bring the full window back, which is exactly what a pinned overlay must
-    /// not do. See <see cref="_overlayShown"/>.
-    /// </remarks>
-    public event Action<bool>? OverlayVisibilityRequested;
-
-    /// <summary>
-    /// Shows the pinned overlay while this app or the player has focus, and
-    /// hides it while anything else does.
-    /// </summary>
-    /// <remarks>
-    /// Only meaningful for a pinned overlay. An automatic one is already gone
-    /// by the time focus lands anywhere else — leaving the player restores the
-    /// full window outright — so there is nothing left to hide.
+    /// X is a bare letter on a global hook: armed whenever the overlay merely
+    /// existed, it fired on the "x" in anything the user typed in another
+    /// application, and with the overlay hidden there was nothing on screen to
+    /// explain why the editor had just jumped to the front. Armed only while
+    /// the overlay is visible, the key belongs to something the user can see.
     ///
-    /// <see cref="_windowFocused"/> covers this app: in minimal view the full
-    /// window is hidden, so it is normally false, but the tray icon can put
-    /// that window back up with the overlay still pinned, and then both are on
-    /// screen and this is what keeps the overlay there.
+    /// That strands nothing: the overlay is only ever hidden with the full
+    /// window up in its place, and that window has View ▸ Full on it.
     /// </remarks>
-    private void ApplyPinnedOverlayVisibility()
-    {
-        var shouldShow = _windowFocused || _mpc.IsForeground();
-        if (shouldShow == _overlayShown) return;
-
-        SetOverlayShown(shouldShow);
-        OverlayVisibilityRequested?.Invoke(shouldShow);
-    }
-
-    /// <summary>
-    /// Records whether the overlay is on screen, and arms the X restore key to
-    /// match.
-    /// </summary>
-    /// <remarks>
-    /// The two are the same fact, so they are set in one place. X is a bare
-    /// letter on a global hook: armed whenever the overlay merely existed, it
-    /// fired on the "x" in anything the user typed in another application, and
-    /// with a pinned overlay hidden there was nothing on screen to explain why
-    /// the editor had just jumped to the front. Armed only while the overlay is
-    /// visible, the key belongs to something the user can see.
-    ///
-    /// That does not strand a hidden pinned overlay: it is hidden because
-    /// another application has focus, and clicking back to the player or this
-    /// window brings it — and the key — straight back.
-    /// </remarks>
-    private void SetOverlayShown(bool shown)
-    {
-        _overlayShown = shown;
-        _hotkeys.RestoreArmed = shown;
-    }
+    private void SetOverlayShown(bool shown) => _hotkeys.RestoreArmed = shown;
 
     /// <summary>
     /// Pins the overlay up until the user takes it down with X or View ▸ Full.
@@ -562,10 +522,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _minimalViewActive = true;
 
         // The View shows the overlay as part of the swap, so it is on screen as
-        // of this call — and the X key is armed with it. A pinned overlay that
-        // should not be showing gets hidden again by
-        // ApplyPinnedOverlayVisibility in this same tick, before anything is
-        // rendered, which disarms the key along with it.
+        // of this call — and the X key is armed with it.
         SetOverlayShown(true);
         MinimalViewRequested?.Invoke(true, false);
     }

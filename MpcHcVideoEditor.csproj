@@ -13,7 +13,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>MPC-HC Video Editor</AssemblyName>
     <RootNamespace>MpcHcVideoEditor</RootNamespace>
-    <Version>4.1</Version>
+    <Version>4.2</Version>
     <Authors>Chris Larsen</Authors>
     <Description>Modern rewrite of the MPC-HC Video Editor (original AHK v2.1)</Description>
 
