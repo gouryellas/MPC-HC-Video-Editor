@@ -5,7 +5,7 @@ Modern rewrite of the original AutoHotkey **MPC-HC Video Editor v2.1**.
 Bookmark ranges in a video playing in MPC-HC, then cut, join, convert or
 extract audio from them with ffmpeg.
 
-![The main window with thirteen bookmark pairs selected, range marks on the timeline, and the total edit length](Assets/screenshots/main-window.png)
+![The main window with five bookmark pairs, the audio waveform and range marks along the timeline, and a preview of the selected clip's first and last frame](Assets/screenshots/main-window.png)
 
 **Fully portable.** Everything the app writes — `settings.json`, `stalls.log` —
 lives beside the executable. Nothing goes to `%APPDATA%` and there is no
@@ -20,7 +20,7 @@ an earlier non-portable install's configuration carries over.
 The compact overlay, for when the video covers the window. It is click-through,
 never takes focus, and lists every bookmark without scrolling:
 
-![The minimal overlay in the corner of a video playing in MPC-HC, listing all thirteen timestamp pairs](Assets/screenshots/minimal-overlay.png)
+![The minimal overlay in the corner of a video playing in MPC-HC, listing every timestamp pair](Assets/screenshots/minimal-overlay.png)
 
 Naming tags — the bracket suffix every output gets, switchable from the menu:
 
@@ -28,7 +28,7 @@ Naming tags — the bracket suffix every output gets, switchable from the menu:
 
 Settings, in five tabs:
 
-<img src="Assets/screenshots/settings.png" alt="The Settings window on the General tab, showing the run mode, single-instance and view-switching options" width="480">
+<img src="Assets/screenshots/settings.png" alt="The Settings window on the General tab, showing the colour theme picker, the run mode and the single-instance options" width="480">
 
 ---
 
