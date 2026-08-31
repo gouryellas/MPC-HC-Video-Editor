@@ -30,26 +30,26 @@ Settings, in five tabs:
 
 <table>
 <tr>
-<td width="50%"><img src="Assets/screenshots/settings-general.png" alt="The Settings window on the General tab, showing the colour theme picker, the run mode and the single-instance options" width="100%"></td>
-<td width="50%"><img src="Assets/screenshots/settings-output.png" alt="The Output tab, showing the default output format, the encoding quality and the H.264 encoder choice with unavailable GPU encoders greyed out" width="100%"></td>
+<td width="50%"><strong>General</strong> — theme, run mode, instances</td>
+<td width="50%"><strong>Output</strong> — format, quality, encoder</td>
 </tr>
 <tr>
-<td><strong>General</strong> — theme, run mode, instances</td>
-<td><strong>Output</strong> — format, quality, encoder</td>
-</tr>
-<tr>
-<td width="50%"><img src="Assets/screenshots/settings-cleanup.png" alt="The Cleanup tab, showing what happens to the original video and the bookmarks file after an operation, and the Recycle Bin option" width="100%"></td>
-<td width="50%"><img src="Assets/screenshots/settings-player.png" alt="The Player tab, showing the detected MPC-HC web interface port, the polling speed and the ffmpeg folder" width="100%"></td>
+<td><img src="Assets/screenshots/settings-general.png" alt="The Settings window on the General tab, showing the colour theme picker, the run mode and the single-instance options" width="100%"></td>
+<td><img src="Assets/screenshots/settings-output.png" alt="The Output tab, showing the default output format, the encoding quality and the H.264 encoder choice with unavailable GPU encoders greyed out" width="100%"></td>
 </tr>
 <tr>
 <td><strong>Cleanup</strong> — what is deleted, and where it goes</td>
 <td><strong>Player</strong> — web interface port, polling, ffmpeg</td>
 </tr>
 <tr>
-<td colspan="2" align="center"><img src="Assets/screenshots/settings-overlay.png" alt="The Overlay tab, showing the corner the compact overlay parks in and its background opacity" width="50%"></td>
+<td><img src="Assets/screenshots/settings-cleanup.png" alt="The Cleanup tab, showing what happens to the original video and the bookmarks file after an operation, and the Recycle Bin option" width="100%"></td>
+<td><img src="Assets/screenshots/settings-player.png" alt="The Player tab, showing the detected MPC-HC web interface port, the polling speed and the ffmpeg folder" width="100%"></td>
 </tr>
 <tr>
 <td colspan="2" align="center"><strong>Overlay</strong> — corner and background opacity</td>
+</tr>
+<tr>
+<td colspan="2" align="center"><img src="Assets/screenshots/settings-overlay.png" alt="The Overlay tab, showing the corner the compact overlay parks in and its background opacity" width="50%"></td>
 </tr>
 </table>
 
