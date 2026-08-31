@@ -42,6 +42,22 @@ The images on the project page were stale — they still showed the pre-4.1
 appearance. They are now the current interface on the Graphite theme, including
 all five Settings tabs.
 
+## A plainer icon on the program file
+
+The icon baked into the executable was the graphite camera — one theme's
+colours, on a file that four themes share and that no theme can repaint. It is
+now black and white: the same drawing, in no theme's colours, so it cannot
+disagree with the theme actually in use.
+
+The icons you see while the program runs are unchanged and still follow the
+theme.
+
+> **The archive was reissued after publication** to include this icon, so the
+> hashes below are not the ones this release first carried. If you downloaded
+> within the first couple of hours and verified against the original table,
+> your copy is the same program without the new file icon. Re-download if you
+> would rather the hashes match.
+
 ## Requirements
 
 - Windows, .NET 8 desktop runtime
@@ -58,8 +74,8 @@ Get-FileHash -Algorithm SHA256 .\MPC-HC.Video.Editor.zip
 
 | File | SHA-256 |
 | ---- | ------- |
-| `MPC-HC.Video.Editor.zip` | `3915ACE6B3E3D32326F8404010ECC425AFD74C65ABDC3C63E6F4F5E8F56FADB5` |
-| `MPC-HC Video Editor.exe` | `29A55F01783CB759F7D447A2881A76B1D5BC2E45DE3530E7BDB6FE48ADCFEEFB` |
+| `MPC-HC.Video.Editor.zip` | `A7E15A2FE21770897D6FB3C020A929AEF176C7F1877DE5F1598A98A5D250A0B4` |
+| `MPC-HC Video Editor.exe` | `E9331E6781A79129F22698BACDD43F20D85909B2711B8D209B90FA0EFCAD08BC` |
 | `ffmpeg.exe` | `4A01142006A4E2359293E072957DCDA7760C2003BBEEDE037B4551F2CFC8406F` |
 | `ffprobe.exe` | `8B5298DA673B85E628FBC98535A88848E939E16DF72E856FC727E01AA667E243` |
 | `LICENSE` | `3972DC9744F6499F0F9B2DBF76696F2AE7AD8AF9B23DDE66D6AF86C9DFB36986` |
