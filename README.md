@@ -46,12 +46,10 @@ Settings, in five tabs:
 <td><strong>Player</strong> — web interface port, polling, ffmpeg</td>
 </tr>
 <tr>
-<td width="50%"><img src="Assets/screenshots/settings-overlay.png" alt="The Overlay tab, showing the corner the compact overlay parks in and its background opacity" width="100%"></td>
-<td></td>
+<td colspan="2" align="center"><img src="Assets/screenshots/settings-overlay.png" alt="The Overlay tab, showing the corner the compact overlay parks in and its background opacity" width="50%"></td>
 </tr>
 <tr>
-<td><strong>Overlay</strong> — corner and background opacity</td>
-<td></td>
+<td colspan="2" align="center"><strong>Overlay</strong> — corner and background opacity</td>
 </tr>
 </table>
 
