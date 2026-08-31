@@ -102,16 +102,44 @@ public sealed class TrayIconService : IDisposable
     }
 
     /// <summary>
-    /// Loads the embedded tray icon, falling back to the application icon and
-    /// then to the system default.
+    /// Repaints the tray icon in the current theme's colours.
     /// </summary>
     /// <remarks>
-    /// The tray artwork is a simplified version of the app icon, drawn to stay
-    /// legible at 16 pixels — the full one loses its sprocket holes to a smear
-    /// at that size.
+    /// The previous icon is disposed after the new one is in place. NotifyIcon
+    /// keeps using whatever it was last given, so freeing the old handle first
+    /// is how you get a blank square in the tray.
+    /// </remarks>
+    public void ApplyTheme(ThemePalette palette)
+    {
+        if (_disposed) return;
+
+        try
+        {
+            var previous = _icon.Icon;
+            _icon.Icon = IconRenderer.TrayIcon(palette);
+            previous?.Dispose();
+        }
+        catch
+        {
+            // A tray icon that cannot be redrawn keeps the one it has, which is
+            // a wrong colour rather than no icon at all.
+        }
+    }
+
+    /// <summary>
+    /// The icon to start with: drawn from the active theme, falling back to the
+    /// shipped asset and then the system default.
+    /// </summary>
+    /// <remarks>
+    /// Drawn rather than loaded so it matches whichever theme is active before
+    /// the first <see cref="ApplyTheme"/> call. The embedded .ico remains as a
+    /// fallback for the case where rendering fails outright.
     /// </remarks>
     private static Icon LoadIcon()
     {
+        try { return IconRenderer.TrayIcon(ThemeService.Current); }
+        catch { /* fall through to the shipped asset */ }
+
         foreach (var path in new[] { "Assets/tray.ico", "Assets/app.ico" })
         {
             try

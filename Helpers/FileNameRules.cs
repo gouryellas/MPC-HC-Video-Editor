@@ -18,11 +18,21 @@ public static class FileNameRules
     /// <summary>Human-readable description, shown when input is rejected.</summary>
     public const string Description =
         "Filenames may contain letters, numbers, dashes (-), underscores (_), " +
-        "square brackets ([ ]) and parentheses ( ). Spaces become dashes " +
-        "automatically, and none of those punctuation characters may repeat " +
-        "back to back.";
+        "square brackets ([ ]), parentheses ( ) and curly braces ({ }). Spaces " +
+        "become dashes automatically, and none of those punctuation characters " +
+        "may repeat back to back.";
 
-    private const string Punctuation = "-_[]()";
+    /// <summary>
+    /// The punctuation a filename may contain.
+    /// </summary>
+    /// <remarks>
+    /// Curly braces are allowed so a naming tag can use them, and so a
+    /// misspelled filename variable — <c>{nam}</c> for <c>{name}</c> — comes
+    /// out visibly wrong rather than silently stripped to <c>nam</c>. Windows
+    /// has no objection to braces in a filename; only this project's own policy
+    /// ever did.
+    /// </remarks>
+    private const string Punctuation = "-_[](){}";
 
     /// <summary>True if <paramref name="c"/> may appear in a filename at all.</summary>
     public static bool IsAllowedChar(char c) =>

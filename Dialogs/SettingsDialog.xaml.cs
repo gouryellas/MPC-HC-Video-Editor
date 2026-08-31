@@ -70,6 +70,14 @@ public partial class SettingsDialog : Window
     /// <summary>Pattern for output filenames.</summary>
     public string NameTemplate { get; private set; } = Helpers.NameTemplate.Default;
 
+    /// <summary>Chosen colour theme.</summary>
+    public string ThemeKey { get; private set; } = ThemePalette.Graphite.Key;
+
+    /// <summary>
+    /// The theme in force when the dialog opened, so Cancel can put it back.
+    /// </summary>
+    private readonly string _originalThemeKey;
+
     private readonly string _originalFfmpegFolder;
 
     /// <summary>
@@ -115,6 +123,12 @@ public partial class SettingsDialog : Window
 
         _originalFfmpegFolder = FfmpegFolder;
 
+        ThemeKey = ThemePalette.FromKey(current.ThemeKey).Key;
+        _originalThemeKey = ThemeKey;
+        ThemeCombo.ItemsSource = ThemePalette.All;
+        ThemeCombo.DisplayMemberPath = nameof(ThemePalette.Display);
+        ThemeCombo.SelectedItem = ThemePalette.FromKey(ThemeKey);
+
         // Bind the format list by object so the selection round-trips as a
         // Format rather than a display string that would have to be parsed
         // back. DisplayMemberPath keeps the codec note visible in the list.
@@ -136,6 +150,8 @@ public partial class SettingsDialog : Window
         CutPrecise.IsChecked = current.PreciseCuts;
         NormaliseAudioCheck.IsChecked = current.NormaliseAudio;
         NameTemplateBox.Text = NameTemplate;
+        VariableList.ItemsSource = Helpers.NameTemplate.Variables;
+        TemplateExamples.ItemsSource = Helpers.NameTemplate.Examples;
         RefreshNameTemplatePreview();
 
         // The saved encoder is selected up front even if it turns out to be
@@ -356,6 +372,63 @@ public partial class SettingsDialog : Window
 
     private void NameTemplate_Changed(object sender, System.Windows.Controls.TextChangedEventArgs e)
         => RefreshNameTemplatePreview();
+
+    /// <summary>
+    /// Applies the chosen theme straight away, so it can be judged rather than
+    /// guessed at from a name.
+    /// </summary>
+    private void Theme_Changed(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (ThemeCombo.SelectedItem is not ThemePalette palette) return;
+        ThemeKey = palette.Key;
+        ThemeService.Apply(palette);
+    }
+
+    /// <summary>
+    /// Puts the previous theme back when the dialog is dismissed without
+    /// saving. Covers Escape and the close button as well as Cancel, which is
+    /// why it hangs off the window closing rather than a button.
+    /// </summary>
+    protected override void OnClosed(EventArgs e)
+    {
+        if (DialogResult != true && ThemeService.Current.Key != _originalThemeKey)
+            ThemeService.ApplyFromKey(_originalThemeKey);
+
+        base.OnClosed(e);
+    }
+
+    /// <summary>
+    /// Drops a variable into the box at the caret.
+    /// </summary>
+    /// <remarks>
+    /// Typing <c>{number2}</c> by hand means getting the braces and the
+    /// spelling right, and a typo now survives into the filename rather than
+    /// being stripped. Clicking is both faster and impossible to misspell.
+    /// </remarks>
+    private void InsertVariable_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button { Tag: string token }) return;
+
+        var caret = NameTemplateBox.CaretIndex;
+        var text = NameTemplateBox.Text ?? string.Empty;
+
+        // Replace the selection when there is one, so a highlighted token can
+        // be swapped for another in one click.
+        var start = NameTemplateBox.SelectionLength > 0 ? NameTemplateBox.SelectionStart : caret;
+        var length = NameTemplateBox.SelectionLength;
+
+        NameTemplateBox.Text = text.Remove(start, length).Insert(start, token);
+        NameTemplateBox.CaretIndex = start + token.Length;
+        NameTemplateBox.Focus();
+    }
+
+    private void UseExample_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button { Tag: string template }) return;
+        NameTemplateBox.Text = template;
+        NameTemplateBox.CaretIndex = template.Length;
+        NameTemplateBox.Focus();
+    }
 
     private void ResetNameTemplate_Click(object sender, RoutedEventArgs e)
     {

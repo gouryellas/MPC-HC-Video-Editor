@@ -11,8 +11,8 @@ known to be weak, and how to report something that isn't listed here.
 
 | Version | Supported |
 | ------- | --------- |
-| 4.0     | Yes       |
-| 3.x     | No        |
+| 4.1     | Yes       |
+| 4.0 and earlier | No |
 
 Versions are two-part from 4.0 onward — 4.0, 4.1, 4.2 — rather than the
 three-part 3.0.x scheme that came before.

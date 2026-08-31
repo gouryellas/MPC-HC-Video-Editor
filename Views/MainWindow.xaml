@@ -1,4 +1,4 @@
-﻿<!-- Title is set in the constructor from the assembly version — see AppVersion.
+<!-- Title is set in the constructor from the assembly version — see AppVersion.
      The literal that used to be on the Title attribute below is why 3.0.1
      shipped with a window still captioned 3.0; what is left there is only what
      the XAML designer shows. -->
@@ -11,7 +11,7 @@
         Icon="pack://application:,,,/Assets/app.ico"
         Height="780" Width="1100"
         MinHeight="560" MinWidth="900"
-        Background="#1E1E1E"
+        Background="{DynamicResource WindowBackground}"
         WindowStartupLocation="CenterScreen"
         AllowDrop="True"
         DragOver="Window_DragOver"
@@ -27,9 +27,9 @@
 
 
         <Style TargetType="Button" x:Key="DarkButton">
-            <Setter Property="Background" Value="#2D2D30"/>
-            <Setter Property="Foreground" Value="#E0E0E0"/>
-            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="10,5"/>
             <Setter Property="Margin" Value="3"/>
@@ -46,7 +46,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#3E3E42"/>
+                                <Setter Property="Background" Value="{DynamicResource ControlHover}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.4"/>
@@ -59,41 +59,42 @@
 
         <Style TargetType="Button" BasedOn="{StaticResource DarkButton}"/>
 
-        <!-- Readable menus: light background, black text, LTR -->
+        <!-- The menu strip keeps system-like chrome rather than following the
+             app's canvas, so its two colours are their own palette roles. -->
         <Style TargetType="Menu">
-            <Setter Property="Background" Value="#F3F3F3"/>
-            <Setter Property="Foreground" Value="Black"/>
+            <Setter Property="Background" Value="{DynamicResource MenuBarBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource MenuBarForeground}"/>
             <Setter Property="FlowDirection" Value="LeftToRight"/>
         </Style>
         <Style TargetType="MenuItem">
-            <Setter Property="Foreground" Value="Black"/>
-            <Setter Property="Background" Value="#F3F3F3"/>
+            <Setter Property="Foreground" Value="{DynamicResource MenuBarForeground}"/>
+            <Setter Property="Background" Value="{DynamicResource MenuBarBackground}"/>
             <Setter Property="FlowDirection" Value="LeftToRight"/>
             <Style.Triggers>
                 <Trigger Property="IsHighlighted" Value="True">
-                    <Setter Property="Background" Value="#CCE8FF"/>
-                    <Setter Property="Foreground" Value="Black"/>
+                    <Setter Property="Background" Value="{DynamicResource LinkBlue}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource MenuBarForeground}"/>
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Foreground" Value="#888888"/>
+                    <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
         <Style TargetType="Separator">
-            <Setter Property="Background" Value="#CCCCCC"/>
+            <Setter Property="Background" Value="{DynamicResource TextDim}"/>
         </Style>
 
         <!-- Clickable timestamp look: teal, no underline by default,
              underline + brighter colour on hover, hand cursor.
              Used for the bookmark timestamp hyperlinks. -->
         <Style x:Key="TimestampLink" TargetType="Hyperlink">
-            <Setter Property="Foreground" Value="#4EC9B0"/>
+            <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
             <Setter Property="TextDecorations" Value="{x:Null}"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="ToolTip" Value="Click to seek MPC-HC to this time"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Foreground" Value="#7FE0C8"/>
+                    <Setter Property="Foreground" Value="{DynamicResource AccentBright}"/>
                     <Setter Property="TextDecorations" Value="Underline"/>
                 </Trigger>
             </Style.Triggers>
@@ -102,7 +103,7 @@
 
     <DockPanel>
         <!-- Menu -->
-        <Menu x:Name="HeaderMenu" DockPanel.Dock="Top" Background="#F3F3F3" Foreground="Black" FlowDirection="LeftToRight" Padding="4">
+        <Menu x:Name="HeaderMenu" DockPanel.Dock="Top" Background="{DynamicResource MenuBarBackground}" Foreground="{DynamicResource MenuBarForeground}" FlowDirection="LeftToRight" Padding="4">
             <MenuItem Header="_File">
                 <MenuItem Header="Open…" Command="{Binding OpenFileCommand}"
                           ToolTip="Open a video file, bookmark CSV, or .pls playlist (auto-detected by extension)"/>
@@ -160,23 +161,23 @@
                 <MenuItem Header="Merge selected / all / any" Command="{Binding MergeSelectedCommand}"
                           ToolTip="Merges the checked cuts, or every cut, or — with no video loaded — files you pick. A single cut is written out on its own as a trim.">
                     <MenuItem.Icon>
-                        <Rectangle Width="12" Height="12" Fill="#0E639C" RadiusX="2" RadiusY="2"/>
+                        <Rectangle Width="12" Height="12" Fill="{DynamicResource PrimaryButton}" RadiusX="2" RadiusY="2"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Split selected / all" Command="{Binding SplitSelectedCommand}">
                     <MenuItem.Icon>
-                        <Rectangle Width="12" Height="12" Fill="#3D5A40" RadiusX="2" RadiusY="2"/>
+                        <Rectangle Width="12" Height="12" Fill="{DynamicResource SplitBackground}" RadiusX="2" RadiusY="2"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <Separator/>
                 <MenuItem Header="Convert files to MP4…" Command="{Binding ConvertFilesCommand}">
                     <MenuItem.Icon>
-                        <Rectangle Width="12" Height="12" Fill="#5B3A8E" RadiusX="2" RadiusY="2"/>
+                        <Rectangle Width="12" Height="12" Fill="{DynamicResource ConvertBackground}" RadiusX="2" RadiusY="2"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Strip audio to MP3…" Command="{Binding StripAudioCommand}">
                     <MenuItem.Icon>
-                        <Rectangle Width="12" Height="12" Fill="#8B5A1A" RadiusX="2" RadiusY="2"/>
+                        <Rectangle Width="12" Height="12" Fill="{DynamicResource AudioBackground}" RadiusX="2" RadiusY="2"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <Separator/>
@@ -184,7 +185,7 @@
                      single gesture rather than a menu click then a dialog. -->
                 <MenuItem Header="Image conversion" ToolTip="Convert image files to another format">
                     <MenuItem.Icon>
-                        <Rectangle Width="12" Height="12" Fill="#2E7D5B" RadiusX="2" RadiusY="2"/>
+                        <Rectangle Width="12" Height="12" Fill="{DynamicResource SplitBorder}" RadiusX="2" RadiusY="2"/>
                     </MenuItem.Icon>
                     <MenuItem Header="To PNG…"  Command="{Binding ConvertImagesCommand}" CommandParameter="png"/>
                     <MenuItem Header="To JPG…"  Command="{Binding ConvertImagesCommand}" CommandParameter="jpg"/>
@@ -333,7 +334,7 @@
         </Menu>
 
         <!-- Status bar -->
-        <Border DockPanel.Dock="Bottom" Background="#007ACC" Padding="10,6">
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource PrimaryButton}" Padding="10,6">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -341,27 +342,27 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <TextBlock Text="{Binding StatusText}" Foreground="White" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource OnAccent}" VerticalAlignment="Center"/>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="16,0">
-                    <TextBlock Text="{Binding HotkeyStatus}" Foreground="#EBCB8B" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding HotkeyStatus}" Foreground="{DynamicResource ValueYellow}" VerticalAlignment="Center"/>
                     <StackPanel Orientation="Horizontal" Visibility="{Binding IsMpcRunning, Converter={StaticResource BoolToVis}}" Margin="16,0,0,0">
-                        <TextBlock Text="{Binding CurrentTimeDisplay}" Foreground="#A6E3A1" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                        <TextBlock Text=" / " Foreground="#88C0D0" VerticalAlignment="Center"/>
-                        <TextBlock Text="{Binding DurationDisplay}" Foreground="#88C0D0" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding CurrentTimeDisplay}" Foreground="{DynamicResource StatusOk}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        <TextBlock Text=" / " Foreground="{DynamicResource AccentBright}" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding DurationDisplay}" Foreground="{DynamicResource AccentBright}" VerticalAlignment="Center"/>
                     </StackPanel>
                 </StackPanel>
 
                 <ProgressBar Grid.Column="2" Width="160" Height="8"
                              Value="{Binding ProgressPercent}"
                              Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}"
-                             Background="#005A9E" Foreground="White"/>
+                             Background="{DynamicResource PrimaryButton}" Foreground="{DynamicResource OnAccent}"/>
             </Grid>
         </Border>
 
         <!-- Job progress. Sits above the status bar and only takes space while
              an operation is running. -->
-        <Border DockPanel.Dock="Bottom" Background="#252526" Padding="12,8"
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource PanelBackground}" Padding="12,8"
                 Visibility="{Binding Job.IsRunning, Converter={StaticResource BoolToVis}}">
             <StackPanel>
                 <Grid Margin="0,0,0,6">
@@ -371,21 +372,21 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Text="{Binding Job.Action}" Foreground="#E0E0E0" FontWeight="SemiBold"/>
-                    <TextBlock Grid.Column="1" Text="{Binding Job.FileCountDisplay}" Foreground="#888"
+                    <TextBlock Text="{Binding Job.Action}" Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold"/>
+                    <TextBlock Grid.Column="1" Text="{Binding Job.FileCountDisplay}" Foreground="{DynamicResource TextSecondary}"
                                Margin="12,0" VerticalAlignment="Center"/>
-                    <TextBlock Grid.Column="2" Text="{Binding Job.PercentDisplay}" Foreground="#E0E0E0"
+                    <TextBlock Grid.Column="2" Text="{Binding Job.PercentDisplay}" Foreground="{DynamicResource TextPrimary}"
                                FontWeight="SemiBold"/>
                 </Grid>
 
-                <TextBlock Text="{Binding Job.CurrentFile}" Foreground="#4EC9B0"
+                <TextBlock Text="{Binding Job.CurrentFile}" Foreground="{DynamicResource Accent}"
                            TextTrimming="CharacterEllipsis" Margin="0,0,0,2"/>
-                <TextBlock Text="{Binding Job.Step}" Foreground="#DCDCAA"
+                <TextBlock Text="{Binding Job.Step}" Foreground="{DynamicResource ValueYellow}"
                            TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
 
                 <!-- Colour comes from the percentage itself, ramping black →
                      red → orange → yellow → green. -->
-                <Border Background="#1A1A1A" CornerRadius="3" Height="14" Padding="2">
+                <Border Background="{DynamicResource TimelineTrack}" CornerRadius="3" Height="14" Padding="2">
                     <Grid>
                         <Rectangle HorizontalAlignment="Left" RadiusX="2" RadiusY="2"
                                    Fill="{Binding Job.Percent, Converter={StaticResource ProgressBrush}}"
@@ -398,10 +399,10 @@
                 </Border>
 
                 <Grid Margin="0,6,0,0">
-                    <TextBlock Foreground="#888" HorizontalAlignment="Left">
+                    <TextBlock Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Left">
                         <Run Text="Elapsed"/><Run Text="  "/><Run Text="{Binding Job.ElapsedDisplay, Mode=OneWay}"/>
                     </TextBlock>
-                    <TextBlock Foreground="#888" HorizontalAlignment="Right">
+                    <TextBlock Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Right">
                         <Run Text="Remaining"/><Run Text="  "/><Run Text="{Binding Job.RemainingDisplay, Mode=OneWay}"/>
                     </TextBlock>
                 </Grid>
@@ -432,13 +433,13 @@
                      pads around the content, so each one is as wide as its
                      text needs. A fixed width was clipping "Convert video". -->
                 <Button Content="🎬 Merge" Command="{Binding MergeSelectedCommand}"
-                        Background="#0E639C" BorderBrush="#1177BB" FontWeight="SemiBold"/>
+                        Background="{DynamicResource PrimaryButton}" BorderBrush="{DynamicResource PrimaryButtonBorder}" FontWeight="SemiBold"/>
                 <Button Content="✂ Split" Command="{Binding SplitSelectedCommand}"
-                        Background="#3D5A40" BorderBrush="#4E6B50"/>
+                        Background="{DynamicResource SplitBackground}" BorderBrush="{DynamicResource SplitBorder}"/>
                 <Button Content="🔄 Convert video" Command="{Binding ConvertFilesCommand}"
-                        Background="#5B3A8E" BorderBrush="#6E4FA8"/>
+                        Background="{DynamicResource ConvertBackground}" BorderBrush="{DynamicResource ConvertBorder}"/>
                 <Button Content="🔊 Strip audio" Command="{Binding StripAudioCommand}"
-                        Background="#8B5A1A" BorderBrush="#A87423"/>
+                        Background="{DynamicResource AudioBackground}" BorderBrush="{DynamicResource AudioBorder}"/>
                 <Rectangle Width="12"/>
                 <Button Content="✎ Edit bookmarks" Command="{Binding EditBookmarksCommand}"/>
                 <Button Content="⏱ Enter time" Command="{Binding EnterTimeManualCommand}"/>
@@ -448,7 +449,7 @@
                  bookmark ranges drawn across the upper half so they read as
                  marks on the bar rather than competing with the position. -->
             <Grid Grid.Row="1" Margin="0,0,0,8" Height="18">
-                <Border Background="#1A1A1A" CornerRadius="3"/>
+                <Border Background="{DynamicResource TimelineTrack}" CornerRadius="3"/>
 
                 <!-- The audio, behind everything else. Stretched to the bar's
                      width rather than re-rendered on resize: it is a guide to
@@ -462,7 +463,7 @@
 
                 <ProgressBar Value="{Binding TimelineProgress}" Minimum="0" Maximum="1"
                              Height="6" Margin="0,6" Background="Transparent"
-                             Foreground="#0E639C" BorderThickness="0"/>
+                             Foreground="{DynamicResource PrimaryButton}" BorderThickness="0"/>
 
                 <helpers:TimelineRanges Height="8" Margin="0,2,0,8"
                                         VerticalAlignment="Top"
@@ -478,7 +479,7 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- List -->
-                <Border Grid.Column="0" Background="#252526" CornerRadius="6" Padding="6" Margin="0,0,10,0">
+                <Border Grid.Column="0" Background="{DynamicResource PanelBackground}" CornerRadius="6" Padding="6" Margin="0,0,10,0">
                     <DockPanel>
                         <!-- Columns mirror the row template below so the captions
                              sit over the controls they name. The speed slider had
@@ -497,12 +498,12 @@
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Grid.Column="0" Grid.ColumnSpan="3" Text="Bookmarks"
-                                       FontWeight="SemiBold" Foreground="#CCCCCC"/>
-                            <TextBlock Grid.Column="3" HorizontalAlignment="Right" Foreground="#888"
+                                       FontWeight="SemiBold" Foreground="{DynamicResource TextDim}"/>
+                            <TextBlock Grid.Column="3" HorizontalAlignment="Right" Foreground="{DynamicResource TextSecondary}"
                                        Text="{Binding Session.Bookmarks.Count, StringFormat={}{0} items}"
                                        Margin="0,0,10,0"/>
                             <TextBlock Grid.Column="5" Grid.ColumnSpan="2" Text="PLAY SPEED OF THE SAVED CLIP"
-                                       FontSize="10" FontWeight="SemiBold" Foreground="#888"
+                                       FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}"
                                        TextWrapping="Wrap" LineHeight="11"
                                        ToolTip="Each clip can be written out slower or faster than it was recorded. Drag a row's slider to change that clip; the length beside it updates to match."/>
                         </Grid>
@@ -510,7 +511,7 @@
                         <ListView ItemsSource="{Binding Session.Bookmarks}"
                                   SelectedItem="{Binding SelectedBookmark}"
                                   Background="Transparent" BorderThickness="0"
-                                  Foreground="#DDDDDD"
+                                  Foreground="{DynamicResource TextBody}"
                                   ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                             <ListView.ItemContainerStyle>
                                 <Style TargetType="ListViewItem">
@@ -519,10 +520,10 @@
                                     <Setter Property="Background" Value="Transparent"/>
                                     <Style.Triggers>
                                         <Trigger Property="IsSelected" Value="True">
-                                            <Setter Property="Background" Value="#094771"/>
+                                            <Setter Property="Background" Value="{DynamicResource RowSelected}"/>
                                         </Trigger>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter Property="Background" Value="#2A2D2E"/>
+                                            <Setter Property="Background" Value="{DynamicResource RowHover}"/>
                                         </Trigger>
                                     </Style.Triggers>
                                 </Style>
@@ -564,7 +565,7 @@
                                                   IsEnabled="{Binding IsValid}"
                                                   ToolTip="Set a closing timestamp before this cut can be selected"
                                                   VerticalAlignment="Center"/>
-                                        <TextBlock Grid.Column="2" Text="{Binding Index, StringFormat=[{0}]}" FontWeight="Bold" Foreground="#569CD6" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding Index, StringFormat=[{0}]}" FontWeight="Bold" Foreground="{DynamicResource LinkBlue}" VerticalAlignment="Center"/>
 
                                         <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
                                             <TextBlock ToolTip="Click to seek MPC-HC to this time">
@@ -574,7 +575,7 @@
                                                     <Run Text="{Binding StartDisplay, Mode=OneWay}"/>
                                                 </Hyperlink>
                                             </TextBlock>
-                                            <TextBlock Text=" → " Foreground="#666"/>
+                                            <TextBlock Text=" → " Foreground="{DynamicResource TextMuted}"/>
                                             <TextBlock ToolTip="Click to seek MPC-HC to this time">
                                                 <Hyperlink Style="{StaticResource TimestampLink}"
                                                            Tag="{Binding EndSeconds}"
@@ -582,8 +583,8 @@
                                                     <Run Text="{Binding EndDisplay, Mode=OneWay}"/>
                                                 </Hyperlink>
                                             </TextBlock>
-                                            <TextBlock Text="{Binding DurationDisplay, StringFormat=  ({0})}" Foreground="#DCDCAA" Margin="4,0,0,0"/>
-                                            <TextBlock Text="  incomplete" Foreground="#F44747" FontStyle="Italic"
+                                            <TextBlock Text="{Binding DurationDisplay, StringFormat=  ({0})}" Foreground="{DynamicResource ValueYellow}" Margin="4,0,0,0"/>
+                                            <TextBlock Text="  incomplete" Foreground="{DynamicResource StatusError}" FontStyle="Italic"
                                                        Visibility="{Binding IsIncomplete, Converter={StaticResource BoolToVis}}"/>
                                         </StackPanel>
 
@@ -591,7 +592,7 @@
                                              two are not squeezed into one marker — the
                                              overlay still combines them, where there is no
                                              room for columns (see Bookmark.Prefix). -->
-                                        <TextBlock Grid.Column="4" Text="{Binding FlipDisplay}" Foreground="#CE9178"
+                                        <TextBlock Grid.Column="4" Text="{Binding FlipDisplay}" Foreground="{DynamicResource StatusWarn}"
                                                    FontWeight="Bold" VerticalAlignment="Center"/>
 
                                         <Slider Grid.Column="5" Minimum="0.25" Maximum="2.0" TickFrequency="0.25"
@@ -599,7 +600,7 @@
                                                 VerticalAlignment="Center" Width="80"
                                                 ToolTip="How fast this clip plays when it is saved. Left is slower, right is faster; the clip's length changes to match."/>
 
-                                        <TextBlock Grid.Column="6" Text="{Binding SpeedDisplay}" Foreground="#9CDCFE"
+                                        <TextBlock Grid.Column="6" Text="{Binding SpeedDisplay}" Foreground="{DynamicResource LinkBlue}"
                                                    VerticalAlignment="Center" HorizontalAlignment="Right"
                                                    ToolTip="{Binding EffectiveDurationDisplay, StringFormat=Saved clip will run {0}}"/>
                                     </Grid>
@@ -610,16 +611,16 @@
                 </Border>
 
                 <!-- Right panel -->
-                <Border Grid.Column="1" Background="#252526" CornerRadius="6" Padding="14">
+                <Border Grid.Column="1" Background="{DynamicResource PanelBackground}" CornerRadius="6" Padding="14">
                     <StackPanel>
-                        <TextBlock Text="CURRENT VIDEO" FontSize="11" FontWeight="SemiBold" Foreground="#888" Margin="0,0,0,4"/>
-                        <TextBlock Text="{Binding Session.VideoFileName}" TextWrapping="Wrap" Foreground="#4EC9B0" FontSize="14" Margin="0,0,0,16"/>
+                        <TextBlock Text="CURRENT VIDEO" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4"/>
+                        <TextBlock Text="{Binding Session.VideoFileName}" TextWrapping="Wrap" Foreground="{DynamicResource Accent}" FontSize="14" Margin="0,0,0,16"/>
 
                         <!-- No video means no duration to report, so the whole
                              block goes rather than showing 00:00. -->
                         <StackPanel Visibility="{Binding Session.HasVideo, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="DURATION" FontSize="11" FontWeight="SemiBold" Foreground="#888"/>
-                            <TextBlock Text="{Binding DurationDisplay}" FontSize="20" FontWeight="SemiBold" Foreground="#E0E0E0" Margin="0,2,0,14"/>
+                            <TextBlock Text="DURATION" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}"/>
+                            <TextBlock Text="{Binding DurationDisplay}" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" Margin="0,2,0,14"/>
                         </StackPanel>
 
                         <!-- Edit length needs a video, a loaded bookmark file
@@ -627,8 +628,8 @@
                              the checked cuts, or of every cut when none are
                              checked (see EditSession.SelectedDurationSeconds). -->
                         <StackPanel Visibility="{Binding HasEditLength, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="EDIT LENGTH" FontSize="11" FontWeight="SemiBold" Foreground="#888"/>
-                            <TextBlock Text="{Binding Session.SelectedDurationDisplay}" FontSize="20" FontWeight="SemiBold" Foreground="#DCDCAA" Margin="0,2,0,18"/>
+                            <TextBlock Text="EDIT LENGTH" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}"/>
+                            <TextBlock Text="{Binding Session.SelectedDurationDisplay}" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource ValueYellow}" Margin="0,2,0,18"/>
                         </StackPanel>
 
                         <!-- First and last frame of the highlighted clip. Only the
@@ -638,8 +639,8 @@
                              frames appear a moment after the labels, which is why
                              the placeholders below carry a background. -->
                         <StackPanel Visibility="{Binding HasClipPreview, Converter={StaticResource BoolToVis}}">
-                            <Border BorderBrush="#3F3F46" BorderThickness="0,1,0,0" Margin="0,4,0,12"/>
-                            <TextBlock Text="{Binding ClipPreviewHeading}" FontSize="11" FontWeight="SemiBold" Foreground="#888" Margin="0,0,0,6"/>
+                            <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Margin="0,4,0,12"/>
+                            <TextBlock Text="{Binding ClipPreviewHeading}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,6"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -648,45 +649,45 @@
                                 </Grid.ColumnDefinitions>
 
                                 <StackPanel Grid.Column="0">
-                                    <Border Background="#1B1B1C" CornerRadius="3" Height="76">
+                                    <Border Background="{DynamicResource InsetBackground}" CornerRadius="3" Height="76">
                                         <Image Source="{Binding ClipInThumbnail}" Stretch="Uniform"/>
                                     </Border>
-                                    <TextBlock Text="IN" FontSize="10" FontWeight="SemiBold" Foreground="#4EC9B0"
+                                    <TextBlock Text="IN" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Accent}"
                                                HorizontalAlignment="Center" Margin="0,3,0,0"/>
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="2">
-                                    <Border Background="#1B1B1C" CornerRadius="3" Height="76">
+                                    <Border Background="{DynamicResource InsetBackground}" CornerRadius="3" Height="76">
                                         <Image Source="{Binding ClipOutThumbnail}" Stretch="Uniform"/>
                                     </Border>
-                                    <TextBlock Text="OUT" FontSize="10" FontWeight="SemiBold" Foreground="#DCDCAA"
+                                    <TextBlock Text="OUT" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource ValueYellow}"
                                                HorizontalAlignment="Center" Margin="0,3,0,0"/>
                                 </StackPanel>
                             </Grid>
-                            <TextBlock Foreground="#777" FontSize="11" Margin="0,6,0,16" TextWrapping="Wrap"
+                            <TextBlock Foreground="{DynamicResource TextMuted}" FontSize="11" Margin="0,6,0,16" TextWrapping="Wrap"
                                        Text="{Binding ClipPreviewSubtext}"/>
                         </StackPanel>
 
-                        <Border BorderBrush="#3F3F46" BorderThickness="0,1,0,0" Margin="0,4,0,12"/>
+                        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Margin="0,4,0,12"/>
 
-                        <TextBlock Text="CURRENT BOOKMARKS" FontSize="11" FontWeight="SemiBold" Foreground="#888" Margin="0,0,0,4"/>
-                        <TextBlock Text="{Binding BookmarksFileName}" TextWrapping="Wrap" Foreground="#B5CEA8" FontSize="14" Margin="0,0,0,14"/>
+                        <TextBlock Text="CURRENT BOOKMARKS" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4"/>
+                        <TextBlock Text="{Binding BookmarksFileName}" TextWrapping="Wrap" Foreground="{DynamicResource ValueGreen}" FontSize="14" Margin="0,0,0,14"/>
 
-                        <TextBlock Text="CURRENT PLAYLIST" FontSize="11" FontWeight="SemiBold" Foreground="#888" Margin="0,0,0,4"/>
-                        <TextBlock Text="{Binding PlaylistFileName}" TextWrapping="Wrap" Foreground="#B5CEA8" FontSize="14" Margin="0,0,0,18"/>
+                        <TextBlock Text="CURRENT PLAYLIST" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4"/>
+                        <TextBlock Text="{Binding PlaylistFileName}" TextWrapping="Wrap" Foreground="{DynamicResource ValueGreen}" FontSize="14" Margin="0,0,0,18"/>
 
-                        <Border BorderBrush="#3F3F46" BorderThickness="0,1,0,0" Margin="0,4,0,12"/>
+                        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Margin="0,4,0,12"/>
 
-                        <TextBlock Text="MPC-HC" FontSize="11" FontWeight="SemiBold" Foreground="#888"/>
+                        <TextBlock Text="MPC-HC" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}"/>
                         <TextBlock Margin="0,4,0,0">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Text" Value="Not running"/>
-                                    <Setter Property="Foreground" Value="#F44747"/>
+                                    <Setter Property="Foreground" Value="{DynamicResource StatusError}"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsMpcRunning}" Value="True">
                                             <Setter Property="Text" Value="● Running"/>
-                                            <Setter Property="Foreground" Value="#A6E3A1"/>
+                                            <Setter Property="Foreground" Value="{DynamicResource StatusOk}"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>

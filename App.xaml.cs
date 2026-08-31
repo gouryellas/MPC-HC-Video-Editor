@@ -23,6 +23,21 @@ public partial class App : Application
             return;
         }
 
+        // Before base.OnStartup, which is what creates the first window: the
+        // theme's brushes have to be in Application.Resources before anything
+        // is measured, or the window paints in whatever the defaults were and
+        // then visibly repaints.
+        try
+        {
+            ThemeService.ApplyFromKey(new SettingsService().Current.ThemeKey);
+        }
+        catch
+        {
+            // An unreadable settings file must not stop the app starting; the
+            // default palette is already in place.
+            ThemeService.Apply(ThemePalette.Graphite);
+        }
+
         // Windows sometimes sets "menu drop alignment" so popups open to the left.
         // Force normal left-to-right menu alignment.
         try

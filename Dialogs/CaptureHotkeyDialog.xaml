@@ -4,7 +4,7 @@
         Title="Set Timestamp Hotkey"
         SizeToContent="Height" Width="420" MinWidth="420"
         WindowStartupLocation="CenterOwner"
-        Background="#2D2D30"
+        Background="{DynamicResource ControlBackground}"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
         Loaded="Window_Loaded"
@@ -21,25 +21,25 @@
         <!-- The whole dialog captures. It arms itself on open, so the field
              below is already live when it appears — press the key or button
              you want, watch it update, then click OK. -->
-        <TextBlock Grid.Row="0" x:Name="PromptText" Foreground="#CCCCCC"
+        <TextBlock Grid.Row="0" x:Name="PromptText" Foreground="{DynamicResource TextDim}"
                    Margin="0,0,0,12" TextWrapping="Wrap"
                    Text="Listening — press any key, key combination, or mouse button."/>
 
-        <Border Grid.Row="1" Background="#1E1E1E" BorderBrush="#0E639C" BorderThickness="2"
+        <Border Grid.Row="1" Background="{DynamicResource WindowBackground}" BorderBrush="{DynamicResource PrimaryButton}" BorderThickness="2"
                 CornerRadius="4" Padding="14,18" Margin="0,0,0,10">
             <TextBlock x:Name="CapturedText" Text="…"
-                       Foreground="#4EC9B0" FontSize="22" FontWeight="SemiBold"
+                       Foreground="{DynamicResource Accent}" FontSize="22" FontWeight="SemiBold"
                        HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"/>
         </Border>
 
-        <TextBlock Grid.Row="2" Foreground="#666666" FontSize="11" TextWrapping="Wrap"
+        <TextBlock Grid.Row="2" Foreground="{DynamicResource TextMuted}" FontSize="11" TextWrapping="Wrap"
                    Margin="0,0,0,14"
                    Text="Middle and side mouse buttons work too. Click OK to set it."/>
 
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="Disable hotkey" Width="120" Margin="4" Padding="8,4" Click="Disable_Click"/>
             <Button x:Name="OkButton" Content="OK" Width="80" Margin="4" Padding="8,4" Click="Ok_Click"
-                    Background="#0E639C" Foreground="White"/>
+                    Background="{DynamicResource PrimaryButton}" Foreground="{DynamicResource OnAccent}"/>
             <Button Content="Cancel" Width="80" Margin="4" Padding="8,4" IsCancel="True"/>
         </StackPanel>
     </Grid>

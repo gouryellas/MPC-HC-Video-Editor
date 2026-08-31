@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Rename output file" Height="290" Width="520"
         WindowStartupLocation="CenterOwner"
-        Background="#2D2D30" ResizeMode="NoResize"
+        Background="{DynamicResource ControlBackground}" ResizeMode="NoResize"
         ShowInTaskbar="False"
         Topmost="True">
     <Grid Margin="16">
@@ -16,21 +16,21 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock x:Name="ReasonText" Foreground="#CCCCCC" TextWrapping="Wrap" Margin="0,0,0,10"/>
+        <TextBlock x:Name="ReasonText" Foreground="{DynamicResource TextDim}" TextWrapping="Wrap" Margin="0,0,0,10"/>
 
-        <TextBlock Grid.Row="1" x:Name="OriginalText" Foreground="#F44747"
+        <TextBlock Grid.Row="1" x:Name="OriginalText" Foreground="{DynamicResource StatusError}"
                    TextWrapping="Wrap" Margin="0,0,0,12"/>
 
         <TextBox Grid.Row="2" x:Name="NameBox"
-                 Background="#1E1E1E" Foreground="#E0E0E0" CaretBrush="#E0E0E0"
-                 BorderBrush="#3F3F46" Padding="6,4" FontSize="14"
+                 Background="{DynamicResource WindowBackground}" Foreground="{DynamicResource TextPrimary}" CaretBrush="{DynamicResource TextPrimary}"
+                 BorderBrush="{DynamicResource BorderBrush}" Padding="6,4" FontSize="14"
                  PreviewTextInput="NameBox_PreviewTextInput"
                  TextChanged="NameBox_TextChanged"/>
 
-        <TextBlock Grid.Row="3" x:Name="PreviewText" Foreground="#4EC9B0"
+        <TextBlock Grid.Row="3" x:Name="PreviewText" Foreground="{DynamicResource Accent}"
                    TextWrapping="Wrap" Margin="0,8,0,0"/>
 
-        <TextBlock Grid.Row="4" x:Name="MessageText" Foreground="#DCDCAA"
+        <TextBlock Grid.Row="4" x:Name="MessageText" Foreground="{DynamicResource ValueYellow}"
                    TextWrapping="Wrap" Margin="0,10,0,0" VerticalAlignment="Top"/>
 
         <Grid Grid.Row="5">
@@ -38,14 +38,14 @@
                  about to be made, not as another action. Hidden when only one
                  file is being processed, where "remaining" means nothing. -->
             <CheckBox x:Name="ApplyToAllCheck" HorizontalAlignment="Left" VerticalAlignment="Center"
-                      Foreground="#CCCCCC" Visibility="Collapsed"
+                      Foreground="{DynamicResource TextDim}" Visibility="Collapsed"
                       ToolTip="Silently apply the suggested correction to every later file that breaks the rules"
                       Content="Do this for all remaining files"/>
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Content="Use suggested" Width="120" Margin="4" Click="Suggested_Click" Padding="8,4"/>
                 <Button Content="OK" Width="90" Margin="4" Click="Ok_Click"
-                        Background="#0E639C" Foreground="White" Padding="8,4"/>
+                        Background="{DynamicResource PrimaryButton}" Foreground="{DynamicResource OnAccent}" Padding="8,4"/>
                 <Button Content="Cancel" Width="80" Margin="4" Click="Cancel_Click" Padding="8,4"/>
             </StackPanel>
         </Grid>

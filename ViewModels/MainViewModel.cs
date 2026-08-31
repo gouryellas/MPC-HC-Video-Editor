@@ -4912,6 +4912,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         s.PreciseCuts = dlg.PreciseCuts;
         s.NormaliseAudio = dlg.NormaliseAudio;
         s.NameTemplate = dlg.NameTemplate;
+
+        // The dialog already applied this live so it could be seen; this is
+        // what makes it survive a restart.
+        s.ThemeKey = dlg.ThemeKey;
+        ThemeService.ApplyFromKey(dlg.ThemeKey);
         s.OnNameCollision = dlg.OnNameCollision;
         s.PollSpeed = dlg.PollSpeed;
         s.MpcWebInterfacePort = dlg.MpcWebInterfacePort;

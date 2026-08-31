@@ -24,6 +24,12 @@ public partial class MainWindow : Window
         // let the window still say 3.0 in the 3.0.1 release. See AppVersion.
         Title = $"MPC-HC Video Editor {AppVersion.Display}";
 
+        // The window and tray icons are drawn from the palette rather than
+        // loaded, so they follow the theme. Applied now for the starting theme
+        // and again whenever it changes.
+        IconRenderer.ApplyTo(this, ThemeService.Current);
+        ThemeService.Changed += OnThemeChanged;
+
         Loaded += MainWindow_Loaded;
         Activated += (_, _) =>
         {
@@ -43,6 +49,20 @@ public partial class MainWindow : Window
     // ------------------------------------------------------------------
 
     private TrayIconService? _tray;
+
+    /// <summary>
+    /// Repaints both icons for a new theme.
+    /// </summary>
+    /// <remarks>
+    /// The tray icon only exists in tray mode, so it is updated conditionally —
+    /// and it is the one that genuinely needs this, since it sits on the user's
+    /// taskbar next to everything else all day.
+    /// </remarks>
+    private void OnThemeChanged(ThemePalette palette)
+    {
+        IconRenderer.ApplyTo(this, palette);
+        _tray?.ApplyTheme(palette);
+    }
 
     /// <summary>
     /// Set when the user has chosen Exit from the tray menu, so the close that
@@ -1045,9 +1065,9 @@ public partial class MainWindow : Window
         // no position to reach.
         var (suffix, colour) = entry.Status switch
         {
-            PlaylistEntryStatus.Present => (string.Empty, Brushes.Black),
-            PlaylistEntryStatus.Missing => ("  (missing)", Brushes.Salmon),
-            _                           => ("  (drive offline)", Brushes.DarkOrange)
+            PlaylistEntryStatus.Present => (string.Empty, ThemeService.Brush(nameof(ThemePalette.MenuBarForeground))),
+            PlaylistEntryStatus.Missing => ("  (missing)", ThemeService.Brush(nameof(ThemePalette.StatusError))),
+            _                           => ("  (drive offline)", ThemeService.Brush(nameof(ThemePalette.StatusWarn)))
         };
 
         var parent = new MenuItem

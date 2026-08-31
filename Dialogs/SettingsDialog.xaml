@@ -4,15 +4,15 @@
         Title="Settings"
         Height="600" Width="560"
         MinHeight="500" MinWidth="500"
-        Background="#1E1E1E"
+        Background="{DynamicResource WindowBackground}"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
         ResizeMode="CanResize">
     <Window.Resources>
         <Style TargetType="Button">
-            <Setter Property="Background" Value="#2D2D30"/>
-            <Setter Property="Foreground" Value="#E0E0E0"/>
-            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="10,5"/>
             <Setter Property="Margin" Value="3"/>
@@ -29,7 +29,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#3E3E42"/>
+                                <Setter Property="Background" Value="{DynamicResource ControlHover}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.4"/>
@@ -41,49 +41,49 @@
         </Style>
 
         <Style TargetType="RadioButton">
-            <Setter Property="Foreground" Value="#DDDDDD"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBody}"/>
             <Setter Property="Margin" Value="0,3"/>
             <Setter Property="Cursor" Value="Hand"/>
         </Style>
 
         <Style TargetType="CheckBox">
-            <Setter Property="Foreground" Value="#DDDDDD"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBody}"/>
             <Setter Property="Margin" Value="0,3"/>
             <Setter Property="Cursor" Value="Hand"/>
         </Style>
 
         <Style TargetType="TextBox">
-            <Setter Property="Background" Value="#2D2D30"/>
-            <Setter Property="Foreground" Value="#E8E8E8"/>
-            <Setter Property="CaretBrush" Value="#E8E8E8"/>
-            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="6,4"/>
         </Style>
 
         <Style x:Key="Heading" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#4EC9B0"/>
+            <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Margin" Value="0,0,0,6"/>
         </Style>
 
         <Style x:Key="Hint" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#888"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="Margin" Value="0,4,0,0"/>
         </Style>
 
         <Style x:Key="Label" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#DDDDDD"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBody}"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="Margin" Value="0,0,10,0"/>
         </Style>
 
         <!-- Section card. Every group sits in one of these. -->
         <Style x:Key="Card" TargetType="Border">
-            <Setter Property="Background" Value="#252526"/>
+            <Setter Property="Background" Value="{DynamicResource PanelBackground}"/>
             <Setter Property="CornerRadius" Value="6"/>
             <Setter Property="Padding" Value="12"/>
             <Setter Property="Margin" Value="0,0,0,10"/>
@@ -96,12 +96,28 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TabControl Grid.Row="0" Background="#1E1E1E" BorderBrush="#3F3F46">
+        <TabControl Grid.Row="0" Background="{DynamicResource WindowBackground}" BorderBrush="{DynamicResource BorderBrush}">
 
             <!-- ============================ GENERAL ============================ -->
             <TabItem Header="General">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10,10,16,10">
                     <StackPanel>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Appearance" Style="{StaticResource Heading}"/>
+                                <!-- Applied the moment it changes rather than on Save.
+                                     A colour scheme is the one setting nobody can judge
+                                     from its name, and Cancel puts the previous one
+                                     back. -->
+                                <ComboBox x:Name="ThemeCombo" Padding="6,4"
+                                          SelectionChanged="Theme_Changed"/>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Changes the whole interface immediately, along with the window and notification-area icons. Cancel restores the previous theme."/>
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
+                                           Text="The icon on the program file itself is fixed when the app is built and cannot follow the theme — only the icons shown while it is running."/>
+                            </StackPanel>
+                        </Border>
 
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
@@ -242,13 +258,89 @@
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
                                 <TextBlock Text="Output filename" Style="{StaticResource Heading}"/>
-                                <TextBox x:Name="NameTemplateBox" TextChanged="NameTemplate_Changed"/>
-                                <TextBlock x:Name="NameTemplatePreview" Style="{StaticResource Hint}"
-                                           Foreground="#B5CEA8" Margin="0,6,0,0"/>
-                                <TextBlock Style="{StaticResource Hint}"
-                                           Text="{}{name} source filename · {suffix} naming tag · {index} clip number · {index2} padded · {start} {end} timestamps · {duration} seconds · {date} today. The result is still put through the filename rules, so anything disallowed is corrected."/>
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,6"
+                                           Text="The pattern used to name every file this app writes. Type it out, or click a variable below to insert it."/>
+
+                                <TextBox x:Name="NameTemplateBox" TextChanged="NameTemplate_Changed"
+                                         FontFamily="Consolas" FontSize="13" Padding="6,4"/>
+
+                                <!-- The result of the pattern above, on a made-up
+                                     clip. Live, because a template is otherwise
+                                     guesswork until a batch has been written under
+                                     the wrong name. -->
+                                <Border Background="{DynamicResource InsetBackground}" CornerRadius="3" Padding="8,6" Margin="0,6,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="RESULT" FontSize="9" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}"/>
+                                        <TextBlock x:Name="NameTemplatePreview" Foreground="{DynamicResource ValueGreen}"
+                                                   FontFamily="Consolas" FontSize="13" TextWrapping="Wrap"
+                                                   Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <TextBlock Text="Variables" FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextSecondary}" Margin="0,14,0,4"/>
+
+                                <!-- Bound to NameTemplate.Variables rather than written
+                                     out here, so the list on screen cannot drift from
+                                     the one the builder actually understands. -->
+                                <ItemsControl x:Name="VariableList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,1">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="96"/>
+                                                    <ColumnDefinition Width="84"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <Button Grid.Column="0" Content="{Binding Name}"
+                                                        Click="InsertVariable_Click" Tag="{Binding Name}"
+                                                        ToolTip="Click to insert this variable"
+                                                        FontFamily="Consolas" FontSize="12"
+                                                        Foreground="{DynamicResource LinkBlue}" Background="Transparent"
+                                                        BorderThickness="0" Padding="0" Margin="0"
+                                                        HorizontalContentAlignment="Left" Cursor="Hand"/>
+
+                                                <TextBlock Grid.Column="1" Text="{Binding Example}"
+                                                           Foreground="{DynamicResource ValueGreen}" FontFamily="Consolas"
+                                                           FontSize="11" VerticalAlignment="Center"/>
+
+                                                <TextBlock Grid.Column="2" Text="{Binding Meaning}"
+                                                           Foreground="{DynamicResource TextSecondary}" FontSize="11"
+                                                           TextWrapping="Wrap" VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <TextBlock Text="Starting points" FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextSecondary}" Margin="0,14,0,4"/>
+
+                                <ItemsControl x:Name="TemplateExamples">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Margin="0,0,0,6">
+                                                <Button Content="{Binding Name}" Click="UseExample_Click"
+                                                        Tag="{Binding Name}"
+                                                        ToolTip="Click to use this pattern"
+                                                        FontFamily="Consolas" FontSize="12"
+                                                        Foreground="{DynamicResource LinkBlue}" Background="Transparent"
+                                                        BorderThickness="0" Padding="0" Margin="0"
+                                                        HorizontalAlignment="Left" Cursor="Hand"/>
+                                                <TextBlock Text="{Binding Example}" Foreground="{DynamicResource ValueGreen}"
+                                                           FontFamily="Consolas" FontSize="11" Margin="0,1,0,0"/>
+                                                <TextBlock Text="{Binding Meaning}" Foreground="{DynamicResource TextMuted}"
+                                                           FontSize="11" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,10,0,0"
+                                           Text="Whatever the pattern produces is still put through the filename rules: spaces become dashes, and anything Windows will not accept in a filename — a colon, slash or asterisk — is removed. A clip's number, start, end and length are left out of names for whole-file operations like Convert, which have no single clip to describe. A misspelled variable is left as you typed it, so it shows up in the filename rather than vanishing."/>
+
                                 <Button Content="Reset to default" Click="ResetNameTemplate_Click"
-                                        HorizontalAlignment="Left" Margin="0,8,0,0" Padding="10,4"/>
+                                        HorizontalAlignment="Left" Margin="0,10,0,0" Padding="10,4"/>
                             </StackPanel>
                         </Border>
 
@@ -331,7 +423,7 @@
                                 <TextBlock Style="{StaticResource Hint}"
                                            Text="On: deletions can be undone from the Recycle Bin. On a volume that has no Recycle Bin — a network share, most removable media — the file is removed outright anyway, because leaving it would be worse than the deletion you asked for."/>
                                 <TextBlock x:Name="RecycleBinWarning" Style="{StaticResource Hint}"
-                                           Foreground="#E09B78" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource StatusWarn}" FontWeight="SemiBold"
                                            Text="Off: files are deleted permanently and cannot be recovered. This applies to the two settings above as well, which delete without asking."/>
                             </StackPanel>
                         </Border>
@@ -448,7 +540,7 @@
                  DialogResult twice, the second time on a closed window. -->
             <Button Content="Cancel" Width="90" IsCancel="True"/>
             <Button Content="Save" Width="90" IsDefault="True" Click="Save_Click"
-                    Background="#0E639C" BorderBrush="#1177BB" Foreground="White"/>
+                    Background="{DynamicResource PrimaryButton}" BorderBrush="{DynamicResource PrimaryButtonBorder}" Foreground="{DynamicResource OnAccent}"/>
         </StackPanel>
     </Grid>
 </Window>

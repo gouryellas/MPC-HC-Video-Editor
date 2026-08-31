@@ -4,50 +4,50 @@
         Title="Find clips automatically"
         Height="560" Width="520"
         MinHeight="460" MinWidth="460"
-        Background="#1E1E1E"
+        Background="{DynamicResource WindowBackground}"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False">
     <Window.Resources>
         <Style TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextDim}"/>
         </Style>
         <Style x:Key="Heading" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#4EC9B0"/>
+            <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Margin" Value="0,0,0,6"/>
         </Style>
         <Style x:Key="Hint" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#888888"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="Margin" Value="0,4,0,0"/>
         </Style>
         <Style TargetType="RadioButton">
-            <Setter Property="Foreground" Value="#DDDDDD"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBody}"/>
             <Setter Property="Margin" Value="0,2"/>
         </Style>
         <Style TargetType="CheckBox">
-            <Setter Property="Foreground" Value="#DDDDDD"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBody}"/>
             <Setter Property="Margin" Value="0,2"/>
         </Style>
         <Style TargetType="TextBox">
-            <Setter Property="Background" Value="#2D2D30"/>
-            <Setter Property="Foreground" Value="#E0E0E0"/>
-            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
             <Setter Property="Padding" Value="4,2"/>
         </Style>
         <Style TargetType="Button">
-            <Setter Property="Background" Value="#2D2D30"/>
-            <Setter Property="Foreground" Value="#E0E0E0"/>
-            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="12,6"/>
             <Setter Property="Margin" Value="3,0,0,0"/>
             <Setter Property="Cursor" Value="Hand"/>
         </Style>
         <Style x:Key="Card" TargetType="Border">
-            <Setter Property="Background" Value="#252526"/>
+            <Setter Property="Background" Value="{DynamicResource PanelBackground}"/>
             <Setter Property="CornerRadius" Value="6"/>
             <Setter Property="Padding" Value="12"/>
             <Setter Property="Margin" Value="0,0,0,10"/>
@@ -100,12 +100,12 @@
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
             <Button x:Name="ScanButton" Content="Scan video" Click="Scan_Click"
-                    Background="#0E639C" BorderBrush="#1177BB" Foreground="White" Margin="0"/>
+                    Background="{DynamicResource PrimaryButton}" BorderBrush="{DynamicResource PrimaryButtonBorder}" Foreground="{DynamicResource OnAccent}" Margin="0"/>
             <TextBlock x:Name="ScanStatus" VerticalAlignment="Center" Margin="10,0,0,0"
-                       Foreground="#888" Text="Nothing scanned yet."/>
+                       Foreground="{DynamicResource TextSecondary}" Text="Nothing scanned yet."/>
         </StackPanel>
 
-        <Border Grid.Row="2" Background="#252526" CornerRadius="6" Padding="8">
+        <Border Grid.Row="2" Background="{DynamicResource PanelBackground}" CornerRadius="6" Padding="8">
             <DockPanel>
                 <!-- Proposals are a starting point, never applied on their own.
                      Detection on real footage is a good first guess, and the
@@ -118,7 +118,7 @@
                     </StackPanel>
                 </Grid>
                 <ListBox x:Name="ResultsList" Background="Transparent" BorderThickness="0"
-                         Foreground="#DDDDDD" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                         Foreground="{DynamicResource TextBody}" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <CheckBox IsChecked="{Binding Use, Mode=TwoWay}" Content="{Binding Display}"/>
@@ -133,7 +133,7 @@
                       Content="Replace the bookmarks currently loaded"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
                 <Button x:Name="UseButton" Content="Use selected" Click="Use_Click" IsEnabled="False"
-                        Background="#0E639C" BorderBrush="#1177BB" Foreground="White"/>
+                        Background="{DynamicResource PrimaryButton}" BorderBrush="{DynamicResource PrimaryButtonBorder}" Foreground="{DynamicResource OnAccent}"/>
                 <Button Content="Cancel" IsCancel="True" Width="90"/>
             </StackPanel>
         </StackPanel>

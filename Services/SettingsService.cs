@@ -172,6 +172,11 @@ public class AppSettings
     public bool NormaliseAudio { get; set; }
 
     /// <summary>
+    /// Which colour theme the interface uses — see <see cref="ThemePalette"/>.
+    /// </summary>
+    public string ThemeKey { get; set; } = ThemePalette.Graphite.Key;
+
+    /// <summary>
     /// Pattern for output filenames — see <see cref="Helpers.NameTemplate"/>.
     /// </summary>
     /// <remarks>
@@ -589,11 +594,37 @@ public class SettingsService
     }
 
     /// <summary>
+    /// Rewrites a saved filename pattern that still uses the 4.0 variable
+    /// names.
+    /// </summary>
+    /// <remarks>
+    /// <c>{index}</c> and <c>{index2}</c> shipped in 4.0 and were renamed to
+    /// <c>{number}</c> and <c>{number2}</c> because nothing about "index2" said
+    /// what made it different. Both still expand, so this changes nothing about
+    /// the filenames produced — it exists so the Settings box shows a pattern
+    /// built from names that are actually in the list beneath it, rather than
+    /// two that quietly still work but are documented nowhere.
+    /// </remarks>
+    private void MigrateNameTemplate()
+    {
+        var template = Current.NameTemplate;
+        if (string.IsNullOrEmpty(template)) return;
+        if (!template.Contains("{index", StringComparison.Ordinal)) return;
+
+        // Longest first: replacing {index} before {index2} would leave a "2".
+        Current.NameTemplate = template
+            .Replace("{index2}", "{number2}", StringComparison.Ordinal)
+            .Replace("{index}", "{number}", StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Forces every numeric setting into a range the app can actually work
     /// with. Called on load and again on save.
     /// </summary>
     private void ClampNumericSettings()
     {
+        MigrateNameTemplate();
+
         // 1–65535 is the whole legal port space; anything outside it cannot be
         // what the user meant, so fall back rather than guess.
         if (Current.MpcWebInterfacePort is < 1 or > 65535)

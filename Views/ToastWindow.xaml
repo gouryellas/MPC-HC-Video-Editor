@@ -19,14 +19,14 @@
          Clicks pass straight through to whatever is underneath (MPC-HC) —
          see the WS_EX_TRANSPARENT / WS_EX_NOACTIVATE styles applied in the
          code-behind. -->
-    <Border Background="#F0202020"
-            BorderBrush="#4A4A4F"
+    <Border Background="{DynamicResource OverlayBackground}"
+            BorderBrush="{DynamicResource ControlHover}"
             BorderThickness="1"
             CornerRadius="8"
             Padding="18,13"
             MinWidth="240">
         <Border.Effect>
-            <DropShadowEffect Color="#000000" BlurRadius="14" ShadowDepth="2" Opacity="0.55"/>
+            <DropShadowEffect Color="{DynamicResource MenuBarForeground}" BlurRadius="14" ShadowDepth="2" Opacity="0.55"/>
         </Border.Effect>
 
         <StackPanel Orientation="Horizontal">
@@ -38,12 +38,12 @@
             <StackPanel VerticalAlignment="Center">
                 <TextBlock x:Name="TitleText"
                            Text="Timestamp set"
-                           Foreground="#FFFFFF"
+                           Foreground="{DynamicResource TextPrimary}"
                            FontSize="14"
                            FontWeight="SemiBold"/>
                 <TextBlock x:Name="DetailText"
                            Text=""
-                           Foreground="#B8B8B8"
+                           Foreground="{DynamicResource TextDim}"
                            FontSize="12"
                            Margin="0,3,0,0"/>
             </StackPanel>

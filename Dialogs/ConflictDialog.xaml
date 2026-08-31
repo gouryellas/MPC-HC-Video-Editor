@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="File exists" SizeToContent="Height" MinHeight="200" Width="480"
         WindowStartupLocation="CenterOwner"
-        Background="#2D2D30" ResizeMode="NoResize"
+        Background="{DynamicResource ControlBackground}" ResizeMode="NoResize"
         ShowInTaskbar="False"
         Topmost="True">
     <Grid Margin="16">
@@ -14,11 +14,11 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Text="This file already exists:" Foreground="#CCCCCC" Margin="0,0,0,8"/>
-        <TextBlock Grid.Row="1" x:Name="FileNameText" Foreground="#F44747" FontWeight="SemiBold"
+        <TextBlock Text="This file already exists:" Foreground="{DynamicResource TextDim}" Margin="0,0,0,8"/>
+        <TextBlock Grid.Row="1" x:Name="FileNameText" Foreground="{DynamicResource StatusError}" FontWeight="SemiBold"
                    TextWrapping="Wrap" Margin="0,0,0,16"/>
 
-        <TextBlock Grid.Row="2" x:Name="IncrementHint" Foreground="#888888" TextWrapping="Wrap"
+        <TextBlock Grid.Row="2" x:Name="IncrementHint" Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap"
                    FontStyle="Italic" VerticalAlignment="Top"/>
 
         <Grid Grid.Row="3">
@@ -26,12 +26,12 @@
                  on any later file, whereas a name typed into Rename cannot be
                  reused without colliding. -->
             <CheckBox x:Name="ApplyToAllCheck" HorizontalAlignment="Left" VerticalAlignment="Center"
-                      Foreground="#CCCCCC" Visibility="Collapsed"
+                      Foreground="{DynamicResource TextDim}" Visibility="Collapsed"
                       ToolTip="Applies to Overwrite and Increment. Rename always asks, since a typed name cannot repeat."
                       Content="Do this for all remaining files"/>
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="Overwrite" Width="90" Margin="4" Click="Overwrite_Click" Background="#0E639C" Foreground="White" Padding="8,4"/>
+                <Button Content="Overwrite" Width="90" Margin="4" Click="Overwrite_Click" Background="{DynamicResource PrimaryButton}" Foreground="{DynamicResource OnAccent}" Padding="8,4"/>
                 <Button Content="Increment" Width="90" Margin="4" Click="Increment_Click" Padding="8,4"/>
                 <Button Content="Rename…" Width="90" Margin="4" Click="Rename_Click" Padding="8,4"/>
                 <Button Content="Cancel" Width="80" Margin="4" Click="Cancel_Click" Padding="8,4"/>

@@ -117,8 +117,8 @@ public partial class RenameFileDialog : Window
 
         PreviewText.Text = $"Saves as:  {stem}{_suffix}{_extension}";
         PreviewText.Foreground = ok
-            ? System.Windows.Media.Brushes.MediumAquamarine
-            : System.Windows.Media.Brushes.Salmon;
+            ? Services.ThemeService.Brush(nameof(Services.ThemePalette.StatusOk))
+            : Services.ThemeService.Brush(nameof(Services.ThemePalette.StatusError));
 
         if (ok) MessageText.Text = string.Empty;
         else if (!string.IsNullOrEmpty(stem))

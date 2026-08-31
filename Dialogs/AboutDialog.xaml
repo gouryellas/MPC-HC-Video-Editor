@@ -4,15 +4,15 @@
         Title="About MPC-HC Video Editor"
         Height="440" Width="480"
         MinHeight="380" MinWidth="420"
-        Background="#1E1E1E"
+        Background="{DynamicResource WindowBackground}"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
         ResizeMode="CanResize">
     <Window.Resources>
         <Style TargetType="Button">
-            <Setter Property="Background" Value="#2D2D30"/>
-            <Setter Property="Foreground" Value="#E0E0E0"/>
-            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="10,5"/>
             <Setter Property="Margin" Value="3"/>
@@ -29,7 +29,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#3E3E42"/>
+                                <Setter Property="Background" Value="{DynamicResource ControlHover}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -47,39 +47,39 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="0,0,0,12">
-            <TextBlock Text="MPC-HC Video Editor" Foreground="#4EC9B0"
+            <TextBlock Text="MPC-HC Video Editor" Foreground="{DynamicResource Accent}"
                        FontSize="20" FontWeight="SemiBold"/>
-            <TextBlock x:Name="VersionText" Foreground="#B5CEA8" FontSize="12" Margin="0,4,0,0"/>
+            <TextBlock x:Name="VersionText" Foreground="{DynamicResource ValueGreen}" FontSize="12" Margin="0,4,0,0"/>
         </StackPanel>
 
-        <TextBlock Grid.Row="1" Foreground="#CCCCCC" FontSize="12" TextWrapping="Wrap"
+        <TextBlock Grid.Row="1" Foreground="{DynamicResource TextDim}" FontSize="12" TextWrapping="Wrap"
                    Margin="0,0,0,14"
                    Text="Bookmark, trim, merge and split video straight from MPC-HC. Set timestamps with a hotkey while you watch, then cut the result with ffmpeg."/>
 
-        <Border Grid.Row="2" Background="#252526" CornerRadius="6" Padding="12">
+        <Border Grid.Row="2" Background="{DynamicResource PanelBackground}" CornerRadius="6" Padding="12">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel>
-                    <TextBlock Text="Licence" Foreground="#4EC9B0" FontWeight="SemiBold"
+                    <TextBlock Text="Licence" Foreground="{DynamicResource Accent}" FontWeight="SemiBold"
                                FontSize="13" Margin="0,0,0,6"/>
-                    <TextBlock x:Name="LicenseText" Foreground="#BBBBBB" FontSize="11"
+                    <TextBlock x:Name="LicenseText" Foreground="{DynamicResource TextDim}" FontSize="11"
                                TextWrapping="Wrap"/>
 
-                    <TextBlock Text="Third-party components" Foreground="#4EC9B0" FontWeight="SemiBold"
+                    <TextBlock Text="Third-party components" Foreground="{DynamicResource Accent}" FontWeight="SemiBold"
                                FontSize="13" Margin="0,14,0,6"/>
-                    <TextBlock Foreground="#BBBBBB" FontSize="11" TextWrapping="Wrap">
-                        <Run Text="ffmpeg 9.0.1"  Foreground="#DCDCAA"/><LineBreak/>
+                    <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap">
+                        <Run Text="ffmpeg 9.0.1"  Foreground="{DynamicResource ValueYellow}"/><LineBreak/>
                         <Run Text="Does all encoding, cutting and concatenation. Distributed with this application, in a build configured with --enable-gpl and --enable-version3 and therefore licensed under the GNU GPL v3 or later. The corresponding source and the scripts that produced these binaries are at github.com/BtbN/FFmpeg-Builds."/>
                         <LineBreak/><LineBreak/>
-                        <Run Text="Media Player Classic - Home Cinema"  Foreground="#DCDCAA"/><LineBreak/>
+                        <Run Text="Media Player Classic - Home Cinema"  Foreground="{DynamicResource ValueYellow}"/><LineBreak/>
                         <Run Text="The player this tool drives, via its web interface. GPL v3. Separately installed and separately licensed."/>
                         <LineBreak/><LineBreak/>
-                        <Run Text="CommunityToolkit.Mvvm"  Foreground="#DCDCAA"/><LineBreak/>
+                        <Run Text="CommunityToolkit.Mvvm"  Foreground="{DynamicResource ValueYellow}"/><LineBreak/>
                         <Run Text="MVVM source generators. MIT licence, © .NET Foundation and Contributors."/>
                         <LineBreak/><LineBreak/>
-                        <Run Text="Microsoft.Xaml.Behaviors.Wpf"  Foreground="#DCDCAA"/><LineBreak/>
+                        <Run Text="Microsoft.Xaml.Behaviors.Wpf"  Foreground="{DynamicResource ValueYellow}"/><LineBreak/>
                         <Run Text="XAML behaviours. MIT licence, © Microsoft Corporation."/>
                         <LineBreak/><LineBreak/>
-                        <Run Text=".NET and WPF"  Foreground="#DCDCAA"/><LineBreak/>
+                        <Run Text=".NET and WPF"  Foreground="{DynamicResource ValueYellow}"/><LineBreak/>
                         <Run Text="MIT licence, © Microsoft Corporation."/>
                     </TextBlock>
                 </StackPanel>
@@ -92,7 +92,7 @@
             <!-- IsCancel closes the dialog by itself; Esc and Enter both land
                  here, which is the whole interaction this window needs. -->
             <Button Content="Close" Width="90" IsDefault="True" IsCancel="True"
-                    Background="#0E639C" BorderBrush="#1177BB" Foreground="White"/>
+                    Background="{DynamicResource PrimaryButton}" BorderBrush="{DynamicResource PrimaryButtonBorder}" Foreground="{DynamicResource OnAccent}"/>
         </StackPanel>
     </Grid>
 </Window>
