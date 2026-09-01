@@ -138,11 +138,11 @@ Get-FileHash -Algorithm SHA256 .\MPC-HC.Video.Editor.zip
 
 | File | SHA-256 |
 | ---- | ------- |
-| `MPC-HC.Video.Editor.zip` | _pending build_ |
-| `MPC-HC Video Editor.exe` | _pending build_ |
-| `ffmpeg.exe` | _pending build_ |
-| `ffprobe.exe` | _pending build_ |
-| `LICENSE` | _pending build_ |
+| `MPC-HC.Video.Editor.zip` | `C10ADD4B0123886812C9DA5894AE0B5CA6CBC0B531D2C9C672563596D23CD270` |
+| `MPC-HC Video Editor.exe` | `7F148CE06100A32F08DBF2B66E1C557DF509F6DF3B6D53D26270CAFE781EDBAB` |
+| `ffmpeg.exe` | `4A01142006A4E2359293E072957DCDA7760C2003BBEEDE037B4551F2CFC8406F` |
+| `ffprobe.exe` | `8B5298DA673B85E628FBC98535A88848E939E16DF72E856FC727E01AA667E243` |
+| `LICENSE` | `3972DC9744F6499F0F9B2DBF76696F2AE7AD8AF9B23DDE66D6AF86C9DFB36986` |
 
 FFmpeg is unchanged — still 9.0.1, GPL v3, from
 [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds).
