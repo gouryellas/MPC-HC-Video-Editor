@@ -204,10 +204,11 @@ public partial class MainWindow : Window
     /// list with no extra plumbing.
     /// </summary>
     /// <param name="activate">
-    /// Whether the restored window should also be brought to the front. False
-    /// when the restore happened because focus moved to some other
-    /// application — showing the window is wanted, stealing focus back from
-    /// whatever the user just switched to is not.
+    /// Whether the restored window should also be brought to the front. True
+    /// for the restores the user asked for, which includes leaving the player:
+    /// a window that comes back behind whatever they clicked has not visibly
+    /// come back at all. False only where nothing was asked for — the bookmark
+    /// list emptying underneath the overlay, say.
     /// </param>
     private void SetMinimalView(bool minimal, bool activate)
     {
@@ -222,7 +223,35 @@ public partial class MainWindow : Window
         Show();
         WindowState = WindowState.Normal;
 
-        if (activate) Activate();
+        if (activate) RaiseToFront();
+    }
+
+    /// <summary>
+    /// Puts this window in front of the others, and gives it focus if Windows
+    /// will allow that. Does not leave it always-on-top.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Window.Activate"/> on its own is not enough for the restore
+    /// that follows the user leaving the player. It calls SetForegroundWindow,
+    /// which Windows refuses to a process that does not already own the
+    /// foreground — and at that moment the foreground belongs to whatever they
+    /// just clicked. The refusal is silent: the taskbar button flashes and the
+    /// window stays exactly where it was, behind everything.
+    ///
+    /// Z-order is not governed by that rule, so a momentary Topmost raises the
+    /// window for real. Dropping it in the same breath leaves it at the top of
+    /// the ordinary z-order rather than above everything for good: this window
+    /// has no more claim on the foreground afterwards than any other, and
+    /// clicking back to the player hands it straight over.
+    ///
+    /// Activate is still called, because when the foreground does happen to be
+    /// ours the window should have focus and not merely be visible.
+    /// </remarks>
+    private void RaiseToFront()
+    {
+        Topmost = true;
+        Topmost = false;
+        Activate();
     }
 
     /// <summary>

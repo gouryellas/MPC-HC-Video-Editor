@@ -55,7 +55,10 @@
 
             <!-- Docked to the bottom before the list is added, so the hint and
                  its rule keep their place and the list takes what is left. -->
-            <TextBlock DockPanel.Dock="Bottom" Text="Press  X  —  back to the full window"
+            <!-- Names whichever way out applies to how the player is presented
+                 right now — X while it is fullscreen, clicking away while it is
+                 windowed. See MainViewModel.MinimalHint. -->
+            <TextBlock DockPanel.Dock="Bottom" Text="{Binding MinimalHint}"
                        Foreground="{DynamicResource TextSecondary}" FontSize="12"/>
             <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource ControlHover}" BorderThickness="0,1,0,0"
                     Margin="0,10,0,6"/>

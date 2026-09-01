@@ -60,9 +60,13 @@ public sealed class ToastService : IDisposable
     /// <param name="title">Headline, e.g. "Timestamp 3 set".</param>
     /// <param name="detail">Optional second line, e.g. the time or filename.</param>
     /// <param name="icon">Leading glyph. Defaults to a map pin.</param>
-    public void Show(string title, string? detail = null, string icon = "📍")
+    /// <param name="force">Shows the toast even with <see cref="Enabled"/>
+    /// false. For the callers where the toast is the only thing on screen that
+    /// could report what happened — turning toasts off asks for less noise, not
+    /// for a hotkey that silently does nothing.</param>
+    public void Show(string title, string? detail = null, string icon = "📍", bool force = false)
     {
-        if (_disposed || !Enabled) return;
+        if (_disposed || (!Enabled && !force)) return;
 
         // Never let a cosmetic notification take down the operation that
         // triggered it — a failure here is not worth surfacing to the user.

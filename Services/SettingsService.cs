@@ -309,10 +309,28 @@ public class AppSettings
     public List<SuffixEntry> Suffixes { get; set; } = new();
 
     /// <summary>
-    /// When set, the window follows the bookmark file: loading one drops to
-    /// the minimal overlay, and unloading it returns to the full window.
+    /// Revision of this settings file, so a one-time migration runs exactly
+    /// once. Zero means a file written before this field existed.
     /// </summary>
-    public bool AutoSwitchViews { get; set; }
+    /// <remarks>
+    /// Deliberately defaults to 0 rather than to the current revision: the
+    /// point is to tell an old file apart from a new one, and a file with no
+    /// such key has to read as old. A fresh install runs the migrations too,
+    /// which is harmless — they set what the defaults already say.
+    /// </remarks>
+    public int SettingsVersion { get; set; }
+
+    /// <summary>
+    /// When set, the view follows focus: the minimal overlay while MPC-HC is
+    /// the active window, the full window otherwise.
+    /// </summary>
+    /// <remarks>
+    /// On by default, and the only view control the app has — picking Minimal
+    /// or Full by hand is gone. A settings file written before this defaulted
+    /// on keeps whatever it recorded; only a fresh install, or one whose file
+    /// predates the setting existing, starts with it on.
+    /// </remarks>
+    public bool AutoSwitchViews { get; set; } = true;
 
     /// <summary>
     /// The <see cref="SuffixEntry.Text"/> of the currently-active suffix.
@@ -337,6 +355,12 @@ public class SettingsService
             new SuffixEntryJsonConverter()
         }
     };
+
+    /// <summary>
+    /// <see cref="AppSettings.SettingsVersion"/> at which automatic view
+    /// switching became the default. See the migration in <see cref="Load"/>.
+    /// </summary>
+    private const int AutoSwitchOnByDefaultVersion = 1;
 
     public SettingsService()
     {
@@ -447,6 +471,23 @@ public class SettingsService
             // Active suffix is missing or doesn't match any entry —
             // fall back to the first one in the list.
             Current.ActiveSuffixText = Current.Suffixes[0].Text;
+            try { Save(); } catch { /* ignore */ }
+        }
+
+        // Automatic view switching became the default in 4.3, and a changed
+        // default reaches nobody who already has a settings file: this setting
+        // has been written back on every run since it existed, so every
+        // upgrading install carries an explicit "false" that outranks it. The
+        // result would be an app with no view switching and — Minimal and Full
+        // having been removed in the same release — no way to reach the overlay
+        // at all.
+        //
+        // Stamped rather than repeated, so this happens exactly once. A user
+        // who turns it off after the upgrade keeps it off.
+        if (Current.SettingsVersion < AutoSwitchOnByDefaultVersion)
+        {
+            Current.AutoSwitchViews = true;
+            Current.SettingsVersion = AutoSwitchOnByDefaultVersion;
             try { Save(); } catch { /* ignore */ }
         }
     }

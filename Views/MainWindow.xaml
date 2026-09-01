@@ -299,24 +299,18 @@
             <MenuItem Header="_View">
                 <MenuItem Header="Bring MPC-HC to front" Command="{Binding BringMpcToFrontCommand}"/>
                 <Separator/>
-                <!-- Minimal pins a click-through overlay of just the bookmark
-                     list; X, or Full below, is what unpins it. Focus decides
-                     whether a pinned overlay is on screen, never whether it is
-                     still pinned — it hides for an unrelated window and comes
-                     back for this one or MPC-HC. Deliberately not the same as
-                     "Switch views automatically" further down, which restores
-                     this window outright when the player loses focus. Disabled
-                     with no bookmarks — see CanShowMinimalView. -->
-                <MenuItem Header="Minimal" Command="{Binding ShowMinimalViewCommand}"
-                          ToolTip="Compact always-on-top bookmark list. Stays until you press X or pick Full, and hides itself while another application is in front — needs at least one bookmark"/>
-                <MenuItem Header="Full" Command="{Binding ShowFullViewCommand}"
-                          ToolTip="The normal window"/>
-                <Separator/>
-                <!-- Lives here rather than under Options: it governs the two
-                     items directly above it. -->
+                <!-- The whole of the view control, and on by default. Picking
+                     the view by hand is gone: Minimal and Full were a mode the
+                     user had to keep in their head, with nothing on screen
+                     saying which one was in force, and the automatic behaviour
+                     is what both of them were usually being used to get.
+
+                     Off leaves this window up permanently. The hotkey still
+                     works there — it says what it recorded in a toast, since
+                     this window is behind the player at the time. -->
                 <MenuItem Header="Switch views automatically" IsCheckable="True"
                           IsChecked="{Binding AutoSwitchViews, Mode=TwoWay}"
-                          ToolTip="Drop to the minimal overlay whenever MPC-HC becomes the active window. Either way, this window returns as soon as MPC-HC stops being active."/>
+                          ToolTip="Drop to the minimal overlay whenever MPC-HC becomes the active window. Either way, this window returns as soon as MPC-HC stops being active. Press X over the overlay to bring this window back."/>
             </MenuItem>
 
             <MenuItem Header="_Help">

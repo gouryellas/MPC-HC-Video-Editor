@@ -153,7 +153,7 @@
                                 <CheckBox x:Name="AutoSwitchCheck"
                                           Content="Switch views automatically"/>
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="Drop to the compact overlay whenever MPC-HC becomes the active window. Picking View ▸ Minimal by hand does the same thing until you choose View ▸ Full. Either way, the full window always comes back the moment MPC-HC stops being active — the overlay is never left floating over another application."/>
+                                           Text="Drop to the compact overlay whenever MPC-HC becomes the active window. The full window always comes back the moment MPC-HC stops being active — the overlay is never left floating over another application. Press X over the overlay to bring the full window back while the player still has focus. Turn this off to keep the full window up at all times; the timestamp hotkey then confirms each bookmark with a brief on-screen message instead, since the window is behind the player when you press it."/>
                             </StackPanel>
                         </Border>
 

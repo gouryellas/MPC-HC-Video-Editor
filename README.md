@@ -123,30 +123,33 @@ renamed — only what the app is about to write has to comply.
 
 ## Views
 
-- **View ▸ Minimal** pins a compact always-on-top overlay listing just the
-  bookmarks, for when the video covers the window. It is click-through and never
-  takes focus, and it makes MPC-HC the active window as it switches, so the
-  result is the same whatever happened to be behind this window. The pin lasts
-  until you press **X** or pick **Full** — no amount of clicking between windows
-  ends it. What the pin holds is the *mode*, not one window: the overlay is up
-  while MPC-HC has focus, and the full window comes back whenever it does not,
-  so the overlay never floats over an unrelated application and the program is
-  never left with nothing on screen. Going back to the player returns to the
-  overlay without the pin being dropped. Disabled when there are no bookmarks —
-  the overlay is the bookmark list, so there would be nothing in it.
-- **X** is live only while the overlay is actually on screen, so a stray "x"
-  typed in another application cannot pull this window back. Nothing is stranded
-  by that: whenever the overlay is down the full window is up in its place, and
-  **View ▸ Full** there ends the pin just as X would.
-- **View ▸ Full** returns to the normal window.
-- **View ▸ Switch views automatically** makes the view follow focus instead:
-  minimal while MPC-HC is the active window, full window as soon as it is not.
-  It layers under a pinned overlay rather than competing with it — pinning holds
-  the overlay still while the setting stays on, and X hands control back to it.
-  The setting changes only when you change it.
+- **View ▸ Switch views automatically** is the whole of the view control, and is
+  **on by default**. The view follows focus: a compact always-on-top overlay
+  listing just the bookmarks while MPC-HC is the active window, and the full
+  window as soon as it is not. The overlay is click-through and never takes
+  focus, so it sits over the video without getting in the way, and it never
+  floats over an unrelated application — anything else taking focus brings the
+  full window back.
+- **X** returns to the full window while the player still has focus. If the
+  player is fullscreen, X takes it out of fullscreen on the way — nothing can be
+  put in front of a fullscreen player, so leaving it is part of what showing the
+  window costs. A windowed player is left as it is. X is live only while the
+  overlay is actually on screen, so a stray "x" typed in another application
+  cannot pull this window back. Nothing is stranded by that: whenever the overlay
+  is down, the full window is up in its place.
+- **Turning the setting off** keeps the full window up at all times. The
+  timestamp hotkey still works from the player, and confirms each press with a
+  brief on-screen message giving the bookmark number and the time recorded —
+  without it the hotkey would appear to do nothing, since the window it updates
+  is behind the player. That confirmation appears even if you have toasts
+  switched off, because in this state there is nothing else on screen to show it.
 
-Either way the overlay comes down if the bookmark list empties (opening another
-video in the player clears it), and returns with the next bookmark.
+Picking the view by hand — **View ▸ Minimal** and **View ▸ Full** — has been
+removed. They were a mode with nothing on screen naming which one was in force,
+and following focus is what they were mostly being used to approximate.
+
+The overlay comes down if the bookmark list empties (opening another video in the
+player clears it), and returns with the next bookmark.
 
 ### Timeline
 
@@ -251,9 +254,8 @@ loaded, how many complete pairs exist, and how many are checked.
 Worth knowing because they are not uniform: **both Play commands need 2+ pairs,
 Split needs only 1, and Merge is always available.** Undo, Edit bookmarks,
 Delete bookmarks and Remove-selected key off the bookmark file being loaded, not
-off a video being active. **View ▸ Minimal** needs at least one bookmark — an
-overlay with nothing in it has nothing to show. Convert, Strip audio and the
-playlist folder / load / new items are always enabled.
+off a video being active. Convert, Strip audio and the playlist folder / load /
+new items are always enabled.
 
 ---
 

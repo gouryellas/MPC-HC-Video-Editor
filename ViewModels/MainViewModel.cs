@@ -201,11 +201,55 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Drives the minimal overlay's "(no bookmarks yet)" line.</summary>
     public bool HasNoBookmarks => Session.Bookmarks.Count == 0;
 
+    /// <summary>Overlay footer while the player is covering the screen.</summary>
+    private const string FullscreenHint = "Hitting  X  restores the program";
+
+    /// <summary>Overlay footer while the player is in a window.</summary>
+    private const string WindowedHint = "Unfocusing MPC-HC restores the program";
+
+    /// <summary>
+    /// The line at the foot of the overlay saying how to get the full window
+    /// back. Which way is easiest depends on how the player is presented, so
+    /// the line names whichever one applies right now.
+    /// </summary>
+    /// <remarks>
+    /// Fullscreen, there is nothing else on screen to click and X is the only
+    /// way out, so that is what it says. Windowed, clicking anywhere else
+    /// already brings the full window back — and having just been told to press
+    /// X, a user who clicks away instead sees the window appear for a reason
+    /// the overlay never mentioned.
+    ///
+    /// X still works either way. This picks which of the two to name, not which
+    /// one is available.
+    /// </remarks>
+    [ObservableProperty] private string _minimalHint = FullscreenHint;
+
+    /// <summary>
+    /// Updates <see cref="MinimalHint"/> for how the player is presented now.
+    /// Called from the poll, because the user can go fullscreen and back while
+    /// the overlay is up and nothing tells us when they do.
+    /// </summary>
+    private void RefreshMinimalHint()
+        => MinimalHint = _mpc.GetWindowState() == MpcHcService.PlayerWindowState.Fullscreen
+            ? FullscreenHint
+            : WindowedHint;
+
     /// <summary>
     /// When set, the view follows focus: the overlay while MPC-HC is the
     /// active window, the full window while this one is. See
-    /// <see cref="ApplyAutoViewSwitch"/>. Persisted.
+    /// <see cref="ApplyAutoViewSwitch"/>. Persisted, and on by default.
     /// </summary>
+    /// <remarks>
+    /// The only view control there is. Choosing the view by hand — View ▸
+    /// Minimal and View ▸ Full — used to sit alongside this, and is gone: it
+    /// was a mode with nothing on screen naming it, and following focus is what
+    /// it was mostly being used to approximate anyway.
+    ///
+    /// Turning it off leaves the full window up permanently. That costs the
+    /// user the overlay as a confirmation that the hotkey did anything, which
+    /// is why the bookmark toasts stop being optional in that state — see
+    /// <see cref="NeedsHotkeyToast"/>.
+    /// </remarks>
     [ObservableProperty] private bool _autoSwitchViews;
 
     partial void OnAutoSwitchViewsChanged(bool value)
@@ -217,7 +261,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // Clearing the edge marker makes the next evaluation act rather than
         // treat the current focus as "already handled".
         _lastMpcFocused = null;
-        if (value) ApplyAutoViewSwitch();
+        if (value)
+        {
+            ApplyAutoViewSwitch();
+            return;
+        }
+
+        // Turned off with the overlay up — the player has focus and the user
+        // reached this from the tray or a second launch. The setting is the
+        // only thing holding the overlay there, so it comes down now rather
+        // than waiting for the player to lose focus.
+        if (_minimalViewActive) RestoreFullView(activate: true);
     }
 
     /// <summary>
@@ -237,30 +291,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>Whether the compact overlay is the view currently showing.</summary>
     private bool _minimalViewActive;
-
-    /// <summary>
-    /// Set when the user picks View ▸ Minimal by hand. While set, the overlay
-    /// stays up through every focus change; only the X restore key and
-    /// View ▸ Full clear it.
-    /// </summary>
-    /// <remarks>
-    /// A hand-picked overlay used to follow focus like an automatic one, which
-    /// meant clicking away from this window took it down again — the user had
-    /// asked for the overlay and then watched it vanish on the next click. It
-    /// is now a mode that lasts until it is explicitly ended, which is also
-    /// what the X key already implied by existing.
-    ///
-    /// This is checked ahead of <see cref="AutoSwitchViews"/> rather than
-    /// replacing it, so the two are layers, not alternatives: picking Minimal
-    /// by hand while the setting is on holds the overlay until X, and the
-    /// setting then carries on as before. Nothing here writes the setting —
-    /// see <see cref="ShowMinimalView"/>.
-    ///
-    /// Being pinned is not the same as being on screen: the pin outlives the
-    /// overlay, which comes down whenever the player loses focus and goes back
-    /// up when it regains it. See <see cref="ApplyAutoViewSwitch"/>.
-    /// </remarks>
-    private bool _overlayPinned;
 
     /// <summary>
     /// Whether MPC-HC had focus at the last evaluation, or null when there is
@@ -290,23 +320,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// Driven from the poll rather than from an event, because focus changes
     /// in another process do not notify us.
     ///
-    /// There are two ways the overlay can be up, and only one of them follows
-    /// focus at all:
+    /// The setting is the only thing that puts the overlay up. Choosing the
+    /// view by hand used to sit alongside this as a pin that ignored focus;
+    /// both it and the pin are gone, so there is one rule here rather than two
+    /// layered ones, and no invisible mode for the user to be in.
     ///
-    /// Pinned by hand — View ▸ Minimal — ignores focus entirely and holds until
-    /// X or View ▸ Full. See <see cref="_overlayPinned"/>.
-    ///
-    /// Automatic — the setting — is the focus-following one, and its two
-    /// directions are not symmetric. Leaving the player always restores the
-    /// full window, whatever took focus: the overlay exists to sit over the
+    /// The two directions are not symmetric. Leaving the player always restores
+    /// the full window, whatever took focus: the overlay exists to sit over the
     /// video, and anywhere else it is a box in the way. Returning to the player
     /// drops back to the overlay only on the edge, so pressing X does not
     /// bounce straight back to the overlay a tick later while the player still
     /// holds focus.
     ///
-    /// Either way the overlay only stands while it has something to show. With
-    /// an empty list it is a panel listing nothing, so the full window keeps
-    /// the screen instead — see the <see cref="HasNoBookmarks"/> check below.
+    /// The overlay only stands while it has something to show. With an empty
+    /// list it is a panel listing nothing, so the full window keeps the screen
+    /// instead — see the <see cref="HasNoBookmarks"/> check below.
     /// </remarks>
     private void ApplyAutoViewSwitch()
     {
@@ -320,16 +348,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // nothing left on screen to answer: only Alt+Tab got it back, and these
         // dialogs are ShowInTaskbar="False", so even that is awkward.
         //
-        // Checked before everything else, including the pin: whatever the view
-        // is when a prompt opens is the view it keeps until the prompt is
-        // answered. IsThreadModal is set by WPF's own ShowDialog and MessageBox,
-        // so this covers every prompt without each one having to remember to
-        // announce itself.
+        // Checked before everything else: whatever the view is when a prompt
+        // opens is the view it keeps until the prompt is answered. IsThreadModal
+        // is set by WPF's own ShowDialog and MessageBox, so this covers every
+        // prompt without each one having to remember to announce itself.
         if (ComponentDispatcher.IsThreadModal) return;
 
-        // Nothing to show, so nothing goes up — checked ahead of the pin,
-        // because an overlay listing nothing is not what was pinned, and it is
-        // why View ▸ Minimal is disabled in this state (CanShowMinimalView).
+        // Nothing to show, so nothing goes up — an overlay listing nothing is
+        // just a box over the video.
         //
         // Level-triggered rather than edge-triggered, because the list can
         // empty while the overlay is already up — picking the next video in
@@ -347,55 +373,24 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        // Pinned by hand, so focus does not end it — X and View ▸ Full are the
-        // only things that unpin. What focus still decides is which of the two
-        // windows is the one on screen, and it has to be one of them.
-        //
-        // That is the whole of this branch. The overlay used to hide itself
-        // when focus went to a third application while the full window stayed
-        // hidden behind it, so the application had nothing on screen at all: no
-        // window, no taskbar button, and the X key disarmed along with the
-        // overlay it belongs to. The notification-area icon was the only way
-        // back, and in application run mode there isn't one — leaving the
-        // program running and unreachable.
-        //
-        // Restoring the full window instead keeps the pin, so returning to the
-        // player drops straight back to the overlay on the next tick. That is
-        // what "without losing its place" was meant to mean.
-        //
-        // Keyed off the player alone rather than "this app or the player". The
-        // full window having focus is precisely the case where it should stay
-        // up: folding it back into the overlay the moment it is clicked would
-        // make the window unusable for as long as the pin lasts.
-        if (_overlayPinned)
-        {
-            if (_mpc.IsForeground())
-            {
-                if (!_minimalViewActive) EnterMinimalView();
-            }
-            else if (_minimalViewActive)
-            {
-                RestoreFullView(activate: false);
-            }
-
-            return;
-        }
-
         var mpcFocused = _mpc.IsForeground();
 
         if (!mpcFocused)
         {
             _lastMpcFocused = false;
 
-            // Only an automatic overlay can be up here, and that only ever
-            // happens while the player has focus — so losing it is always a
-            // real departure and the restore needs no further guard.
+            // The overlay only ever goes up while the player has focus, so
+            // losing it is always a real departure and the restore needs no
+            // further guard.
             //
-            // Without activating: the user just moved to something else, and
-            // taking focus back off whatever they chose would be worse than
-            // the overlay was. If they came back to this window, it already
-            // has focus and there is nothing to take.
-            if (_minimalViewActive) RestoreFullView(activate: false);
+            // Brought to the front, not merely un-hidden. Leaving the player is
+            // the gesture that asks for this window back — the overlay says so
+            // in as many words while the player is windowed — and a window that
+            // reappears behind whatever the user clicked has not come back in
+            // any sense they can see. It is a one-off raise, not topmost: this
+            // window has no more claim on the foreground afterwards than any
+            // other, and clicking back to the player hands it straight over.
+            if (_minimalViewActive) RestoreFullView(activate: true);
 
             return;
         }
@@ -411,8 +406,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (_lastMpcFocused == true) return;
         _lastMpcFocused = true;
 
-        // EnterMinimalView rather than ShowMinimalView: this is the setting
-        // doing its job, not the user pinning anything. See there.
         if (IsBookmarkFileLoaded && !_minimalViewActive) EnterMinimalView();
     }
 
@@ -422,7 +415,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     /// <remarks>
     /// The second argument says whether the full window should also be
-    /// activated. An explicit request — the View menu, the X key — should
+    /// activated. An explicit request — the X key, a second launch — should
     /// bring the window to the front, because the user just asked for it. A
     /// restore that happens because focus moved to some third application
     /// should not, or the app would snatch focus back from whatever they
@@ -441,78 +434,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// the overlay is visible, the key belongs to something the user can see.
     ///
     /// That strands nothing: the overlay is only ever hidden with the full
-    /// window up in its place, and that window has View ▸ Full on it.
+    /// window up in its place.
     /// </remarks>
     private void SetOverlayShown(bool shown) => _hotkeys.RestoreArmed = shown;
 
     /// <summary>
-    /// Pins the overlay up until the user takes it down with X or View ▸ Full.
+    /// Puts the overlay up.
     /// </summary>
     /// <remarks>
-    /// Asking for the overlay is asking for a mode, not for one window swap, so
-    /// this pins rather than switching once — clicking away from this window
-    /// used to take it straight back down, which read as the menu item failing.
-    /// See <see cref="_overlayPinned"/>.
-    ///
-    /// Disabled with an empty bookmark list, via
-    /// <see cref="CanShowMinimalView"/>: the overlay is a bookmark list, and
-    /// pinning one with nothing in it would put up a panel that
-    /// <see cref="ApplyAutoViewSwitch"/> immediately takes down again. This
-    /// used to be deliberately ungated, on the grounds that a greyed-out menu
-    /// item explains itself less well than an empty list does — but an empty
-    /// list that cannot stay on screen explains nothing at all.
-    ///
-    /// Deliberately does not touch <see cref="AutoSwitchViews"/>. It used to
-    /// turn it off and persist that, on the grounds that manual control and
-    /// automatic switching are alternatives; pinning makes them layers instead,
-    /// so the setting no longer has to be spent to hold the overlay still, and
-    /// it now changes only when the user changes it.
-    ///
-    /// Hands focus to the player on the way, which is what makes the result the
-    /// same every time: a pinned overlay is only on screen while this app or the
-    /// player has focus, and hiding this window hands focus to whatever happened
-    /// to be behind it. Left to chance, picking Minimal over a browser put the
-    /// overlay up and hid it again in the same breath.
-    /// </remarks>
-    [RelayCommand(CanExecute = nameof(CanShowMinimalView))]
-    private void ShowMinimalView()
-    {
-        _overlayPinned = true;
-
-        // Before the view swap, not after: SetForegroundWindow is only reliably
-        // granted to the process that already owns the foreground, and this
-        // window is it right up until EnterMinimalView hides it. Afterwards the
-        // call would be at the mercy of Windows' foreground-stealing rules —
-        // exactly when getting it right matters most. Hiding a window that is
-        // no longer the foreground one does not move focus again, so the player
-        // keeps it.
-        _mpc.BringToFront();
-
-        EnterMinimalView();
-    }
-
-    /// <summary>
-    /// Whether View ▸ Minimal is available: only with something to show.
-    /// </summary>
-    private bool CanShowMinimalView() => !HasNoBookmarks;
-
-    /// <summary>
-    /// Puts the overlay up without saying anything about why it went up.
-    /// </summary>
-    /// <remarks>
-    /// Separate from <see cref="ShowMinimalView"/> for the same reason
-    /// <see cref="RestoreFullView"/> is separate from
-    /// <see cref="ShowFullView"/>: the window swap and the statement about how
-    /// the view is being driven are different things. Choosing View ▸ Minimal
-    /// pins the overlay; <see cref="ApplyAutoViewSwitch"/> is the setting doing
-    /// the very thing it was turned on for, and pins nothing.
-    ///
-    /// The automatic path used to call the command, so the first switch it ever
-    /// made turned the setting off and persisted that — the Settings checkbox
-    /// came back unchecked and the next launch started with automatic switching
-    /// off. It only looked right for the rest of the session because the
-    /// command armed manual focus-following on its way past.
-    ///
     /// The current focus is recorded as the baseline so this very call does
     /// not read as an edge on the next poll tick and immediately undo itself.
     /// </remarks>
@@ -521,6 +450,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _lastMpcFocused = _mpc.IsForeground();
         _minimalViewActive = true;
 
+        // Before the overlay is shown, so the first frame carries the right
+        // line rather than last session's and a correction a tick later.
+        RefreshMinimalHint();
+
         // The View shows the overlay as part of the swap, so it is on screen as
         // of this call — and the X key is armed with it.
         SetOverlayShown(true);
@@ -528,35 +461,39 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Puts the full window back without ending whatever was driving the view.
+    /// Puts the full window back without saying the user is done with the
+    /// overlay.
     /// </summary>
     /// <remarks>
     /// Separate from <see cref="ShowFullView"/> because the two mean different
     /// things. Focus leaving the player, or the list going empty, is a reason to
-    /// show the window — not a statement that the user is done with the overlay.
-    /// So the pin and the setting both survive this, and the overlay comes back
-    /// when the reason does. Only an explicit View ▸ Full or the X key ends it.
+    /// show the window — not a statement that the user wants it to stay. So the
+    /// setting survives this, and the overlay comes back when the reason does.
     /// </remarks>
     private void RestoreFullView(bool activate)
     {
         _minimalViewActive = false;
 
         // The View hides the overlay as part of the swap, so this stays in step
-        // with what is actually on screen — otherwise a later pinned re-entry
-        // would think it was still showing and skip putting it back up — and it
+        // with what is actually on screen — otherwise a later re-entry would
+        // think it was still showing and skip putting it back up — and it
         // disarms the X key, which has nothing to restore any more.
         SetOverlayShown(false);
         MinimalViewRequested?.Invoke(false, activate);
     }
 
     /// <summary>
-    /// Returns to the full window and unpins the overlay. Bound to View ▸ Full
-    /// and to the X restore key.
+    /// Returns to the full window. Bound to the X restore key, and to a second
+    /// launch of the app asking to be seen.
     /// </summary>
     /// <remarks>
-    /// Unpinning is the whole point: this is the user saying they are done with
-    /// the overlay, which is the one thing <see cref="RestoreFullView"/>
-    /// deliberately does not assume.
+    /// A fullscreen player is taken out of fullscreen first. Nothing can be put
+    /// in front of one: it covers the monitor, it holds the foreground, and
+    /// MPC-HC keeps it above the ordinary z-order — so restoring the window
+    /// behind it looked from the outside exactly like X doing nothing at all.
+    /// Leaving fullscreen is therefore part of what X means here, not a side
+    /// effect: the user asked to be shown this window, and that is what showing
+    /// it costs. A windowed player is left exactly as it is.
     ///
     /// <see cref="AutoSwitchViews"/> is left alone — X means "full window now",
     /// not "stop switching views from now on", and the setting is the user's to
@@ -568,7 +505,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ShowFullView()
     {
-        _overlayPinned = false;
+        _mpc.ExitFullscreen();
         _lastMpcFocused = _mpc.IsForeground();
 
         // Asked for explicitly, so bring the window to the front.
@@ -1129,8 +1066,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // HasNoBookmarks is in here in its own right, not covered by
         // CompletePairCount: an opening timestamp with no close yet is a
         // bookmark the overlay lists but that pair count does not see, so
-        // without it View ▸ Minimal's enablement would miss the list going
-        // empty (or stopping being empty) whenever no pair completed with it.
+        // without it the overlay's "(no bookmarks yet)" line would miss the
+        // list going empty whenever no pair completed with it.
         var key = string.Join('|', HasActiveVideo, IsBookmarkFileLoaded, CompletePairCount,
                                    SelectedPairCount, HasNoBookmarks,
                                    HasPlaylistFiles, LoadedPlaylistHasEntries);
@@ -1146,7 +1083,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasNoBookmarks));
 
         SetTimestampCommand.NotifyCanExecuteChanged();
-        ShowMinimalViewCommand.NotifyCanExecuteChanged();
         UndoLastBookmarkCommand.NotifyCanExecuteChanged();
         EditBookmarksCommand.NotifyCanExecuteChanged();
         DeleteBookmarksCommand.NotifyCanExecuteChanged();
@@ -1559,6 +1495,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // condition is re-evaluated on every tick. It returns immediately when
         // nothing needs to change.
         ApplyAutoViewSwitch();
+
+        // Only while the overlay is the thing on screen: the hint is the one
+        // piece of it that depends on the player rather than on the bookmarks.
+        if (_minimalViewActive) RefreshMinimalHint();
         if (!IsMpcRunning)
         {
             ClearLoadedSession();
@@ -1779,6 +1719,32 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// Whether a hotkey confirmation has nowhere to appear except a toast, and
+    /// so has to be shown even with toasts turned off.
+    /// </summary>
+    /// <remarks>
+    /// The hotkey is pressed in the player, and normally there are two places
+    /// the result shows up: the status bar of the full window, and the overlay's
+    /// bookmark list. Both can be off screen at once. The player has focus, so
+    /// the full window is behind it; and with <see cref="AutoSwitchViews"/>
+    /// turned off the overlay never comes up to take its place. Pressing the
+    /// hotkey then produces no visible response at all — the bookmark is
+    /// recorded and the user has no way to know it, or which number and time it
+    /// got.
+    ///
+    /// Phrased as "is there any other channel" rather than as a direct read of
+    /// the setting, so it also covers the moments when the setting is on but the
+    /// overlay is legitimately down — an empty list, or the tick before the poll
+    /// notices focus.
+    ///
+    /// This overrides the user's own "toasts off" preference, which is worth
+    /// being uneasy about. It is scoped as tightly as it can be: nothing is
+    /// forced while the overlay is up or while this window has focus, because
+    /// in both of those cases something on screen already says what happened.
+    /// </remarks>
+    private bool NeedsHotkeyToast => !_minimalViewActive && _mpc.IsForeground();
+
+    /// <summary>
     /// Opens a new incomplete bookmark at the current playback position.
     /// Called by <see cref="SetTimestamp"/> when no incomplete bookmark
     /// is awaiting its closing timestamp.
@@ -1806,7 +1772,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         StatusText = $"Timestamp {nextIndex} set at {Bookmark.FormatTime(timestamp)}  (press again to close)";
         _toast.Show($"Timestamp {nextIndex} set",
-                    $"{Bookmark.FormatTime(timestamp)} — press again to close");
+                    $"{Bookmark.FormatTime(timestamp)} — press again to close",
+                    force: NeedsHotkeyToast);
     }
 
     /// <summary>
@@ -1841,7 +1808,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         StatusText = $"Bookmark {incomplete.Index} closed ({incomplete.DurationDisplay})";
         _toast.Show($"Bookmark {incomplete.Index} closed",
                     $"{incomplete.StartDisplay} → {incomplete.EndDisplay}  ({incomplete.DurationDisplay})",
-                    "✅");
+                    "✅",
+                    force: NeedsHotkeyToast);
     }
 
     /// <summary>
@@ -1869,7 +1837,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         Session.NotifyDurationChanged();
         StatusText = reason;
-        _toast.Show("Bookmark discarded", reason, "⚠");
+        _toast.Show("Bookmark discarded", reason, "⚠", force: NeedsHotkeyToast);
     }
 
     /// <summary>

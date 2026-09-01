@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Net;
 using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -142,6 +143,13 @@ public class MpcHcService
     /// </remarks>
     private const int CMD_CLOSE_FILE = 803;
 
+    /// <summary>
+    /// <c>ID_VIEW_FULLSCREEN</c> — toggles fullscreen. Only ever sent after
+    /// checking that the player is fullscreen, so it only ever leaves it; sent
+    /// blind it would put a windowed player into fullscreen instead.
+    /// </summary>
+    private const int CMD_VIEW_FULLSCREEN = 830;
+
     #endregion
 
     public bool IsRunning => FindMpcWindow() != IntPtr.Zero;
@@ -161,22 +169,216 @@ public class MpcHcService
         return sb.ToString();
     }
 
-    public string? GetCurrentFilePath()
+    /// <summary>
+    /// The file MPC-HC currently has open, or null when nothing is open. May be
+    /// a bare filename rather than a full path — see the caller in
+    /// <c>MainViewModel.PollMpc</c>.
+    /// </summary>
+    /// <remarks>
+    /// Two sources, in order. The Web Interface knows the full path outright
+    /// and is asked first; the window title is the fallback for players with
+    /// the interface switched off. See <see cref="GetWebFilePath"/> and
+    /// <see cref="GetFilePathFromTitle"/>.
+    /// </remarks>
+    public string? GetCurrentFilePath() => GetWebFilePath() ?? GetFilePathFromTitle();
+
+    /// <summary>
+    /// The file the Web Interface last reported, or null when it has not
+    /// answered recently. Never blocks: the HTTP read happens on a background
+    /// task and this returns whatever the last one left behind.
+    /// </summary>
+    /// <remarks>
+    /// The poll that calls this runs on the UI thread, so it cannot wait on a
+    /// socket — a player that stops answering would freeze the window for the
+    /// HTTP timeout on every tick.
+    ///
+    /// Preferred over the title because it is unambiguous: a real full path,
+    /// with no player name to strip and no dependence on what the title bar is
+    /// configured to show. The title cannot supply a path at all when MPC-HC's
+    /// "Title bar text" is set to anything but "Show full path", and supplies
+    /// nothing whatever when it is set to "Don't display" — which is the case
+    /// the fallback cannot cover and this exists for.
+    ///
+    /// A stale answer is discarded rather than trusted: the interface going
+    /// away mid-session has to fall back to the title, not pin the last file
+    /// forever. The window is generous relative to the probe interval, so an
+    /// occasional missed probe does not flap between the two sources.
+    ///
+    /// An empty answer — the interface up with nothing loaded — is not cached,
+    /// so it reads here as "no recent answer" and defers to the title rather
+    /// than overriding it. That keeps this strictly additive: it can identify a
+    /// file the title could not, and never contradicts one the title found.
+    /// </remarks>
+    private string? GetWebFilePath()
     {
-        var title = GetWindowTitle();
+        BeginWebFileProbe();
+
+        var snapshot = _webFile;
+        if (snapshot is null) return null;
+
+        return (DateTime.UtcNow - snapshot.AtUtc).TotalMilliseconds <= WebFileStaleMs
+            ? snapshot.Path
+            : null;
+    }
+
+    /// <summary>What the Web Interface last said was open, and when it said it.</summary>
+    /// <remarks>
+    /// One immutable object rather than a path field and a timestamp field, so
+    /// the UI thread cannot read a path with the other one's timestamp. The
+    /// reference assignment is atomic; <c>volatile</c> is what publishes it.
+    /// </remarks>
+    private sealed record WebFile(string Path, DateTime AtUtc);
+
+    private volatile WebFile? _webFile;
+
+    /// <summary>Guards against a second probe starting while one is in flight.</summary>
+    private int _webProbeRunning;
+
+    /// <summary>Earliest tick the next probe may start. See <see cref="BeginWebFileProbe"/>.</summary>
+    private long _webProbeNotBeforeTicks;
+
+    /// <summary>Gap between probes while the interface is answering.</summary>
+    private const int WebProbeIntervalMs = 1000;
+
+    /// <summary>
+    /// Gap after a failed probe. Long, because the overwhelming reason for
+    /// failure is the Web Interface being switched off, and that does not
+    /// change between one poll tick and the next — retrying at the poll's own
+    /// rate would be a connection attempt several times a second, forever.
+    /// </summary>
+    private const int WebProbeBackoffMs = 10_000;
+
+    /// <summary>How old an answer may be and still be used.</summary>
+    private const int WebFileStaleMs = 5000;
+
+    /// <summary>
+    /// Starts a background read of the Web Interface, unless one is already
+    /// running or the last one was too recent.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately fire-and-forget. The caller is a poll tick that wants an
+    /// answer now or not at all; this is what makes sure there is a recent one
+    /// to have. Failure is silent by design — an interface that is off is the
+    /// normal case, not an error, and the title fallback covers it.
+    /// </remarks>
+    private void BeginWebFileProbe()
+    {
+        if (DateTime.UtcNow.Ticks < Interlocked.Read(ref _webProbeNotBeforeTicks)) return;
+        if (Interlocked.CompareExchange(ref _webProbeRunning, 1, 0) != 0) return;
+
+        _ = Task.Run(async () =>
+        {
+            var answered = false;
+            try
+            {
+                var html = await _webHttp
+                    .GetStringAsync($"http://127.0.0.1:{WebInterfacePort}/variables.html")
+                    .ConfigureAwait(false);
+
+                // variables.html is a flat list of <p id="name">value</p>. Read
+                // the element rather than the whole page so a change in the
+                // order or in the surrounding markup does not matter.
+                var match = Regex.Match(html, @"id=""filepath""[^>]*>([^<]*)<",
+                                        RegexOptions.IgnoreCase);
+
+                // HTML-encoded, so a path with "&" in it arrives as "&amp;".
+                var path = match.Success
+                    ? WebUtility.HtmlDecode(match.Groups[1].Value).Trim()
+                    : string.Empty;
+
+                if (path.Length > 0)
+                {
+                    _webFile = new WebFile(path, DateTime.UtcNow);
+                    answered = true;
+                }
+            }
+            catch
+            {
+                // Interface off, wrong port, player shutting down mid-request.
+                // All of them mean the same thing here: use the title instead.
+            }
+            finally
+            {
+                // Backoff is applied for "nothing loaded" as well as for a
+                // failed request. Neither is worth asking about every second,
+                // and the poll notices a file opening through the title in the
+                // meantime.
+                Interlocked.Exchange(
+                    ref _webProbeNotBeforeTicks,
+                    DateTime.UtcNow
+                            .AddMilliseconds(answered ? WebProbeIntervalMs : WebProbeBackoffMs)
+                            .Ticks);
+
+                Interlocked.Exchange(ref _webProbeRunning, 0);
+            }
+        });
+    }
+
+    /// <summary>
+    /// The file named in MPC-HC's window title, or null when the title names
+    /// none. May be a bare filename rather than a full path.
+    /// </summary>
+    /// <remarks>
+    /// The title is "&lt;file&gt; - &lt;player&gt;", and the player half is not
+    /// something to rely on. This used to require the literal "Media Player
+    /// Classic", which is what the older builds say; MPC-HC 2.x brands itself
+    /// "MPC-HC" and never matched, so the file was never identified and the
+    /// poll cleared the session as soon as the load grace expired — a player
+    /// that appeared to disconnect itself about eight seconds in.
+    ///
+    /// So the player half is not read at all. What is looked for is the file
+    /// half: the longest leading run of the title that still looks like a file
+    /// name. Working right to left over the " - " separators keeps filenames
+    /// that contain one of their own ("Artist - Track.mp4 - MPC-HC").
+    ///
+    /// "Looks like a file" means an extension of one to five characters with a
+    /// letter in it. The letter is what stops a version number in a title with
+    /// no file open ("MPC-HC v2.8.1") from reading as an extension of ".1", and
+    /// the whole check is what keeps "Media Player Classic" — the title with
+    /// nothing loaded — from being returned as a filename.
+    /// </remarks>
+    private string? GetFilePathFromTitle()
+    {
+        var title = GetWindowTitle()?.Trim();
         if (string.IsNullOrWhiteSpace(title)) return null;
 
-        // "filename.ext - Media Player Classic"  or full path
-        var m = Regex.Match(title, @"^(.+?)\s+-\s+Media Player Classic", RegexOptions.IgnoreCase);
-        if (m.Success)
+        // A full path in the title (MPC-HC's "Show full path" option), with no
+        // player name after it. Checked first so a path containing " - " is
+        // never split.
+        if (File.Exists(title)) return title;
+
+        // Right to left, so the last separator is the one taken to be the join
+        // between the file and the player name.
+        for (var cut = title.LastIndexOf(" - ", StringComparison.Ordinal);
+             cut > 0;
+             cut = title.LastIndexOf(" - ", cut - 1, StringComparison.Ordinal))
         {
-            var candidate = m.Groups[1].Value.Trim();
+            var candidate = title[..cut].Trim();
             if (File.Exists(candidate)) return candidate;
-            return candidate; // may be just filename
+            if (LooksLikeFileName(candidate)) return candidate;
         }
 
-        if (File.Exists(title.Trim())) return title.Trim();
-        return null;
+        // No separator at all: the whole title is the file, which is what the
+        // "File name" title-bar setting produces.
+        return LooksLikeFileName(title) ? title : null;
+    }
+
+    /// <summary>
+    /// Whether a piece of window title reads as a file name rather than as a
+    /// player name. See <see cref="GetCurrentFilePath"/>.
+    /// </summary>
+    private static bool LooksLikeFileName(string candidate)
+    {
+        if (string.IsNullOrWhiteSpace(candidate)) return false;
+
+        var ext = Path.GetExtension(candidate);
+
+        // Anchored, so "v2.8.1" fails on the trailing "1" rather than matching
+        // some interior run: the extension has to be the whole of what follows
+        // the last dot.
+        return Regex.IsMatch(ext, @"^\.[A-Za-z0-9]{1,5}$")
+               && ext.Any(char.IsLetter)
+               && candidate.Length > ext.Length;
     }
 
     /// <summary>
@@ -732,6 +934,29 @@ public class MpcHcService
         var hwnd = FindMpcWindow();
         if (hwnd != IntPtr.Zero)
             SendMessage(hwnd, WM_COMMAND, (IntPtr)commandId, IntPtr.Zero);
+    }
+
+    /// <summary>
+    /// Takes the player out of fullscreen, if it is in it. Returns whether it
+    /// was, and so whether anything was sent.
+    /// </summary>
+    /// <remarks>
+    /// Guarded by <see cref="GetWindowState"/> rather than sent unconditionally,
+    /// because the command is a toggle: sent to a windowed player it would put
+    /// it into fullscreen, which is the opposite of every reason for calling
+    /// this.
+    ///
+    /// <see cref="SendCommand"/> uses SendMessage rather than PostMessage, so
+    /// this returns only once the player has actually processed the command and
+    /// left fullscreen. Callers that then want to put a window in front of it
+    /// are therefore racing nothing.
+    /// </remarks>
+    public bool ExitFullscreen()
+    {
+        if (GetWindowState() != PlayerWindowState.Fullscreen) return false;
+
+        SendCommand(CMD_VIEW_FULLSCREEN);
+        return true;
     }
 
     /// <summary>How the player's window is currently presented.</summary>
