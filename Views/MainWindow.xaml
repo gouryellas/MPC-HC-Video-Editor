@@ -496,7 +496,7 @@
                             <TextBlock Grid.Column="3" HorizontalAlignment="Right" Foreground="{DynamicResource TextSecondary}"
                                        Text="{Binding Session.Bookmarks.Count, StringFormat={}{0} items}"
                                        Margin="0,0,10,0"/>
-                            <TextBlock Grid.Column="5" Grid.ColumnSpan="2" Text="PLAY SPEED OF THE SAVED CLIP"
+                            <TextBlock Grid.Column="5" Grid.ColumnSpan="2" Text="PLAY SPEED"
                                        FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}"
                                        TextWrapping="Wrap" LineHeight="11"
                                        ToolTip="Each clip can be written out slower or faster than it was recorded. Drag a row's slider to change that clip; the length beside it updates to match."/>
