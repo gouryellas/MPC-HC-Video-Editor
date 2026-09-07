@@ -316,6 +316,8 @@
             <MenuItem Header="_Help">
                 <MenuItem Header="About…" Command="{Binding ShowAboutCommand}"
                           ToolTip="Version, licensing and third-party components"/>
+                <MenuItem Header="Check for updates" Command="{Binding CheckForUpdatesCommand}"
+                          ToolTip="Ask GitHub whether a newer release has been published. Works whether or not the startup check is turned on."/>
                 <Separator/>
                 <MenuItem Header="GitHub repository" Command="{Binding OpenRepositoryCommand}"
                           ToolTip="https://github.com/gouryellas/MPC-HC-Video-Editor"/>

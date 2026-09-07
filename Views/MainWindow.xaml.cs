@@ -393,6 +393,11 @@ public partial class MainWindow : Window
         _vm.TimeUiWork("RefreshRecentMenu", RefreshRecentMenu);
         _vm.TimeUiWork("RefreshSuffixMenu", RefreshSuffixMenu);
         _vm.TimeUiWork("RefreshPlaylistsMenu", RefreshPlaylistsMenu);
+
+        // Deliberately not awaited: the window is finished loading either way,
+        // and a slow or unreachable GitHub must not hold up startup. Guarded by
+        // _wired above, so it runs once per launch rather than on every restore.
+        _ = _vm.RunStartupUpdateCheckAsync();
     }
 
     private void Shortcuts_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)

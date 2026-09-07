@@ -4849,6 +4849,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         s.FfmpegFolder = dlg.FfmpegFolder;
         s.ToastsEnabled = dlg.ToastsEnabled;
         s.ToastSeconds = dlg.ToastSeconds;
+        s.CheckForUpdates = dlg.CheckForUpdates;
         s.RememberSaveToFolder = dlg.RememberSaveToFolder;
         s.OverlayCorner = dlg.OverlayCorner;
 
@@ -4916,6 +4917,95 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         var dlg = new AboutDialog { Owner = Application.Current?.MainWindow };
         dlg.ShowDialog();
+    }
+
+    // ------------------------------------------------------------------
+    // Update checks
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// The check made at launch. Silent unless there is something to act on.
+    /// </summary>
+    /// <remarks>
+    /// Awaited by nobody — startup does not wait on the network, and a machine
+    /// that is offline when the program opens has not encountered a problem
+    /// worth reporting. Only a genuinely newer release produces a window.
+    /// </remarks>
+    public async Task RunStartupUpdateCheckAsync()
+    {
+        if (!_settings.Current.CheckForUpdates) return;
+
+        var result = await UpdateCheckService.CheckAsync();
+        if (result.Status != UpdateCheckStatus.UpdateAvailable) return;
+
+        ShowUpdateAvailable(result);
+    }
+
+    /// <summary>
+    /// Help ▸ Check for updates. Answers either way, because someone who asked
+    /// is owed a reply — silence would read as a broken menu item.
+    /// </summary>
+    [RelayCommand]
+    private async Task CheckForUpdatesAsync()
+    {
+        StatusText = "Checking for a new version…";
+
+        var result = await UpdateCheckService.CheckAsync();
+
+        switch (result.Status)
+        {
+            case UpdateCheckStatus.UpdateAvailable:
+                StatusText = $"Version {result.LatestVersion} is available.";
+                ShowUpdateAvailable(result);
+                break;
+
+            case UpdateCheckStatus.UpToDate:
+                StatusText = $"Up to date — {AppVersion.Display} is the latest release.";
+                MessageBox.Show(
+                    $"You are running {AppVersion.Display}, which is the latest release.",
+                    "Check for updates", MessageBoxButton.OK, MessageBoxImage.Information);
+                break;
+
+            default:
+                StatusText = "Could not check for a new version.";
+                MessageBox.Show(
+                    "The check could not be completed.\n\n" +
+                    $"{result.Error}\n\n" +
+                    "The releases page is at:\n" + UpdateCheckService.ReleasesPageUrl,
+                    "Check for updates", MessageBoxButton.OK, MessageBoxImage.Warning);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Puts the notice on screen and persists the opt-out if it is taken.
+    /// </summary>
+    /// <remarks>
+    /// The window is shown without an owner when the main window is hidden —
+    /// the view follows focus, and in tray mode there may be nothing on screen
+    /// to own it. An owner that is not visible would centre the notice on
+    /// nothing and, worse, could place it behind the player.
+    /// </remarks>
+    private void ShowUpdateAvailable(UpdateCheckResult result)
+    {
+        var dlg = new UpdateAvailableDialog(
+            result.LatestVersion ?? "", AppVersion.Display, result.ReleaseUrl);
+
+        if (Application.Current?.MainWindow is { IsVisible: true } owner)
+            dlg.Owner = owner;
+        else
+            dlg.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+
+        dlg.Closed += (_, _) =>
+        {
+            if (!dlg.StopChecking) return;
+
+            _settings.Current.CheckForUpdates = false;
+            _settings.Save();
+            StatusText = "Update checks are off. Settings ▸ General ▸ Updates turns them back on.";
+        };
+
+        dlg.Show();
     }
 
     [RelayCommand]
