@@ -24,7 +24,7 @@ The full window is the other half: the bookmark list and its per-cut controls,
 the action toolbar, and the current video, bookmarks and player state down the
 right-hand side.
 
-![The main window on the Graphite theme, showing three bookmarked clips with their durations and speed sliders, range marks along the timeline, and the first and last frame of the selected clip](Assets/screenshots/main-window.png)
+![The main window on the Graphite theme, showing three bookmarked clips with their durations and speed sliders, range marks along the timeline, and the first and last frame of the selected clip](Assets/screenshots/2.png)
 
 Settings, in five tabs:
 
