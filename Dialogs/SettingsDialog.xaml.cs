@@ -44,6 +44,9 @@ public partial class SettingsDialog : Window
     public bool AutoDetectMpcWebInterface { get; private set; }
     public string FfmpegFolder { get; private set; }
     public bool ToastsEnabled { get; private set; }
+
+    /// <summary>Whether the startup update check runs.</summary>
+    public bool CheckForUpdates { get; private set; }
     public double ToastSeconds { get; private set; }
     public bool RememberSaveToFolder { get; private set; }
     public RunMode RunMode { get; private set; }
@@ -114,6 +117,7 @@ public partial class SettingsDialog : Window
         FfmpegFolder = current.FfmpegFolder ?? "";
         ToastsEnabled = current.ToastsEnabled;
         ToastSeconds = current.ToastSeconds;
+        CheckForUpdates = current.CheckForUpdates;
         RememberSaveToFolder = current.RememberSaveToFolder;
         RunMode = current.RunMode;
         AllowMultipleInstances = current.AllowMultipleInstances;
@@ -138,6 +142,7 @@ public partial class SettingsDialog : Window
 
         AutoSwitchCheck.IsChecked = autoSwitchViews;
         ToastsCheck.IsChecked = current.ToastsEnabled;
+        CheckForUpdatesCheck.IsChecked = current.CheckForUpdates;
         RememberSaveToCheck.IsChecked = current.RememberSaveToFolder;
 
         ToastSecondsBox.Text = current.ToastSeconds.ToString("0.#", CultureInfo.CurrentCulture);
@@ -303,6 +308,7 @@ public partial class SettingsDialog : Window
 
         AutoSwitchViews = AutoSwitchCheck.IsChecked == true;
         ToastsEnabled = ToastsCheck.IsChecked == true;
+        CheckForUpdates = CheckForUpdatesCheck.IsChecked == true;
         RememberSaveToFolder = RememberSaveToCheck.IsChecked == true;
 
         DeleteOriginalVideo = ReadCleanup(VideoAsk, VideoAlways);

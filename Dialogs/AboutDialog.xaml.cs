@@ -3,6 +3,7 @@ using System.IO;
 using System.Reflection;
 using System.Windows;
 using MpcHcVideoEditor.Helpers;
+using MpcHcVideoEditor.Services;
 
 namespace MpcHcVideoEditor.Dialogs;
 
@@ -12,7 +13,12 @@ namespace MpcHcVideoEditor.Dialogs;
 public partial class AboutDialog : Window
 {
     /// <summary>Canonical repository URL, also used by Help ▸ GitHub repository.</summary>
-    public const string RepositoryUrl = "https://github.com/gouryellas/MPC-HC-Video-Editor";
+    /// <remarks>
+    /// Defined in <see cref="UpdateCheckService"/>, which needs the same base
+    /// to reach the API and cannot depend on this layer. Kept here so the
+    /// existing callers read the same as they always did.
+    /// </remarks>
+    public const string RepositoryUrl = UpdateCheckService.RepositoryUrl;
 
     public AboutDialog()
     {

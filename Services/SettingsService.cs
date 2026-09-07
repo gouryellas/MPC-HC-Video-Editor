@@ -241,6 +241,21 @@ public class AppSettings
     /// <summary>Whether the hotkey confirmation toast appears at all.</summary>
     public bool ToastsEnabled { get; set; } = true;
 
+    /// <summary>
+    /// Ask GitHub at startup whether a newer release has been published.
+    /// </summary>
+    /// <remarks>
+    /// On by default, and a settings file written before this existed has no
+    /// such key — so it takes the default and upgrading installs get the check
+    /// too. That is the intent: the people most worth telling about a fix are
+    /// the ones already running the build it fixes.
+    ///
+    /// Reads a version number and nothing else. Off means the program never
+    /// contacts GitHub on its own; Help ▸ Check for updates still works when
+    /// asked. See <see cref="UpdateCheckService"/>.
+    /// </remarks>
+    public bool CheckForUpdates { get; set; } = true;
+
     /// <summary>How long a toast holds before fading, in seconds.</summary>
     public double ToastSeconds { get; set; } = 2.2;
 

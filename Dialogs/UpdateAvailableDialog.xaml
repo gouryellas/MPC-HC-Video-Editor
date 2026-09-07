@@ -1,0 +1,88 @@
+<Window x:Class="MpcHcVideoEditor.Dialogs.UpdateAvailableDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Update available"
+        SizeToContent="Height"
+        Width="470"
+        MinHeight="240"
+        Background="{DynamicResource WindowBackground}"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize">
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Margin" Value="3"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource ControlHover}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock x:Name="HeadlineText" Foreground="{DynamicResource Accent}"
+                       FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"/>
+            <TextBlock x:Name="RunningText" Foreground="{DynamicResource ValueGreen}"
+                       FontSize="12" Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <TextBlock Grid.Row="1" Foreground="{DynamicResource TextDim}" FontSize="12"
+                   TextWrapping="Wrap" Margin="0,0,0,14"
+                   Text="The releases page has the archive and the notes for what changed. This program does not update itself — download the new archive and replace your copy. Your settings live beside the executable and are not touched by the check."/>
+
+        <!-- The way out of this notice sits in the notice, rather than only in
+             a Settings tab the user would have to go looking for. The second
+             sentence is there so turning it off does not feel permanent. -->
+        <Border Grid.Row="2" Background="{DynamicResource PanelBackground}" CornerRadius="6"
+                Padding="12" Margin="0,0,0,14">
+            <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap">
+                <Run Text="This check runs once each time the program starts."/>
+                <LineBreak/>
+                <Hyperlink x:Name="StopLink" Click="Stop_Click"
+                           Foreground="{DynamicResource ValueYellow}"
+                           ToolTip="Turns the startup check off and closes this window">
+                    <Run Text="Stop checking for new versions"/>
+                </Hyperlink>
+                <Run Text=" — you can turn it back on at any time in Settings ▸ General ▸ Updates, or check by hand from Help ▸ Check for updates."/>
+            </TextBlock>
+        </Border>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+            <!-- IsCancel closes by itself; Esc lands here, which is the right
+                 default for a notice nobody asked for. -->
+            <Button Content="Not now" Width="90" IsCancel="True"/>
+            <Button Content="Open the releases page" Click="Releases_Click" IsDefault="True"
+                    Background="{DynamicResource PrimaryButton}"
+                    BorderBrush="{DynamicResource PrimaryButtonBorder}"
+                    Foreground="{DynamicResource OnAccent}"/>
+        </StackPanel>
+    </Grid>
+</Window>
