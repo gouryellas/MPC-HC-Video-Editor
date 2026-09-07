@@ -336,7 +336,10 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource OnAccent}" VerticalAlignment="Center"/>
+                <!-- Marquee rather than TextBlock: "Created <name> — <warning>"
+                     runs past the end of the bar on a long file name, and the
+                     warning is the half that gets clipped. -->
+                <helpers:MarqueeText Text="{Binding StatusText}" Foreground="{DynamicResource OnAccent}" VerticalAlignment="Center"/>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="16,0">
                     <TextBlock Text="{Binding HotkeyStatus}" Foreground="{DynamicResource ValueYellow}" VerticalAlignment="Center"/>
