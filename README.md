@@ -5,7 +5,7 @@ Modern rewrite of the original AutoHotkey **MPC-HC Video Editor v2.1**.
 Bookmark ranges in a video playing in MPC-HC, then cut, join, convert or
 extract audio from them with ffmpeg.
 
-![The compact overlay in the top-right corner of a video playing in MPC-HC, listing three timestamp pairs with their start, end and duration](Assets/screenshots/minimal-overlay.png)
+![The compact overlay in the top-right corner of a video playing in MPC-HC, listing three timestamp pairs with their start, end and duration](Assets/screenshots/1.png)
 
 **Fully portable.** Everything the app writes — `settings.json`, `stalls.log` —
 lives beside the executable. Nothing goes to `%APPDATA%` and there is no
