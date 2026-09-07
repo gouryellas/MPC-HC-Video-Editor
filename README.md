@@ -34,8 +34,8 @@ Settings, in five tabs:
 <td width="50%"><strong>Output</strong> — format, quality, encoder</td>
 </tr>
 <tr>
-<td><img src="Assets/screenshots/settings-general.png" alt="The Settings window on the General tab, showing the colour theme picker, the run mode and the single-instance options" width="100%"></td>
-<td><img src="Assets/screenshots/settings-output.png" alt="The Output tab, showing the default output format, the encoding quality and the H.264 encoder choice with unavailable GPU encoders greyed out" width="100%"></td>
+<td><img src="Assets/screenshots/settings-general.png" alt="The Settings window on the General tab, showing the color theme picker, the run mode and the single-instance options" width="100%"></td>
+<td><img src="Assets/screenshots/settings-output.png" alt="The Output tab, showing the default output format, the encoding quality and the H.264 encoder choice with unavailable GPU encoders grayed out" width="100%"></td>
 </tr>
 <tr>
 <td><strong>Cleanup</strong> — what is deleted, and where it goes</td>
@@ -161,7 +161,7 @@ inversion, and a thin red tick for an open bookmark.
 
 Running an action shows a panel above the status bar with the operation, file
 *n* of *m*, the current file and step, percentage, elapsed and remaining time.
-The bar's colour is interpolated from the percentage: black → red → orange →
+The bar's color is interpolated from the percentage: black → red → orange →
 yellow → green.
 
 Routine messages go to the **status bar**, not popups. Dialogs are reserved for
@@ -269,7 +269,7 @@ new items are always enabled.
 - **MPC-HC** for anything that reads or drives the player.
 
 Binaries are validated by running them, not merely found: a copy that exists but
-fails to load is skipped in favour of the next working candidate.
+fails to load is skipped in favor of the next working candidate.
 
 ## Building
 

@@ -1,17 +1,17 @@
 namespace MpcHcVideoEditor.Services;
 
 /// <summary>
-/// A complete set of colours for the interface.
+/// A complete set of colors for the interface.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Every colour the XAML uses resolves to one of these names. The application
+/// Every color the XAML uses resolves to one of these names. The application
 /// previously spelled out 55 distinct hex values across twelve files, which
 /// meant a change of appearance was a find-and-replace exercise and a new
 /// theme was not realistically possible at all.
 /// </para>
 /// <para>
-/// Names describe the <em>role</em>, not the colour — <c>Accent</c> rather than
+/// Names describe the <em>role</em>, not the color — <c>Accent</c> rather than
 /// <c>Teal</c> — because the whole point is that the value changes per theme
 /// while the meaning does not.
 /// </para>
@@ -57,7 +57,7 @@ public sealed record ThemePalette(
     string PrimaryButtonBorder,
 
     /// <summary>
-    /// Text sitting on <see cref="PrimaryButton"/> and the coloured action
+    /// Text sitting on <see cref="PrimaryButton"/> and the colored action
     /// buttons. A role rather than a literal "White", so a theme with a pale
     /// primary button is possible without hunting through the XAML.
     /// </summary>
@@ -69,7 +69,7 @@ public sealed record ThemePalette(
     string StatusError,
     string StatusWarn,
 
-    // The coloured action buttons on the toolbar.
+    // The colored action buttons on the toolbar.
     string MergeBackground,
     string MergeBorder,
     string SplitBackground,
@@ -90,9 +90,9 @@ public sealed record ThemePalette(
 {
     /// <summary>Every theme, in the order the settings dialog lists them.</summary>
     /// <remarks>
-    /// Computed on access rather than stored in a field. As a field initialised
+    /// Computed on access rather than stored in a field. As a field initialized
     /// here it ran before the three palettes below were constructed — static
-    /// initialisers execute in declaration order — so it captured three nulls,
+    /// initializers execute in declaration order — so it captured three nulls,
     /// which would have left the settings list empty and every lookup falling
     /// back to the default.
     /// </remarks>
@@ -125,9 +125,9 @@ public sealed record ThemePalette(
         OverlayBackground: "#F01A1817", ToastBackground: "#FF171514",
         IconBackground: "#221F1D", IconBody: "#E0A253", IconDetail: "#C9853A");
 
-    /// <summary>Cool blue-grey with a cyan accent.</summary>
+    /// <summary>Cool blue-gray with a cyan accent.</summary>
     public static ThemePalette Midnight { get; } = new(
-        Key: "midnight", Display: "Midnight — cool blue-grey, cyan accent", IsLight: false,
+        Key: "midnight", Display: "Midnight — cool blue-gray, cyan accent", IsLight: false,
         TimelineTrack: "#0B1017", InsetBackground: "#0D131B",
         WindowBackground: "#0F151E", PanelBackground: "#161F2B",
         ControlBackground: "#233246", ControlHover: "#2C3E56",

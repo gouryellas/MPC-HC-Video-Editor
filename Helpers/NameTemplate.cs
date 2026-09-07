@@ -22,7 +22,7 @@ namespace MpcHcVideoEditor.Helpers;
 /// </remarks>
 public static class NameTemplate
 {
-    /// <summary>The default, which reproduces the old behaviour exactly.</summary>
+    /// <summary>The default, which reproduces the old behavior exactly.</summary>
     public const string Default = "{name}{suffix}";
 
     /// <summary>One variable, a worked example of it, and what it means.</summary>

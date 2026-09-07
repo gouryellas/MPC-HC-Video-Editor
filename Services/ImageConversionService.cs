@@ -134,9 +134,9 @@ public class ImageConversionService
         // ICONDIRENTRY — 256 is written as 0.
         writer.Write((byte)(source.PixelWidth >= maxSide ? 0 : source.PixelWidth));
         writer.Write((byte)(source.PixelHeight >= maxSide ? 0 : source.PixelHeight));
-        writer.Write((byte)0);     // palette size, 0 for truecolour
+        writer.Write((byte)0);     // palette size, 0 for truecolor
         writer.Write((byte)0);     // reserved
-        writer.Write((ushort)1);   // colour planes
+        writer.Write((ushort)1);   // color planes
         writer.Write((ushort)32);  // bits per pixel
         writer.Write(png.Length);
         writer.Write(22);          // payload offset: 6-byte dir + 16-byte entry

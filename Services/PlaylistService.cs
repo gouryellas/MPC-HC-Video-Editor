@@ -96,7 +96,7 @@ public class PlaylistService
     /// <para>
     /// Handles both the <c>FileN=</c> form of .pls and the bare-path form of
     /// m3u8, which is enough to tell them apart without trusting the
-    /// extension — a mislabelled file still reads correctly.
+    /// extension — a mislabeled file still reads correctly.
     /// </para>
     /// <para>
     /// Relative entries are resolved against the <em>playlist's own folder</em>,
@@ -357,7 +357,7 @@ public class PlaylistService
     /// <para>
     /// The counterpart to <see cref="RemoveMissingEntries"/>, and usually the
     /// one that is actually wanted: a file that cannot be found at its old path
-    /// has far more often been moved or reorganised than deleted. Removal
+    /// has far more often been moved or reorganized than deleted. Removal
     /// throws away the record of it; this puts the record back on the file.
     /// </para>
     /// <para>

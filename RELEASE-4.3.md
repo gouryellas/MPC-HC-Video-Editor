@@ -34,7 +34,7 @@ file name.
 
 This affected every user of MPC-HC 2.x whose title bar was set to show the file
 name. It did not affect anyone whose title bar shows the full path, because a
-path that exists on disk was recognised by a separate route — which is why it
+path that exists on disk was recognized by a separate route — which is why it
 went unnoticed here.
 
 ## What is playing is now read from the Web Interface
@@ -66,7 +66,7 @@ pin was checked ahead of the setting, so **unchecking "switch views
 automatically" did not stop the view switching** for anyone who had picked
 Minimal earlier in the session. That whole layer is removed rather than patched.
 
-What is left is the behaviour both were mostly being used to get: the overlay
+What is left is the behavior both were mostly being used to get: the overlay
 while MPC-HC is the active window, the full window as soon as it is not.
 
 Upgrading turns the setting on once. It has been written to the settings file on

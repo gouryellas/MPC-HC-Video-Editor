@@ -26,7 +26,7 @@ public class TimelineRanges : FrameworkElement
     /// <summary>Checked cuts — the ones an action would act on.</summary>
     private static readonly Brush SelectedBrush = Frozen("#4EC9B0");
 
-    /// <summary>Cuts marked for inversion, matching the [F] prefix colour.</summary>
+    /// <summary>Cuts marked for inversion, matching the [F] prefix color.</summary>
     private static readonly Brush FlippedBrush = Frozen("#CE9178");
 
     /// <summary>A lone opening timestamp: no range yet, so a thin tick.</summary>

@@ -1,30 +1,30 @@
 # MPC-HC Video Editor 4.1
 
-A new look, and the interface's colours are now yours to choose.
+A new look, and the interface's colors are now yours to choose.
 
-## Colour themes
+## Color themes
 
 **Settings ▸ General ▸ Appearance** offers three:
 
 - **Graphite** — warm charcoal with an amber accent. The new default.
-- **Midnight** — cool blue-grey with a cyan accent.
+- **Midnight** — cool blue-gray with a cyan accent.
 - **Daylight** — light surfaces with an indigo accent.
 
 Picking one applies it immediately, so it can be judged rather than guessed at
 from a name. Cancel puts the previous one back, including if the dialog is
 closed with Escape.
 
-Underneath, every colour in the interface now resolves through a named role
+Underneath, every color in the interface now resolves through a named role
 rather than being written out where it is used. The application previously
 spelled out 55 distinct values across twelve files, which is why it had exactly
 one appearance; a fourth theme is now a single entry in one table.
 
 ## A new icon, and it follows the theme
 
-The application icon is now a film camera, drawn in the colours of whichever
+The application icon is now a film camera, drawn in the colors of whichever
 theme is active. The window icon, the taskbar icon while the program is
 running, and the notification-area icon all repaint when the theme changes, and
-come back in the right colours the next time the program is opened.
+come back in the right colors the next time the program is opened.
 
 **One exception, stated plainly:** the icon on the program file itself — what
 Explorer shows, and what a pinned shortcut uses — is fixed when the program is

@@ -34,7 +34,7 @@ public partial class AboutDialog : Window
     /// there isn't when there isn't.
     /// </summary>
     /// <remarks>
-    /// Naming a licence the project has not actually declared would be worse
+    /// Naming a license the project has not actually declared would be worse
     /// than saying nothing — it is the one claim in this dialog a user might
     /// rely on.
     /// </remarks>
@@ -49,11 +49,11 @@ public partial class AboutDialog : Window
             }
             catch
             {
-                // An unreadable licence file is not worth failing the dialog over.
+                // An unreadable license file is not worth failing the dialog over.
             }
         }
 
-        return "No licence file is installed alongside this application. " +
+        return "No license file is installed alongside this application. " +
                "See the repository for the terms this project is released under.";
     }
 

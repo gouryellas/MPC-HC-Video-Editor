@@ -1,6 +1,6 @@
 # MPC-HC Video Editor 3.0.6
 
-A security release. No behaviour in the application itself has changed — what
+A security release. No behavior in the application itself has changed — what
 changed is the FFmpeg it hands your files to.
 
 ## The reason to update
@@ -31,8 +31,8 @@ concat path behind bulk merge, and the `ffprobe` duration query. All pass.
 ## Also in this release
 
 **The LICENSE file is now in the archive.** It never had been, so Help ▸ About
-told every user "no licence file is installed alongside this application" — and
-shipping GPL-licensed binaries without the licence text is a compliance gap on
+told every user "no license file is installed alongside this application" — and
+shipping GPL-licensed binaries without the license text is a compliance gap on
 its own. Both are fixed.
 
 **The About dialog's third-party section was wrong about FFmpeg.** It said

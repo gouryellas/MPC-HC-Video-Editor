@@ -60,7 +60,7 @@
         <Style TargetType="Button" BasedOn="{StaticResource DarkButton}"/>
 
         <!-- The menu strip keeps system-like chrome rather than following the
-             app's canvas, so its two colours are their own palette roles. -->
+             app's canvas, so its two colors are their own palette roles. -->
         <Style TargetType="Menu">
             <Setter Property="Background" Value="{DynamicResource MenuBarBackground}"/>
             <Setter Property="Foreground" Value="{DynamicResource MenuBarForeground}"/>
@@ -85,7 +85,7 @@
         </Style>
 
         <!-- Clickable timestamp look: teal, no underline by default,
-             underline + brighter colour on hover, hand cursor.
+             underline + brighter color on hover, hand cursor.
              Used for the bookmark timestamp hyperlinks. -->
         <Style x:Key="TimestampLink" TargetType="Hyperlink">
             <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
@@ -219,7 +219,7 @@
                           ToolTip="Load a .pls playlist — subsequent Add-to-playlist actions route to it directly"/>
                 <!-- Gated on a playlist simply being loaded. It used to key off
                      the loaded playlist still having entries, which was cached
-                     and went stale — leaving this greyed out with a playlist
+                     and went stale — leaving this grayed out with a playlist
                      plainly loaded. An empty playlist can no longer be loaded
                      at all, so the entry count adds nothing here. -->
                 <MenuItem Header="Unload playlist" Click="ClearLoadedPlaylist_Click"
@@ -258,7 +258,7 @@
                  list below lets the user switch by clicking. -->
             <MenuItem Header="_Options">
                 <!-- Not IsEnabled="False", unlike the example line below it: the
-                     MenuItem style greys disabled items to #888888, and this is
+                     MenuItem style grays disabled items to #888888, and this is
                      the one line here that says which tag is actually in use, so
                      it stays at full contrast. It has no Command, so it is still
                      a label — clicking it just closes the menu. -->
@@ -302,7 +302,7 @@
                 <!-- The whole of the view control, and on by default. Picking
                      the view by hand is gone: Minimal and Full were a mode the
                      user had to keep in their head, with nothing on screen
-                     saying which one was in force, and the automatic behaviour
+                     saying which one was in force, and the automatic behavior
                      is what both of them were usually being used to get.
 
                      Off leaves this window up permanently. The hotkey still
@@ -324,8 +324,8 @@
                 <MenuItem Header="Report an issue" Command="{Binding OpenIssuesCommand}"
                           ToolTip="Open the issue tracker in your browser"/>
                 <Separator/>
-                <MenuItem Header="Licences" Command="{Binding ShowAboutCommand}"
-                          ToolTip="Licence terms for this app and the components it uses"/>
+                <MenuItem Header="Licenses" Command="{Binding ShowAboutCommand}"
+                          ToolTip="License terms for this app and the components it uses"/>
             </MenuItem>
         </Menu>
 
@@ -383,7 +383,7 @@
                 <TextBlock Text="{Binding Job.Step}" Foreground="{DynamicResource ValueYellow}"
                            TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
 
-                <!-- Colour comes from the percentage itself, ramping black →
+                <!-- Color comes from the percentage itself, ramping black →
                      red → orange → yellow → green. -->
                 <Border Background="{DynamicResource TimelineTrack}" CornerRadius="3" Height="14" Padding="2">
                     <Grid>

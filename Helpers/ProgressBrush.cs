@@ -5,14 +5,14 @@ using System.Windows.Media;
 namespace MpcHcVideoEditor.Helpers;
 
 /// <summary>
-/// Maps 0–100 to a continuous colour ramp: black at 0, through red, orange
+/// Maps 0–100 to a continuous color ramp: black at 0, through red, orange
 /// and yellow, to green at 100. Interpolated rather than banded, so the bar
 /// shifts smoothly as work progresses instead of jumping at thresholds.
 /// </summary>
 public class ProgressToBrushConverter : IValueConverter
 {
-    /// <summary>Ramp stops as (percent, colour), in ascending order.</summary>
-    private static readonly (double Stop, Color Colour)[] Ramp =
+    /// <summary>Ramp stops as (percent, color), in ascending order.</summary>
+    private static readonly (double Stop, Color Color)[] Ramp =
     {
         (0,   Color.FromRgb(0x00, 0x00, 0x00)),   // black
         (1,   Color.FromRgb(0xD1, 0x1B, 0x1B)),   // red
@@ -29,11 +29,11 @@ public class ProgressToBrushConverter : IValueConverter
             int i => i,
             _ => 0d
         };
-        return new SolidColorBrush(ColourAt(Math.Clamp(pct, 0, 100)));
+        return new SolidColorBrush(ColorAt(Math.Clamp(pct, 0, 100)));
     }
 
     /// <summary>Linear interpolation between the two ramp stops surrounding <paramref name="pct"/>.</summary>
-    public static Color ColourAt(double pct)
+    public static Color ColorAt(double pct)
     {
         for (int i = 1; i < Ramp.Length; i++)
         {
@@ -51,7 +51,7 @@ public class ProgressToBrushConverter : IValueConverter
                 (byte)(low.B + (high.B - low.B) * t));
         }
 
-        return Ramp[^1].Colour;
+        return Ramp[^1].Color;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

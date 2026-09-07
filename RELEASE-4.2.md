@@ -45,8 +45,8 @@ all five Settings tabs.
 ## A plainer icon on the program file
 
 The icon baked into the executable was the graphite camera — one theme's
-colours, on a file that four themes share and that no theme can repaint. It is
-now black and white: the same drawing, in no theme's colours, so it cannot
+colors, on a file that four themes share and that no theme can repaint. It is
+now black and white: the same drawing, in no theme's colors, so it cannot
 disagree with the theme actually in use.
 
 The icons you see while the program runs are unchanged and still follow the

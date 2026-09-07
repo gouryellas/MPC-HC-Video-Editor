@@ -33,7 +33,7 @@ public partial class MinimalWindow : Window
     /// <remarks>
     /// The card takes as much height as the bookmark list needs until it is
     /// this far short of the screen, and only then does the list scroll. A
-    /// fixed 300 px pane was the old behaviour: it scrolled after nine rows and
+    /// fixed 300 px pane was the old behavior: it scrolled after nine rows and
     /// so hid the most recent bookmarks, which are the ones being worked on.
     /// </remarks>
     private const double ScreenHeightReserve = 100;
@@ -58,7 +58,7 @@ public partial class MinimalWindow : Window
     /// <c>Topmost="True"</c> is not enough against a full-screened player.
     /// A player going full screen makes itself top-most too, and the most
     /// recent window to claim that band wins — so the overlay ended up
-    /// underneath, even though it sat correctly above a merely maximised
+    /// underneath, even though it sat correctly above a merely maximized
     /// window. Re-claiming the band on a timer puts it back in front.
     /// </remarks>
     private readonly DispatcherTimer _topmostTimer = new()
@@ -186,7 +186,7 @@ public partial class MinimalWindow : Window
     /// the backing, making a dim overlay unreadable rather than merely
     /// unobtrusive.
     ///
-    /// The colour matches the Background in XAML, so the default value here
+    /// The color matches the Background in XAML, so the default value here
     /// repaints the panel exactly as designed rather than subtly shifting it.
     /// </remarks>
     public void SetBackgroundOpacity(double opacity)

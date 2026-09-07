@@ -31,7 +31,7 @@ and larger at the same visual quality — the usual trade.
 Being listed is not the same as working. The GPU encoders are compiled into
 ffmpeg whether or not the hardware exists, so `h264_nvenc` is advertised on a
 machine with no NVIDIA card in it. Opening the Settings dialog therefore runs a
-real test encode for each one and greys out whatever this machine cannot do. A
+real test encode for each one and grays out whatever this machine cannot do. A
 saved choice that stops working — a driver change, a moved disk — falls back to
 software rather than failing the next job.
 

@@ -16,7 +16,7 @@ Scanning proposes; it never applies. The list comes back with everything ticked
 and you untick what it got wrong, because detection on real footage is a good
 first guess and nothing more.
 
-## Playlists that survive a reorganised library
+## Playlists that survive a reorganized library
 
 **Find moved files…** is the counterpart to removing dead entries, and usually
 the one actually wanted. A file that is not where the playlist says has far more
@@ -79,7 +79,7 @@ cannot produce a path the filesystem rejects.
 attached as navigable chapter marks, instead of N files on disk. Streams are
 copied, so it is quick and lossless.
 
-**Loudness normalisation.** An optional EBU R128 pass so a merge of material
+**Loudness normalization.** An optional EBU R128 pass so a merge of material
 recorded at different levels does not jump in volume. Like precise cutting it
 forces a re-encode, which the setting says outright.
 
