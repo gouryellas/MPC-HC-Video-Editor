@@ -21,6 +21,15 @@
         <vm:MainViewModel/>
     </Window.DataContext>
 
+    <!-- Ctrl+Z / Ctrl+Y reach the same commands as the Edit menu. Bound on the
+         window so they work wherever focus happens to be — except inside a text
+         box, where the TextBox's own undo handles the keystroke first, which is
+         what someone editing a cut's name would expect. -->
+    <Window.InputBindings>
+        <KeyBinding Key="Z" Modifiers="Control" Command="{Binding UndoEditCommand}"/>
+        <KeyBinding Key="Y" Modifiers="Control" Command="{Binding RedoEditCommand}"/>
+    </Window.InputBindings>
+
     <Window.Resources>
         <helpers:BoolToVisibilityConverter x:Key="BoolToVis"/>
         <helpers:ProgressToBrushConverter x:Key="ProgressBrush"/>
@@ -104,7 +113,11 @@
     <DockPanel>
         <!-- Menu -->
         <Menu x:Name="HeaderMenu" DockPanel.Dock="Top" Background="{DynamicResource MenuBarBackground}" Foreground="{DynamicResource MenuBarForeground}" FlowDirection="LeftToRight" Padding="4">
-            <MenuItem Header="_File">
+            <!-- x:Name, and not the header text, is what the code-behind finds
+                 these by. Four menus are filled in at runtime, and looking them
+                 up by header meant any change to the wording — a rename, an
+                 icon — silently emptied them. -->
+            <MenuItem x:Name="FileMenu" Header="&#128193; _File">
                 <MenuItem Header="Open…" Command="{Binding OpenFileCommand}"
                           ToolTip="Open a video file, bookmark CSV, or .pls playlist (auto-detected by extension)"/>
                 <!-- Where every action except the one-click row button writes.
@@ -126,38 +139,30 @@
                 <MenuItem Header="Add quick save shortcut…" Command="{Binding AddQuickSaveShortcutCommand}"
                           ToolTip="Pick a folder to add to the quick save shortcut list above"/>
                 <Separator/>
+                <!-- An action, not a setting: there is nothing about it to
+                     configure, and it is only useful just after something has
+                     been written. Disabled until there is a file to show. -->
+                <MenuItem Header="Reveal last output in Explorer" Command="{Binding RevealOutputCommand}"
+                          ToolTip="Open Explorer with the file this program last wrote selected"/>
+                <Separator/>
                 <MenuItem Header="Settings…" Command="{Binding OpenSettingsCommand}"
                           ToolTip="Output format, view switching, and what happens to source files after an operation"/>
                 <MenuItem Header="Reset everything…" Command="{Binding ResetEverythingCommand}"
                           ToolTip="Restart the application (settings, history, naming tags, and shortcuts are preserved)"/>
                 <MenuItem Header="Exit" Click="Exit_Click"/>
             </MenuItem>
-            <MenuItem Header="_Bookmarks">
-                <!-- Header carries the live hotkey binding, e.g.
-                     "Set timestamp: MButton". Bound to SetTimestampMenuLabel. -->
-                <MenuItem Header="{Binding SetTimestampMenuLabel}" Command="{Binding SetTimestampCommand}"
-                          ToolTip="Set a timestamp at the current MPC-HC position — toggles open/close automatically"/>
-                <MenuItem Header="Undo last bookmark" Command="{Binding UndoLastBookmarkCommand}"
-                          ToolTip="Remove the most recently added bookmark from the GUI and CSV"/>
-                <Separator/>
-                <MenuItem Header="Edit bookmarks" Command="{Binding EditBookmarksCommand}"
-                          ToolTip="Open the bookmark CSV in a text editor — changes are picked up when this window regains focus"/>
-                <MenuItem Header="Enter time / range…" Command="{Binding EnterTimeManualCommand}"/>
-                <MenuItem Header="Delete bookmarks" Command="{Binding DeleteBookmarksCommand}"
-                          ToolTip="Delete the bookmark file from disk"/>
-                <MenuItem Header="Remove selected timestamps" Command="{Binding DeleteSelectedCommand}"
-                          ToolTip="Remove the checked timestamps from the list and from the bookmark file"/>
-                <Separator/>
-                <MenuItem Header="Play all cuts" Command="{Binding PlayAllCommand}"
-                          ToolTip="Seek MPC-HC to each bookmark and play it for its full duration, sequentially"/>
-                <MenuItem Header="Play selected cuts" Command="{Binding PlaySelectedCommand}"
-                          ToolTip="Same as Play all, but only the cuts you've checked"/>
-                <Separator/>
-                <MenuItem Header="Select all" Command="{Binding SelectAllCommand}"/>
-                <MenuItem Header="Select none" Command="{Binding SelectNoneCommand}"/>
-                <Separator/>
+
+            <MenuItem Header="&#9998; _Edit">
+                <!-- The headers name what will be reversed — "Undo the speed"
+                     rather than a bare "Undo" — so the entry says what it is
+                     about to do before it does it. -->
+                <MenuItem Header="{Binding UndoEditHeader}" Command="{Binding UndoEditCommand}"
+                          InputGestureText="Ctrl+Z"
+                          ToolTip="Step back through changes to the cuts. Operations that have already written a file are not included — see the note in the manual."/>
+                <MenuItem Header="{Binding RedoEditHeader}" Command="{Binding RedoEditCommand}"
+                          InputGestureText="Ctrl+Y"/>
             </MenuItem>
-            <MenuItem Header="_Actions">
+            <MenuItem Header="&#9889; _Actions">
                 <MenuItem Header="Merge selected / all / any" Command="{Binding MergeSelectedCommand}"
                           ToolTip="Merges the checked cuts, or every cut, or — with no video loaded — files you pick. A single cut is written out on its own as a trim.">
                     <MenuItem.Icon>
@@ -206,7 +211,43 @@
                 <MenuItem Header="Export as chapters…" Command="{Binding ExportChaptersCommand}"
                           ToolTip="Writes the video out once with the bookmarks as chapter marks, instead of cutting it into separate clips"/>
             </MenuItem>
-            <MenuItem Header="_Playlist">
+            <MenuItem Header="&#9000; _Hotkey">
+                <!-- Header shows the current binding live (e.g. "Hotkey: MButton",
+                     "Hotkey: Ctrl+Shift+T", "Hotkey: OFF"). Bound to the
+                     ViewModel's HotkeyMenuLabel which is updated whenever the
+                     binding changes. -->
+                <MenuItem Header="{Binding HotkeyMenuLabel}" IsEnabled="False"/>
+                <Separator/>
+                <MenuItem Header="Set timestamp hotkey…" Command="{Binding SetTimestampHotkeyCommand}"
+                          ToolTip="Pick a mouse button or capture a keyboard combination"/>
+                <MenuItem Header="Disable hotkey" Command="{Binding DisableTimestampHotkeyCommand}"/>
+            </MenuItem>
+            <MenuItem Header="&#128278; _Bookmarks">
+                <!-- Header carries the live hotkey binding, e.g.
+                     "Set timestamp: MButton". Bound to SetTimestampMenuLabel. -->
+                <MenuItem Header="{Binding SetTimestampMenuLabel}" Command="{Binding SetTimestampCommand}"
+                          ToolTip="Set a timestamp at the current MPC-HC position — toggles open/close automatically"/>
+                <MenuItem Header="Undo last bookmark" Command="{Binding UndoLastBookmarkCommand}"
+                          ToolTip="Remove the most recently added bookmark from the GUI and CSV"/>
+                <Separator/>
+                <MenuItem Header="Edit bookmarks" Command="{Binding EditBookmarksCommand}"
+                          ToolTip="Open the bookmark CSV in a text editor — changes are picked up when this window regains focus"/>
+                <MenuItem Header="Enter time / range…" Command="{Binding EnterTimeManualCommand}"/>
+                <MenuItem Header="Delete bookmarks" Command="{Binding DeleteBookmarksCommand}"
+                          ToolTip="Delete the bookmark file from disk"/>
+                <MenuItem Header="Remove selected timestamps" Command="{Binding DeleteSelectedCommand}"
+                          ToolTip="Remove the checked timestamps from the list and from the bookmark file"/>
+                <Separator/>
+                <MenuItem Header="Play all cuts" Command="{Binding PlayAllCommand}"
+                          ToolTip="Seek MPC-HC to each bookmark and play it for its full duration, sequentially"/>
+                <MenuItem Header="Play selected cuts" Command="{Binding PlaySelectedCommand}"
+                          ToolTip="Same as Play all, but only the cuts you've checked"/>
+                <Separator/>
+                <MenuItem Header="Select all" Command="{Binding SelectAllCommand}"/>
+                <MenuItem Header="Select none" Command="{Binding SelectNoneCommand}"/>
+                <Separator/>
+            </MenuItem>
+            <MenuItem x:Name="PlaylistMenu" Header="&#127902; _Playlist">
                 <MenuItem Header="{Binding PlaylistFolderDisplay}" Command="{Binding SetPlaylistFolderCommand}"
                           ToolTip="Folder scanned for playlists (.pls, .m3u8)"/>
                 <!-- These three are Click handlers rather than commands, so
@@ -241,22 +282,33 @@
                 <MenuItem Header="{Binding AddToPlaylistMenuLabel}" Command="{Binding AddCurrentToPlaylistCommand}"
                           ToolTip="{Binding AddToPlaylistToolTip}"/>
             </MenuItem>
-            <MenuItem Header="_Hotkey">
-                <!-- Header shows the current binding live (e.g. "Hotkey: MButton",
-                     "Hotkey: Ctrl+Shift+T", "Hotkey: OFF"). Bound to the
-                     ViewModel's HotkeyMenuLabel which is updated whenever the
-                     binding changes. -->
-                <MenuItem Header="{Binding HotkeyMenuLabel}" IsEnabled="False"/>
-                <Separator/>
-                <MenuItem Header="Set timestamp hotkey…" Command="{Binding SetTimestampHotkeyCommand}"
-                          ToolTip="Pick a mouse button or capture a keyboard combination"/>
-                <MenuItem Header="Disable hotkey" Command="{Binding DisableTimestampHotkeyCommand}"/>
+
+            <!-- History — the recently-played videos, promoted out of the File
+                 menu to a top-level menu of its own. Entries between the two
+                 named separators are inserted at runtime from RecentVideos. -->
+            <MenuItem Header="&#128336; H_istory" x:Name="RecentMenuItem" ToolTip="Recently played videos">
+                <MenuItem Header="(no recent videos)" IsEnabled="False" x:Name="RecentEmptyPlaceholder"/>
+                <Separator x:Name="RecentStartSeparator" Visibility="Collapsed"/>
+                <!-- Dynamic per-video entries inserted here at runtime -->
+                <Separator x:Name="RecentEndSeparator" Visibility="Collapsed"/>
+                <MenuItem Header="Clear history" Click="ClearRecentList_Click" x:Name="RecentClearItem" IsEnabled="False"/>
+            </MenuItem>
+            <!-- Shortcuts menu — lets the user add folder shortcuts that then
+                 appear as clickable items at the bottom of the File menu. -->
+            <MenuItem x:Name="ShortcutsMenu" Header="&#128279; Sho_rtcuts">
+                <MenuItem Header="Add shortcut…" Command="{Binding AddShortcutCommand}"/>
+                <MenuItem Header="Manage shortcuts…" Command="{Binding ManageShortcutsCommand}"/>
+                <Separator x:Name="ShortcutsMenuStartSeparator"/>
+                <!-- Dynamic per-shortcut "Open" + "Rename…" + "Remove" entries
+                     appended here at runtime by MainWindow.xaml.cs. These open
+                     a folder in Explorer and have nothing to do with the
+                     quick save shortcuts in the File menu. -->
             </MenuItem>
             <!-- Suffix menu — manages filename suffixes appended to all video
                  outputs (merge, split, convert, strip audio, bulk merge).
                  The first item shows the currently-active suffix; the dynamic
                  list below lets the user switch by clicking. -->
-            <MenuItem Header="_Options">
+            <MenuItem x:Name="OptionsMenu" Header="&#9881; _Options">
                 <!-- Not IsEnabled="False", unlike the example line below it: the
                      MenuItem style grays disabled items to #888888, and this is
                      the one line here that says which tag is actually in use, so
@@ -274,29 +326,7 @@
                 <MenuItem Header="Add new naming tag…" Command="{Binding AddSuffixCommand}"/>
                 <MenuItem Header="Manage naming tags…" Command="{Binding ManageSuffixesCommand}"/>
             </MenuItem>
-            <!-- Shortcuts menu — lets the user add folder shortcuts that then
-                 appear as clickable items at the bottom of the File menu. -->
-            <MenuItem Header="Sho_rtcuts">
-                <MenuItem Header="Add shortcut…" Command="{Binding AddShortcutCommand}"/>
-                <MenuItem Header="Manage shortcuts…" Command="{Binding ManageShortcutsCommand}"/>
-                <Separator x:Name="ShortcutsMenuStartSeparator"/>
-                <!-- Dynamic per-shortcut "Open" + "Rename…" + "Remove" entries
-                     appended here at runtime by MainWindow.xaml.cs. These open
-                     a folder in Explorer and have nothing to do with the
-                     quick save shortcuts in the File menu. -->
-            </MenuItem>
-
-            <!-- History — the recently-played videos, promoted out of the File
-                 menu to a top-level menu of its own. Entries between the two
-                 named separators are inserted at runtime from RecentVideos. -->
-            <MenuItem Header="H_istory" x:Name="RecentMenuItem" ToolTip="Recently played videos">
-                <MenuItem Header="(no recent videos)" IsEnabled="False" x:Name="RecentEmptyPlaceholder"/>
-                <Separator x:Name="RecentStartSeparator" Visibility="Collapsed"/>
-                <!-- Dynamic per-video entries inserted here at runtime -->
-                <Separator x:Name="RecentEndSeparator" Visibility="Collapsed"/>
-                <MenuItem Header="Clear history" Click="ClearRecentList_Click" x:Name="RecentClearItem" IsEnabled="False"/>
-            </MenuItem>
-            <MenuItem Header="_View">
+            <MenuItem Header="&#128421; _View">
                 <MenuItem Header="Bring MPC-HC to front" Command="{Binding BringMpcToFrontCommand}"/>
                 <Separator/>
                 <!-- The whole of the view control, and on by default. Picking
@@ -313,7 +343,7 @@
                           ToolTip="Drop to the minimal overlay whenever MPC-HC becomes the active window. Either way, this window returns as soon as MPC-HC stops being active. Press X over the overlay to bring this window back."/>
             </MenuItem>
 
-            <MenuItem Header="_Help">
+            <MenuItem Header="&#10067; _Help">
                 <MenuItem Header="About…" Command="{Binding ShowAboutCommand}"
                           ToolTip="Version, licensing and third-party components"/>
                 <MenuItem Header="Check for updates" Command="{Binding CheckForUpdatesCommand}"
@@ -423,6 +453,13 @@
                 <Button Content="📍 Set timestamp" Command="{Binding SetTimestampCommand}" ToolTip="Set a timestamp at the current MPC-HC position"/>
                 <Button Content="🗑" Command="{Binding DeleteSelectedCommand}" Width="36" ToolTip="Delete selected"/>
                 <Button Content="↕ Flip" Command="{Binding ToggleFlipCommand}" ToolTip="Toggle vertical flip"/>
+                <!-- Cycles rather than toggles: one button reaching four states
+                     beats three buttons, and the order matches the way someone
+                     correcting sideways footage would try them. -->
+                <Button Content="⟳ Rotate" Command="{Binding RotateSelectedCommand}"
+                        ToolTip="Turn the selected cuts a quarter further round — right, upside down, left, then back to normal"/>
+                <Button Content="🔇 Mute" Command="{Binding ToggleMuteCommand}"
+                        ToolTip="Write the selected cuts without sound. The audio track stays in place carrying silence, so a merge of muted and unmuted cuts still joins cleanly."/>
                 <Rectangle Width="12"/>
                 <Button Content="Select All" Command="{Binding SelectAllCommand}"/>
                 <Button Content="None" Command="{Binding SelectNoneCommand}"/>
@@ -536,7 +573,7 @@
                                             <ColumnDefinition Width="26"/>
                                             <ColumnDefinition Width="34"/>
                                             <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="70"/>
+                                            <ColumnDefinition Width="120"/>
                                             <ColumnDefinition Width="90"/>
                                             <ColumnDefinition Width="110"/>
                                         </Grid.ColumnDefinitions>
@@ -567,6 +604,20 @@
                                         <TextBlock Grid.Column="2" Text="{Binding Index, StringFormat=[{0}]}" FontWeight="Bold" Foreground="{DynamicResource LinkBlue}" VerticalAlignment="Center"/>
 
                                         <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <!-- Only present while chapter names are in use.
+                                                 With the setting off there is nothing to edit,
+                                                 and an empty box on every row would be a column
+                                                 of noise for the many sessions that are one cut
+                                                 and done. -->
+                                            <TextBox Text="{Binding Label, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                     Width="130" Margin="0,0,8,0" Padding="4,2"
+                                                     Background="{DynamicResource ControlBackground}"
+                                                     Foreground="{DynamicResource TextPrimary}"
+                                                     BorderBrush="{DynamicResource BorderBrush}"
+                                                     VerticalAlignment="Center"
+                                                     ToolTip="This cut's name. Used as the chapter title when exporting chapters. Rename it to anything; renaming one does not disturb the others."
+                                                     Visibility="{Binding DataContext.UseChapterNames, RelativeSource={RelativeSource AncestorType=ListView}, Converter={StaticResource BoolToVis}}"/>
+
                                             <TextBlock ToolTip="Click to seek MPC-HC to this time">
                                                 <Hyperlink Style="{StaticResource TimestampLink}"
                                                            Tag="{Binding StartSeconds}"
@@ -574,6 +625,20 @@
                                                     <Run Text="{Binding StartDisplay, Mode=OneWay}"/>
                                                 </Hyperlink>
                                             </TextBlock>
+
+                                            <!-- Nudge the opening mark. A cut that is one frame
+                                                 late is the common correction, and retyping the
+                                                 whole timestamp was previously the only way to
+                                                 make it. -->
+                                            <Button Content="‹" Width="18" Margin="2,0,0,0" Padding="0" FontWeight="Bold"
+                                                    Command="{Binding DataContext.NudgeFrameCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                    CommandParameter="start-"
+                                                    ToolTip="Move the start one frame earlier"/>
+                                            <Button Content="›" Width="18" Padding="0" FontWeight="Bold"
+                                                    Command="{Binding DataContext.NudgeFrameCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                    CommandParameter="start+"
+                                                    ToolTip="Move the start one frame later"/>
+
                                             <TextBlock Text=" → " Foreground="{DynamicResource TextMuted}"/>
                                             <TextBlock ToolTip="Click to seek MPC-HC to this time">
                                                 <Hyperlink Style="{StaticResource TimestampLink}"
@@ -582,17 +647,26 @@
                                                     <Run Text="{Binding EndDisplay, Mode=OneWay}"/>
                                                 </Hyperlink>
                                             </TextBlock>
+                                            <Button Content="‹" Width="18" Margin="2,0,0,0" Padding="0" FontWeight="Bold"
+                                                    Command="{Binding DataContext.NudgeFrameCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                    CommandParameter="end-"
+                                                    ToolTip="Move the end one frame earlier"/>
+                                            <Button Content="›" Width="18" Padding="0" FontWeight="Bold"
+                                                    Command="{Binding DataContext.NudgeFrameCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                    CommandParameter="end+"
+                                                    ToolTip="Move the end one frame later"/>
+
                                             <TextBlock Text="{Binding DurationDisplay, StringFormat=  ({0})}" Foreground="{DynamicResource ValueYellow}" Margin="4,0,0,0"/>
                                             <TextBlock Text="  incomplete" Foreground="{DynamicResource StatusError}" FontStyle="Italic"
                                                        Visibility="{Binding IsIncomplete, Converter={StaticResource BoolToVis}}"/>
                                         </StackPanel>
 
-                                        <!-- Flip only. The speed has its own column, so the
-                                             two are not squeezed into one marker — the
-                                             overlay still combines them, where there is no
-                                             room for columns (see Bookmark.Prefix). -->
-                                        <TextBlock Grid.Column="4" Text="{Binding FlipDisplay}" Foreground="{DynamicResource StatusWarn}"
-                                                   FontWeight="Bold" VerticalAlignment="Center"/>
+                                        <!-- Flip, rotation and mute. The speed keeps its own two
+                                             columns, so it is not stated twice — the overlay
+                                             combines all four instead, where there is no room
+                                             for columns (see Bookmark.Prefix). -->
+                                        <TextBlock Grid.Column="4" Text="{Binding RowMarkers}" Foreground="{DynamicResource StatusWarn}"
+                                                   FontWeight="Bold" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="11"/>
 
                                         <Slider Grid.Column="5" Minimum="0.25" Maximum="2.0" TickFrequency="0.25"
                                                 IsSnapToTickEnabled="True" Value="{Binding Speed, Mode=TwoWay}"

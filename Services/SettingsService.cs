@@ -257,6 +257,22 @@ public class AppSettings
     /// </summary>
     public bool AllowMultipleInstances { get; set; } = false;
 
+    /// <summary>
+    /// Name each range as it is created — "Chapter 1", "Chapter 2" — and show
+    /// the names for editing.
+    /// </summary>
+    /// <remarks>
+    /// Off by default: a name nobody asked for is a column of noise for the
+    /// many sessions that are one cut and done.
+    ///
+    /// Turning it off clears every name, including ones typed by hand. That is
+    /// the deliberate reading of the switch — it governs whether these clips
+    /// are named at all, not merely whether the names are on screen — and it is
+    /// the one destructive thing in Settings, so the dialog says so plainly and
+    /// the clearing happens on Save rather than on the click.
+    /// </remarks>
+    public bool UseChapterNames { get; set; }
+
     /// <summary>Whether the hotkey confirmation toast appears at all.</summary>
     public bool ToastsEnabled { get; set; } = true;
 

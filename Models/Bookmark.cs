@@ -4,6 +4,31 @@ using System.Runtime.CompilerServices;
 
 namespace MpcHcVideoEditor.Models;
 
+/// <summary>
+/// A quarter-turn applied to a clip when it is written.
+/// </summary>
+/// <remarks>
+/// Quarter turns only. Anything else has to pad or crop to fit a rectangle,
+/// which is a different feature with its own questions — and the reason to
+/// rotate here is almost always footage that arrived a quarter turn out.
+///
+/// Serialized by name, so the order of these members is not load-bearing.
+/// </remarks>
+public enum Rotation
+{
+    /// <summary>Written as recorded.</summary>
+    None,
+
+    /// <summary>A quarter turn clockwise.</summary>
+    Clockwise,
+
+    /// <summary>A quarter turn anticlockwise.</summary>
+    Counterclockwise,
+
+    /// <summary>A half turn. Direction does not apply.</summary>
+    UpsideDown
+}
+
 public class Bookmark : INotifyPropertyChanged
 {
     private int _index;
@@ -12,6 +37,9 @@ public class Bookmark : INotifyPropertyChanged
     private bool _isSelected;
     private bool _isFlipped;
     private double _speed = 1.0;
+    private Rotation _rotation;
+    private bool _isMuted;
+    private string? _label;
 
     public int Index
     {
@@ -106,6 +134,7 @@ public class Bookmark : INotifyPropertyChanged
             OnPropertyChanged();
             OnPropertyChanged(nameof(Prefix));
             OnPropertyChanged(nameof(FlipDisplay));
+            OnPropertyChanged(nameof(RowMarkers));
         }
     }
 
@@ -122,6 +151,65 @@ public class Bookmark : INotifyPropertyChanged
             OnPropertyChanged(nameof(DurationDisplay)); // in case UI binds to it
         }
     }
+
+    /// <summary>Quarter turn applied when this clip is written.</summary>
+    public Rotation Rotation
+    {
+        get => _rotation;
+        set
+        {
+            if (_rotation == value) return;
+            _rotation = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(RotationDisplay));
+            OnPropertyChanged(nameof(Prefix));
+            OnPropertyChanged(nameof(RowMarkers));
+        }
+    }
+
+    /// <summary>
+    /// Whether this clip is silent in the output.
+    /// </summary>
+    /// <remarks>
+    /// Silenced, not stripped. The audio stream stays in place carrying
+    /// nothing — see the note in <c>FFmpegService.CreateSegmentAsync</c> for
+    /// why dropping it outright would break a merge.
+    /// </remarks>
+    public bool IsMuted
+    {
+        get => _isMuted;
+        set
+        {
+            if (_isMuted == value) return;
+            _isMuted = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(MuteDisplay));
+            OnPropertyChanged(nameof(Prefix));
+            OnPropertyChanged(nameof(RowMarkers));
+        }
+    }
+
+    /// <summary>
+    /// This clip's name — a chapter title, and something to tell twenty cuts
+    /// apart by. Null or empty when the range is unnamed, which is the state
+    /// the whole list is in while "use chapter names" is off.
+    /// </summary>
+    public string? Label
+    {
+        get => _label;
+        set
+        {
+            var trimmed = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+            if (_label == trimmed) return;
+            _label = trimmed;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasLabel));
+            OnPropertyChanged(nameof(DisplayText));
+        }
+    }
+
+    /// <summary>Whether this bookmark carries a name.</summary>
+    public bool HasLabel => !string.IsNullOrWhiteSpace(_label);
 
     /// <summary>
     /// True while this bookmark is still waiting for its closing timestamp.
@@ -164,6 +252,49 @@ public class Bookmark : INotifyPropertyChanged
     /// <summary>Whether the clip will be inverted, in the same voice.</summary>
     public string FlipDisplay => IsFlipped ? "flipped" : string.Empty;
 
+    /// <summary>Which way the clip will be turned, or nothing at all.</summary>
+    public string RotationDisplay => DescribeRotation(Rotation);
+
+    /// <summary>
+    /// The row's marker column: everything that will be done to the clip
+    /// except the speed, which has a slider and a reading of its own two
+    /// columns further along and would otherwise be stated twice.
+    /// </summary>
+    public string RowMarkers
+    {
+        get
+        {
+            var parts = new List<string>(3);
+            if (IsFlipped) parts.Add("flipped");
+            if (Rotation != Rotation.None) parts.Add(DescribeRotation(Rotation));
+            if (IsMuted) parts.Add("muted");
+            return string.Join(" · ", parts);
+        }
+    }
+
+    /// <summary>Whether the clip will be silent.</summary>
+    public string MuteDisplay => IsMuted ? "muted" : string.Empty;
+
+    public static string DescribeRotation(Rotation rotation) => rotation switch
+    {
+        Rotation.Clockwise => "turned right",
+        Rotation.Counterclockwise => "turned left",
+        Rotation.UpsideDown => "upside down",
+        _ => string.Empty
+    };
+
+    /// <summary>
+    /// The next rotation in the cycle, so one button can reach all four
+    /// states in the order someone correcting footage would try them.
+    /// </summary>
+    public static Rotation NextRotation(Rotation current) => current switch
+    {
+        Rotation.None => Rotation.Clockwise,
+        Rotation.Clockwise => Rotation.UpsideDown,
+        Rotation.UpsideDown => Rotation.Counterclockwise,
+        _ => Rotation.None
+    };
+
     private static bool Is(double speed, double value) => Math.Abs(speed - value) < 0.01;
 
     private static string DescribeSpeed(double speed) =>
@@ -190,23 +321,42 @@ public class Bookmark : INotifyPropertyChanged
     /// their own columns instead — see <see cref="FlipDisplay"/> and
     /// <see cref="SpeedDisplay"/> — so it does not repeat the speed twice.
     /// </remarks>
+    /// <remarks>
+    /// Joined rather than special-cased per combination: with flip, rotation,
+    /// mute and speed there are sixteen of them, and a sentence built from a
+    /// list reads the same as the hand-written pairs did without anyone having
+    /// to enumerate the cases.
+    /// </remarks>
     public string Prefix
     {
         get
         {
-            var flipped = IsFlipped;
-            var respeed = !Is(Speed, 1.0);
+            var parts = new List<string>(4);
 
-            if (flipped && respeed) return $"flipped + {DescribeSpeed(Speed)}";
-            if (flipped) return "flipped";
-            if (respeed) return DescribeSpeed(Speed);
-            return string.Empty;
+            if (IsFlipped) parts.Add("flipped");
+            if (Rotation != Rotation.None) parts.Add(DescribeRotation(Rotation));
+            if (IsMuted) parts.Add("muted");
+            if (!Is(Speed, 1.0)) parts.Add(DescribeSpeed(Speed));
+
+            return string.Join(" + ", parts);
         }
     }
 
-    public string DisplayText => IsIncomplete
-        ? $"[{Index}] {StartDisplay}  (incomplete)"
-        : $"[{Index}] {StartDisplay} → {EndDisplay}  ({DurationDisplay})";
+    /// <summary>
+    /// The row as one line. The name leads when there is one: with twenty cuts
+    /// open, "Chapter 7" identifies a clip in a way two timestamps cannot.
+    /// </summary>
+    public string DisplayText
+    {
+        get
+        {
+            var name = HasLabel ? $" {Label}" : string.Empty;
+
+            return IsIncomplete
+                ? $"[{Index}]{name} {StartDisplay}  (incomplete)"
+                : $"[{Index}]{name} {StartDisplay} → {EndDisplay}  ({DurationDisplay})";
+        }
+    }
 
     public static string FormatTime(double totalSeconds)
     {

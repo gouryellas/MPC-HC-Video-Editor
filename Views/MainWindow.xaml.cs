@@ -464,8 +464,7 @@ public partial class MainWindow : Window
     /// </summary>
     private void RefreshFileMenuShortcuts()
     {
-        var fileMenu = FindMenuItem(HeaderMenu, "_File");
-        if (fileMenu == null) return;
+        var fileMenu = FileMenu;
 
         var startSep = FindNamed(fileMenu.Items, "ShortcutsStartSeparator") as Separator;
         var endSep = FindNamed(fileMenu.Items, "ShortcutsEndSeparator") as Separator;
@@ -501,8 +500,7 @@ public partial class MainWindow : Window
     /// </summary>
     private void RefreshShortcutsMenu()
     {
-        var shortcutsMenu = FindMenuItem(HeaderMenu, "Sho_rtcuts");
-        if (shortcutsMenu == null) return;
+        var shortcutsMenu = ShortcutsMenu;
 
         var startSep = FindNamed(shortcutsMenu.Items, "ShortcutsMenuStartSeparator") as Separator;
         if (startSep == null) return;
@@ -592,13 +590,13 @@ public partial class MainWindow : Window
         return parent;
     }
 
-    private static MenuItem? FindMenuItem(ItemsControl parent, string header)
-    {
-        foreach (var item in parent.Items)
-            if (item is MenuItem mi && string.Equals(mi.Header as string, header, StringComparison.Ordinal))
-                return mi;
-        return null;
-    }
+    // FindMenuItem(parent, header) used to live here, matching a top-level menu
+    // by its header text. Every caller now holds an x:Name instead, and it is
+    // deliberately not replaced: the lookup could only fail by returning null,
+    // every caller responded by returning quietly, and the result was a menu
+    // that simply stopped filling itself in with nothing anywhere saying so.
+    // It broke this way twice — once on a rename, once when the headers took
+    // icons — because the failure looks exactly like "there is nothing to show".
 
     private static object? FindNamed(System.Collections.IList items, string name)
     {
@@ -775,11 +773,12 @@ public partial class MainWindow : Window
     {
         if (_vm == null) return;
 
-        // "_Options" — the menu was renamed from "_Suffix". Looking up the old
-        // header found nothing and this whole rebuild silently did nothing, so
-        // newly added naming tags never appeared in the menu.
-        var suffixMenu = FindMenuItem(HeaderMenu, "_Options");
-        if (suffixMenu == null) return;
+        // Found by name. This menu was once renamed from "_Suffix" to
+        // "_Options", the header lookup then matched nothing, and this whole
+        // rebuild silently did nothing — newly added naming tags never appeared.
+        // It happened a second time when the headers gained icons. A name is
+        // checked by the compiler and cannot drift with the wording.
+        var suffixMenu = OptionsMenu;
 
         var startSep = FindNamed(suffixMenu.Items, "SuffixListStartSeparator") as Separator;
         var endSep = FindNamed(suffixMenu.Items, "SuffixListEndSeparator") as Separator;
@@ -842,8 +841,7 @@ public partial class MainWindow : Window
     {
         if (_vm == null) return;
 
-        var playlistMenu = FindMenuItem(HeaderMenu, "_Playlist");
-        if (playlistMenu == null) return;
+        var playlistMenu = PlaylistMenu;
 
         var startSep = FindNamed(playlistMenu.Items, "PlaylistStartSeparator") as Separator;
         var endSep = FindNamed(playlistMenu.Items, "PlaylistEndSeparator") as Separator;
