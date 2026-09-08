@@ -52,7 +52,7 @@ and runs down the same path.
   quality, filename-collision policy, post-operation cleanup, MPC-HC web
   interface port, ffmpeg folder, poll rate, recent-history size, toasts,
   overlay corner and opacity.
-- **Run in system tray** — minimizes to the notification area and survives the
+- **Run in system tray** — minimises to the notification area and survives the
   window being closed; exit from the tray menu. The alternative, **run as
   application**, is the default and behaves conventionally.
 - **Output formats** beyond MP4: MKV, MOV, AVI, WMV, MPG, MPEG, WEBM. MP4, MKV

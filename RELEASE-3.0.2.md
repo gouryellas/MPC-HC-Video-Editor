@@ -52,7 +52,7 @@ so the result does not depend on which window happened to be behind this one.
 ## Changed
 
 - **"Naming style" is now "naming tag"** throughout the Options menu. The line
-  showing the active tag is no longer grayed out.
+  showing the active tag is no longer greyed out.
 - **View ▸ Minimal is disabled when there are no bookmarks.** The overlay is the
   bookmark list; an empty one has nothing to show. It also comes down on its own
   if the list empties — opening another video in the player clears it — and

@@ -22,7 +22,7 @@ start, runs to the end, holds there, and runs back, so both ends come to rest
 long enough to read. A message that fits does not move at all, and a new message
 stops the scroll and starts again from the left.
 
-## The play speed column is labeled more briefly
+## The play speed column is labelled more briefly
 
 **PLAY SPEED OF THE SAVED CLIP** is now **PLAY SPEED**. The tooltip on the
 header already explains what it changes and what it does not.
