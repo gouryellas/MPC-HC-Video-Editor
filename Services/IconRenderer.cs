@@ -7,14 +7,14 @@ using System.Windows.Media.Imaging;
 namespace MpcHcVideoEditor.Services;
 
 /// <summary>
-/// Draws the film-camera icon in the current theme's colours.
+/// Draws the film-camera icon in the current theme's colors.
 /// </summary>
 /// <remarks>
 /// <para>
 /// The artwork is one small vector, so it is drawn on demand rather than
 /// shipped as an .ico per theme. Adding a theme is then a palette entry and
 /// nothing else — no new asset, no build step, and no chance of the icon and
-/// the interface disagreeing about what the accent colour is.
+/// the interface disagreeing about what the accent color is.
 /// </para>
 /// <para>
 /// This cannot reach the executable's own icon. <c>ApplicationIcon</c> is
@@ -35,9 +35,9 @@ public static class IconRenderer
     /// </remarks>
     private static DrawingGroup BuildDrawing(ThemePalette palette, bool rounded)
     {
-        var background = Colour(palette.IconBackground);
-        var body = Colour(palette.IconBody);
-        var detail = Colour(palette.IconDetail);
+        var background = ToBrush(palette.IconBackground);
+        var body = ToBrush(palette.IconBody);
+        var detail = ToBrush(palette.IconDetail);
 
         var group = new DrawingGroup();
 
@@ -77,7 +77,12 @@ public static class IconRenderer
         return group;
     }
 
-    private static SolidColorBrush Colour(string hex)
+    /// <summary>
+    /// A frozen brush from a palette hex string. Named for what it returns
+    /// rather than for the color it carries: a method called <c>Color</c>
+    /// would shadow the <see cref="Color"/> type this casts to.
+    /// </summary>
+    private static SolidColorBrush ToBrush(string hex)
     {
         var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
         brush.Freeze();

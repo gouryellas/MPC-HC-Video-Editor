@@ -965,7 +965,7 @@ public class MpcHcService
         /// <summary>Not running, or its window could not be found.</summary>
         NotRunning,
 
-        /// <summary>Windowed, or minimised — anything that is not covering a screen.</summary>
+        /// <summary>Windowed, or minimized — anything that is not covering a screen.</summary>
         Normal,
 
         Maximized,
@@ -975,13 +975,13 @@ public class MpcHcService
     }
 
     /// <summary>
-    /// Reports whether the player is fullscreen, maximised, or neither.
+    /// Reports whether the player is fullscreen, maximized, or neither.
     /// </summary>
     /// <remarks>
     /// Fullscreen is detected geometrically rather than from a window style.
     /// A player going fullscreen keeps an ordinary top-level window and simply
     /// drops its border and grows to cover the monitor, so there is no style
-    /// bit that reliably distinguishes it from maximised — comparing the
+    /// bit that reliably distinguishes it from maximized — comparing the
     /// window rect against the monitor's does.
     /// </remarks>
     public PlayerWindowState GetWindowState()
@@ -989,7 +989,7 @@ public class MpcHcService
         var hwnd = FindMpcWindow();
         if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) return PlayerWindowState.NotRunning;
 
-        // Minimised is not "covering the screen", so it reads as Normal.
+        // Minimized is not "covering the screen", so it reads as Normal.
         if (IsIconic(hwnd)) return PlayerWindowState.Normal;
 
         if (!GetWindowRect(hwnd, out var window))

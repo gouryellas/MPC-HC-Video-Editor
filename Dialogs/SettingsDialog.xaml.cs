@@ -68,12 +68,12 @@ public partial class SettingsDialog : Window
     public bool PreciseCuts { get; private set; }
 
     /// <summary>Whether written clips are brought to a common loudness.</summary>
-    public bool NormaliseAudio { get; private set; }
+    public bool NormalizeAudio { get; private set; }
 
     /// <summary>Pattern for output filenames.</summary>
     public string NameTemplate { get; private set; } = Helpers.NameTemplate.Default;
 
-    /// <summary>Chosen colour theme.</summary>
+    /// <summary>Chosen color theme.</summary>
     public string ThemeKey { get; private set; } = ThemePalette.Graphite.Key;
 
     /// <summary>
@@ -106,7 +106,7 @@ public partial class SettingsDialog : Window
         Quality = current.Quality;
         VideoEncoder = current.VideoEncoder;
         PreciseCuts = current.PreciseCuts;
-        NormaliseAudio = current.NormaliseAudio;
+        NormalizeAudio = current.NormalizeAudio;
         NameTemplate = string.IsNullOrWhiteSpace(current.NameTemplate)
             ? Helpers.NameTemplate.Default
             : current.NameTemplate;
@@ -153,7 +153,7 @@ public partial class SettingsDialog : Window
 
         CutFast.IsChecked = !current.PreciseCuts;
         CutPrecise.IsChecked = current.PreciseCuts;
-        NormaliseAudioCheck.IsChecked = current.NormaliseAudio;
+        NormalizeAudioCheck.IsChecked = current.NormalizeAudio;
         NameTemplateBox.Text = NameTemplate;
         VariableList.ItemsSource = Helpers.NameTemplate.Variables;
         TemplateExamples.ItemsSource = Helpers.NameTemplate.Examples;
@@ -267,7 +267,7 @@ public partial class SettingsDialog : Window
 
     private static void Pick(CleanupMode mode, RadioButton never, RadioButton ask, RadioButton always)
     {
-        // An unrecognised value lands on Keep — the option that cannot cost
+        // An unrecognized value lands on Keep — the option that cannot cost
         // the user a file.
         var chosen = mode switch
         {
@@ -325,7 +325,7 @@ public partial class SettingsDialog : Window
                      : VideoEncoder.Software;
 
         PreciseCuts = CutPrecise.IsChecked == true;
-        NormaliseAudio = NormaliseAudioCheck.IsChecked == true;
+        NormalizeAudio = NormalizeAudioCheck.IsChecked == true;
 
         // An empty box means the default, not an empty filename.
         var template = NameTemplateBox.Text?.Trim();
@@ -468,7 +468,7 @@ public partial class SettingsDialog : Window
     /// Each probe is a real encode of a fraction of a second, so this takes a
     /// moment per encoder and runs in the background rather than holding the
     /// dialog closed. The labels say "checking…" until an answer arrives, so a
-    /// greyed-out option is never mistaken for a settled "no".
+    /// grayed-out option is never mistaken for a settled "no".
     /// </remarks>
     private async Task ProbeEncodersAsync()
     {
@@ -507,7 +507,7 @@ public partial class SettingsDialog : Window
     /// </summary>
     /// <remarks>
     /// The manual port box stays enabled even while detection is on: it is
-    /// still the fallback when nothing is found, so greying it out would hide
+    /// still the fallback when nothing is found, so graying it out would hide
     /// the value that a portable or unusual install actually ends up using.
     /// </remarks>
     private void RefreshDetectedPort()

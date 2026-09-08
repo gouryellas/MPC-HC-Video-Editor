@@ -102,7 +102,7 @@ public sealed class TrayIconService : IDisposable
     }
 
     /// <summary>
-    /// Repaints the tray icon in the current theme's colours.
+    /// Repaints the tray icon in the current theme's colors.
     /// </summary>
     /// <remarks>
     /// The previous icon is disposed after the new one is in place. NotifyIcon
@@ -122,7 +122,7 @@ public sealed class TrayIconService : IDisposable
         catch
         {
             // A tray icon that cannot be redrawn keeps the one it has, which is
-            // a wrong colour rather than no icon at all.
+            // a wrong color rather than no icon at all.
         }
     }
 

@@ -70,7 +70,7 @@ public partial class MainWindow : Window
     /// </summary>
     private bool _exitConfirmed;
 
-    /// <summary>Whether the tray is currently the configured behaviour.</summary>
+    /// <summary>Whether the tray is currently the configured behavior.</summary>
     private bool InTrayMode => _vm?.RunMode == RunMode.SystemTray;
 
     /// <summary>
@@ -114,7 +114,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// In tray mode, minimising hides the window rather than parking it on the
+    /// In tray mode, minimizing hides the window rather than parking it on the
     /// taskbar — otherwise it would be in both places at once.
     /// </summary>
     private void MainWindow_StateChanged(object? sender, EventArgs e)
@@ -280,13 +280,13 @@ public partial class MainWindow : Window
     /// <summary>
     /// Called when a second launch of this install was blocked by the "only
     /// one instance" setting and handed off to this one instead. Brings the
-    /// app to the front regardless of whether it is minimised to the tray,
+    /// app to the front regardless of whether it is minimized to the tray,
     /// hidden behind the minimal overlay, or just sitting in the background.
     /// </summary>
     /// <remarks>
     /// Routed through <see cref="MainViewModel.ShowFullViewCommand"/> rather
     /// than calling <c>Show</c>/<c>Activate</c> directly here: that command is
-    /// already the full "come back to the full window" behaviour — it also
+    /// already the full "come back to the full window" behavior — it also
     /// drops the minimal overlay and stops the view from following focus back
     /// to it, which a second launch asking to be seen should do too. The
     /// direct fallback only matters for the narrow race where the wake signal
@@ -337,7 +337,7 @@ public partial class MainWindow : Window
     /// <remarks>
     /// A WPF Window raises Loaded again when it is hidden and shown, which
     /// this window now does constantly — the view follows focus, and in tray
-    /// mode minimising hides it too. Every subscription below would otherwise
+    /// mode minimizing hides it too. Every subscription below would otherwise
     /// be added again on each restore, so menus would rebuild several times
     /// per change and handlers would fire in multiples.
     /// </remarks>
@@ -964,7 +964,7 @@ public partial class MainWindow : Window
         // confirmation behind it: this runs on the click and reports to the
         // status bar, matching the per-entry Remove below.
         //
-        // Deliberately never greyed out, either: knowing in advance whether
+        // Deliberately never grayed out, either: knowing in advance whether
         // anything is missing means a File.Exists per entry, and doing that on
         // every menu rebuild is exactly the stat storm the lazy submenu avoids.
         // Clicking it when nothing is gone simply says so afterwards.
@@ -1076,10 +1076,10 @@ public partial class MainWindow : Window
 
         // Three states, three labels. "(missing)" is now reserved for a file
         // whose drive is connected and which genuinely is not there. A file
-        // behind a detached drive is labelled for what is actually known —
+        // behind a detached drive is labeled for what is actually known —
         // that the drive is away — rather than given a verdict the app is in
         // no position to reach.
-        var (suffix, colour) = entry.Status switch
+        var (suffix, color) = entry.Status switch
         {
             PlaylistEntryStatus.Present => (string.Empty, ThemeService.Brush(nameof(ThemePalette.MenuBarForeground))),
             PlaylistEntryStatus.Missing => ("  (missing)", ThemeService.Brush(nameof(ThemePalette.StatusError))),
@@ -1099,8 +1099,8 @@ public partial class MainWindow : Window
             // implicit MenuItem style's Foreground=Black, making the header
             // text invisible. Use an explicit brush so present entries render
             // the same as every other menu item, while the other two states
-            // keep their warning colour.
-            Foreground = colour
+            // keep their warning color.
+            Foreground = color
         };
         // Only a file that is actually there can be opened; the other two
         // states would produce nothing but an error dialog.

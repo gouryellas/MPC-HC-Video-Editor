@@ -47,7 +47,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Cancellation token source for the active "Play all" / "Play selected"
-    /// playback loop. Non-null while a playback loop is running; cancelled
+    /// playback loop. Non-null while a playback loop is running; canceled
     /// by <see cref="StopPlayback"/> or by starting a new playback. Null
     /// again once the loop exits.
     /// </summary>
@@ -163,7 +163,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // These four predicates decide which menu items and toolbar buttons are
     // clickable. Every gated command's CanExecute is written in terms of
     // them, so the rules stay readable and there is one place to look when
-    // an item is unexpectedly greyed out. RefreshCommandStates() re-runs
+    // an item is unexpectedly grayed out. RefreshCommandStates() re-runs
     // them whenever anything they depend on moves.
     // ------------------------------------------------------------------
 
@@ -275,7 +275,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Whether the window minimises to the tray and survives being closed.
+    /// Whether the window minimizes to the tray and survives being closed.
     /// Read by the View, which owns the tray icon.
     /// </summary>
     public RunMode RunMode => _settings.Current.RunMode;
@@ -312,8 +312,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     /// <remarks>
     /// Focus, not window size. This used to key off the player being
-    /// fullscreen or maximised, which missed the ordinary case of a windowed
-    /// player being worked in and fired on a maximised player sitting behind
+    /// fullscreen or maximized, which missed the ordinary case of a windowed
+    /// player being worked in and fired on a maximized player sitting behind
     /// something else. What actually decides whether the full window is worth
     /// showing is whether the user is looking at it.
     ///
@@ -536,7 +536,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Header for Bookmarks ▸ Set timestamp, carrying the live hotkey.</summary>
     [ObservableProperty] private string _setTimestampMenuLabel = "Set timestamp";
 
-    /// <summary>Greyed-out example of what the active naming tag produces.</summary>
+    /// <summary>Grayed-out example of what the active naming tag produces.</summary>
     [ObservableProperty] private string _suffixExampleDisplay = "Example: video_name[done].mp4";
 
     /// <summary>
@@ -669,7 +669,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // Restore the pinned output folder from the last session, if the user
         // asked for it to be remembered and it still exists. A folder that has
         // since been deleted falls back to following the video, which is the
-        // unpinned behaviour and needs no explanation.
+        // unpinned behavior and needs no explanation.
         if (_settings.Current.RememberSaveToFolder &&
             !string.IsNullOrWhiteSpace(_settings.Current.SaveToFolder) &&
             Directory.Exists(_settings.Current.SaveToFolder))
@@ -739,7 +739,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _ffmpeg.Encoder = _settings.Current.VideoEncoder;
         _ffmpeg.QualityArgs = _settings.GetQualityArgs();
         _ffmpeg.PreciseCuts = _settings.Current.PreciseCuts;
-        _ffmpeg.NormaliseAudio = _settings.Current.NormaliseAudio;
+        _ffmpeg.NormalizeAudio = _settings.Current.NormalizeAudio;
 
         _toast.Enabled = _settings.Current.ToastsEnabled;
         _toast.HoldDuration = TimeSpan.FromSeconds(_settings.Current.ToastSeconds);
@@ -813,7 +813,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </remarks>
     private void RefreshClipPreview()
     {
-        // Cancelled but not disposed: the render it belongs to may still be
+        // Canceled but not disposed: the render it belongs to may still be
         // holding the token, and disposing under it turns an ordinary
         // cancellation into an ObjectDisposedException. Nothing here registers
         // callbacks or timers on it, so letting the collector have it costs
@@ -983,7 +983,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         // Adding or removing a cut changes both of these. They used to be
         // raised from a handler attached in OnSessionChanged, which never runs:
-        // Session is only ever its field initialiser, and the generated partial
+        // Session is only ever its field initializer, and the generated partial
         // fires on assignment, not on construction. Here they are wired by
         // HookSession, which the constructor does call.
         OnPropertyChanged(nameof(HasValidBookmarks));
@@ -1243,7 +1243,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <param name="bookmark">
     /// The clip being written, when there is one. Only the naming template uses
     /// it — for the position and length tokens — so every existing caller can
-    /// keep passing nothing and get exactly the behaviour it had before.
+    /// keep passing nothing and get exactly the behavior it had before.
     /// </param>
     private string GetUniqueOutputPath(string basePath, string extension, int startIndex = 1,
                                        string? outputDirectory = null, Bookmark? bookmark = null)
@@ -2424,8 +2424,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         // Policy first: a name we are about to write must satisfy
         // FileNameRules, whatever the source file happens to be called.
-        candidate = EnforceFileNamePolicy(candidate, out var cancelled);
-        if (cancelled) return Task.FromResult<string?>(null);
+        candidate = EnforceFileNamePolicy(candidate, out var canceled);
+        if (canceled) return Task.FromResult<string?>(null);
 
         while (File.Exists(candidate))
         {
@@ -2475,8 +2475,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     candidate = Path.Combine(dir, dlg.NewName + bracket + ext);
 
                     // A hand-typed replacement has to satisfy the policy too.
-                    candidate = EnforceFileNamePolicy(candidate, out var renameCancelled);
-                    if (renameCancelled) return Task.FromResult<string?>(null);
+                    candidate = EnforceFileNamePolicy(candidate, out var renameCanceled);
+                    if (renameCanceled) return Task.FromResult<string?>(null);
                     break;
 
                 default:
@@ -2492,7 +2492,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// asking the user to rename it when it does not. The source file is left
     /// alone — only what we are about to write has to comply.
     /// </summary>
-    /// <param name="cancelled">True if the user backed out.</param>
+    /// <param name="canceled">True if the user backed out.</param>
     /// <summary>
     /// How many files remain in the current batch, so the rename prompt knows
     /// whether "do this for all remaining files" is worth offering.
@@ -2520,8 +2520,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <remarks>
     /// The collision preference is seeded here rather than checked at the
     /// prompt, because "apply to all" and "always do this" want identical
-    /// behaviour and this is already the one place that decides it. A setting
-    /// of Ask leaves it null, which is exactly the old behaviour.
+    /// behavior and this is already the one place that decides it. A setting
+    /// of Ask leaves it null, which is exactly the old behavior.
     /// </remarks>
     private void BeginNameBatch(int fileCount)
     {
@@ -2536,9 +2536,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         };
     }
 
-    private string EnforceFileNamePolicy(string candidate, out bool cancelled)
+    private string EnforceFileNamePolicy(string candidate, out bool canceled)
     {
-        cancelled = false;
+        canceled = false;
 
         var dir = Path.GetDirectoryName(candidate) ?? "";
         var ext = Path.GetExtension(candidate);
@@ -2570,7 +2570,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             if (dlg.ShowDialog() != true || string.IsNullOrWhiteSpace(dlg.NewStem))
             {
-                cancelled = true;
+                canceled = true;
                 return candidate;
             }
 
@@ -3074,7 +3074,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
                 var outPath = await ResolveOutputPathAsync(
                     BuildSplitPath(outDir, Session.VideoFileName, i, format.Extension));
-                if (outPath == null) continue;   // cancelled this clip
+                if (outPath == null) continue;   // canceled this clip
 
                 await _ffmpeg.MergeBookmarksAsync(Session.VideoPath, outPath, new[] { b }, null, default, format);
                 written++;
@@ -3087,7 +3087,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             StatusText = $"Created {written} clip(s) in {outDir}";
 
-            // A run in which every clip was cancelled wrote nothing, so there
+            // A run in which every clip was canceled wrote nothing, so there
             // is nothing the originals are redundant to.
             succeeded = written > 0;
         }
@@ -3162,8 +3162,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // free can land right back on an existing file.
         var named = EnforceFileNamePolicy(
             GetSuffixedOutputPath(Session.VideoPath, format.Extension, outDir),
-            out var nameCancelled);
-        if (nameCancelled) return;
+            out var nameCanceled);
+        if (nameCanceled) return;
 
         // Every row builds its name from the video rather than the bookmark,
         // so all of them propose the same file. GetUniqueOutputPath walks
@@ -3249,7 +3249,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var errors = new List<string>();
 
         // Sources that converted cleanly, and so are safe to offer for
-        // deletion afterwards. Skipped, cancelled and failed files never make
+        // deletion afterwards. Skipped, canceled and failed files never make
         // it in, so a failure can never cost the original.
         var convertedSources = new List<string>();
 
@@ -3328,7 +3328,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     /// <param name="sourceVideos">
     /// Only files the operation actually consumed successfully. A failed,
-    /// skipped or cancelled file must never reach here — a cleanup that can
+    /// skipped or canceled file must never reach here — a cleanup that can
     /// fire after a failure is a cleanup that destroys work.
     /// </param>
     /// <param name="includeBookmarks">
@@ -3501,7 +3501,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     /// <remarks>
     /// Only the sources that actually converted are offered, so a file that
-    /// failed, was skipped or was cancelled can never be lost. This keeps its
+    /// failed, was skipped or was canceled can never be lost. This keeps its
     /// dialog — deleting the user's images is precisely the sort of thing a
     /// status-bar line should not decide silently, and it defaults to No.
     /// </remarks>
@@ -3542,7 +3542,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var label = format.Key.ToUpperInvariant();
 
         // Sources that converted cleanly, and so are safe to offer for
-        // deletion afterwards. Skipped, cancelled and failed files never make
+        // deletion afterwards. Skipped, canceled and failed files never make
         // it in, so a failure can never cost the original.
         var convertedSources = new List<string>();
 
@@ -4003,7 +4003,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// The counterpart to removal, and usually the one wanted: a file that is
     /// not where the playlist says has more often been moved than deleted.
     /// Asks for a folder to search rather than guessing, then also searches the
-    /// folders the surviving entries live in — which is where a reorganised
+    /// folders the surviving entries live in — which is where a reorganized
     /// library normally puts things.
     /// </remarks>
     [RelayCommand]
@@ -4032,7 +4032,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (picker.ShowDialog() != true) return;
 
         // The chosen root plus wherever the surviving entries already live: a
-        // library that was reorganised usually moved files between folders it
+        // library that was reorganized usually moved files between folders it
         // is already using.
         var roots = new List<string> { picker.FolderName };
         roots.AddRange(classified
@@ -4835,7 +4835,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         s.Quality = dlg.Quality;
         s.VideoEncoder = dlg.VideoEncoder;
         s.PreciseCuts = dlg.PreciseCuts;
-        s.NormaliseAudio = dlg.NormaliseAudio;
+        s.NormalizeAudio = dlg.NormalizeAudio;
         s.NameTemplate = dlg.NameTemplate;
 
         // The dialog already applied this live so it could be seen; this is
@@ -4983,7 +4983,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <remarks>
     /// The window is shown without an owner when the main window is hidden —
     /// the view follows focus, and in tray mode there may be nothing on screen
-    /// to own it. An owner that is not visible would centre the notice on
+    /// to own it. An owner that is not visible would center the notice on
     /// nothing and, worse, could place it behind the player.
     /// </remarks>
     private void ShowUpdateAvailable(UpdateCheckResult result)
@@ -5130,7 +5130,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Validation + input loop for suffix text. Returns the validated
-    /// text, or null if the user cancelled. Enforces:
+    /// text, or null if the user canceled. Enforces:
     /// <list type="bullet">
     ///   <item>Non-empty after trimming.</item>
     ///   <item>Alphanumeric only (a–z, A–Z, 0–9).</item>

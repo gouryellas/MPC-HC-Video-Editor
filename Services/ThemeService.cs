@@ -11,7 +11,7 @@ namespace MpcHcVideoEditor.Services;
 /// <remarks>
 /// <para>
 /// The brush keys are the palette's own property names, discovered by
-/// reflection rather than listed here. A new colour is then one property on the
+/// reflection rather than listed here. A new color is then one property on the
 /// record and one <c>DynamicResource</c> in the XAML — there is no third place
 /// to remember to update, and no way for this file to fall behind the palette.
 /// </para>
@@ -23,7 +23,7 @@ namespace MpcHcVideoEditor.Services;
 /// </remarks>
 public static class ThemeService
 {
-    private static readonly PropertyInfo[] ColourProperties =
+    private static readonly PropertyInfo[] ColorProperties =
         typeof(ThemePalette)
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(p => p.PropertyType == typeof(string))
@@ -46,7 +46,7 @@ public static class ThemeService
         var resources = Application.Current?.Resources;
         if (resources is null) return;
 
-        foreach (var property in ColourProperties)
+        foreach (var property in ColorProperties)
         {
             if (property.GetValue(palette) is not string hex) continue;
 
@@ -56,7 +56,7 @@ public static class ThemeService
                 brush.Freeze();
                 resources[property.Name] = brush;
 
-                // The raw colour too: a few places need a Color rather than a
+                // The raw color too: a few places need a Color rather than a
                 // Brush, and deriving one at the point of use would mean
                 // parsing the same string again.
                 resources[property.Name + "Color"] = brush.Color;
@@ -80,8 +80,8 @@ public static class ThemeService
     /// controls in code rather than XAML.
     /// </summary>
     /// <remarks>
-    /// Falls back to the current text colour rather than throwing: a mistyped
-    /// key should show up as an oddly-coloured label, not take a menu down
+    /// Falls back to the current text color rather than throwing: a mistyped
+    /// key should show up as an oddly-colored label, not take a menu down
     /// while it is being built.
     /// </remarks>
     public static Brush Brush(string role)

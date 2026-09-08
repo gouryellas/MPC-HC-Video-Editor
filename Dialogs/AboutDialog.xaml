@@ -59,7 +59,7 @@
         <Border Grid.Row="2" Background="{DynamicResource PanelBackground}" CornerRadius="6" Padding="12">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel>
-                    <TextBlock Text="Licence" Foreground="{DynamicResource Accent}" FontWeight="SemiBold"
+                    <TextBlock Text="License" Foreground="{DynamicResource Accent}" FontWeight="SemiBold"
                                FontSize="13" Margin="0,0,0,6"/>
                     <TextBlock x:Name="LicenseText" Foreground="{DynamicResource TextDim}" FontSize="11"
                                TextWrapping="Wrap"/>
@@ -74,13 +74,13 @@
                         <Run Text="The player this tool drives, via its web interface. GPL v3. Separately installed and separately licensed."/>
                         <LineBreak/><LineBreak/>
                         <Run Text="CommunityToolkit.Mvvm"  Foreground="{DynamicResource ValueYellow}"/><LineBreak/>
-                        <Run Text="MVVM source generators. MIT licence, © .NET Foundation and Contributors."/>
+                        <Run Text="MVVM source generators. MIT license, © .NET Foundation and Contributors."/>
                         <LineBreak/><LineBreak/>
                         <Run Text="Microsoft.Xaml.Behaviors.Wpf"  Foreground="{DynamicResource ValueYellow}"/><LineBreak/>
-                        <Run Text="XAML behaviours. MIT licence, © Microsoft Corporation."/>
+                        <Run Text="XAML behaviors. MIT license, © Microsoft Corporation."/>
                         <LineBreak/><LineBreak/>
                         <Run Text=".NET and WPF"  Foreground="{DynamicResource ValueYellow}"/><LineBreak/>
-                        <Run Text="MIT licence, © Microsoft Corporation."/>
+                        <Run Text="MIT license, © Microsoft Corporation."/>
                     </TextBlock>
                 </StackPanel>
             </ScrollViewer>

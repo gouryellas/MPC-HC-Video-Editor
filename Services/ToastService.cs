@@ -76,7 +76,7 @@ public sealed class ToastService : IDisposable
             window.SetContent(icon, title, detail);
 
             // Force a layout pass so ActualWidth/ActualHeight reflect the new
-            // text before we centre the window against the monitor.
+            // text before we center the window against the monitor.
             window.UpdateLayout();
             PositionOverAnchor(window);
 
@@ -132,7 +132,7 @@ public sealed class ToastService : IDisposable
     }
 
     /// <summary>
-    /// Centres the toast horizontally near the top of the monitor that holds
+    /// Centers the toast horizontally near the top of the monitor that holds
     /// the anchor window, so it sits over the video rather than over the
     /// player's on-screen controls at the bottom.
     /// </summary>
@@ -157,7 +157,7 @@ public sealed class ToastService : IDisposable
 
         // GetMonitorInfo reports physical pixels; Left/Top are DIPs. Convert
         // through the window's own composition target so a scaled display
-        // (125%, 150%, …) does not push the toast off-centre. rcMonitor —
+        // (125%, 150%, …) does not push the toast off-center. rcMonitor —
         // not rcWork — because fullscreen playback covers the taskbar.
         var transform = PresentationSource.FromVisual(window)?.CompositionTarget?.TransformFromDevice
                         ?? Matrix.Identity;

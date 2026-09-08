@@ -189,7 +189,7 @@ public partial class ManageSuffixesDialog : Window
 
     /// <summary>
     /// Validation + input loop for suffix text. Returns the validated
-    /// text, or null if the user cancelled.
+    /// text, or null if the user canceled.
     /// </summary>
     private static string? PromptForSuffixText(string title, string prompt, string defaultValue)
     {

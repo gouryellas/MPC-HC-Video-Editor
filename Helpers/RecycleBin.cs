@@ -39,7 +39,7 @@ public static class RecycleBin
     /// deciding it.
     ///
     /// Defaults to true so that any path which runs before settings are applied
-    /// — or a caller that forgets — still lands on the recoverable behaviour.
+    /// — or a caller that forgets — still lands on the recoverable behavior.
     /// </remarks>
     public static bool SendToBin { get; set; } = true;
 

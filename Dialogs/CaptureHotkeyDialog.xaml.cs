@@ -19,7 +19,7 @@ public partial class CaptureHotkeyDialog : Window
 {
     /// <summary>
     /// The binding chosen by the user, set when they click OK or Disable.
-    /// Null if they cancelled.
+    /// Null if they canceled.
     /// </summary>
     public HotkeyBinding? Result { get; private set; }
 

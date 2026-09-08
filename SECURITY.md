@@ -189,4 +189,4 @@ Fixed in v3.0.1, which restricted the archive to the three executables above.
 Coordinated disclosure, please. Give a reasonable window to ship a fix before
 publishing — 90 days is the usual expectation and is more than enough here.
 If a reported issue is being actively exploited, say so and it will be
-prioritised over everything else.
+prioritized over everything else.

@@ -13,7 +13,7 @@ namespace MpcHcVideoEditor.Services;
 /// </summary>
 /// <remarks>
 /// Serialized by name, so the order of these members is not load-bearing and
-/// an unrecognised value falls back to <see cref="Never"/>.
+/// an unrecognized value falls back to <see cref="Never"/>.
 /// </remarks>
 public enum CleanupMode
 {
@@ -44,7 +44,7 @@ public enum EncodingQuality
     /// <summary>Fastest, largest, softest. CRF 23, veryfast.</summary>
     Fast,
 
-    /// <summary>The previous hardcoded behaviour. CRF 20, faster.</summary>
+    /// <summary>The previous hardcoded behavior. CRF 20, faster.</summary>
     Balanced,
 
     /// <summary>Slowest and best. CRF 17, medium.</summary>
@@ -82,18 +82,18 @@ public enum PollSpeed
 }
 
 /// <summary>
-/// How the window behaves when it is minimised or closed.
+/// How the window behaves when it is minimized or closed.
 /// </summary>
 public enum RunMode
 {
     /// <summary>
-    /// Minimises to the taskbar; closing the window exits. The conventional
-    /// desktop-application behaviour, and the default.
+    /// Minimizes to the taskbar; closing the window exits. The conventional
+    /// desktop-application behavior, and the default.
     /// </summary>
     Application,
 
     /// <summary>
-    /// Minimises to the notification area and stays running when the window is
+    /// Minimizes to the notification area and stays running when the window is
     /// closed. Exit is then only available from the tray icon's menu.
     /// </summary>
     SystemTray
@@ -169,10 +169,29 @@ public class AppSettings
     /// Even out loudness across written clips. Off by default: it forces a
     /// re-encode, and material that was already consistent gains nothing.
     /// </summary>
-    public bool NormaliseAudio { get; set; }
+    public bool NormalizeAudio { get; set; }
 
     /// <summary>
-    /// Which colour theme the interface uses — see <see cref="ThemePalette"/>.
+    /// The British spelling this setting shipped under, read once so that an
+    /// existing settings file keeps whatever the user had chosen.
+    /// </summary>
+    /// <remarks>
+    /// The rename is a rename of the JSON key as much as of the property, and
+    /// a key nothing reads is a setting silently reset to its default — for a
+    /// setting whose effect only shows up in an encode, that could go unnoticed
+    /// for a long time.
+    ///
+    /// Nullable to tell "absent" apart from "present and false", and dropped
+    /// from the output once it has been folded in, so the file converges on the
+    /// new spelling and this never fires twice. See the migration in
+    /// <see cref="Load"/>.
+    /// </remarks>
+    [JsonPropertyName("NormaliseAudio")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? LegacyNormaliseAudio { get; set; }
+
+    /// <summary>
+    /// Which color theme the interface uses — see <see cref="ThemePalette"/>.
     /// </summary>
     public string ThemeKey { get; set; } = ThemePalette.Graphite.Key;
 
@@ -224,7 +243,7 @@ public class AppSettings
     public string FfmpegFolder { get; set; } = "";
 
     /// <summary>
-    /// Whether the window minimises to the notification area and survives
+    /// Whether the window minimizes to the notification area and survives
     /// being closed. Defaults to a plain application, which is what someone
     /// who has never opened Settings will expect.
     /// </summary>
@@ -423,7 +442,7 @@ public class SettingsService
             Current = new AppSettings();
         }
 
-        // Normalise the output container up front: a settings file written by
+        // Normalize the output container up front: a settings file written by
         // an older build has no key at all, and a hand-edited one may name a
         // format that no longer exists. Either way every later read of this
         // field can then be taken at face value.
@@ -439,6 +458,16 @@ public class SettingsService
         // File → Recent submenu never shows more than MaxHistory items.
         if (Current.RecentVideos.Count > Current.MaxHistory)
             Current.RecentVideos = Current.RecentVideos.Take(Current.MaxHistory).ToList();
+
+        // Fold in the old British spelling of the loudness setting, once. The
+        // key was renamed with the rest of the project's spelling; without this
+        // an upgrading install would quietly revert to the default.
+        if (Current.LegacyNormaliseAudio.HasValue)
+        {
+            Current.NormalizeAudio = Current.LegacyNormaliseAudio.Value;
+            Current.LegacyNormaliseAudio = null;
+            try { Save(); } catch { /* ignore */ }
+        }
 
         // One-time migration from the legacy MiddleMouseHotkeyEnabled /
         // KeyboardHotkey fields into the unified TimestampHotkey setting.

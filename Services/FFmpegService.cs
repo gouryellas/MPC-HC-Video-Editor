@@ -90,10 +90,10 @@ public class FFmpegService
     /// </summary>
     /// <remarks>
     /// Forces a re-encode of anything it applies to, exactly as
-    /// <see cref="PreciseCuts"/> does — audio cannot be normalised while being
+    /// <see cref="PreciseCuts"/> does — audio cannot be normalized while being
     /// copied. Stated in the settings hint rather than left as a surprise.
     /// </remarks>
-    public bool NormaliseAudio { get; set; }
+    public bool NormalizeAudio { get; set; }
 
     /// <summary>
     /// EBU R128 target. The broadcast-ish default: quiet enough to leave
@@ -509,10 +509,10 @@ public class FFmpegService
         var af = new List<string>();
 
         // A stream copy can only begin at a keyframe, so an exact cut has to be
-        // re-encoded whether or not any filter asked for it. Normalising
+        // re-encoded whether or not any filter asked for it. Normalizing
         // loudness means touching the audio, which rules out a copy for the
         // same reason.
-        bool reencode = PreciseCuts || NormaliseAudio;
+        bool reencode = PreciseCuts || NormalizeAudio;
 
         if (b.IsFlipped)
         {
@@ -532,9 +532,9 @@ public class FFmpegService
             reencode = true;
         }
 
-        // Last in the audio chain: normalising after a tempo change measures
+        // Last in the audio chain: normalizing after a tempo change measures
         // what will actually be heard, not what was there before it.
-        if (NormaliseAudio) af.Add(LoudnormFilter);
+        if (NormalizeAudio) af.Add(LoudnormFilter);
 
         var sb = new StringBuilder();
         sb.Append($"-hide_banner -y -fflags +igndts -ss {start} -to {end} -i \"{input}\" ");
@@ -788,7 +788,7 @@ public class FFmpegService
     /// scrubbing for them.
     /// </para>
     /// <para>
-    /// Transparent background and a single colour, because it sits underneath
+    /// Transparent background and a single color, because it sits underneath
     /// the existing range marks rather than replacing them. Rendered once per
     /// video at a fixed width and stretched — the picture is a guide, not a
     /// measurement, and re-rendering on every window resize would decode the
@@ -1149,7 +1149,7 @@ public class FFmpegService
         }
         catch (OperationCanceledException)
         {
-            // Deliberately not folded into the catch below. "You cancelled me"
+            // Deliberately not folded into the catch below. "You canceled me"
             // and "this frame cannot be read" are different answers, and a
             // caller that caches results must not record the first as the
             // second — see ThumbnailService.GetAsync.
