@@ -2812,7 +2812,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
             "Range (1:00 - 2:30) = full bookmark";
 
         var prompt = basePrompt;
-        var value = CurrentTimeDisplay;
+
+        // Seeded in the precise style rather than the reading shown elsewhere:
+        // this value is about to be edited by hand, and "00:01:05" has a field
+        // to put an hour in. "1:05" does not, and "37s" does not even look
+        // like a time you may put a colon in.
+        var value = Bookmark.FormatPrecise(Session.CurrentTimeSeconds);
 
         // Loop rather than closing on a bad value: the entry is re-shown with
         // what went wrong and what is accepted, so the user can correct it or

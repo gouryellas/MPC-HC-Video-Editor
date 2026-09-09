@@ -108,6 +108,68 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+
+        <!-- One space. Every gap in a bookmark row is one of these, so the
+             row reads as though it were a single line of text:
+
+                 [1] < 4s > - < 12s > (8s)
+
+             A literal space rather than a margin in pixels — a margin would be
+             a guess at the width of a space in whatever font and size the row
+             ends up using, and would stop matching the moment either changed.
+             Written as &#32; because a space is the one attribute value that
+             cannot be read back from the file with any confidence. -->
+        <Style x:Key="RowGap" TargetType="TextBlock">
+            <Setter Property="Text" Value="&#32;"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <!-- The frame-nudge arrows flanking each timestamp in the bookmark
+             list. Hidden rather than collapsed off-hover: they keep their
+             width, so the row reads the same whether or not the pointer is
+             over it, and hovering reveals the arrows instead of shoving the
+             timestamps sideways to make room for them. Off-hover the row is
+
+                 [1]   4s   -   12s   (8s)
+
+             where each of those runs is a space, an arrow's width, a space.
+
+             The glyphs size to themselves and every gap is one space, so the
+             only thing that can change a row's shape is the timestamps — which
+             do change shape, at 59s → 1:00 and again at 59:59 → 1:00:00.
+             Everything to the right of a nudged timestamp shifts to suit it;
+             nothing between the arrows and the numbers ever moves. -->
+        <Style x:Key="NudgeArrow" TargetType="Button">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <!-- White, but by way of the palette: a hardcoded #FFF would
+                 disappear against the light theme's pale rows. -->
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Visibility" Value="Hidden"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <!-- Transparent, not null: a null background is not a
+                             hit-test target, and the arrow would only be
+                             clickable on the glyph's own strokes. -->
+                        <Border Background="Transparent">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True">
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Foreground" Value="{DynamicResource AccentBright}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <DockPanel>
@@ -571,7 +633,10 @@
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="28"/>
                                             <ColumnDefinition Width="26"/>
-                                            <ColumnDefinition Width="34"/>
+                                            <!-- Auto, not a fixed 34: the index is followed by
+                                                 exactly one space, and a fixed column would pad
+                                                 "[1]" out to the width of "[10]" instead. -->
+                                            <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="120"/>
                                             <ColumnDefinition Width="90"/>
@@ -618,6 +683,17 @@
                                                      ToolTip="This cut's name. Used as the chapter title when exporting chapters. Rename it to anything; renaming one does not disturb the others."
                                                      Visibility="{Binding DataContext.UseChapterNames, RelativeSource={RelativeSource AncestorType=ListView}, Converter={StaticResource BoolToVis}}"/>
 
+                                            <!-- [1] < 4s > - < 12s > (8s), one space between each
+                                                 of them. Nudging the opening mark by a frame is
+                                                 the common correction — a cut that is one frame
+                                                 late — and retyping the whole timestamp was
+                                                 previously the only way to make it. -->
+                                            <TextBlock Style="{StaticResource RowGap}"/>
+                                            <Button Content="&lt;" Style="{StaticResource NudgeArrow}"
+                                                    Command="{Binding DataContext.NudgeFrameCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                    CommandParameter="start-"
+                                                    ToolTip="Move the start one frame earlier"/>
+                                            <TextBlock Style="{StaticResource RowGap}"/>
                                             <TextBlock ToolTip="Click to seek MPC-HC to this time">
                                                 <Hyperlink Style="{StaticResource TimestampLink}"
                                                            Tag="{Binding StartSeconds}"
@@ -625,21 +701,21 @@
                                                     <Run Text="{Binding StartDisplay, Mode=OneWay}"/>
                                                 </Hyperlink>
                                             </TextBlock>
-
-                                            <!-- Nudge the opening mark. A cut that is one frame
-                                                 late is the common correction, and retyping the
-                                                 whole timestamp was previously the only way to
-                                                 make it. -->
-                                            <Button Content="‹" Width="18" Margin="2,0,0,0" Padding="0" FontWeight="Bold"
-                                                    Command="{Binding DataContext.NudgeFrameCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                    CommandParameter="start-"
-                                                    ToolTip="Move the start one frame earlier"/>
-                                            <Button Content="›" Width="18" Padding="0" FontWeight="Bold"
+                                            <TextBlock Style="{StaticResource RowGap}"/>
+                                            <Button Content="&gt;" Style="{StaticResource NudgeArrow}"
                                                     Command="{Binding DataContext.NudgeFrameCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                     CommandParameter="start+"
                                                     ToolTip="Move the start one frame later"/>
 
-                                            <TextBlock Text=" → " Foreground="{DynamicResource TextMuted}"/>
+                                            <TextBlock Style="{StaticResource RowGap}"/>
+                                            <TextBlock Text="-" Foreground="{DynamicResource Accent}" VerticalAlignment="Center"/>
+                                            <TextBlock Style="{StaticResource RowGap}"/>
+
+                                            <Button Content="&lt;" Style="{StaticResource NudgeArrow}"
+                                                    Command="{Binding DataContext.NudgeFrameCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                    CommandParameter="end-"
+                                                    ToolTip="Move the end one frame earlier"/>
+                                            <TextBlock Style="{StaticResource RowGap}"/>
                                             <TextBlock ToolTip="Click to seek MPC-HC to this time">
                                                 <Hyperlink Style="{StaticResource TimestampLink}"
                                                            Tag="{Binding EndSeconds}"
@@ -647,17 +723,16 @@
                                                     <Run Text="{Binding EndDisplay, Mode=OneWay}"/>
                                                 </Hyperlink>
                                             </TextBlock>
-                                            <Button Content="‹" Width="18" Margin="2,0,0,0" Padding="0" FontWeight="Bold"
-                                                    Command="{Binding DataContext.NudgeFrameCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                    CommandParameter="end-"
-                                                    ToolTip="Move the end one frame earlier"/>
-                                            <Button Content="›" Width="18" Padding="0" FontWeight="Bold"
+                                            <TextBlock Style="{StaticResource RowGap}"/>
+                                            <Button Content="&gt;" Style="{StaticResource NudgeArrow}"
                                                     Command="{Binding DataContext.NudgeFrameCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                     CommandParameter="end+"
                                                     ToolTip="Move the end one frame later"/>
 
-                                            <TextBlock Text="{Binding DurationDisplay, StringFormat=  ({0})}" Foreground="{DynamicResource ValueYellow}" Margin="4,0,0,0"/>
-                                            <TextBlock Text="  incomplete" Foreground="{DynamicResource StatusError}" FontStyle="Italic"
+                                            <TextBlock Style="{StaticResource RowGap}"/>
+                                            <TextBlock Text="{Binding DurationDisplay, StringFormat=({0})}" Foreground="{DynamicResource ValueGreen}" VerticalAlignment="Center"/>
+                                            <TextBlock Style="{StaticResource RowGap}"/>
+                                            <TextBlock Text="incomplete" Foreground="{DynamicResource StatusError}" FontStyle="Italic" VerticalAlignment="Center"
                                                        Visibility="{Binding IsIncomplete, Converter={StaticResource BoolToVis}}"/>
                                         </StackPanel>
 
