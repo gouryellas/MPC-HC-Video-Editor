@@ -520,6 +520,32 @@ public class FFmpegService
             reencode = true;
         }
 
+        // Before the speed change: transpose swaps width and height, and doing
+        // it first keeps the frame the right shape for anything after it.
+        if (b.Rotation != Rotation.None)
+        {
+            vf.Add(b.Rotation switch
+            {
+                Rotation.Clockwise => "transpose=1",
+                Rotation.Counterclockwise => "transpose=2",
+                // No single transpose for a half turn; two quarter turns the
+                // same way is the standard spelling of it.
+                _ => "transpose=1,transpose=1"
+            });
+            reencode = true;
+        }
+
+        // Silenced rather than dropped. "-an" would leave this segment with no
+        // audio stream while its neighbours kept theirs, and the concat demuxer
+        // requires every segment to have the same streams in the same order —
+        // a merge of a muted clip and an unmuted one would fail outright, or
+        // produce a file that loses audio from the first mute onward.
+        if (b.IsMuted)
+        {
+            af.Add("volume=0");
+            reencode = true;
+        }
+
         if (Math.Abs(b.Speed - 1.0) > 0.01)
         {
             // setpts for video, atempo for audio (atempo limited to 0.5-2.0)
@@ -1071,10 +1097,13 @@ public class FFmpegService
                 sb.AppendLine($"START={startMs}");
                 sb.AppendLine($"END={endMs}");
 
-                // Bookmarks carry no name of their own — the CSV's "BookmarkN"
-                // field is positional and discarded on load — so the number and
-                // its start time are the most useful title available.
-                sb.AppendLine($"title=Chapter {number} ({Bookmark.FormatTime(b.StartSeconds)})");
+                // The clip's own name when it has one. Falls back to the number
+                // and start time, which is all that was available before names
+                // existed and is still what an unnamed list produces — with
+                // "use chapter names" off, every clip is unnamed by design.
+                sb.AppendLine(b.HasLabel
+                    ? $"title={b.Label}"
+                    : $"title=Chapter {number} ({Bookmark.FormatTime(b.StartSeconds)})");
                 number++;
             }
 
@@ -1160,6 +1189,61 @@ public class FFmpegService
             // A thumbnail is a nicety. Failing to make one must never surface
             // as an error, let alone interrupt an edit.
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Frames per second for the first video stream, or 0 when it cannot be
+    /// read.
+    /// </summary>
+    /// <remarks>
+    /// <c>r_frame_rate</c> comes back as a rational — "30000/1001" for 29.97,
+    /// "25/1" for a plain 25 — so it is divided rather than parsed as a
+    /// decimal. Callers treat 0 as "unknown" and fall back; a nudge that moves
+    /// by the wrong amount would be worse than one that says it cannot.
+    /// </remarks>
+    public async Task<double> GetFrameRateAsync(string filePath)
+    {
+        try
+        {
+            var args = "-v error -select_streams v:0 -show_entries stream=r_frame_rate " +
+                       $"-of default=noprint_wrappers=1:nokey=1 \"{filePath}\"";
+            var psi = new ProcessStartInfo
+            {
+                FileName = _ffprobePath,
+                Arguments = args,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var p = Process.Start(psi);
+            if (p == null) return 0;
+
+            var outputTask = p.StandardOutput.ReadToEndAsync();
+            var errorTask = p.StandardError.ReadToEndAsync();
+            await Task.WhenAll(outputTask, errorTask);
+            await p.WaitForExitAsync();
+
+            if (p.ExitCode != 0) return 0;
+
+            var raw = outputTask.Result.Trim();
+            var slash = raw.IndexOf('/');
+
+            if (slash < 0)
+                return double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var plain) ? plain : 0;
+
+            if (double.TryParse(raw[..slash], NumberStyles.Float, CultureInfo.InvariantCulture, out var num) &&
+                double.TryParse(raw[(slash + 1)..], NumberStyles.Float, CultureInfo.InvariantCulture, out var den) &&
+                den > 0)
+                return num / den;
+
+            return 0;
+        }
+        catch
+        {
+            return 0;
         }
     }
 

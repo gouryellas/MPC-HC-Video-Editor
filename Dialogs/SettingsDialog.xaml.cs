@@ -47,6 +47,9 @@ public partial class SettingsDialog : Window
 
     /// <summary>Whether the startup update check runs.</summary>
     public bool CheckForUpdates { get; private set; }
+
+    /// <summary>Whether ranges are named, and the names shown for editing.</summary>
+    public bool UseChapterNames { get; private set; }
     public double ToastSeconds { get; private set; }
     public bool RememberSaveToFolder { get; private set; }
     public RunMode RunMode { get; private set; }
@@ -118,6 +121,7 @@ public partial class SettingsDialog : Window
         ToastsEnabled = current.ToastsEnabled;
         ToastSeconds = current.ToastSeconds;
         CheckForUpdates = current.CheckForUpdates;
+        UseChapterNames = current.UseChapterNames;
         RememberSaveToFolder = current.RememberSaveToFolder;
         RunMode = current.RunMode;
         AllowMultipleInstances = current.AllowMultipleInstances;
@@ -143,6 +147,7 @@ public partial class SettingsDialog : Window
         AutoSwitchCheck.IsChecked = autoSwitchViews;
         ToastsCheck.IsChecked = current.ToastsEnabled;
         CheckForUpdatesCheck.IsChecked = current.CheckForUpdates;
+        UseChapterNamesCheck.IsChecked = current.UseChapterNames;
         RememberSaveToCheck.IsChecked = current.RememberSaveToFolder;
 
         ToastSecondsBox.Text = current.ToastSeconds.ToString("0.#", CultureInfo.CurrentCulture);
@@ -309,6 +314,7 @@ public partial class SettingsDialog : Window
         AutoSwitchViews = AutoSwitchCheck.IsChecked == true;
         ToastsEnabled = ToastsCheck.IsChecked == true;
         CheckForUpdates = CheckForUpdatesCheck.IsChecked == true;
+        UseChapterNames = UseChapterNamesCheck.IsChecked == true;
         RememberSaveToFolder = RememberSaveToCheck.IsChecked == true;
 
         DeleteOriginalVideo = ReadCleanup(VideoAsk, VideoAlways);

@@ -718,6 +718,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         RefreshPlaylistState();
         RefreshCommandStates();
 
+        // Last, so the opening state is the baseline rather than something
+        // half-built: everything above this line is setup, not an edit.
+        StartWatchingForHistory();
+
         _pollTimer.Start();
     }
 
@@ -1615,6 +1619,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
             foreach (var b in _bookmarks.LoadFromCsv(csvPath))
                 Session.Bookmarks.Add(b);
 
+        // A different video is a different list. Stepping back past this point
+        // would restore cuts belonging to a file that is no longer open, and
+        // then write them over the new video's bookmarks on the next save.
+        ResetHistory();
+
 
         try
         {
@@ -1622,6 +1631,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
             {
                 var dur = await _ffmpeg.GetDurationAsync(path);
                 if (dur > 0) Session.VideoDurationSeconds = dur;
+
+                // Read alongside the duration, from the same file, so the
+                // nudge buttons know what a frame is worth before anyone
+                // presses one.
+                await RefreshFrameRateAsync(path);
             }
         }
         catch { }
@@ -3018,6 +3032,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             StatusText = _ffmpeg.LastOutputWarning is null
                 ? $"Created {Path.GetFileName(outPath)}"
                 : $"Created {Path.GetFileName(outPath)} — {_ffmpeg.LastOutputWarning}";
+            NoteOutput(outPath);
             succeeded = true;
         }
         catch (Exception ex) { StatusText = trimming ? "Trim failed" : "Merge failed"; MessageBox.Show(ex.Message); }
@@ -4497,6 +4512,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         RefreshBookmarksFileDisplay();
         Session.NotifyDurationChanged();
 
+        // Opening a bookmark file replaces the list wholesale — see the note in
+        // LoadVideoAsync for why that has to be the end of the history.
+        ResetHistory();
+
         // If a video path with the same base name as the CSV happens to
         // exist alongside it, treat that as the source video too — this
         // matches the original convention (video.csv lives next to video.mp4).
@@ -4850,6 +4869,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         s.ToastsEnabled = dlg.ToastsEnabled;
         s.ToastSeconds = dlg.ToastSeconds;
         s.CheckForUpdates = dlg.CheckForUpdates;
+
+        // Captured before the assignment: applying it needs to know which way
+        // it moved, and turning it off throws names away.
+        var chapterNamesWereOn = s.UseChapterNames;
+        s.UseChapterNames = dlg.UseChapterNames;
         s.RememberSaveToFolder = dlg.RememberSaveToFolder;
         s.OverlayCorner = dlg.OverlayCorner;
 
@@ -4865,6 +4889,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         s.SaveToFolder = dlg.RememberSaveToFolder ? _pinnedSaveToFolder : "";
 
         _settings.Save();
+
+        // After the save, so the list and the file on disk agree with the
+        // setting that has just been written.
+        ApplyChapterNaming(chapterNamesWereOn, dlg.UseChapterNames);
 
         // Push the settings that live inside services into them, so the next
         // operation and the next poll tick use the new values.
@@ -5205,7 +5233,507 @@ public partial class MainViewModel : ObservableObject, IDisposable
             StatusText = "Could not seek — " + (_mpc.LastSeekFailureReason ?? "make sure MPC-HC is playing a video.");
     }
 
-    private void Renumber() { int i = 1; foreach (var b in Session.Bookmarks) b.Index = i++; }
+    // ------------------------------------------------------------------
+    // Undo / redo
+    // ------------------------------------------------------------------
+
+    private readonly UndoHistory<IReadOnlyList<BookmarkState>> _history = new(50);
+
+    /// <summary>The list as it stood after the last recorded change.</summary>
+    /// <remarks>
+    /// Kept so that recording never has to reconstruct "before" at the moment
+    /// of the change — by then the change has already happened. Every push uses
+    /// this, and then replaces it.
+    /// </remarks>
+    private IReadOnlyList<BookmarkState> _historyBaseline = Array.Empty<BookmarkState>();
+
+    /// <summary>Set while the history itself is rewriting the list.</summary>
+    private bool _suspendHistory;
+
+    /// <summary>When the last entry was pushed, for coalescing.</summary>
+    private DateTime _lastRecordedAt = DateTime.MinValue;
+
+    /// <summary>
+    /// Changes closer together than this join the entry already on the stack.
+    /// </summary>
+    /// <remarks>
+    /// Dragging the speed slider raises a change per pixel, and deleting three
+    /// cuts raises three collection events; without this, one gesture would
+    /// need dozens of undos to reverse. Distinct actions by a human are seconds
+    /// apart, so the window can be generous enough to catch a whole gesture and
+    /// still never merge two intentions.
+    /// </remarks>
+    private static readonly TimeSpan HistoryCoalesceWindow = TimeSpan.FromMilliseconds(600);
+
+    public bool CanUndoEdit => _history.CanUndo;
+    public bool CanRedoEdit => _history.CanRedo;
+
+    /// <summary>Menu text, so the entry names what it will actually reverse.</summary>
+    public string UndoEditHeader => _history.NextUndo is { } d ? $"Undo {d}" : "Undo";
+    public string RedoEditHeader => _history.NextRedo is { } d ? $"Redo {d}" : "Redo";
+
+    /// <summary>
+    /// Every bookmark currently subscribed to, so subscribing is idempotent
+    /// and nothing is left attached.
+    /// </summary>
+    /// <remarks>
+    /// Needed for two reasons that both bite silently. <c>Clear()</c> raises a
+    /// Reset carrying no OldItems, so there is no way to unsubscribe the
+    /// departing bookmarks from the event args alone — without this set they
+    /// would stay attached to a ViewModel that outlives them. And restoring a
+    /// snapshot adds bookmarks that the collection handler subscribes too, so
+    /// an unguarded <c>+=</c> would attach a second handler on every undo, each
+    /// one recording the same change again.
+    /// </remarks>
+    private readonly HashSet<Bookmark> _watchedBookmarks = new();
+
+    private void WatchBookmark(Bookmark b)
+    {
+        if (_watchedBookmarks.Add(b)) b.PropertyChanged += Bookmark_PropertyChangedForHistory;
+    }
+
+    private void UnwatchBookmark(Bookmark b)
+    {
+        if (_watchedBookmarks.Remove(b)) b.PropertyChanged -= Bookmark_PropertyChangedForHistory;
+    }
+
+    private void UnwatchAllBookmarks()
+    {
+        foreach (var b in _watchedBookmarks) b.PropertyChanged -= Bookmark_PropertyChangedForHistory;
+        _watchedBookmarks.Clear();
+    }
+
+    /// <summary>Starts watching the bookmark list for anything worth recording.</summary>
+    private void StartWatchingForHistory()
+    {
+        Session.Bookmarks.CollectionChanged += Bookmarks_CollectionChangedForHistory;
+        foreach (var b in Session.Bookmarks) WatchBookmark(b);
+        _historyBaseline = CaptureBookmarks();
+    }
+
+    private void Bookmarks_CollectionChangedForHistory(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.Action == NotifyCollectionChangedAction.Reset)
+        {
+            UnwatchAllBookmarks();
+            foreach (var b in Session.Bookmarks) WatchBookmark(b);
+        }
+        else
+        {
+            if (e.OldItems != null)
+                foreach (Bookmark b in e.OldItems) UnwatchBookmark(b);
+
+            if (e.NewItems != null)
+                foreach (Bookmark b in e.NewItems) WatchBookmark(b);
+        }
+
+        RecordChange(e.Action switch
+        {
+            NotifyCollectionChangedAction.Add => "add",
+            NotifyCollectionChangedAction.Remove => "delete",
+            NotifyCollectionChangedAction.Reset => "replace the cuts",
+            _ => "edit the cuts"
+        });
+    }
+
+    private void Bookmark_PropertyChangedForHistory(object? sender, PropertyChangedEventArgs e)
+    {
+        // Index is assigned by Renumber as a consequence of some other change,
+        // and the derived display properties are not state at all.
+        switch (e.PropertyName)
+        {
+            case nameof(Bookmark.Index):
+            case null:
+                return;
+
+            // Selection is carried in the snapshot so that undo restores what
+            // was ticked, but ticking a box is not itself worth a step on the
+            // stack: it changes nothing about the output. The baseline moves
+            // with it so the next real edit records the selection as it is now.
+            case nameof(Bookmark.IsSelected):
+                if (!_suspendHistory) _historyBaseline = CaptureBookmarks();
+                return;
+
+            case nameof(Bookmark.StartSeconds):
+            case nameof(Bookmark.EndSeconds):
+                RecordChange("the timing");
+                return;
+
+            case nameof(Bookmark.Speed):
+                RecordChange("the speed");
+                return;
+
+            case nameof(Bookmark.Label):
+                RecordChange("the name");
+                return;
+
+            case nameof(Bookmark.IsFlipped):
+                RecordChange("the flip");
+                return;
+
+            case nameof(Bookmark.Rotation):
+                RecordChange("the rotation");
+                return;
+
+            case nameof(Bookmark.IsMuted):
+                RecordChange("the mute");
+                return;
+
+            default:
+                return;
+        }
+    }
+
+    /// <summary>
+    /// Pushes the pre-change state, unless this change belongs with the one
+    /// before it.
+    /// </summary>
+    private void RecordChange(string description)
+    {
+        if (_suspendHistory) return;
+
+        var now = DateTime.UtcNow;
+        if (now - _lastRecordedAt < HistoryCoalesceWindow)
+        {
+            // Same gesture. The entry already on the stack holds the state from
+            // before it started, which is where undo should land, so only the
+            // baseline moves.
+            _lastRecordedAt = now;
+            _historyBaseline = CaptureBookmarks();
+            return;
+        }
+
+        _history.Push(description, _historyBaseline);
+        _historyBaseline = CaptureBookmarks();
+        _lastRecordedAt = now;
+        NotifyHistoryChanged();
+    }
+
+    private List<BookmarkState> CaptureBookmarks() =>
+        Session.Bookmarks.Select(BookmarkState.From).ToList();
+
+    /// <summary>Rebuilds the list from a snapshot, without recording it.</summary>
+    private void RestoreBookmarks(IReadOnlyList<BookmarkState> state)
+    {
+        _suspendHistory = true;
+        try
+        {
+            // The collection's own handler subscribes what goes in, so nothing
+            // is attached by hand here — see WatchBookmark's remarks.
+            Session.Bookmarks.Clear();
+
+            int i = 1;
+            foreach (var s in state)
+                Session.Bookmarks.Add(s.ToBookmark(i++));
+
+            _historyBaseline = CaptureBookmarks();
+
+            // Not through Renumber: that would reapply the chapter-naming rules
+            // and rename cuts the snapshot deliberately restored.
+            Session.NotifyDurationChanged();
+            RefreshCommandStates();
+        }
+        finally
+        {
+            _suspendHistory = false;
+        }
+
+        if (IsBookmarkFileLoaded) SaveBookmarks();
+    }
+
+    /// <summary>
+    /// Forgets the history. Called when the list stops being the same list.
+    /// </summary>
+    private void ResetHistory()
+    {
+        _history.Clear();
+        _historyBaseline = CaptureBookmarks();
+        _lastRecordedAt = DateTime.MinValue;
+        NotifyHistoryChanged();
+    }
+
+    private void NotifyHistoryChanged()
+    {
+        OnPropertyChanged(nameof(CanUndoEdit));
+        OnPropertyChanged(nameof(CanRedoEdit));
+        OnPropertyChanged(nameof(UndoEditHeader));
+        OnPropertyChanged(nameof(RedoEditHeader));
+        UndoEditCommand.NotifyCanExecuteChanged();
+        RedoEditCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanUndoEdit))]
+    private void UndoEdit()
+    {
+        var description = _history.NextUndo;
+        if (!_history.TryUndo(CaptureBookmarks(), out var restore)) return;
+
+        RestoreBookmarks(restore);
+        NotifyHistoryChanged();
+        StatusText = $"Undid {description}";
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRedoEdit))]
+    private void RedoEdit()
+    {
+        var description = _history.NextRedo;
+        if (!_history.TryRedo(CaptureBookmarks(), out var restore)) return;
+
+        RestoreBookmarks(restore);
+        NotifyHistoryChanged();
+        StatusText = $"Redid {description}";
+    }
+
+    /// <summary>
+    /// Whether ranges are named. Bound by the row template to show or hide the
+    /// name box, so the column appears the moment the setting is saved.
+    /// </summary>
+    public bool UseChapterNames => _settings.Current.UseChapterNames;
+
+    /// <summary>The name a range takes when nobody has given it one.</summary>
+    private static string DefaultChapterName(int index) => $"Chapter {index}";
+
+    /// <summary>
+    /// Matches a name this app assigned itself, so it can be told apart from
+    /// one the user typed.
+    /// </summary>
+    private static readonly System.Text.RegularExpressions.Regex AutoChapterName =
+        new(@"^Chapter \d+$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>
+    /// Reassigns row numbers, and with them the automatic chapter names.
+    /// </summary>
+    /// <remarks>
+    /// Only names this app generated are re-derived. Deleting clip 1 should
+    /// renumber "Chapter 2" to "Chapter 1", but a clip the user renamed to
+    /// "the good bit" keeps that name wherever it lands — the point of letting
+    /// them rename it is that the name is theirs.
+    /// </remarks>
+    private void Renumber()
+    {
+        int i = 1;
+        var naming = _settings.Current.UseChapterNames;
+
+        foreach (var b in Session.Bookmarks)
+        {
+            b.Index = i++;
+
+            if (!naming) continue;
+            if (!b.HasLabel || AutoChapterName.IsMatch(b.Label!))
+                b.Label = DefaultChapterName(b.Index);
+        }
+    }
+
+    /// <summary>
+    /// Brings the open list into line after the chapter-names setting changes.
+    /// </summary>
+    /// <remarks>
+    /// Turning it off clears every name, hand-written ones included. That is
+    /// what the setting says it does, and what the dialog warns about — the
+    /// alternative, keeping invisible names on disk that reappear later, is the
+    /// kind of state nobody can reason about.
+    /// </remarks>
+    private void ApplyChapterNaming(bool wasOn, bool isOn)
+    {
+        if (wasOn == isOn) return;
+
+        OnPropertyChanged(nameof(UseChapterNames));
+
+        if (isOn)
+        {
+            Renumber();
+            StatusText = "Chapter names on — every completed range now carries one.";
+        }
+        else
+        {
+            foreach (var b in Session.Bookmarks) b.Label = null;
+            StatusText = "Chapter names off — the names have been cleared.";
+        }
+
+        if (IsBookmarkFileLoaded) SaveBookmarks();
+    }
+
+    // ------------------------------------------------------------------
+    // Per-clip adjustments
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Turns every checked cut a quarter further round.
+    /// </summary>
+    /// <remarks>
+    /// One target for the whole selection, taken from the first cut in it.
+    /// Advancing each clip from its own current rotation would leave a mixed
+    /// selection permanently out of step, and no amount of clicking would ever
+    /// bring them back together — the same reasoning as
+    /// <see cref="ToggleFlip"/>'s "turn them all on".
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(CanToggleFlip))]
+    private void RotateSelected()
+    {
+        var selected = Session.Bookmarks.Where(b => b.IsSelected && b.IsValid).ToList();
+        if (selected.Count == 0) return;
+
+        var next = Bookmark.NextRotation(selected[0].Rotation);
+        foreach (var b in selected) b.Rotation = next;
+
+        Session.NotifyDurationChanged();
+        if (IsBookmarkFileLoaded) SaveBookmarks();
+
+        // Qualified: System.Windows.Media.Imaging has a Rotation of its own,
+        // and both namespaces are in scope here.
+        StatusText = next == Models.Rotation.None
+            ? $"{selected.Count} cut(s) back to their original orientation"
+            : $"{selected.Count} cut(s) {Bookmark.DescribeRotation(next)}";
+    }
+
+    /// <summary>
+    /// Silences every checked cut, or restores the audio if they are all
+    /// already silent.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanToggleFlip))]
+    private void ToggleMute()
+    {
+        var selected = Session.Bookmarks.Where(b => b.IsSelected && b.IsValid).ToList();
+        if (selected.Count == 0) return;
+
+        var turningOn = !selected.All(b => b.IsMuted);
+        foreach (var b in selected) b.IsMuted = turningOn;
+
+        Session.NotifyDurationChanged();
+        if (IsBookmarkFileLoaded) SaveBookmarks();
+
+        StatusText = turningOn
+            ? $"{selected.Count} cut(s) will be written silent"
+            : $"{selected.Count} cut(s) will keep their audio";
+    }
+
+    // ------------------------------------------------------------------
+    // Frame nudging
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Frames per second of the loaded video, or 0 before it has been read.
+    /// </summary>
+    /// <remarks>
+    /// Probed once when a video is opened rather than per nudge: it cannot
+    /// change while the file is open, and a button that shells out to ffprobe
+    /// on every click would be a button with a lag.
+    /// </remarks>
+    private double _frameRate;
+
+    /// <summary>How far one frame moves the mark, in seconds.</summary>
+    /// <remarks>
+    /// Falls back to 1/30 when the rate is unknown — a rate this app could not
+    /// read is still a video whose marks the user wants to inch, and a nudge of
+    /// roughly a frame beats a button that refuses.
+    /// </remarks>
+    private double FrameStep => _frameRate > 0.1 ? 1.0 / _frameRate : 1.0 / 30.0;
+
+    /// <summary>Reads the frame rate for the open video, quietly.</summary>
+    private async Task RefreshFrameRateAsync(string videoPath)
+    {
+        try { _frameRate = await _ffmpeg.GetFrameRateAsync(videoPath); }
+        catch { _frameRate = 0; }
+    }
+
+    /// <summary>
+    /// Moves one end of a cut by a single frame. The parameter names which end
+    /// and which direction — "start-", "start+", "end-", "end+".
+    /// </summary>
+    /// <remarks>
+    /// A cut that is one frame late is the common correction, and until now the
+    /// only way to make it was to retype the whole timestamp. The bookmark is
+    /// taken from the command parameter rather than the selection so a row's
+    /// own buttons act on that row.
+    ///
+    /// The two marks are kept apart by at least one frame: a range that closes
+    /// before it opens is the state <see cref="Bookmark.IsIncomplete"/> exists
+    /// to describe, and nudging into it would silently drop the row out of
+    /// every selection.
+    /// </remarks>
+    [RelayCommand]
+    private void NudgeFrame(string? request)
+    {
+        if (SelectedBookmark is not { } b || string.IsNullOrWhiteSpace(request)) return;
+
+        var step = FrameStep * (request.EndsWith('+') ? 1 : -1);
+        var movingStart = request.StartsWith("start", StringComparison.OrdinalIgnoreCase);
+
+        if (movingStart)
+        {
+            var proposed = Math.Max(0, b.StartSeconds + step);
+            if (b.IsValid && proposed >= b.EndSeconds - FrameStep) return;
+            b.StartSeconds = proposed;
+        }
+        else
+        {
+            if (b.IsIncomplete) return;
+            var proposed = Math.Max(0, b.EndSeconds + step);
+            if (proposed <= b.StartSeconds + FrameStep) return;
+            b.EndSeconds = proposed;
+        }
+
+        Session.NotifyDurationChanged();
+        if (IsBookmarkFileLoaded) SaveBookmarks();
+
+        var which = movingStart ? "Start" : "End";
+        var rate = _frameRate > 0.1 ? $"{_frameRate:0.##} fps" : "assumed 30 fps";
+        StatusText = $"{which} of cut {b.Index} moved one frame " +
+                     $"{(step > 0 ? "later" : "earlier")} ({rate}) — now " +
+                     $"{Bookmark.FormatTime(movingStart ? b.StartSeconds : b.EndSeconds)}";
+    }
+
+    // ------------------------------------------------------------------
+    // Reveal in Explorer
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// The last file this app wrote, so it can be shown on request.
+    /// </summary>
+    private string? _lastOutputPath;
+
+    /// <summary>Whether there is a written file still on disk to reveal.</summary>
+    public bool HasRevealableOutput =>
+        !string.IsNullOrWhiteSpace(_lastOutputPath) && File.Exists(_lastOutputPath);
+
+    /// <summary>
+    /// Opens Explorer with the last written file selected.
+    /// </summary>
+    /// <remarks>
+    /// A menu entry rather than a setting: it is an action, and there is
+    /// nothing about it to configure. The status bar has named the file since
+    /// 4.0, but naming a file is not the same as being able to get to it.
+    ///
+    /// <c>/select,</c> needs the path unquoted-but-bracketed exactly like this;
+    /// Explorer parses its own command line and mis-reads the usual quoting.
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(HasRevealableOutput))]
+    private void RevealOutput()
+    {
+        if (!HasRevealableOutput) return;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{_lastOutputPath}\"")
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Could not open Explorer — {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Records a written file as the one Reveal will show.
+    /// </summary>
+    private void NoteOutput(string? path)
+    {
+        _lastOutputPath = path;
+        OnPropertyChanged(nameof(HasRevealableOutput));
+        RevealOutputCommand.NotifyCanExecuteChanged();
+    }
 
     /// <summary>
     /// Extensions we treat as playable video. Used to keep playlists and
