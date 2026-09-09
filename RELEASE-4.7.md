@@ -51,6 +51,15 @@ room. Nothing in the row moves except when a timestamp genuinely changes width
 The index no longer sits in a fixed-width column that padded `[1]` out to the
 width of `[10]` before the timestamps could start.
 
+The two timestamps are also centered in the row now, which they never were.
+They were the only elements in it without a vertical alignment, so they filled
+the row's height and drew their text at the top of it. While every row was
+exactly one line tall that was invisible. With chapter names turned on the rows
+are taller than one line, and the two timestamps alone sat raised above the
+dash and the duration beside them. The chapter name box is shortened to the
+row's own text height as well, and given the same single space before it that
+everything else in the row has.
+
 ## The file actions moved next to the files
 
 **Edit bookmarks** was a button across the top of the window, nowhere near
@@ -94,8 +103,8 @@ Get-FileHash -Algorithm SHA256 .\MPC-HC.Video.Editor.zip
 
 | File | SHA-256 |
 | ---- | ------- |
-| `MPC-HC.Video.Editor.zip` | `ABDD4C7D3CA077D3353E11BF72C1960DDDC597E6F2ECB6AF3A05919B7E550FC6` |
-| `MPC-HC Video Editor.exe` | `9AF3C4341BD5E9B80A7AD184D8F09C5CF4CDA2D06BD9B97AE4AA49002E9124C2` |
+| `MPC-HC.Video.Editor.zip` | `26A1059D1BD343D7A45A53058AD9AD14B60E4481CB5B58427D3BA49E11535A4B` |
+| `MPC-HC Video Editor.exe` | `3DA67E751B04EF91FDC7AEE8DE09D679A590CC6B954B13AA0EC3CADF34BD568A` |
 | `ffmpeg.exe` | `4A01142006A4E2359293E072957DCDA7760C2003BBEEDE037B4551F2CFC8406F` |
 | `ffprobe.exe` | `8B5298DA673B85E628FBC98535A88848E939E16DF72E856FC727E01AA667E243` |
 | `LICENSE` | `3972DC9744F6499F0F9B2DBF76696F2AE7AD8AF9B23DDE66D6AF86C9DFB36986` |
