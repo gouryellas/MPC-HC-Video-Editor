@@ -78,11 +78,11 @@
                                            FontFamily="Consolas" FontSize="13"/>
                                 <!-- Was #666, which on a dark card was very nearly
                                      the background. -->
-                                <TextBlock Text=" → " Foreground="{DynamicResource TextSecondary}" FontFamily="Consolas" FontSize="13"/>
+                                <TextBlock Text=" - " Foreground="{DynamicResource TextSecondary}" FontFamily="Consolas" FontSize="13"/>
                                 <TextBlock Text="{Binding EndDisplay}" Foreground="{DynamicResource AccentBright}"
                                            FontFamily="Consolas" FontSize="13"/>
                                 <TextBlock Text="{Binding DurationDisplay, StringFormat=  ({0})}"
-                                           Foreground="{DynamicResource ValueYellow}" FontFamily="Consolas" FontSize="13"/>
+                                           Foreground="{DynamicResource ValueGreen}" FontFamily="Consolas" FontSize="13"/>
                                 <TextBlock Text="{Binding Prefix}" Foreground="{DynamicResource StatusWarn}"
                                            FontFamily="Consolas" FontSize="13" Margin="6,0,0,0"/>
                             </StackPanel>

@@ -1072,13 +1072,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // bookmark the overlay lists but that pair count does not see, so
         // without it the overlay's "(no bookmarks yet)" line would miss the
         // list going empty whenever no pair completed with it.
-        var key = string.Join('|', HasActiveVideo, IsBookmarkFileLoaded, CompletePairCount,
+        //
+        // Session.HasVideo is here in its own right too, and not folded into
+        // HasActiveVideo: that one also asks whether MPC-HC is running, so
+        // loading a video with the player closed moves neither it nor the key,
+        // and RevealVideo — which does not care about the player — would never
+        // be told its answer had changed.
+        var key = string.Join('|', HasActiveVideo, Session.HasVideo,
+                                   IsBookmarkFileLoaded, CompletePairCount,
                                    SelectedPairCount, HasNoBookmarks,
                                    HasPlaylistFiles, LoadedPlaylistHasEntries);
         if (key == _commandStateKey) return;
         _commandStateKey = key;
 
         OnPropertyChanged(nameof(HasActiveVideo));
+        OnPropertyChanged(nameof(CanRevealVideo));
         OnPropertyChanged(nameof(CompletePairCount));
         OnPropertyChanged(nameof(SelectedPairCount));
         OnPropertyChanged(nameof(HasValidBookmarks));
@@ -1100,6 +1108,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         MergeSelectedCommand.NotifyCanExecuteChanged();
         SplitSelectedCommand.NotifyCanExecuteChanged();
         AddCurrentToPlaylistCommand.NotifyCanExecuteChanged();
+        RevealVideoCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>
@@ -2812,7 +2821,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
             "Range (1:00 - 2:30) = full bookmark";
 
         var prompt = basePrompt;
-        var value = CurrentTimeDisplay;
+
+        // Seeded in the precise style rather than the reading shown elsewhere:
+        // this value is about to be edited by hand, and "00:01:05" has a field
+        // to put an hour in. "1:05" does not, and "37s" does not even look
+        // like a time you may put a colon in.
+        var value = Bookmark.FormatPrecise(Session.CurrentTimeSeconds);
 
         // Loop rather than closing on a bad value: the entry is re-shown with
         // what went wrong and what is accepted, so the user can correct it or
@@ -5703,18 +5717,46 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// A menu entry rather than a setting: it is an action, and there is
     /// nothing about it to configure. The status bar has named the file since
     /// 4.0, but naming a file is not the same as being able to get to it.
-    ///
-    /// <c>/select,</c> needs the path unquoted-but-bracketed exactly like this;
-    /// Explorer parses its own command line and mis-reads the usual quoting.
     /// </remarks>
     [RelayCommand(CanExecute = nameof(HasRevealableOutput))]
     private void RevealOutput()
     {
         if (!HasRevealableOutput) return;
+        RevealInExplorer(_lastOutputPath!);
+    }
 
+    /// <summary>
+    /// Whether the loaded video is still on disk to be shown.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not <see cref="HasActiveVideo"/>, which also asks whether
+    /// MPC-HC is running. Finding a file in Explorer has nothing to do with
+    /// the player being up.
+    /// </remarks>
+    public bool CanRevealVideo => Session.HasVideo;
+
+    /// <summary>Opens Explorer with the loaded video selected.</summary>
+    [RelayCommand(CanExecute = nameof(CanRevealVideo))]
+    private void RevealVideo()
+    {
+        if (!CanRevealVideo) return;
+        RevealInExplorer(Session.VideoPath);
+    }
+
+    /// <summary>
+    /// Opens Explorer with <paramref name="path"/> selected.
+    /// </summary>
+    /// <remarks>
+    /// <c>/select,</c> needs the path quoted exactly like this; Explorer
+    /// parses its own command line and mis-reads the usual quoting. That is
+    /// the whole reason this is one method rather than repeated per caller —
+    /// it is the kind of detail that gets "tidied" back into being broken.
+    /// </remarks>
+    private void RevealInExplorer(string path)
+    {
         try
         {
-            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{_lastOutputPath}\"")
+            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"")
             {
                 UseShellExecute = true
             });

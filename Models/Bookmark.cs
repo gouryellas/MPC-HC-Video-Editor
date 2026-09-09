@@ -354,31 +354,101 @@ public class Bookmark : INotifyPropertyChanged
 
             return IsIncomplete
                 ? $"[{Index}]{name} {StartDisplay}  (incomplete)"
-                : $"[{Index}]{name} {StartDisplay} → {EndDisplay}  ({DurationDisplay})";
+                : $"[{Index}]{name} {StartDisplay} - {EndDisplay}  ({DurationDisplay})";
         }
     }
 
-    public static string FormatTime(double totalSeconds)
+    // ---- Time formatting -------------------------------------------------
+    //
+    // Three styles, and one rule for choosing between them, so that a time
+    // written in one corner of the app reads the same as the same time written
+    // in another:
+    //
+    //   spoken   4s · 1m 35s · 4hr 25m 30s   how long something lasts
+    //   clock    45s · 2:05 · 1:22:05        where you are in the video
+    //   precise  00:00:05 · 01:15:30         fixed width, for editing and logs
+    //
+    // The clock style has one rule about zeros: a zero may follow a figure
+    // greater than zero (5:00) or sit between two of them (1:00:04), but a
+    // clock reading never opens with one. So there is no 0:04 and no 0:45 —
+    // below a minute there is no minutes figure to lead with, and the reading
+    // is simply "4s", "45s". Nor is there 01:45; the leading figure is not
+    // padded, so a minute and three quarters is "1:45".
+    //
+    // That is why the sub-minute fallback lives in FormatClock rather than in
+    // its callers: a caller that forgot the rule would print "0:04", and every
+    // caller has to remember it for the app to read consistently. Past a
+    // minute the clock form is the shorter of the two and no less clear, so
+    // that is where it takes over.
+
+    /// <summary>
+    /// Hours, minutes and seconds of a length in seconds, with hours allowed
+    /// to run past 24 — <see cref="TimeSpan.Hours"/> rolls over into Days,
+    /// which would report a 25-hour recording as one hour in.
+    /// </summary>
+    private static (int Hours, int Minutes, int Seconds) Split(double totalSeconds)
     {
         if (totalSeconds < 0) totalSeconds = 0;
-        var ts = TimeSpan.FromSeconds(totalSeconds);
-        if (ts.TotalHours >= 1)
-            return $"{(int)ts.TotalHours}:{ts.Minutes:D2}:{ts.Seconds:D2}";
-        return $"{ts.Minutes}:{ts.Seconds:D2}";
+        var whole = (long)totalSeconds;
+        return ((int)(whole / 3600), (int)(whole / 60 % 60), (int)(whole % 60));
     }
 
+    /// <summary>
+    /// A length in words — <c>4s</c>, <c>1m 35s</c>, <c>4hr 25m 30s</c>.
+    /// Empty parts are left out, so an hour and five seconds is
+    /// <c>1hr 5s</c> rather than <c>1hr 0m 5s</c>.
+    /// </summary>
+    public static string FormatSpoken(double totalSeconds)
+    {
+        var (h, m, s) = Split(totalSeconds);
+
+        var parts = new List<string>(3);
+        if (h > 0) parts.Add($"{h}hr");
+        if (m > 0) parts.Add($"{m}m");
+        if (s > 0 || parts.Count == 0) parts.Add($"{s}s");
+        return string.Join(" ", parts);
+    }
+
+    /// <summary>
+    /// A position on the clock — <c>45s</c>, <c>1:45</c>, <c>5:00</c>,
+    /// <c>1:22:05</c>. The leading figure is never padded and never zero:
+    /// below a minute the reading falls back to the spoken style, because
+    /// <c>0:45</c> would lead with a zero and <c>01:45</c> would pad the
+    /// figure that leads.
+    /// </summary>
+    public static string FormatClock(double totalSeconds)
+    {
+        var (h, m, s) = Split(totalSeconds);
+
+        if (h > 0) return $"{h}:{m:D2}:{s:D2}";
+        if (m > 0) return $"{m}:{s:D2}";
+        return FormatSpoken(totalSeconds);
+    }
+
+    /// <summary>
+    /// Fixed width, every field padded — <c>00:00:05</c>, <c>01:15:30</c>.
+    /// For places that are read a column at a time or typed back in, where a
+    /// value that changes length between readings is the wrong shape.
+    /// </summary>
+    public static string FormatPrecise(double totalSeconds)
+    {
+        var (h, m, s) = Split(totalSeconds);
+        return $"{h:D2}:{m:D2}:{s:D2}";
+    }
+
+    /// <summary>
+    /// A timestamp: where this is in the video. The clock style, under the
+    /// name the rest of the app already calls it by.
+    /// </summary>
+    public static string FormatTime(double totalSeconds) => FormatClock(totalSeconds);
+
+    /// <summary>How long something runs, always in the spoken style.</summary>
     public static string FormatDuration(double totalSeconds)
     {
-        if (totalSeconds < 0) totalSeconds = 0;
-
         // Rounded, not truncated. Only whole seconds are shown, and truncating
         // reported a 2.5s clip as "2s" — always short, never long.
-        var ts = TimeSpan.FromSeconds(Math.Round(totalSeconds, MidpointRounding.AwayFromZero));
-        var parts = new List<string>();
-        if (ts.Hours > 0) parts.Add($"{ts.Hours}h");
-        if (ts.Minutes > 0) parts.Add($"{ts.Minutes}m");
-        if (ts.Seconds > 0 || parts.Count == 0) parts.Add($"{ts.Seconds}s");
-        return string.Join(" ", parts);
+        if (totalSeconds < 0) totalSeconds = 0;
+        return FormatSpoken(Math.Round(totalSeconds, MidpointRounding.AwayFromZero));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
