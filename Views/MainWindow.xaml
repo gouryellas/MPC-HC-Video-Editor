@@ -718,15 +718,29 @@
                                                  With the setting off there is nothing to edit,
                                                  and an empty box on every row would be a column
                                                  of noise for the many sessions that are one cut
-                                                 and done. -->
-                                            <TextBox Text="{Binding Label, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                                     Width="130" Margin="0,0,8,0" Padding="4,2"
-                                                     Background="{DynamicResource ControlBackground}"
-                                                     Foreground="{DynamicResource TextPrimary}"
-                                                     BorderBrush="{DynamicResource BorderBrush}"
-                                                     VerticalAlignment="Center"
-                                                     ToolTip="This cut's name. Used as the chapter title when exporting chapters. Rename it to anything; renaming one does not disturb the others."
-                                                     Visibility="{Binding DataContext.UseChapterNames, RelativeSource={RelativeSource AncestorType=ListView}, Converter={StaticResource BoolToVis}}"/>
+                                                 and done.
+
+                                                 The space before the box is inside this panel
+                                                 rather than beside it, so it leaves with the box.
+                                                 A bare gap out in the row would survive the
+                                                 setting being turned off and push every row along
+                                                 by a space for a box that is not there. -->
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                                        Visibility="{Binding DataContext.UseChapterNames, RelativeSource={RelativeSource AncestorType=ListView}, Converter={StaticResource BoolToVis}}">
+                                                <TextBlock Style="{StaticResource RowGap}"/>
+                                                <!-- Height and vertical padding are held down to
+                                                     the row's own text height. A taller box makes
+                                                     the whole row taller, and anything in it that
+                                                     is not centered then reads as lifted. -->
+                                                <TextBox Text="{Binding Label, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                         Width="130" Height="20" Padding="4,0"
+                                                         Background="{DynamicResource ControlBackground}"
+                                                         Foreground="{DynamicResource TextPrimary}"
+                                                         BorderBrush="{DynamicResource BorderBrush}"
+                                                         VerticalAlignment="Center"
+                                                         VerticalContentAlignment="Center"
+                                                         ToolTip="This cut's name. Used as the chapter title when exporting chapters. Rename it to anything; renaming one does not disturb the others."/>
+                                            </StackPanel>
 
                                             <!-- [1] < 4s > - < 12s > (8s), one space between each
                                                  of them. Nudging the opening mark by a frame is
@@ -739,7 +753,15 @@
                                                     CommandParameter="start-"
                                                     ToolTip="Move the start one frame earlier"/>
                                             <TextBlock Style="{StaticResource RowGap}"/>
-                                            <TextBlock ToolTip="Click to seek MPC-HC to this time">
+                                            <!-- Centered like everything else in the row. Without
+                                                 this a TextBlock stretches to the row's full
+                                                 height and draws its text at the top of it, which
+                                                 goes unnoticed until something taller — the
+                                                 chapter name box — makes the row taller than one
+                                                 line, and then the two timestamps alone sit
+                                                 raised above the dash and the duration. -->
+                                            <TextBlock VerticalAlignment="Center"
+                                                       ToolTip="Click to seek MPC-HC to this time">
                                                 <Hyperlink Style="{StaticResource TimestampLink}"
                                                            Tag="{Binding StartSeconds}"
                                                            Click="TimestampHyperlink_Click">
@@ -761,7 +783,8 @@
                                                     CommandParameter="end-"
                                                     ToolTip="Move the end one frame earlier"/>
                                             <TextBlock Style="{StaticResource RowGap}"/>
-                                            <TextBlock ToolTip="Click to seek MPC-HC to this time">
+                                            <TextBlock VerticalAlignment="Center"
+                                                       ToolTip="Click to seek MPC-HC to this time">
                                                 <Hyperlink Style="{StaticResource TimestampLink}"
                                                            Tag="{Binding EndSeconds}"
                                                            Click="TimestampHyperlink_Click">
