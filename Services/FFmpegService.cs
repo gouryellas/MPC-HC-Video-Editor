@@ -14,6 +14,12 @@ public class FFmpegProgressEventArgs : EventArgs
     public string Message { get; init; } = "";
     public int Current { get; init; }
     public int Total { get; init; }
+
+    /// <summary>
+    /// Name of the file this step is working on, when the operation knows it.
+    /// Optional — most callers already display a file name of their own.
+    /// </summary>
+    public string? File { get; init; }
     public double Percent => Total > 0 ? (double)Current / Total * 100 : 0;
 }
 
@@ -608,11 +614,14 @@ public class FFmpegService
             for (int i = 0; i < files.Count; i++)
             {
                 ct.ThrowIfCancellationRequested();
+                // No count in the message — the panel shows "4/10" of its own,
+                // and repeating it here is what made the old display redundant.
                 progress?.Report(new FFmpegProgressEventArgs
                 {
-                    Message = $"Preparing {i + 1}/{files.Count}",
+                    Message = "Preparing",
                     Current = i,
-                    Total = files.Count + 1
+                    Total = files.Count + 1,
+                    File = Path.GetFileName(files[i])
                 });
 
                 var seg = Path.Combine(tempDir, $"s{i:D3}.mp4");
@@ -634,9 +643,10 @@ public class FFmpegService
 
             progress?.Report(new FFmpegProgressEventArgs
             {
-                Message = "Final concat…",
+                Message = "Joining",
                 Current = files.Count,
-                Total = files.Count + 1
+                Total = files.Count + 1,
+                File = Path.GetFileName(outputPath)
             });
 
             var concatArgs = $"-hide_banner -y -f concat -safe 0 -i \"{listFile}\" -c copy \"{outputPath}\"";

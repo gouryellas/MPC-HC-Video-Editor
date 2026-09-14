@@ -5,21 +5,19 @@ using System.Windows.Media;
 namespace MpcHcVideoEditor.Helpers;
 
 /// <summary>
-/// Maps 0–100 to a continuous color ramp: black at 0, through red, orange
-/// and yellow, to green at 100. Interpolated rather than banded, so the bar
-/// shifts smoothly as work progresses instead of jumping at thresholds.
+/// Maps 0–100 to the progress bar's fill colour in discrete bands: red below
+/// 25, orange to 50, yellow to 75, blue below 100, and a solid green once the
+/// job is complete. Banded rather than interpolated — the colour is meant to
+/// read as a coarse "how far along is this" at a glance, which a continuous
+/// ramp does not give you.
 /// </summary>
 public class ProgressToBrushConverter : IValueConverter
 {
-    /// <summary>Ramp stops as (percent, color), in ascending order.</summary>
-    private static readonly (double Stop, Color Color)[] Ramp =
-    {
-        (0,   Color.FromRgb(0x00, 0x00, 0x00)),   // black
-        (1,   Color.FromRgb(0xD1, 0x1B, 0x1B)),   // red
-        (15,  Color.FromRgb(0xE8, 0x6C, 0x0F)),   // orange
-        (50,  Color.FromRgb(0xE8, 0xCE, 0x0F)),   // yellow
-        (100, Color.FromRgb(0x2E, 0xA0, 0x43)),   // green
-    };
+    public static readonly Color Red    = Color.FromRgb(0xD1, 0x1B, 0x1B);
+    public static readonly Color Orange = Color.FromRgb(0xE8, 0x6C, 0x0F);
+    public static readonly Color Yellow = Color.FromRgb(0xE8, 0xCE, 0x0F);
+    public static readonly Color Blue   = Color.FromRgb(0x2F, 0x86, 0xD8);
+    public static readonly Color Green  = Color.FromRgb(0x2E, 0xA0, 0x43);
 
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
@@ -29,30 +27,21 @@ public class ProgressToBrushConverter : IValueConverter
             int i => i,
             _ => 0d
         };
-        return new SolidColorBrush(ColorAt(Math.Clamp(pct, 0, 100)));
+
+        var brush = new SolidColorBrush(ColorAt(Math.Clamp(pct, 0, 100)));
+        brush.Freeze();
+        return brush;
     }
 
-    /// <summary>Linear interpolation between the two ramp stops surrounding <paramref name="pct"/>.</summary>
-    public static Color ColorAt(double pct)
+    /// <summary>The band <paramref name="pct"/> falls in.</summary>
+    public static Color ColorAt(double pct) => pct switch
     {
-        for (int i = 1; i < Ramp.Length; i++)
-        {
-            if (pct > Ramp[i].Stop) continue;
-
-            var (lowStop, low) = Ramp[i - 1];
-            var (highStop, high) = Ramp[i];
-
-            var span = highStop - lowStop;
-            var t = span <= 0 ? 0 : (pct - lowStop) / span;
-
-            return Color.FromRgb(
-                (byte)(low.R + (high.R - low.R) * t),
-                (byte)(low.G + (high.G - low.G) * t),
-                (byte)(low.B + (high.B - low.B) * t));
-        }
-
-        return Ramp[^1].Color;
-    }
+        >= 100 => Green,
+        >= 75  => Blue,
+        >= 50  => Yellow,
+        >= 25  => Orange,
+        _      => Red,
+    };
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         => throw new NotSupportedException();

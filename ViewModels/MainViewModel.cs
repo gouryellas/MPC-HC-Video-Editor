@@ -2772,22 +2772,41 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var outPath = await ResolveOutputPathAsync(basePath);
         if (outPath == null) return;
 
+        var fileCount = ofd.FileNames.Length;
+        var outName = Path.GetFileName(outPath);
+
         IsBusy = true; ProgressPercent = 0; StatusText = "Merging…";
-        Job.Begin("Merge files", ofd.FileNames.Length);
-        Job.SetFile(1, Path.GetFileName(outPath));
+        Job.Begin("Merging files", fileCount);
+        Job.SetFile(1, Path.GetFileName(ofd.FileNames[0]));
+        var completed = false;
         try
         {
             var progress = new Progress<FFmpegProgressEventArgs>(p =>
             {
                 ProgressPercent = p.Percent;
                 StatusText = p.Message;
+                // Current is the 0-based index of the file being prepared, and
+                // reaches files.Count for the final join — clamp so the counter
+                // cannot read "11/10" on that last step.
+                Job.SetFile(Math.Min(p.Current + 1, fileCount), p.File ?? outName);
                 Job.Report(p.Message, p.Percent);
             });
             await _ffmpeg.ConcatFilesAsync(ofd.FileNames, outPath, progress);
-            StatusText = $"Merged {ofd.FileNames.Length} files → {Path.GetFileName(outPath)}";
+
+            StatusText = $"Merged {fileCount} files → {outName}";
+            completed = true;
         }
         catch (Exception ex) { StatusText = "Merge failed"; MessageBox.Show(ex.Message); }
-        finally { IsBusy = false; ProgressPercent = 0; Job.End(); }
+        finally
+        {
+            IsBusy = false; ProgressPercent = 0;
+            if (!completed) Job.End();
+        }
+
+        // Holds the finished bar on screen for a few seconds, then hides the
+        // panel itself — so no Job.End() on this path. After the finally, so
+        // the toolbar is usable again while the result is still up.
+        if (completed) Job.Complete($"Merged {fileCount} files into", outName);
     }
 
     /// <summary>
@@ -3025,7 +3044,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var succeeded = false;
 
         IsBusy = true; ProgressPercent = 0; StatusText = trimming ? "Trimming…" : "Merging…";
-        Job.Begin(trimming ? "Trim cut" : "Merge cuts");
+        Job.Begin(trimming ? "Trimming cut" : "Merging cuts");
         Job.SetFile(1, Path.GetFileName(outPath));
         try
         {
@@ -3037,9 +3056,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
             });
             await _ffmpeg.MergeBookmarksAsync(Session.VideoPath, outPath, toMerge, progress, default, format);
 
-            Job.Report("Complete", 100);
-            await Task.Delay(600);
-
             // The app now checks what it produced against what was asked for.
             // A keyframe-aligned cut running over a second long used to pass
             // silently; saying so is the whole point of measuring.
@@ -3050,9 +3066,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
             succeeded = true;
         }
         catch (Exception ex) { StatusText = trimming ? "Trim failed" : "Merge failed"; MessageBox.Show(ex.Message); }
-        finally { IsBusy = false; ProgressPercent = 0; Job.End(); }
+        finally
+        {
+            IsBusy = false; ProgressPercent = 0;
+            if (!succeeded) Job.End();
+        }
 
-        // Only after the panel is down and the output is on disk.
+        // Not awaited: the cleanup prompt below should come up straight away
+        // rather than after the finished bar has finished holding.
+        if (succeeded)
+            Job.Complete(trimming ? "Trimmed cut into" : $"Merged {toMerge.Count} cuts into",
+                         Path.GetFileName(outPath));
+
+        // Only after the output is on disk.
         if (succeeded) await RunPostOperationCleanup(source, includeBookmarks: true, justWrote: outPath);
     }
 
@@ -3084,6 +3110,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var format = OutputFormat;
         var source = Session.VideoPath;
         var succeeded = false;
+        var written = 0;
 
         IsBusy = true; ProgressPercent = 0;
         try
@@ -3091,9 +3118,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
             // Linear naming: clip 1 = <name>[done].mp4, clip 2 = <name>[done2].mp4, etc.
             // Collisions are put to the user rather than silently skipped past,
             // so a second split into the same folder is a deliberate choice.
-            Job.Begin("Split clips", toSplit.Count);
+            Job.Begin("Splitting clips", toSplit.Count);
             BeginNameBatch(toSplit.Count);
-            int i = 0, written = 0;
+            int i = 0;
             foreach (var b in toSplit)
             {
                 i++; ProgressPercent = (double)i / toSplit.Count * 100; StatusText = $"Splitting {i}/{toSplit.Count}";
@@ -3108,12 +3135,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 await _ffmpeg.MergeBookmarksAsync(Session.VideoPath, outPath, new[] { b }, null, default, format);
                 written++;
             }
-            // Let the bar land on 100% and hold it briefly. Previously a "Done"
-            // dialog appeared the instant the last clip finished, freezing the
-            // bar short of full and demanding a click before anything moved on.
-            Job.Report("Complete", 100);
-            await Task.Delay(600);
-
             StatusText = $"Created {written} clip(s) in {outDir}";
 
             // A run in which every clip was canceled wrote nothing, so there
@@ -3121,7 +3142,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
             succeeded = written > 0;
         }
         catch (Exception ex) { StatusText = "Split failed"; MessageBox.Show(ex.Message); }
-        finally { IsBusy = false; ProgressPercent = 0; Job.End(); }
+        finally
+        {
+            IsBusy = false; ProgressPercent = 0;
+            if (!succeeded) Job.End();
+        }
+
+        // Many outputs rather than one, so the destination folder stands in for
+        // the created file. Not awaited — the cleanup prompt comes first.
+        if (succeeded) Job.Complete($"Split into {written} clip(s) in", outDir);
 
         if (succeeded) await RunPostOperationCleanup(source, includeBookmarks: true);
     }
@@ -3282,14 +3311,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // it in, so a failure can never cost the original.
         var convertedSources = new List<string>();
 
-        Job.Begin($"Convert images to {format.Display}", ofd.FileNames.Length);
+        Job.Begin($"Converting images to {format.Display}", ofd.FileNames.Length);
         BeginNameBatch(ofd.FileNames.Length);
 
         foreach (var file in ofd.FileNames)
         {
             _batchRemaining = ofd.FileNames.Length - done;
             Job.SetFile(done + 1, Path.GetFileName(file));
-            Job.Report($"Writing {format.Display}", (double)done / ofd.FileNames.Length * 100);
+            // Bare "Writing": the action already names the format, and the panel
+            // shows the two joined as "Converting images to PNG · Writing".
+            Job.Report("Writing", (double)done / ofd.FileNames.Length * 100);
             StatusText = $"Converting {Path.GetFileName(file)}…";
 
             var outPath = await ResolveOutputPathAsync(
@@ -3314,14 +3345,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             done++;
             ProgressPercent = (double)done / ofd.FileNames.Length * 100;
-            Job.Report($"Writing {format.Display}", ProgressPercent);
+            Job.Report("Writing", ProgressPercent);
         }
 
-        Job.Report("Complete", 100);
-        await Task.Delay(600);
-
         IsBusy = false; ProgressPercent = 0;
-        Job.End();
+
+        Job.Complete(errors.Count == 0
+            ? $"Converted {done} image(s) to {format.Display} in"
+            : $"Converted with {errors.Count} error(s) — output in",
+            ResolveSaveToDirectory());
 
         StatusText = errors.Count == 0
             ? $"Converted {done} image(s) to {format.Display}"
@@ -3576,7 +3608,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var convertedSources = new List<string>();
 
         IsBusy = true; int done = 0; var errors = new List<string>();
-        Job.Begin("Convert video", ofd.FileNames.Length);
+        Job.Begin("Converting video", ofd.FileNames.Length);
         BeginNameBatch(ofd.FileNames.Length);
         foreach (var file in ofd.FileNames)
         {
@@ -3615,12 +3647,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
             catch (Exception ex) { errors.Add($"{Path.GetFileName(file)}: {ex.Message}"); }
             done++;
         }
-        // Land on 100% before the panel disappears.
-        Job.Report("Complete", 100);
-        await Task.Delay(600);
-
         IsBusy = false; ProgressPercent = 0;
-        Job.End();
+
+        Job.Complete(errors.Count == 0
+            ? $"Converted {done} file(s) to {label} in"
+            : $"Converted with {errors.Count} error(s) — output in",
+            ResolveSaveToDirectory());
+
         StatusText = errors.Count == 0 ? $"Converted {done} file(s) to {label}" : $"Finished with {errors.Count} error(s)";
         if (errors.Count > 0) MessageBox.Show(string.Join("\n", errors));
 
@@ -3635,7 +3668,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var ofd = new OpenFileDialog { Filter = "Video Files|*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.webm|All Files|*.*", Multiselect = true };
         if (ofd.ShowDialog() != true) return;
         IsBusy = true; int done = 0;
-        Job.Begin("Strip audio", ofd.FileNames.Length);
+        Job.Begin("Stripping audio", ofd.FileNames.Length);
         BeginNameBatch(ofd.FileNames.Length);
         foreach (var file in ofd.FileNames)
         {
@@ -3643,7 +3676,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
             StatusText = $"Extracting: {Path.GetFileName(file)}";
             ProgressPercent = (double)done / ofd.FileNames.Length * 100;
             Job.SetFile(done + 1, Path.GetFileName(file));
-            Job.Report("Extracting audio to MP3", (double)done / ofd.FileNames.Length * 100);
+            // The action already says "audio"; joined it reads
+            // "Stripping audio · Extracting to MP3".
+            Job.Report("Extracting to MP3", (double)done / ofd.FileNames.Length * 100);
 
             // Suffix applies to audio extraction too: <name>[done].mp3
             var outPath = await ResolveOutputPathAsync(
@@ -3661,10 +3696,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
             try { await _ffmpeg.StripAudioAsync(file, outPath, fileProgress); } catch (Exception ex) { MessageBox.Show(ex.Message); }
             done++;
         }
-        Job.Report("Complete", 100);
-        await Task.Delay(600);
-
-        IsBusy = false; ProgressPercent = 0; Job.End(); StatusText = "Audio extraction finished";
+        IsBusy = false; ProgressPercent = 0;
+        Job.Complete($"Extracted audio from {done} file(s) to", ResolveSaveToDirectory());
+        StatusText = "Audio extraction finished";
     }
 
     [RelayCommand]
@@ -4000,13 +4034,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         IsBusy = true;
         Job.Begin("Writing chapters");
+        Job.SetFile(1, Path.GetFileName(sfd.FileName));
+        var succeeded = false;
         try
         {
             var progress = new Progress<FFmpegProgressEventArgs>(e => Job.Report(e.Message, e.Current));
             await _ffmpeg.ExportChaptersAsync(Session.VideoPath, sfd.FileName, usable, progress);
-            Job.Report("Complete", 100);
-            await Task.Delay(400);
             StatusText = $"Wrote {usable.Count} chapters → {Path.GetFileName(sfd.FileName)}";
+            succeeded = true;
         }
         catch (Exception ex)
         {
@@ -4017,8 +4052,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         finally
         {
             IsBusy = false;
-            Job.End();
+            if (!succeeded) Job.End();
         }
+
+        if (succeeded)
+            Job.Complete($"Wrote {usable.Count} chapters into", Path.GetFileName(sfd.FileName));
     }
 
     private bool CanExportChapters() =>

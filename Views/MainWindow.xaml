@@ -465,7 +465,6 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <!-- Marquee rather than TextBlock: "Created <name> — <warning>"
@@ -473,6 +472,8 @@
                      warning is the half that gets clipped. -->
                 <helpers:MarqueeText Text="{Binding StatusText}" Foreground="{DynamicResource OnAccent}" VerticalAlignment="Center"/>
 
+                <!-- No progress bar here: the job panel directly above owns
+                     progress, and a second bar showed the same number twice. -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="16,0">
                     <TextBlock Text="{Binding HotkeyStatus}" Foreground="{DynamicResource ValueYellow}" VerticalAlignment="Center"/>
                     <StackPanel Orientation="Horizontal" Visibility="{Binding IsMpcRunning, Converter={StaticResource BoolToVis}}" Margin="16,0,0,0">
@@ -481,11 +482,6 @@
                         <TextBlock Text="{Binding DurationDisplay}" Foreground="{DynamicResource AccentBright}" VerticalAlignment="Center"/>
                     </StackPanel>
                 </StackPanel>
-
-                <ProgressBar Grid.Column="2" Width="160" Height="8"
-                             Value="{Binding ProgressPercent}"
-                             Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}"
-                             Background="{DynamicResource PrimaryButton}" Foreground="{DynamicResource OnAccent}"/>
             </Grid>
         </Border>
 
@@ -494,28 +490,32 @@
         <Border DockPanel.Dock="Bottom" Background="{DynamicResource PanelBackground}" Padding="12,8"
                 Visibility="{Binding Job.IsRunning, Converter={StaticResource BoolToVis}}">
             <StackPanel>
-                <Grid Margin="0,0,0,6">
+                <!-- One line for what is happening, the file counter and the
+                     percentage; one for the file itself. The step used to carry
+                     its own count and sit on a row of its own, which said the
+                     same thing three ways. -->
+                <Grid Margin="0,0,0,4">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Text="{Binding Job.Action}" Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold"/>
-                    <TextBlock Grid.Column="1" Text="{Binding Job.FileCountDisplay}" Foreground="{DynamicResource TextSecondary}"
-                               Margin="12,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding Job.HeadlineDisplay}" Foreground="{DynamicResource TextPrimary}"
+                               FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" Text="{Binding Job.FileProgressDisplay}" Foreground="{DynamicResource ValueYellow}"
+                               FontWeight="SemiBold" Margin="12,0" VerticalAlignment="Center"/>
                     <TextBlock Grid.Column="2" Text="{Binding Job.PercentDisplay}" Foreground="{DynamicResource TextPrimary}"
-                               FontWeight="SemiBold"/>
+                               FontWeight="SemiBold" VerticalAlignment="Center"/>
                 </Grid>
 
                 <TextBlock Text="{Binding Job.CurrentFile}" Foreground="{DynamicResource Accent}"
-                           TextTrimming="CharacterEllipsis" Margin="0,0,0,2"/>
-                <TextBlock Text="{Binding Job.Step}" Foreground="{DynamicResource ValueYellow}"
                            TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
 
-                <!-- Color comes from the percentage itself, ramping black →
-                     red → orange → yellow → green. -->
-                <Border Background="{DynamicResource TimelineTrack}" CornerRadius="3" Height="14" Padding="2">
+                <!-- Black track. Fill colour comes from the percentage: red
+                     under 25, orange to 50, yellow to 75, blue under 100, solid
+                     green at 100 (held for a few seconds by JobProgress). -->
+                <Border Background="#FF000000" CornerRadius="3" Height="14" Padding="2">
                     <Grid>
                         <Rectangle HorizontalAlignment="Left" RadiusX="2" RadiusY="2"
                                    Fill="{Binding Job.Percent, Converter={StaticResource ProgressBrush}}"
