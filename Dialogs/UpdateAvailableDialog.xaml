@@ -76,9 +76,17 @@
         </Border>
 
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
-            <!-- IsCancel closes by itself; Esc lands here, which is the right
-                 default for a notice nobody asked for. -->
-            <Button Content="Not now" Width="90" IsCancel="True"/>
+            <!-- Closed from code-behind, not by IsCancel. IsCancel closes a
+                 window by setting DialogResult, and DialogResult only means
+                 anything on a window shown with ShowDialog. This notice is
+                 shown with Show() — see the class remarks for why it must not
+                 block — so the cancel path silently did nothing and the button
+                 was dead. Esc was dead with it, for the same reason.
+
+                 IsCancel stays for the role it still carries: it marks this as
+                 the dismissing button for automation and accessibility. It is
+                 no longer what does the dismissing. -->
+            <Button Content="Not now" Width="90" IsCancel="True" Click="NotNow_Click"/>
             <Button Content="Open the releases page" Click="Releases_Click" IsDefault="True"
                     Background="{DynamicResource PrimaryButton}"
                     BorderBrush="{DynamicResource PrimaryButtonBorder}"

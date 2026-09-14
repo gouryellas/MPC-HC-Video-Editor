@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Input;
 
 namespace MpcHcVideoEditor.Dialogs;
 
@@ -47,6 +48,38 @@ public partial class UpdateAvailableDialog : Window
     {
         AboutDialog.OpenUrl(_releaseUrl);
         Close();
+    }
+
+    /// <summary>
+    /// Dismisses the notice, leaving the update check on.
+    /// </summary>
+    /// <remarks>
+    /// An explicit Close, because <c>IsCancel</c> cannot do it here: it works
+    /// by setting <see cref="Window.DialogResult"/>, which throws on — and is
+    /// therefore skipped for — a window that was not shown with
+    /// <c>ShowDialog</c>. This one is shown with <c>Show</c>, so the button
+    /// raised its Click and nothing happened.
+    /// </remarks>
+    private void NotNow_Click(object sender, RoutedEventArgs e) => Close();
+
+    /// <summary>
+    /// Closes on Esc.
+    /// </summary>
+    /// <remarks>
+    /// Handled here for the same reason as <see cref="NotNow_Click"/>. Esc
+    /// reaches the <c>IsCancel</c> button through the same DialogCancel path
+    /// that a click does, so it was dead in exactly the same way — and a notice
+    /// nobody asked for is precisely the kind of window Esc should shift.
+    /// </remarks>
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            Close();
+            e.Handled = true;
+        }
+
+        base.OnPreviewKeyDown(e);
     }
 
     /// <summary>
