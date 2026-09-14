@@ -46,6 +46,14 @@ globs `**/*.cs` and excludes only `bin` and `obj`, so a copy under, say,
 files are removed will clean stale outputs, so republish after any such change.
 
 **Everything is portable.** Settings, the stall log and any other data live
-beside the executable, not under `%APPDATA%`. On first run the app copies an
-existing `%APPDATA%\MPC-HC Video Editor\settings.json` in, if one is there, so
-an earlier non-portable install's configuration carries over.
+beside the executable. The app reads and writes `settings.json` there and
+nowhere else.
+
+**One exception, and it is a backup.** Every settings save also drops a copy in
+`%APPDATA%\MPC-HC Video Editor\settings.json`. The app reads that copy only when
+it starts with no settings beside the executable — the state a folder replaced
+during an upgrade is in, and also the state left by a pre-portable install. A
+local file always wins, so a deliberately fresh copy of the folder stays fresh.
+Worth knowing while testing: deleting `publish\portable\settings.json` no longer
+gives you a first-run install on a machine that has ever saved settings. Clear
+the `%APPDATA%` copy too.

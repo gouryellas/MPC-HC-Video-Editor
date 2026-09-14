@@ -272,6 +272,11 @@ public partial class MainWindow : Window
             _minimal.Closed += (_, _) => _minimal = null;
         }
 
+        // Before the Show, unlike the two below: this one decides whether the
+        // window swallows clicks, and a frame of the wrong answer is a click
+        // that went to the wrong place rather than a cosmetic flicker.
+        _minimal.SetClickable(_vm?.OverlayClickable ?? false);
+
         _minimal.Show();
         _minimal.SetBackgroundOpacity(_vm?.OverlayOpacity ?? 1.0);
         _minimal.PositionInCorner(_vm?.OverlayCorner ?? OverlayCorner.TopRight);

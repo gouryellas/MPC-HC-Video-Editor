@@ -7,11 +7,19 @@ extract audio from them with ffmpeg.
 
 ![The compact overlay in the top-right corner of a video playing in MPC-HC, listing three timestamp pairs with their start, end and duration](Assets/screenshots/1.png)
 
-**Fully portable.** Everything the app writes — `settings.json`, `stalls.log` —
-lives beside the executable. Nothing goes to `%APPDATA%` and there is no
-installer. Copy the folder anywhere and it runs. On first launch it copies an
-existing `%APPDATA%\MPC-HC Video Editor\settings.json` in, if one is there, so
-an earlier non-portable install's configuration carries over.
+**Fully portable.** Everything the app reads and writes — `settings.json`,
+`stalls.log` — lives beside the executable. There is no installer. Copy the
+folder anywhere and it runs.
+
+**Upgrading is safe.** A spare copy of `settings.json` is kept in
+`%APPDATA%\MPC-HC Video Editor\`, and is used for one thing: if the app starts
+and finds no settings beside the executable but does find that copy, it restores
+from it. So the common upgrade — delete the old folder, unpack the new one —
+keeps your shortcuts, naming tags, suffixes and hotkeys instead of silently
+resetting them. Settings beside the executable always win, so a deliberately
+fresh copy of the folder stays fresh, and the same step carries over the
+configuration of an earlier non-portable install, which kept its settings in
+that same place.
 
 ---
 
@@ -46,7 +54,7 @@ Settings, in five tabs:
 <td><img src="Assets/screenshots/settings-player.png" alt="The Player tab, showing the detected MPC-HC web interface port, the polling speed and the ffmpeg folder" width="100%"></td>
 </tr>
 <tr>
-<td colspan="2" align="center"><strong>Overlay</strong> — corner and background opacity</td>
+<td colspan="2" align="center"><strong>Overlay</strong> — corner, background opacity and click-to-seek</td>
 </tr>
 <tr>
 <td colspan="2" align="center"><img src="Assets/screenshots/settings-overlay.png" alt="The Overlay tab, showing the corner the compact overlay parks in and its background opacity" width="50%"></td>
@@ -150,6 +158,14 @@ and following focus is what they were mostly being used to approximate.
 
 The overlay comes down if the bookmark list empties (opening another video in the
 player clears it), and returns with the next bookmark.
+
+**Settings ▸ Overlay ▸ Clicking** makes the overlay's timestamps seek MPC-HC,
+the way they do in the full window. Off by default, and worth understanding
+before turning on: the overlay is click-through, so clicks over it normally
+reach the video underneath. Switching this on means they no longer do — the
+panel catches them, and that corner of the screen stops pausing the video. The
+transparent area around the panel is unaffected. The overlay still never takes
+focus, so seeking from it does not bring the full window back.
 
 ### Timeline
 

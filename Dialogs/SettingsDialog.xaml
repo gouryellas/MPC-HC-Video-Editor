@@ -553,6 +553,20 @@
                             </StackPanel>
                         </Border>
 
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Clicking" Style="{StaticResource Heading}"/>
+                                <CheckBox x:Name="OverlayClickableCheck"
+                                          Content="Clicking a time on the overlay seeks MPC-HC"/>
+                                <!-- The trade is the whole reason this is a
+                                     setting rather than the default, so it is
+                                     spelled out rather than left to be
+                                     discovered by a click that did nothing. -->
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Off by default, because the overlay normally passes clicks straight through to the video behind it. Turning this on means clicks landing on the panel go to the panel — that corner of the screen will no longer pause the video. Applied the next time the overlay appears."/>
+                            </StackPanel>
+                        </Border>
+
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

@@ -28,6 +28,32 @@
 
     <Window.Resources>
         <helpers:BoolToVisibilityConverter x:Key="MinimalBoolToVis"/>
+
+        <!-- A bookmark's start or end time. Seeks the player when the overlay
+             is clickable (the OverlayClickable setting), and is inert
+             otherwise.
+
+             One style covers both cases, with no switch on the setting: while
+             the overlay is click-through the window is not hit-tested at all,
+             so the cursor never changes and the hover trigger never fires. The
+             affordance appears exactly when it means something.
+
+             Underline only on hover — the resting color stays what it has
+             always been, so turning the setting on does not repaint the list.
+             Tag carries the time to seek to, per-instance, the way the main
+             window's timestamp hyperlinks carry theirs. -->
+        <Style x:Key="OverlayTimestamp" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource AccentBright}"/>
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <EventSetter Event="MouseLeftButtonUp" Handler="Timestamp_Click"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="TextDecorations" Value="Underline"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <!-- Opaque, with a border. Over bright video a translucent panel left the
@@ -74,13 +100,18 @@
                             <StackPanel Orientation="Horizontal" Margin="0,2">
                                 <TextBlock Text="{Binding Index, StringFormat=[{0}]}" Foreground="{DynamicResource LinkBlue}"
                                            FontWeight="Bold" FontFamily="Consolas" FontSize="13" MinWidth="34"/>
-                                <TextBlock Text="{Binding StartDisplay}" Foreground="{DynamicResource AccentBright}"
-                                           FontFamily="Consolas" FontSize="13"/>
+                                <TextBlock Text="{Binding StartDisplay}" Tag="{Binding StartSeconds}"
+                                           Style="{StaticResource OverlayTimestamp}"/>
                                 <!-- Was #666, which on a dark card was very nearly
                                      the background. -->
+                                <!-- Not part of either timestamp: the dash sits
+                                     between the two click targets, so giving it
+                                     the clickable style would make the gap seek
+                                     to whichever time the pointer happened to
+                                     be nearer. -->
                                 <TextBlock Text=" - " Foreground="{DynamicResource TextSecondary}" FontFamily="Consolas" FontSize="13"/>
-                                <TextBlock Text="{Binding EndDisplay}" Foreground="{DynamicResource AccentBright}"
-                                           FontFamily="Consolas" FontSize="13"/>
+                                <TextBlock Text="{Binding EndDisplay}" Tag="{Binding EndSeconds}"
+                                           Style="{StaticResource OverlayTimestamp}"/>
                                 <TextBlock Text="{Binding DurationDisplay, StringFormat=  ({0})}"
                                            Foreground="{DynamicResource ValueGreen}" FontFamily="Consolas" FontSize="13"/>
                                 <TextBlock Text="{Binding Prefix}" Foreground="{DynamicResource StatusWarn}"

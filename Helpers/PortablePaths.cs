@@ -37,10 +37,21 @@ public static class PortablePaths
     }
 
     /// <summary>
-    /// The pre-portable location under %APPDATA%, used once to carry existing
-    /// settings over. Nothing is written here any more.
+    /// A folder under %APPDATA% holding a spare copy of settings.json.
     /// </summary>
-    public static string LegacyAppDataFolder => Path.Combine(
+    /// <remarks>
+    /// This is a backup, not a second home: the settings the application reads
+    /// and writes still live beside the executable, and an install is still one
+    /// folder that can be copied or moved. The copy here exists for one case —
+    /// upgrading by deleting the program folder and unpacking a new one, which
+    /// takes settings.json with it. When the application finds no settings
+    /// beside the executable but does find this copy, it restores from it.
+    ///
+    /// It is also where settings lived before the application became portable,
+    /// and the same path serves both purposes: a pre-portable install and a
+    /// replaced folder look identical from here, and want the same answer.
+    /// </remarks>
+    public static string BackupFolder => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "MPC-HC Video Editor");
 }

@@ -91,13 +91,12 @@ public class Bookmark : INotifyPropertyChanged
     /// </summary>
     private void AnnounceOpenState()
     {
-        // An open bookmark has no range to act on, so it cannot stay checked.
-        if (IsIncomplete && _isSelected)
-        {
-            _isSelected = false;
-            OnPropertyChanged(nameof(IsSelected));
-        }
-
+        // The check survives a bookmark being reopened. It used to be cleared
+        // here, on the reasoning that an open bookmark has no range to act on —
+        // but that conflated "cannot be cut" with "cannot be checked", and the
+        // check is the user's mark on a row, not a claim about what can be done
+        // to it. Removing a closing timestamp to move it now leaves the row
+        // checked, where before the check had to be found and restored.
         OnPropertyChanged(nameof(IsIncomplete));
         OnPropertyChanged(nameof(IsValid));
         OnPropertyChanged(nameof(DisplayText));
@@ -108,19 +107,24 @@ public class Bookmark : INotifyPropertyChanged
     /// on a selection (merge, split, play selected, delete, edit times).
     /// </summary>
     /// <remarks>
-    /// A bookmark with only an opening timestamp has no range to act on, so
-    /// it cannot be selected — assigning <c>true</c> to an incomplete
-    /// bookmark is ignored. The rule lives here rather than at each call site
-    /// so the checkbox, "Select all", and any future caller all obey it.
+    /// Any bookmark can be checked, including one with only an opening
+    /// timestamp. This used to refuse to be set on an incomplete bookmark, and
+    /// the checkbox was disabled to match — but that left a lone opening
+    /// timestamp as the one row in the list the user could not mark, and so
+    /// could not reach with "delete selected" either.
+    ///
+    /// Nothing downstream had to relax for this. The commands that cut, merge,
+    /// play or flip already filter the checked rows to the complete ones
+    /// (<see cref="IsValid"/>) rather than trusting the check alone, so an
+    /// incomplete bookmark being checked is simply invisible to them.
     /// </remarks>
     public bool IsSelected
     {
         get => _isSelected;
         set
         {
-            var effective = value && IsValid;
-            if (_isSelected == effective) return;
-            _isSelected = effective;
+            if (_isSelected == value) return;
+            _isSelected = value;
             OnPropertyChanged();
         }
     }

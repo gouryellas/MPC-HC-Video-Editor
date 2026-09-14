@@ -56,6 +56,9 @@ public partial class SettingsDialog : Window
     public bool AllowMultipleInstances { get; private set; }
     public OverlayCorner OverlayCorner { get; private set; }
     public double OverlayOpacity { get; private set; }
+
+    /// <summary>Whether the overlay's timestamps seek when clicked.</summary>
+    public bool OverlayClickable { get; private set; }
     public int MaxHistory { get; private set; }
 
     /// <summary>
@@ -127,6 +130,7 @@ public partial class SettingsDialog : Window
         AllowMultipleInstances = current.AllowMultipleInstances;
         OverlayCorner = current.OverlayCorner;
         OverlayOpacity = current.OverlayOpacity;
+        OverlayClickable = current.OverlayClickable;
         MaxHistory = current.MaxHistory;
 
         _originalFfmpegFolder = FfmpegFolder;
@@ -213,6 +217,7 @@ public partial class SettingsDialog : Window
         }).IsChecked = true;
 
         OpacitySlider.Value = Math.Clamp(current.OverlayOpacity, 0.3, 1.0);
+        OverlayClickableCheck.IsChecked = current.OverlayClickable;
         OpacitySlider.ValueChanged += (_, _) => ShowOpacity();
         ShowOpacity();
 
@@ -359,6 +364,7 @@ public partial class SettingsDialog : Window
         MaxHistory = history;
         ToastSeconds = toastSeconds;
         OverlayOpacity = OpacitySlider.Value;
+        OverlayClickable = OverlayClickableCheck.IsChecked == true;
 
         FfmpegFolder = FfmpegBox.Text?.Trim() ?? "";
         FfmpegFolderChanged = !string.Equals(FfmpegFolder, _originalFfmpegFolder,

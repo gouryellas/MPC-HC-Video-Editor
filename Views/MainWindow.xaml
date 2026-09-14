@@ -600,7 +600,7 @@
 
                 <ProgressBar Value="{Binding TimelineProgress}" Minimum="0" Maximum="1"
                              Height="6" Margin="0,6" Background="Transparent"
-                             Foreground="{DynamicResource PrimaryButton}" BorderThickness="0"/>
+                             Foreground="{DynamicResource TimelinePosition}" BorderThickness="0"/>
 
                 <helpers:TimelineRanges Height="8" Margin="0,2,0,8"
                                         VerticalAlignment="Top"
@@ -703,13 +703,15 @@
                                                      VerticalAlignment="Center"
                                                      HorizontalAlignment="Center"
                                                      Cursor="Hand"/>
-                                        <!-- Disabled rather than hidden while the bookmark is
-                                             still open: it shows the checkbox is coming once a
-                                             closing timestamp is set, instead of the row
-                                             silently changing shape. -->
+                                        <!-- Checkable on every row, including a bookmark that is
+                                             still open. It was disabled until a closing timestamp
+                                             arrived, which made a lone opening timestamp the one
+                                             row that could not be marked — and so the one row
+                                             "delete selected" could not reach. The actions that
+                                             need a real range filter for one themselves; see
+                                             Bookmark.IsSelected. -->
                                         <CheckBox Grid.Column="1" IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                  IsEnabled="{Binding IsValid}"
-                                                  ToolTip="Set a closing timestamp before this cut can be selected"
+                                                  ToolTip="Check this cut for the actions that work on a selection"
                                                   VerticalAlignment="Center"/>
                                         <TextBlock Grid.Column="2" Text="{Binding Index, StringFormat=[{0}]}" FontWeight="Bold" Foreground="{DynamicResource LinkBlue}" VerticalAlignment="Center"/>
 

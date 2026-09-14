@@ -57,6 +57,24 @@ public sealed record ThemePalette(
     string PrimaryButtonBorder,
 
     /// <summary>
+    /// Playback position on the timeline, drawn over
+    /// <see cref="TimelineTrack"/>.
+    /// </summary>
+    /// <remarks>
+    /// Its own role rather than a second use of <see cref="PrimaryButton"/>,
+    /// which is what it used to borrow. The two answer different questions — one
+    /// is "which button commits the action", the other "where is the playhead" —
+    /// and sharing a value meant the position could not be recolored without
+    /// moving every primary button with it.
+    ///
+    /// Blue in every theme, and deliberately not drawn from the theme's accent:
+    /// the range marks above it are fixed colors (amber, teal, salmon, red), so
+    /// an accent-colored position collided with them outright in the warm theme,
+    /// where amber sat under amber. Blue is the one hue none of them use.
+    /// </remarks>
+    string TimelinePosition,
+
+    /// <summary>
     /// Text sitting on <see cref="PrimaryButton"/> and the colored action
     /// buttons. A role rather than a literal "White", so a theme with a pale
     /// primary button is possible without hunting through the XAML.
@@ -115,6 +133,7 @@ public sealed record ThemePalette(
         TextSecondary: "#A79E93", TextMuted: "#8A8076",
         Accent: "#E0A253", AccentBright: "#F2BE7C",
         PrimaryButton: "#8A5D22", PrimaryButtonBorder: "#B27B33",
+        TimelinePosition: "#4A90D9",
         OnAccent: "#FFF6EA",
         LinkBlue: "#D8A96A", ValueYellow: "#E8C87E", ValueGreen: "#BFCF95",
         StatusOk: "#A9C98A", StatusError: "#E4736B", StatusWarn: "#E0A253",
@@ -138,6 +157,7 @@ public sealed record ThemePalette(
         TextSecondary: "#8FA3BC", TextMuted: "#6E819A",
         Accent: "#5AC8E0", AccentBright: "#86DCEE",
         PrimaryButton: "#1F5F7A", PrimaryButtonBorder: "#2E7E9E",
+        TimelinePosition: "#4A9EE0",
         OnAccent: "#F0FAFD",
         LinkBlue: "#6FB3E8", ValueYellow: "#E8D48E", ValueGreen: "#9FD8B8",
         StatusOk: "#8FD4A8", StatusError: "#E8706E", StatusWarn: "#E8B366",
@@ -161,6 +181,7 @@ public sealed record ThemePalette(
         TextSecondary: "#5A6070", TextMuted: "#7B8190",
         Accent: "#3B4CA8", AccentBright: "#5566C4",
         PrimaryButton: "#3B4CA8", PrimaryButtonBorder: "#2E3D8C",
+        TimelinePosition: "#2C6BB8",
         OnAccent: "#FFFFFF",
         LinkBlue: "#2C6BB8", ValueYellow: "#8A6A18", ValueGreen: "#3F6B2E",
         StatusOk: "#2E7D4F", StatusError: "#B3312C", StatusWarn: "#9A6708",

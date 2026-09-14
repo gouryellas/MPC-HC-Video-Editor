@@ -1,19 +1,25 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using System.Runtime.InteropServices;
 using MpcHcVideoEditor.Services;
+using MpcHcVideoEditor.ViewModels;
 
 namespace MpcHcVideoEditor.Views;
 
 /// <summary>
 /// Click-through overlay listing just the bookmarks, for when the video
-/// covers the main window. Purely informational — it takes no input at all;
-/// the X key (handled globally by the ViewModel) restores the full window, and
-/// is live only while this window is actually showing, which is what the
-/// "Press X" hint at the bottom of the card can therefore be trusted to mean.
+/// covers the main window. Informational by default — it takes no input at
+/// all; the X key (handled globally by the ViewModel) restores the full
+/// window, and is live only while this window is actually showing, which is
+/// what the "Press X" hint at the bottom of the card can therefore be trusted
+/// to mean.
+///
+/// <see cref="SetClickable"/> opts the card into taking mouse input, so the
+/// timestamps can seek the player. It never takes focus either way.
 /// </summary>
 public partial class MinimalWindow : Window
 {
@@ -81,18 +87,94 @@ public partial class MinimalWindow : Window
             else _topmostTimer.Stop();
         };
 
-        // IsHitTestVisible stops WPF routing input, but the window would still
-        // swallow clicks at the OS level and steal focus from the player.
-        // WS_EX_TRANSPARENT passes clicks through to whatever is underneath;
-        // WS_EX_NOACTIVATE keeps it from taking focus; WS_EX_TOOLWINDOW keeps
-        // it out of Alt+Tab.
-        SourceInitialized += (_, _) =>
+        // The extended styles cannot be set before there is a handle to set
+        // them on, and SetClickable can be called before the first Show.
+        SourceInitialized += (_, _) => ApplyExtendedStyle();
+    }
+
+    /// <summary>
+    /// Whether the card takes mouse input. Mirrors the OverlayClickable
+    /// setting; re-applied on every show.
+    /// </summary>
+    private bool _clickable;
+
+    /// <summary>
+    /// Opts the card into taking clicks, so its timestamps can seek.
+    /// </summary>
+    /// <remarks>
+    /// Two switches, because either one alone leaves the window half-deaf.
+    /// <see cref="UIElement.IsHitTestVisible"/> governs whether WPF routes
+    /// input to the elements inside; WS_EX_TRANSPARENT governs whether the
+    /// window is offered the click by Windows in the first place. The default
+    /// is both off — clicks land on the video underneath, which is what makes
+    /// the overlay something you can work over rather than around.
+    ///
+    /// Turning it on costs exactly that: the card stops passing clicks
+    /// through, so the corner it occupies no longer pauses the video. The
+    /// transparent pane around the card is unaffected — this window is
+    /// layered, and Windows skips fully transparent pixels when deciding who
+    /// gets a click, so only the card itself (and the soft edge of its drop
+    /// shadow) ever catches one.
+    ///
+    /// WS_EX_NOACTIVATE stays on regardless, and is what keeps this safe to
+    /// turn on at all: the click is delivered without the window being
+    /// activated, so the player keeps the foreground. That matters more here
+    /// than it looks — the poll in MainViewModel treats the player losing
+    /// focus as the user asking for the full window back, so a click that
+    /// activated this window would tear the overlay down out from under the
+    /// pointer.
+    /// </remarks>
+    public void SetClickable(bool clickable)
+    {
+        _clickable = clickable;
+        IsHitTestVisible = clickable;
+        ApplyExtendedStyle();
+    }
+
+    /// <summary>
+    /// Writes the window's extended styles for the current
+    /// <see cref="_clickable"/> state. A no-op until there is a handle;
+    /// SourceInitialized calls it again once there is.
+    /// </summary>
+    /// <remarks>
+    /// WS_EX_NOACTIVATE keeps the window from taking focus; WS_EX_TOOLWINDOW
+    /// keeps it out of Alt+Tab. Both hold whether or not the card is
+    /// clickable. Only WS_EX_TRANSPARENT — pass clicks through to whatever is
+    /// underneath — moves.
+    /// </remarks>
+    private void ApplyExtendedStyle()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;
+
+        var style = GetWindowLong(hwnd, GwlExStyle) | WsExNoActivate | WsExToolWindow;
+
+        SetWindowLong(hwnd, GwlExStyle,
+            _clickable ? style & ~WsExTransparent : style | WsExTransparent);
+    }
+
+    /// <summary>
+    /// Seeks the player to a clicked timestamp. Only ever reached while the
+    /// overlay is clickable, since nothing is hit-tested otherwise.
+    /// </summary>
+    /// <remarks>
+    /// The time is carried on Tag, bound per-instance to StartSeconds or
+    /// EndSeconds in the row template — the same arrangement the main window's
+    /// timestamp hyperlinks use. Handled on button-up rather than button-down
+    /// so that a press which drifts off the text before release does not seek.
+    ///
+    /// A plain TextBlock, not a Hyperlink as in the main window: a Hyperlink
+    /// takes focus when clicked, and focus is the one thing this window must
+    /// not take.
+    /// </remarks>
+    private void Timestamp_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: double seconds }
+            && DataContext is MainViewModel vm)
         {
-            var hwnd = new WindowInteropHelper(this).Handle;
-            var style = GetWindowLong(hwnd, GwlExStyle);
-            SetWindowLong(hwnd, GwlExStyle,
-                style | WsExTransparent | WsExNoActivate | WsExToolWindow);
-        };
+            vm.SeekToTimeCommand.Execute(seconds);
+            e.Handled = true;
+        }
     }
 
     /// <summary>Re-claims the top-most band without taking focus.</summary>

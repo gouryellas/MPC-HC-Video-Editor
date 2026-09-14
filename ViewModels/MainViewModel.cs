@@ -189,11 +189,22 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public int CompletePairCount => Session.Bookmarks.Count(b => b.IsValid);
 
     /// <summary>
-    /// Complete bookmarks the user has checked. There is no "any selection"
-    /// counterpart: <see cref="Bookmark.IsSelected"/> refuses to be set on an
-    /// incomplete bookmark, so a checked bookmark is always a complete one.
+    /// Complete bookmarks the user has checked — what the actions that need a
+    /// real range (cut, merge, play, flip) are gated on.
     /// </summary>
     public int SelectedPairCount => Session.Bookmarks.Count(b => b.IsSelected && b.IsValid);
+
+    /// <summary>
+    /// Checked bookmarks of any kind, complete or still open.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <see cref="SelectedPairCount"/> because the two answer
+    /// different questions. "Can this be cut" wants complete pairs; "is
+    /// anything marked" — delete, and clearing the selection — wants whatever
+    /// the user actually checked. Gating delete on the pair count left a lone
+    /// opening timestamp checked but undeletable.
+    /// </remarks>
+    public int SelectedCount => Session.Bookmarks.Count(b => b.IsSelected);
 
     /// <summary>Progress state for the panel above the status bar.</summary>
     public JobProgress Job { get; } = new();
@@ -288,6 +299,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>Overlay background opacity. Read by the View when it shows it.</summary>
     public double OverlayOpacity => _settings.Current.OverlayOpacity;
+
+    /// <summary>
+    /// Whether the overlay's timestamps seek when clicked. Read by the View
+    /// when it shows it.
+    /// </summary>
+    public bool OverlayClickable => _settings.Current.OverlayClickable;
 
     /// <summary>Whether the compact overlay is the view currently showing.</summary>
     private bool _minimalViewActive;
@@ -1078,9 +1095,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // loading a video with the player closed moves neither it nor the key,
         // and RevealVideo — which does not care about the player — would never
         // be told its answer had changed.
+        // SelectedCount is in here alongside SelectedPairCount, not folded into
+        // it: checking a bookmark that has no closing timestamp yet moves only
+        // the former, and without it delete and "select none" would not notice
+        // the one kind of selection they are the only commands to accept.
         var key = string.Join('|', HasActiveVideo, Session.HasVideo,
                                    IsBookmarkFileLoaded, CompletePairCount,
-                                   SelectedPairCount, HasNoBookmarks,
+                                   SelectedPairCount, SelectedCount, HasNoBookmarks,
                                    HasPlaylistFiles, LoadedPlaylistHasEntries);
         if (key == _commandStateKey) return;
         _commandStateKey = key;
@@ -1089,6 +1110,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CanRevealVideo));
         OnPropertyChanged(nameof(CompletePairCount));
         OnPropertyChanged(nameof(SelectedPairCount));
+        OnPropertyChanged(nameof(SelectedCount));
         OnPropertyChanged(nameof(HasValidBookmarks));
 
         OnPropertyChanged(nameof(HasEditLength));
@@ -1139,9 +1161,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private bool CanSetTimestamp() => HasActiveVideo;
     private bool CanEnterTimeManual() => HasActiveVideo;
     private bool CanUndoLastBookmark() => IsBookmarkFileLoaded;
-    private bool CanDeleteSelected() => IsBookmarkFileLoaded && SelectedPairCount >= 1;
-    private bool CanSelectAll() => HasActiveVideo && IsBookmarkFileLoaded && CompletePairCount >= 1;
-    private bool CanSelectNone() => HasActiveVideo && IsBookmarkFileLoaded && SelectedPairCount >= 1;
+    // These three work on the checks themselves rather than on what can be cut,
+    // so they count every checked row, not only the complete ones. A list
+    // holding nothing but a lone opening timestamp can still be selected and
+    // deleted.
+    private bool CanDeleteSelected() => IsBookmarkFileLoaded && SelectedCount >= 1;
+    private bool CanSelectAll() => HasActiveVideo && IsBookmarkFileLoaded && !HasNoBookmarks;
+    private bool CanSelectNone() => HasActiveVideo && IsBookmarkFileLoaded && SelectedCount >= 1;
 
     // Play needs something to sequence, so it wants two or more pairs. Split
     // works on a single pair, and so does Merge — one cut is a trim.
@@ -1949,14 +1975,20 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Checks every complete bookmark. Incomplete ones are skipped — they
-    /// cannot be selected (see <see cref="Bookmark.IsSelected"/>), so this is
-    /// explicit about it rather than relying on the setter to ignore them.
+    /// Checks every bookmark, including any still awaiting a closing
+    /// timestamp.
     /// </summary>
+    /// <remarks>
+    /// It used to skip incomplete ones, because they could not be checked at
+    /// all. Now that they can, skipping them would leave "Select all" visibly
+    /// not selecting all — one row staying clear with no way to tell why.
+    /// The cut and merge actions read past the check to <see
+    /// cref="Bookmark.IsValid"/>, so nothing acts on the open row regardless.
+    /// </remarks>
     [RelayCommand(CanExecute = nameof(CanSelectAll))]
     private void SelectAll()
     {
-        foreach (var b in Session.Bookmarks.Where(b => b.IsValid))
+        foreach (var b in Session.Bookmarks)
             b.IsSelected = true;
     }
 
@@ -4933,6 +4965,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         s.RunMode = dlg.RunMode;
         s.AllowMultipleInstances = dlg.AllowMultipleInstances;
         s.OverlayOpacity = dlg.OverlayOpacity;
+        s.OverlayClickable = dlg.OverlayClickable;
         s.MaxHistory = dlg.MaxHistory;
 
         // Turning "remember" on adopts whatever folder is pinned right now,
@@ -4960,6 +4993,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         SuffixExampleDisplay = BuildSuffixExample(_settings.GetActiveSuffixText());
         OnPropertyChanged(nameof(OverlayCorner));
         OnPropertyChanged(nameof(OverlayOpacity));
+        OnPropertyChanged(nameof(OverlayClickable));
 
         // The View owns the tray icon, so it is told rather than asked.
         if (runModeChanged)

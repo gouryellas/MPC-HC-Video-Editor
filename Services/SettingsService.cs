@@ -313,6 +313,20 @@ public class AppSettings
     /// </summary>
     public double OverlayOpacity { get; set; } = 1.0;
 
+    /// <summary>
+    /// Lets the overlay's timestamps be clicked to seek the player.
+    /// </summary>
+    /// <remarks>
+    /// Off by default, and deliberately so: the overlay is otherwise
+    /// click-through, and a click anywhere over it reaches the video
+    /// underneath. Turning this on trades that away — the card becomes a
+    /// region of the screen that no longer pauses the video when clicked — for
+    /// being able to jump to a bookmark without leaving the player. Which of
+    /// those is worth more depends on how the overlay is used, so it is asked
+    /// rather than assumed.
+    /// </remarks>
+    public bool OverlayClickable { get; set; }
+
     public string QuickSaveFolder { get; set; } = "";
     public string PlaylistFolder { get; set; } = "";
     public List<string> RecentVideos { get; set; } = new();
@@ -412,30 +426,48 @@ public class SettingsService
     /// </summary>
     private const int AutoSwitchOnByDefaultVersion = 1;
 
+    /// <summary>
+    /// The spare copy under %APPDATA%. See <see cref="PortablePaths.BackupFolder"/>.
+    /// </summary>
+    private readonly string _backupPath;
+
     public SettingsService()
     {
         // Beside the executable, not %APPDATA% — the install is one folder.
         var dir = PortablePaths.AppFolder;
         Directory.CreateDirectory(dir);
         _path = Path.Combine(dir, "settings.json");
+        _backupPath = Path.Combine(PortablePaths.BackupFolder, "settings.json");
 
-        MigrateFromAppDataIfNeeded();
+        RestoreFromBackupIfMissing();
         Load();
     }
 
     /// <summary>
-    /// Copies a pre-portable %APPDATA% settings file next to the executable
-    /// the first time this build runs, so shortcuts, naming tags and history
-    /// survive the move. Only ever copies — the original is left in place.
+    /// Seeds settings from the %APPDATA% copy when there are none beside the
+    /// executable.
     /// </summary>
-    private void MigrateFromAppDataIfNeeded()
+    /// <remarks>
+    /// This is what makes upgrading by replacing the program folder safe. The
+    /// new folder arrives with no settings.json, which is indistinguishable
+    /// from a first run — so without this, a perfectly ordinary upgrade silently
+    /// reset every shortcut, naming tag, suffix and hotkey the user had.
+    ///
+    /// Only ever copies, and only when there is nothing to lose: settings beside
+    /// the executable always win, so a deliberately fresh portable copy is never
+    /// overwritten by a backup, and two installs on one machine do not fight
+    /// over which is authoritative after their first run.
+    ///
+    /// The same step also carries over a pre-portable install, which kept its
+    /// settings in this exact location. It used to exist only for that.
+    /// </remarks>
+    private void RestoreFromBackupIfMissing()
     {
         if (File.Exists(_path)) return;
 
         try
         {
-            var legacy = Path.Combine(PortablePaths.LegacyAppDataFolder, "settings.json");
-            if (File.Exists(legacy)) File.Copy(legacy, _path);
+            if (File.Exists(_backupPath)) File.Copy(_backupPath, _path);
         }
         catch
         {
@@ -563,8 +595,35 @@ public class SettingsService
 
             var json = JsonSerializer.Serialize(Current, _jsonOptions);
             File.WriteAllText(_path, json);
+
+            WriteBackup(json);
         }
         catch { /* ignore */ }
+    }
+
+    /// <summary>
+    /// Mirrors the settings just written to <see cref="_backupPath"/>, so a
+    /// replaced program folder has something to restore from.
+    /// </summary>
+    /// <remarks>
+    /// Written from the same JSON the real file got rather than copied from it
+    /// afterwards: a copy would be a second read of a file that may already have
+    /// been rewritten, and could capture a torn or newer state that never
+    /// matched what this call saved.
+    ///
+    /// Its own try/catch, inside the caller's. %APPDATA% can be redirected,
+    /// roamed, or locked down, and none of that is a reason for a settings save
+    /// that has already succeeded to report failure — the backup is a
+    /// convenience, and the file beside the executable is the real one.
+    /// </remarks>
+    private void WriteBackup(string json)
+    {
+        try
+        {
+            Directory.CreateDirectory(PortablePaths.BackupFolder);
+            File.WriteAllText(_backupPath, json);
+        }
+        catch { /* the settings themselves are saved; this is a spare copy */ }
     }
 
     public void AddRecent(string videoPath)
