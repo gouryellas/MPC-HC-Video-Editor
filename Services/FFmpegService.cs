@@ -607,6 +607,70 @@ public class FFmpegService
         var tempDir = Path.Combine(Path.GetTempPath(), "mpc-bulk-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(tempDir);
 
+        // Every segment is pinned to one frame rate, and that rate is the
+        // highest among the inputs.
+        //
+        // The concat demuxer joins streams without re-timing them, so feeding
+        // it segments at different rates produced a variable-frame-rate file
+        // whose container declared a single rate anyway: merging 30fps then
+        // 60fps gave frames spaced 33ms for the first half and 17ms for the
+        // second, under an avg_frame_rate of 44.75 that matched neither. Some
+        // players cope; MPC-HC stalls at the discontinuity, which reads as the
+        // merge having produced a broken file from the join onwards.
+        //
+        // Highest rather than lowest, or first: raising 30 to 60 duplicates
+        // frames and loses nothing, while lowering 60 to 30 would throw half of
+        // that clip's motion away to accommodate the other one. The cost is
+        // file size, which the concat step cannot avoid paying anyway.
+        //
+        // This is free: every input is being re-encoded here regardless, so
+        // pinning the rate adds no pass that was not already running.
+        var targetRate = ("", 0.0);
+        foreach (var file in files)
+        {
+            var rate = await GetFrameRateRationalAsync(file);
+            if (rate.Value > targetRate.Item2) targetRate = (rate.Text, rate.Value);
+        }
+
+        // -fps_mode cfr is the half that actually removes the discontinuity:
+        // -r alone sets the nominal rate while leaving source timestamps in
+        // place, and it is the timestamps the player trips over. Omitted
+        // entirely when no rate could be read, so an exotic input falls back to
+        // the old behaviour rather than being forced to a guessed rate.
+        var rateArgs = string.IsNullOrEmpty(targetRate.Item1)
+            ? string.Empty
+            : $"-r {targetRate.Item1} -fps_mode cfr ";
+
+        // Every segment is brought to one frame size too, for the same reason
+        // and with the same consequence if it is not: the concat demuxer does
+        // not rescale, so joining 640x360 to 1280x720 produced a file whose
+        // container said 640x360 while half its frames were 720p, and ffmpeg
+        // warned about non-monotonic timestamps on the way.
+        //
+        // The target is the input with the most pixels, so the output is the
+        // size of a real source rather than a computed box no clip actually
+        // has — mixing landscape and portrait would otherwise give a square.
+        var targetWidth = 0;
+        var targetHeight = 0;
+        foreach (var file in files)
+        {
+            var (w, h) = await GetVideoSizeAsync(file);
+            if ((long)w * h > (long)targetWidth * targetHeight) (targetWidth, targetHeight) = (w, h);
+        }
+
+        // Fit inside the target and fill the remainder with black, rather than
+        // stretching to it: a 4:3 clip joined to a 16:9 one keeps its geometry
+        // and gains bars, which is the conventional and reversible answer.
+        // Distorting faces to avoid black edges is not a trade worth making.
+        //
+        // setsar=1 is part of the fix, not decoration. Two files can share a
+        // pixel size and still declare different sample aspect ratios, and the
+        // concat would carry only the first — silently stretching the rest.
+        var scaleArgs = targetWidth > 0 && targetHeight > 0
+            ? $"-vf \"scale={targetWidth}:{targetHeight}:force_original_aspect_ratio=decrease," +
+              $"pad={targetWidth}:{targetHeight}:(ow-iw)/2:(oh-ih)/2,setsar=1\" "
+            : string.Empty;
+
         try
         {
             // Re-encode each to a common format first (safer for mixed sources)
@@ -632,7 +696,7 @@ public class FFmpegService
                 // GPU encoder.
                 var args = $"-hide_banner -y -i \"{files[i]}\" " +
                            $"-c:v {VideoCodec} {VideoEncoders.QualityArgsFor(Encoder, EncodingQuality.Fast)} " +
-                           $"-pix_fmt yuv420p -c:a aac -ar 48000 -ac 2 \"{seg}\"";
+                           $"{scaleArgs}{rateArgs}-pix_fmt yuv420p -c:a aac -ar 48000 -ac 2 \"{seg}\"";
                 await RunAsync(args, null, ct);
                 segments.Add(seg);
             }
@@ -649,7 +713,22 @@ public class FFmpegService
                 File = Path.GetFileName(outputPath)
             });
 
-            var concatArgs = $"-hide_banner -y -f concat -safe 0 -i \"{listFile}\" -c copy \"{outputPath}\"";
+            // Video is copied; audio is re-encoded across the joined timeline.
+            //
+            // Copying both left a timestamp overlap at every seam. AAC codes
+            // 1024 samples at a time, so a segment whose video runs exactly
+            // 2.000s carries 96256 samples of audio rather than 96000 — the
+            // encoder cannot emit a partial frame. Each segment's audio
+            // therefore outlasts its own video, the next one starts before it
+            // has finished, and ffmpeg reported non-monotonic DTS once per
+            // join. Re-encoding removes the per-segment padding by producing
+            // one continuous stream, and the warnings with it.
+            //
+            // Only the audio: the video is already normalised and stream-copied,
+            // which is what keeps the join cheap. Audio is a rounding error
+            // beside the per-input video encodes that have already run.
+            var concatArgs = $"-hide_banner -y -f concat -safe 0 -i \"{listFile}\" " +
+                             $"-c:v copy -c:a aac -ar 48000 -ac 2 \"{outputPath}\"";
             await RunAsync(concatArgs, null, ct);
         }
         finally
@@ -1213,11 +1292,23 @@ public class FFmpegService
     /// by the wrong amount would be worse than one that says it cannot.
     /// </remarks>
     public async Task<double> GetFrameRateAsync(string filePath)
+        => (await GetFrameRateRationalAsync(filePath)).Value;
+
+    /// <summary>
+    /// Pixel dimensions of the first video stream, or <c>(0, 0)</c> when they
+    /// cannot be read.
+    /// </summary>
+    /// <remarks>
+    /// Both values are forced even. H.264 with 4:2:0 chroma cannot encode an
+    /// odd width or height, so an odd source used as the target size would fail
+    /// every segment rather than the one file it came from.
+    /// </remarks>
+    public async Task<(int Width, int Height)> GetVideoSizeAsync(string filePath)
     {
         try
         {
-            var args = "-v error -select_streams v:0 -show_entries stream=r_frame_rate " +
-                       $"-of default=noprint_wrappers=1:nokey=1 \"{filePath}\"";
+            var args = "-v error -select_streams v:0 -show_entries stream=width,height " +
+                       $"-of csv=p=0 \"{filePath}\"";
             var psi = new ProcessStartInfo
             {
                 FileName = _ffprobePath,
@@ -1229,31 +1320,27 @@ public class FFmpegService
             };
 
             using var p = Process.Start(psi);
-            if (p == null) return 0;
+            if (p == null) return (0, 0);
 
             var outputTask = p.StandardOutput.ReadToEndAsync();
             var errorTask = p.StandardError.ReadToEndAsync();
             await Task.WhenAll(outputTask, errorTask);
             await p.WaitForExitAsync();
 
-            if (p.ExitCode != 0) return 0;
+            if (p.ExitCode != 0) return (0, 0);
 
-            var raw = outputTask.Result.Trim();
-            var slash = raw.IndexOf('/');
+            var parts = outputTask.Result.Trim().Split(',');
+            if (parts.Length < 2) return (0, 0);
 
-            if (slash < 0)
-                return double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var plain) ? plain : 0;
-
-            if (double.TryParse(raw[..slash], NumberStyles.Float, CultureInfo.InvariantCulture, out var num) &&
-                double.TryParse(raw[(slash + 1)..], NumberStyles.Float, CultureInfo.InvariantCulture, out var den) &&
-                den > 0)
-                return num / den;
-
-            return 0;
+            return int.TryParse(parts[0].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var w)
+                   && int.TryParse(parts[1].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var h)
+                   && w > 0 && h > 0
+                ? (w - (w % 2), h - (h % 2))
+                : (0, 0);
         }
         catch
         {
-            return 0;
+            return (0, 0);
         }
     }
 
@@ -1290,6 +1377,63 @@ public class FFmpegService
         catch
         {
             return 0;
+        }
+    }
+
+    /// <summary>
+    /// The video stream's nominal frame rate, as both the exact rational
+    /// ffprobe reports and its decimal value. <c>("", 0)</c> when unreadable.
+    /// </summary>
+    /// <remarks>
+    /// The rational is kept because the decimal cannot represent the broadcast
+    /// rates: 30000/1001 is 29.97002997…, and handing ffmpeg a rounded "29.97"
+    /// asks for a rate that no source actually has. Comparisons use the value;
+    /// whatever is passed back to ffmpeg uses the text.
+    /// </remarks>
+    public async Task<(string Text, double Value)> GetFrameRateRationalAsync(string filePath)
+    {
+        try
+        {
+            var args = $"-v error -select_streams v:0 -show_entries stream=r_frame_rate " +
+                       $"-of default=noprint_wrappers=1:nokey=1 \"{filePath}\"";
+            var psi = new ProcessStartInfo
+            {
+                FileName = _ffprobePath,
+                Arguments = args,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var p = Process.Start(psi);
+            if (p == null) return ("", 0);
+
+            var outputTask = p.StandardOutput.ReadToEndAsync();
+            var errorTask = p.StandardError.ReadToEndAsync();
+            await Task.WhenAll(outputTask, errorTask);
+            await p.WaitForExitAsync();
+
+            if (p.ExitCode != 0) return ("", 0);
+
+            var text = outputTask.Result.Trim();
+            if (string.IsNullOrEmpty(text) || text == "0/0") return ("", 0);
+
+            var slash = text.IndexOf('/');
+            if (slash < 0)
+                return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var plain) && plain > 0
+                    ? (text, plain)
+                    : ("", 0);
+
+            return double.TryParse(text[..slash], NumberStyles.Float, CultureInfo.InvariantCulture, out var num)
+                   && double.TryParse(text[(slash + 1)..], NumberStyles.Float, CultureInfo.InvariantCulture, out var den)
+                   && den > 0 && num > 0
+                ? (text, num / den)
+                : ("", 0);
+        }
+        catch
+        {
+            return ("", 0);
         }
     }
 }

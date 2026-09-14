@@ -1181,10 +1181,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private bool CanToggleFlip() =>
         HasActiveVideo && IsBookmarkFileLoaded && CompletePairCount >= 1 && SelectedPairCount >= 1;
 
-    // "Edit bookmarks" opens the CSV, so it needs something in it to edit.
-    private bool CanEditBookmarks() => IsBookmarkFileLoaded && CompletePairCount >= 1;
-
-    // "Delete bookmarks" only needs the file to exist.
+    // Both of these act on the bookmark file rather than on the cuts in it, so
+    // both need only the file.
+    //
+    // "Edit bookmarks" used to also require a complete pair, which sounds right
+    // and is not: writing the very first timestamp is what creates the CSV, so
+    // a lone opening timestamp is a file that exists and has a row in it. The
+    // pencil beside CURRENT BOOKMARKS follows this predicate and hides itself
+    // when it is false, so in that state the file was named on screen with no
+    // way to open it — and editing by hand is exactly how a stray opening
+    // timestamp gets fixed.
+    private bool CanEditBookmarks() => IsBookmarkFileLoaded;
     private bool CanDeleteBookmarks() => IsBookmarkFileLoaded;
 
     // Merge is always available: with no video or bookmarks it falls back to
@@ -2809,7 +2816,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         IsBusy = true; ProgressPercent = 0; StatusText = "Merging…";
         Job.Begin("Merging files", fileCount);
-        Job.SetFile(1, Path.GetFileName(ofd.FileNames[0]));
+        Job.SetFile(0, Path.GetFileName(ofd.FileNames[0]));
         var completed = false;
         try
         {
@@ -2817,10 +2824,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
             {
                 ProgressPercent = p.Percent;
                 StatusText = p.Message;
-                // Current is the 0-based index of the file being prepared, and
-                // reaches files.Count for the final join — clamp so the counter
-                // cannot read "11/10" on that last step.
-                Job.SetFile(Math.Min(p.Current + 1, fileCount), p.File ?? outName);
+                // Current is the 0-based index of the file being prepared,
+                // which is also the number already finished — exactly what the
+                // counter wants. On the final join it reaches files.Count, so
+                // the counter lands on "5/5" there and not a step earlier.
+                //
+                // This used to be Current + 1 clamped to fileCount, which put
+                // "5/5" on screen while the fifth file was still being prepared
+                // — at 67%, since the percentage is computed against the real
+                // step total of files.Count + 1 — and then held it there for
+                // the whole join. No clamp is needed now: Current never exceeds
+                // files.Count.
+                Job.SetFile(p.Current, p.File ?? outName);
                 Job.Report(p.Message, p.Percent);
             });
             await _ffmpeg.ConcatFilesAsync(ofd.FileNames, outPath, progress);
@@ -3157,7 +3172,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
             {
                 i++; ProgressPercent = (double)i / toSplit.Count * 100; StatusText = $"Splitting {i}/{toSplit.Count}";
                 _batchRemaining = toSplit.Count - i + 1;
-                Job.SetFile(i, Path.GetFileName(Session.VideoPath));
+                // i - 1, matching the percentage on the next line: i has
+                // already been bumped for the cut about to run, and the counter
+                // reports what is finished.
+                Job.SetFile(i - 1, Path.GetFileName(Session.VideoPath));
                 Job.Report($"Cutting {b.StartDisplay} → {b.EndDisplay}", (double)(i - 1) / toSplit.Count * 100);
 
                 var outPath = await ResolveOutputPathAsync(
@@ -3349,7 +3367,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         foreach (var file in ofd.FileNames)
         {
             _batchRemaining = ofd.FileNames.Length - done;
-            Job.SetFile(done + 1, Path.GetFileName(file));
+            Job.SetFile(done, Path.GetFileName(file));
             // Bare "Writing": the action already names the format, and the panel
             // shows the two joined as "Converting images to PNG · Writing".
             Job.Report("Writing", (double)done / ofd.FileNames.Length * 100);
@@ -3645,7 +3663,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         foreach (var file in ofd.FileNames)
         {
             _batchRemaining = ofd.FileNames.Length - done;
-            Job.SetFile(done + 1, Path.GetFileName(file));
+            Job.SetFile(done, Path.GetFileName(file));
             Job.Report($"Encoding to {label}", (double)done / ofd.FileNames.Length * 100);
             // Suffix-based output: <name>[done].mp4 in the "Save to" folder.
             // A name that is already taken is put to the user rather than
@@ -3707,7 +3725,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             _batchRemaining = ofd.FileNames.Length - done;
             StatusText = $"Extracting: {Path.GetFileName(file)}";
             ProgressPercent = (double)done / ofd.FileNames.Length * 100;
-            Job.SetFile(done + 1, Path.GetFileName(file));
+            Job.SetFile(done, Path.GetFileName(file));
             // The action already says "audio"; joined it reads
             // "Stripping audio · Extracting to MP3".
             Job.Report("Extracting to MP3", (double)done / ofd.FileNames.Length * 100);

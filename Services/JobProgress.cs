@@ -47,6 +47,13 @@ public partial class JobProgress : ObservableObject
         string.IsNullOrWhiteSpace(Step) ? Action : $"{Action} · {Step}";
 
     /// <summary>"4/10" — blank for a single-file job.</summary>
+    /// <remarks>
+    /// <see cref="FileIndex"/> counts what is <em>finished</em>, not what is
+    /// being started, so this always matches the numerator behind
+    /// <see cref="Percent"/>. Counting the item in progress instead put the
+    /// counter a whole step ahead of the bar: a five-file merge read "5/5" at
+    /// 67% and then sat there for the join.
+    /// </remarks>
     public string FileProgressDisplay => FileCount > 1 ? $"{FileIndex}/{FileCount}" : string.Empty;
 
     public string PercentDisplay => $"{Percent:0}%";
@@ -71,7 +78,11 @@ public partial class JobProgress : ObservableObject
         _generation++;
         Action = action;
         FileCount = fileCount;
-        FileIndex = fileCount > 0 ? 1 : 0;
+
+        // Nothing is finished yet. This used to open at 1, which read as "one
+        // done" before any work had started and left every counter in the app
+        // one step ahead of its own progress bar for the whole job.
+        FileIndex = 0;
         CurrentFile = string.Empty;
         Step = string.Empty;
         Percent = 0;
@@ -81,10 +92,17 @@ public partial class JobProgress : ObservableObject
         IsRunning = true;
     }
 
-    /// <summary>Moves to a file within the job.</summary>
-    public void SetFile(int index, string fileName)
+    /// <summary>
+    /// Names the file being worked on, and how many are finished behind it.
+    /// </summary>
+    /// <param name="finished">
+    /// How many items are <em>complete</em> — not the position of the one
+    /// starting. Callers in a loop pass the count done so far, so the counter
+    /// and the percentage always tell the same story.
+    /// </param>
+    public void SetFile(int finished, string fileName)
     {
-        FileIndex = index;
+        FileIndex = finished;
         CurrentFile = fileName;
     }
 
