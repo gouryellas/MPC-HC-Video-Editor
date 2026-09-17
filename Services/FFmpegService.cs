@@ -607,56 +607,83 @@ public class FFmpegService
         var tempDir = Path.Combine(Path.GetTempPath(), "mpc-bulk-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(tempDir);
 
-        // Every segment is pinned to one frame rate, and that rate is the
-        // highest among the inputs.
+        // Segments are brought to one frame rate and one frame size before the
+        // join, because the concat demuxer neither re-times nor rescales what
+        // it is given: mixing 30fps with 60fps produced one file holding both,
+        // under a container declaring a single rate, and MPC-HC stalls at that
+        // discontinuity. Mixing sizes was worse — the container reported the
+        // first clip's dimensions while later frames were a different size.
         //
-        // The concat demuxer joins streams without re-timing them, so feeding
-        // it segments at different rates produced a variable-frame-rate file
-        // whose container declared a single rate anyway: merging 30fps then
-        // 60fps gave frames spaced 33ms for the first half and 17ms for the
-        // second, under an avg_frame_rate of 44.75 that matched neither. Some
-        // players cope; MPC-HC stalls at the discontinuity, which reads as the
-        // merge having produced a broken file from the join onwards.
-        //
-        // Highest rather than lowest, or first: raising 30 to 60 duplicates
-        // frames and loses nothing, while lowering 60 to 30 would throw half of
-        // that clip's motion away to accommodate the other one. The cost is
-        // file size, which the concat step cannot avoid paying anyway.
-        //
-        // This is free: every input is being re-encoded here regardless, so
-        // pinning the rate adds no pass that was not already running.
-        var targetRate = ("", 0.0);
+        // Both are skipped when the inputs already agree, which is the common
+        // case and was costing real time for nothing: normalising is a re-scale
+        // and a re-time per clip, and a merge of matching clips needs neither.
+        var rates = new List<(string Text, double Value)>();
+        var sizes = new List<(int Width, int Height)>();
         foreach (var file in files)
         {
-            var rate = await GetFrameRateRationalAsync(file);
-            if (rate.Value > targetRate.Item2) targetRate = (rate.Text, rate.Value);
+            rates.Add(await GetFrameRateRationalAsync(file));
+            sizes.Add(await GetVideoSizeAsync(file));
         }
+
+        // The highest rate among the inputs — deliberately not the most common
+        // one, which is how the frame size below is chosen.
+        //
+        // The two are picked differently because the trade differs. Raising a
+        // clip's rate duplicates frames and loses nothing, while lowering one
+        // discards motion that cannot come back, and the cost of choosing the
+        // highest is mild: rate scales encoding time linearly, so 30 to 60 is
+        // twice the work. Size scales with pixel count, so 640x360 to 1920x1080
+        // is nine times, and the upscale invents no detail in exchange. Paying
+        // double to keep every clip's motion is worth it; paying ninefold to
+        // enlarge a clip that has no more detail to show is not.
+        //
+        // Capped, because the rate this is read from can be a fiction.
+        // ffprobe's r_frame_rate is the lowest rate that can represent every
+        // timestamp exactly, not the rate the clip plays at — a file with one
+        // irregular timestamp can report hundreds. Encoding cost is linear in
+        // the rate, so an unchecked outlier turns a one-minute merge into a
+        // twenty-minute one. Anything above the cap is not a frame rate anybody
+        // shot at, and is ignored.
+        var usableRates = rates.Where(r => r.Value > 0 && r.Value <= MaxPlausibleFrameRate).ToList();
+        var targetRate = usableRates.Count > 0
+            ? usableRates.OrderByDescending(r => r.Value).First()
+            : ("", 0.0);
+
+        // Nothing to do when every clip already runs at that rate.
+        var ratesAgree = rates.All(r => r.Value > 0 && Math.Abs(r.Value - targetRate.Item2) < 0.01);
 
         // -fps_mode cfr is the half that actually removes the discontinuity:
         // -r alone sets the nominal rate while leaving source timestamps in
-        // place, and it is the timestamps the player trips over. Omitted
-        // entirely when no rate could be read, so an exotic input falls back to
-        // the old behaviour rather than being forced to a guessed rate.
-        var rateArgs = string.IsNullOrEmpty(targetRate.Item1)
+        // place, and it is the timestamps the player trips over.
+        var rateArgs = string.IsNullOrEmpty(targetRate.Item1) || ratesAgree
             ? string.Empty
             : $"-r {targetRate.Item1} -fps_mode cfr ";
 
-        // Every segment is brought to one frame size too, for the same reason
-        // and with the same consequence if it is not: the concat demuxer does
-        // not rescale, so joining 640x360 to 1280x720 produced a file whose
-        // container said 640x360 while half its frames were 720p, and ffmpeg
-        // warned about non-monotonic timestamps on the way.
+        // The size most of the clips already are, falling back to the largest
+        // when no size has a majority. See the frame rate above for why this
+        // one votes and that one does not.
         //
-        // The target is the input with the most pixels, so the output is the
-        // size of a real source rather than a computed box no clip actually
-        // has — mixing landscape and portrait would otherwise give a square.
-        var targetWidth = 0;
-        var targetHeight = 0;
-        foreach (var file in files)
-        {
-            var (w, h) = await GetVideoSizeAsync(file);
-            if ((long)w * h > (long)targetWidth * targetHeight) (targetWidth, targetHeight) = (w, h);
-        }
+        // Targeting the largest meant a single high-resolution clip dragged
+        // every other clip up to meet it, at nine times the encoding work for a
+        // 640x360 clip going to 1920x1080 — and the upscale invents no detail
+        // the source did not have. Letting the majority win converts the odd
+        // clip instead of converting everything to accommodate it.
+        //
+        // Always an actual input's dimensions, never a computed box: taking the
+        // widest width with the tallest height would turn a landscape clip
+        // merged with a portrait one into a square that neither clip is.
+        var (targetWidth, targetHeight) = sizes
+            .Where(s => s.Width > 0 && s.Height > 0)
+            .GroupBy(s => s)
+            .OrderByDescending(g => g.Count())
+            .ThenByDescending(g => (long)g.Key.Width * g.Key.Height)
+            .Select(g => g.Key)
+            .FirstOrDefault();
+
+        // An unreadable size counts as disagreement: normalising a clip that
+        // might already match is a wasted rescale, but skipping one that does
+        // not is the broken output this exists to prevent.
+        var sizesAgree = sizes.All(s => s.Width == targetWidth && s.Height == targetHeight);
 
         // Fit inside the target and fill the remainder with black, rather than
         // stretching to it: a 4:3 clip joined to a 16:9 one keeps its geometry
@@ -665,8 +692,10 @@ public class FFmpegService
         //
         // setsar=1 is part of the fix, not decoration. Two files can share a
         // pixel size and still declare different sample aspect ratios, and the
-        // concat would carry only the first — silently stretching the rest.
-        var scaleArgs = targetWidth > 0 && targetHeight > 0
+        // concat would carry only the first — silently stretching the rest. So
+        // this is skipped only when every clip is already the same size, not
+        // merely when scaling would be a no-op.
+        var scaleArgs = targetWidth > 0 && targetHeight > 0 && !sizesAgree
             ? $"-vf \"scale={targetWidth}:{targetHeight}:force_original_aspect_ratio=decrease," +
               $"pad={targetWidth}:{targetHeight}:(ow-iw)/2:(oh-ih)/2,setsar=1\" "
             : string.Empty;
@@ -1293,6 +1322,19 @@ public class FFmpegService
     /// </remarks>
     public async Task<double> GetFrameRateAsync(string filePath)
         => (await GetFrameRateRationalAsync(filePath)).Value;
+
+    /// <summary>
+    /// Above this, a reported frame rate is treated as a measurement artefact
+    /// rather than a rate anything was shot at.
+    /// </summary>
+    /// <remarks>
+    /// 240 covers every real high-speed mode a consumer camera offers. The
+    /// point is not to reject 300fps footage on principle — it is that
+    /// <c>r_frame_rate</c> is the lowest rate that can express a stream's
+    /// timestamps exactly, so a single irregular gap makes it report a number
+    /// with no relation to playback. Encoding cost scales with it directly.
+    /// </remarks>
+    private const double MaxPlausibleFrameRate = 240.0;
 
     /// <summary>
     /// Pixel dimensions of the first video stream, or <c>(0, 0)</c> when they

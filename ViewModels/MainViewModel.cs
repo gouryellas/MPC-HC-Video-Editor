@@ -4049,6 +4049,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         HookSession(Session);
         Session.NotifyDurationChanged();
+
+        // A scan creates the bookmark file the same way the first hand-placed
+        // timestamp does. Leaving it unwritten left "loaded" false over a full
+        // list, and everything gated on it — remove selected, select all/none,
+        // play selected, merge, split, flip — stayed disabled no matter how
+        // many rows were checked.
+        SaveBookmarks();
+
         RefreshCommandStates();
         StatusText = $"Added {dlg.Accepted.Count} {Entries(dlg.Accepted.Count)} from the scan";
     }
