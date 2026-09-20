@@ -402,6 +402,28 @@ public class AppSettings
     /// in <see cref="Suffixes"/>, or to <c>"done"</c> if the list is empty).
     /// </summary>
     public string? ActiveSuffixText { get; set; }
+
+    /// <summary>
+    /// The active naming tag's text, resolved against <see cref="Suffixes"/>.
+    /// Falls back to the first entry, or to <c>"done"</c> when the list is
+    /// empty, so it never returns null or empty.
+    /// </summary>
+    /// <remarks>
+    /// Lives on the settings object rather than only on the service so that
+    /// anything holding a plain <see cref="AppSettings"/> — the Settings
+    /// dialog, which is handed one and deliberately has no service — resolves
+    /// it the same way instead of approximating.
+    /// </remarks>
+    public string ResolveActiveSuffixText()
+    {
+        if (Suffixes.Count == 0) return "done";
+
+        if (!string.IsNullOrWhiteSpace(ActiveSuffixText) &&
+            Suffixes.Any(s => string.Equals(s.Text, ActiveSuffixText, StringComparison.OrdinalIgnoreCase)))
+            return ActiveSuffixText!;
+
+        return Suffixes[0].Text;
+    }
 }
 
 public class SettingsService
@@ -854,16 +876,7 @@ public class SettingsService
     /// doesn't match any entry, or to <c>"done"</c> if the list is empty.
     /// Never returns null/empty — always guarantees a usable suffix.
     /// </summary>
-    public string GetActiveSuffixText()
-    {
-        if (Current.Suffixes.Count == 0) return "done";
-
-        if (!string.IsNullOrWhiteSpace(Current.ActiveSuffixText) &&
-            Current.Suffixes.Any(s => string.Equals(s.Text, Current.ActiveSuffixText, StringComparison.OrdinalIgnoreCase)))
-            return Current.ActiveSuffixText!;
-
-        return Current.Suffixes[0].Text;
-    }
+    public string GetActiveSuffixText() => Current.ResolveActiveSuffixText();
 
     /// <summary>
     /// Sets the active suffix by text (case-insensitive). The text must

@@ -133,9 +133,16 @@ public static class NameTemplate
     /// What <paramref name="template"/> produces for a made-up clip, for the
     /// live preview in Settings.
     /// </summary>
-    public static string Preview(string? template)
+    /// <param name="suffix">
+    /// The naming tag in force, bracket and all. Passed in rather than made up:
+    /// the preview used a hardcoded "[done]" while the row above it promised
+    /// "the naming tag currently selected under Options", so the one line on
+    /// screen showing what files will be called was wrong for anyone who had
+    /// picked a different tag.
+    /// </param>
+    public static string Preview(string? template, string suffix = "[done]")
     {
         var sample = new Bookmark { Index = 3, StartSeconds = 83, EndSeconds = 105 };
-        return Build(template, "holiday-2026", "[done]", sample) + ".mp4";
+        return Build(template, "holiday-2026", suffix, sample) + ".mp4";
     }
 }

@@ -184,6 +184,27 @@ public class FFmpegService
         }
     }
 
+    /// <summary>
+    /// Ends one process if it is still running. Safe to call on a process that
+    /// has already exited, which is the normal case.
+    /// </summary>
+    /// <remarks>
+    /// For the short-lived helpers — thumbnails, waveforms, encoder probes —
+    /// that are not registered in <see cref="_running"/>. Disposing a
+    /// <see cref="Process"/> only releases the handle, so a run abandoned by a
+    /// cancellation or a timeout would otherwise stay alive, blocked on a pipe
+    /// with nothing left to drain it and holding its input file open.
+    ///
+    /// <c>entireProcessTree</c> for the same reason as <see cref="KillAll"/>,
+    /// and one more: ffmpeg on PATH is often a shim that runs the real binary
+    /// as a child, so killing what we started is not enough on its own.
+    /// </remarks>
+    private static void EndProcess(Process process)
+    {
+        try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+        catch { /* exited between the check and the kill, or already gone */ }
+    }
+
     public FFmpegService(string? ffmpegDir = null)
     {
         // Search order:
@@ -335,16 +356,23 @@ public class FFmpegService
             using var p = Process.Start(psi);
             if (p == null) return false;
 
-            // Drain both pipes so a full buffer cannot deadlock the wait.
-            var outTask = p.StandardOutput.ReadToEndAsync(ct);
-            var errTask = p.StandardError.ReadToEndAsync(ct);
-            await Task.WhenAll(outTask, errTask);
+            try
+            {
+                // Drain both pipes so a full buffer cannot deadlock the wait.
+                var outTask = p.StandardOutput.ReadToEndAsync(ct);
+                var errTask = p.StandardError.ReadToEndAsync(ct);
+                await Task.WhenAll(outTask, errTask);
 
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeout.CancelAfter(TimeSpan.FromSeconds(20));
-            await p.WaitForExitAsync(timeout.Token);
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                timeout.CancelAfter(TimeSpan.FromSeconds(20));
+                await p.WaitForExitAsync(timeout.Token);
 
-            ok = p.ExitCode == 0;
+                ok = p.ExitCode == 0;
+            }
+            finally
+            {
+                EndProcess(p);
+            }
         }
         catch
         {
@@ -961,17 +989,24 @@ public class FFmpegService
             using var process = Process.Start(psi);
             if (process == null) return null;
 
-            using var buffer = new MemoryStream();
-            var copy = process.StandardOutput.BaseStream.CopyToAsync(buffer, ct);
-            var errors = process.StandardError.ReadToEndAsync(ct);
-            await Task.WhenAll(copy, errors).ConfigureAwait(false);
+            try
+            {
+                using var buffer = new MemoryStream();
+                var copy = process.StandardOutput.BaseStream.CopyToAsync(buffer, ct);
+                var errors = process.StandardError.ReadToEndAsync(ct);
+                await Task.WhenAll(copy, errors).ConfigureAwait(false);
 
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeout.CancelAfter(TimeSpan.FromMinutes(3));
-            await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                timeout.CancelAfter(TimeSpan.FromMinutes(3));
+                await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
 
-            if (process.ExitCode != 0 || buffer.Length == 0) return null;
-            return buffer.ToArray();
+                if (process.ExitCode != 0 || buffer.Length == 0) return null;
+                return buffer.ToArray();
+            }
+            finally
+            {
+                EndProcess(process);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -1280,19 +1315,32 @@ public class FFmpegService
             using var process = Process.Start(psi);
             if (process == null) return null;
 
-            using var buffer = new MemoryStream();
-            // Both pipes drained together — leaving stderr unread deadlocks the
-            // moment ffmpeg says anything longer than the pipe buffer.
-            var copy = process.StandardOutput.BaseStream.CopyToAsync(buffer, ct);
-            var errors = process.StandardError.ReadToEndAsync(ct);
-            await Task.WhenAll(copy, errors).ConfigureAwait(false);
+            // Disposing a Process closes a handle; it does not end the program.
+            // Every path out of here that is not a clean exit — a cancellation,
+            // the timeout below, a decode failure — has to end ffmpeg by hand,
+            // or it sits forever blocked on a pipe nobody is draining and keeps
+            // the source video open. Renders are cancelled constantly as the
+            // selection moves down the list, so the strays accumulate.
+            try
+            {
+                using var buffer = new MemoryStream();
+                // Both pipes drained together — leaving stderr unread deadlocks the
+                // moment ffmpeg says anything longer than the pipe buffer.
+                var copy = process.StandardOutput.BaseStream.CopyToAsync(buffer, ct);
+                var errors = process.StandardError.ReadToEndAsync(ct);
+                await Task.WhenAll(copy, errors).ConfigureAwait(false);
 
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeout.CancelAfter(TimeSpan.FromSeconds(20));
-            await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                timeout.CancelAfter(TimeSpan.FromSeconds(20));
+                await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
 
-            if (process.ExitCode != 0 || buffer.Length == 0) return null;
-            return buffer.ToArray();
+                if (process.ExitCode != 0 || buffer.Length == 0) return null;
+                return buffer.ToArray();
+            }
+            finally
+            {
+                EndProcess(process);
+            }
         }
         catch (OperationCanceledException)
         {

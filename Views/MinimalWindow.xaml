@@ -28,6 +28,7 @@
 
     <Window.Resources>
         <helpers:BoolToVisibilityConverter x:Key="MinimalBoolToVis"/>
+        <helpers:InverseBoolToVisibilityConverter x:Key="NotBoolToVis"/>
 
         <!-- A bookmark's start or end time. Seeks the player when the overlay
              is clickable (the OverlayClickable setting), and is inert
@@ -102,18 +103,25 @@
                                            FontWeight="Bold" FontFamily="Consolas" FontSize="13" MinWidth="34"/>
                                 <TextBlock Text="{Binding StartDisplay}" Tag="{Binding StartSeconds}"
                                            Style="{StaticResource OverlayTimestamp}"/>
-                                <!-- Was #666, which on a dark card was very nearly
-                                     the background. -->
-                                <!-- Not part of either timestamp: the dash sits
-                                     between the two click targets, so giving it
-                                     the clickable style would make the gap seek
-                                     to whichever time the pointer happened to
-                                     be nearer. -->
-                                <TextBlock Text=" - " Foreground="{DynamicResource TextSecondary}" FontFamily="Consolas" FontSize="13"/>
-                                <TextBlock Text="{Binding EndDisplay}" Tag="{Binding EndSeconds}"
-                                           Style="{StaticResource OverlayTimestamp}"/>
-                                <TextBlock Text="{Binding DurationDisplay, StringFormat=  ({0})}"
-                                           Foreground="{DynamicResource ValueGreen}" FontFamily="Consolas" FontSize="13"/>
+                                <!-- Hidden on an open bookmark, which has no end
+                                     and no length: showing them anyway rendered
+                                     "11s - 0s (0s)". Same rule as the full
+                                     window's list. -->
+                                <StackPanel Orientation="Horizontal"
+                                            Visibility="{Binding IsIncomplete, Converter={StaticResource NotBoolToVis}}">
+                                    <!-- Was #666, which on a dark card was very nearly
+                                         the background. -->
+                                    <!-- Not part of either timestamp: the dash sits
+                                         between the two click targets, so giving it
+                                         the clickable style would make the gap seek
+                                         to whichever time the pointer happened to
+                                         be nearer. -->
+                                    <TextBlock Text=" - " Foreground="{DynamicResource TextSecondary}" FontFamily="Consolas" FontSize="13"/>
+                                    <TextBlock Text="{Binding EndDisplay}" Tag="{Binding EndSeconds}"
+                                               Style="{StaticResource OverlayTimestamp}"/>
+                                    <TextBlock Text="{Binding DurationDisplay, StringFormat=  ({0})}"
+                                               Foreground="{DynamicResource ValueGreen}" FontFamily="Consolas" FontSize="13"/>
+                                </StackPanel>
                                 <TextBlock Text="{Binding Prefix}" Foreground="{DynamicResource StatusWarn}"
                                            FontFamily="Consolas" FontSize="13" Margin="6,0,0,0"/>
                             </StackPanel>

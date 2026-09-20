@@ -96,11 +96,19 @@ public partial class SettingsDialog : Window
     /// </summary>
     private readonly FFmpegService? _ffmpeg;
 
+    /// <summary>The active naming tag, bracketed, for the filename preview.</summary>
+    private readonly string _activeSuffix = "[done]";
+
     public SettingsDialog(AppSettings current, bool autoSwitchViews, FFmpegService? ffmpeg = null)
     {
         InitializeComponent();
 
         _ffmpeg = ffmpeg;
+
+        // The tag the filename preview should demonstrate. Read once here:
+        // naming tags are managed under Options, not in this dialog, so it
+        // cannot change while the dialog is open.
+        _activeSuffix = $"[{current.ResolveActiveSuffixText()}]";
 
         // Seed every control from the live settings. Nothing is bound: the
         // dialog must not write through to the real object before Save.
@@ -385,7 +393,7 @@ public partial class SettingsDialog : Window
     private void RefreshNameTemplatePreview()
     {
         if (NameTemplatePreview is null) return;
-        NameTemplatePreview.Text = "Example:  " + Helpers.NameTemplate.Preview(NameTemplateBox.Text);
+        NameTemplatePreview.Text = "Example:  " + Helpers.NameTemplate.Preview(NameTemplateBox.Text, _activeSuffix);
     }
 
     private void NameTemplate_Changed(object sender, System.Windows.Controls.TextChangedEventArgs e)

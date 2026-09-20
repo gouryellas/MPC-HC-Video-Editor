@@ -99,6 +99,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private double _timelineProgress;
     [ObservableProperty] private string _hotkeyStatus = "MButton: ON";
     /// <summary>
+    /// The binding on its own — "MButton", "Ctrl+Shift+T", "OFF" — for the
+    /// CURRENT HOTKEY block in the right panel. Unprefixed, because the block
+    /// already carries a heading saying what it is.
+    /// </summary>
+    [ObservableProperty] private string _hotkeyDisplay = "MButton";
+    /// <summary>
     /// Compact label shown on the Hotkey menu's top-level header so the
     /// user can see the current binding at a glance without expanding the
     /// menu (e.g. "Hotkey: MButton"). Kept in sync by
@@ -150,6 +156,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public string BookmarksFileName => string.IsNullOrEmpty(Session.CsvPath) || !File.Exists(Session.CsvPath)
         ? "<none>"
         : Path.GetFileName(Session.CsvPath);
+
+    /// <summary>
+    /// Whether <see cref="BookmarksFileName"/> is naming a real file rather
+    /// than its placeholder. Written to the exact same test, so the panel
+    /// cannot colour a filename as missing or a placeholder as present.
+    /// </summary>
+    public bool HasBookmarksFile => !string.IsNullOrEmpty(Session.CsvPath) && File.Exists(Session.CsvPath);
 
     /// <summary>
     /// True when the session has at least one valid (complete) bookmark,
@@ -1122,7 +1135,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         DeleteBookmarksCommand.NotifyCanExecuteChanged();
         EnterTimeManualCommand.NotifyCanExecuteChanged();
         DeleteSelectedCommand.NotifyCanExecuteChanged();
+        // All three share CanToggleFlip. Notifying only the first left Rotate
+        // and Mute stuck in the state they were evaluated in at startup —
+        // disabled, since nothing was selected then — so neither button ever
+        // became usable.
         ToggleFlipCommand.NotifyCanExecuteChanged();
+        RotateSelectedCommand.NotifyCanExecuteChanged();
+        ToggleMuteCommand.NotifyCanExecuteChanged();
         PlayAllCommand.NotifyCanExecuteChanged();
         PlaySelectedCommand.NotifyCanExecuteChanged();
         SelectAllCommand.NotifyCanExecuteChanged();
@@ -1206,6 +1225,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             : binding.Display;
         HotkeyStatus = $"Hotkey: {label}";
         HotkeyMenuLabel = $"Hotkey: {label}";
+        HotkeyDisplay = label;
         SetTimestampMenuLabel = $"Set timestamp: {label}";
     }
 
@@ -1450,6 +1470,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ? "Bookmarks: (not loaded)"
             : "Bookmarks: " + Path.GetFileName(Session.CsvPath);
         OnPropertyChanged(nameof(BookmarksFileName));
+        OnPropertyChanged(nameof(HasBookmarksFile));
     }
 
     /// <summary>
@@ -1717,7 +1738,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // Never report "<none>" as loaded — that placeholder belongs only to
         // the right panel's CURRENT VIDEO line.
         StatusText = Session.HasVideo
-            ? $"Loaded: {Session.VideoFileName}  ({Session.Bookmarks.Count} bookmarks)"
+            ? $"Loaded: {Session.VideoFileName}  ({Session.Bookmarks.Count} {Bookmarks(Session.Bookmarks.Count)})"
             : "No video loaded";
     }
 
@@ -2029,8 +2050,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             var removedEnd = last.EndDisplay;
 
-            // Clearing the end time is what reopens it, and what clears its
-            // selection — the bookmark has no range to be selected for.
+            // Clearing the end time is the whole of reopening it. The row keeps
+            // its check on purpose — see Bookmark.AnnounceOpenState; the check
+            // is the user's mark on a row, not a claim that the row can be cut,
+            // and taking a closing timestamp back to move it should not quietly
+            // undo the selection as well.
             last.EndSeconds = 0;
 
             SaveBookmarks();
@@ -2475,6 +2499,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // ------------------------------------------------------------------
 
     /// <summary>
+    /// The window a modal dialog should belong to.
+    /// </summary>
+    /// <remarks>
+    /// Owning one matters more than it looks. A dialog shown with no owner is
+    /// still modal — <c>ShowDialog</c> disables the rest of the application —
+    /// but Windows has no relationship to enforce, so nothing keeps it in front
+    /// of the window it disabled. Clicking the taskbar button then raises a
+    /// window that cannot be typed into, with the dialog that disabled it
+    /// hidden behind: an application that looks hung and is not.
+    /// </remarks>
+    private static Window? DialogOwner =>
+        Application.Current?.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive)
+        ?? Application.Current?.MainWindow;
+
+    /// <summary>
     /// Returns a path that does not exist yet, asking the user what to do
     /// each time the candidate is taken. Returns null if they cancel.
     /// </summary>
@@ -2497,14 +2536,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             if (_conflictAllChoice == ConflictResult.Increment)
             {
-                candidate = IncrementSuffix(candidate);
+                candidate = NextFreeName(candidate);
                 continue;
             }
 
             var dlg = new ConflictDialog(Path.GetFileName(candidate),
-                                         Path.GetFileName(IncrementSuffix(candidate)),
+                                         Path.GetFileName(NextFreeName(candidate)),
                                          offerApplyToAll: _batchRemaining > 1)
-            { Owner = null };
+            { Owner = DialogOwner };
 
             if (dlg.ShowDialog() != true) return Task.FromResult<string?>(null);
 
@@ -2524,7 +2563,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     return Task.FromResult<string?>(candidate);
 
                 case ConflictResult.Increment:
-                    candidate = IncrementSuffix(candidate);
+                    candidate = NextFreeName(candidate);
                     break;
 
                 case ConflictResult.Rename when !string.IsNullOrWhiteSpace(dlg.NewName):
@@ -2628,7 +2667,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 "This output filename contains characters that are not allowed. " +
                 "Enter a name to save it as.",
                 offerApplyToAll: _batchRemaining > 1)
-            { Owner = null };
+            { Owner = DialogOwner };
 
             if (dlg.ShowDialog() != true || string.IsNullOrWhiteSpace(dlg.NewStem))
             {
@@ -2675,6 +2714,31 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <c>[cs3]</c> → <c>[cs4]</c>. A suffix with no number starts at 2.
     /// Names with no bracket at all get one appended from the active tag.
     /// </summary>
+    /// <summary>
+    /// The first name Increment can actually use: <see cref="IncrementSuffix"/>
+    /// applied until it lands on a free one.
+    /// </summary>
+    /// <remarks>
+    /// One bump is not an offer worth making. Splitting twice into the same
+    /// folder leaves [done], [done2] and [done3] sitting there, so a single
+    /// step proposed a name that was also taken — the dialog said "Increment
+    /// would save as: …[done2].mp4" about a file plainly on disk, then asked
+    /// again, once per name already used. The preview and the button now agree,
+    /// and one click gets past the whole run of them.
+    /// </remarks>
+    private string NextFreeName(string path)
+    {
+        var candidate = IncrementSuffix(path);
+
+        // Bounded. A folder holding a thousand of these is pathological, and
+        // spinning here forever would be a worse answer than handing back a
+        // taken name for the caller to ask about.
+        for (var guard = 0; File.Exists(candidate) && guard < 1000; guard++)
+            candidate = IncrementSuffix(candidate);
+
+        return candidate;
+    }
+
     private string IncrementSuffix(string path)
     {
         var dir = Path.GetDirectoryName(path) ?? "";
@@ -3170,7 +3234,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
             int i = 0;
             foreach (var b in toSplit)
             {
-                i++; ProgressPercent = (double)i / toSplit.Count * 100; StatusText = $"Splitting {i}/{toSplit.Count}";
+                // Names the cut rather than counting, like Convert and Strip
+                // audio do. The panel directly above already carries a counter,
+                // and it counts what is finished while this counted what was
+                // starting — so the two sat there disagreeing, "1/3" above
+                // "Splitting 2/3".
+                i++; ProgressPercent = (double)i / toSplit.Count * 100;
+                StatusText = $"Splitting {b.StartDisplay} → {b.EndDisplay}";
                 _batchRemaining = toSplit.Count - i + 1;
                 // i - 1, matching the percentage on the next line: i has
                 // already been bumped for the cut about to run, and the counter
@@ -4188,6 +4258,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>"entry" or "entries", so the prompt and status line read.</summary>
     private static string Entries(int count) => count == 1 ? "entry" : "entries";
 
+    /// <summary>"bookmark" or "bookmarks", for the same reason.</summary>
+    private static string Bookmarks(int count) => count == 1 ? "bookmark" : "bookmarks";
+
     /// <summary>The distinct drives a set of paths lives on, in order.</summary>
     private static List<string> RootsOf(IEnumerable<string> paths)
         => paths
@@ -4487,7 +4560,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void SetTimestampHotkey()
     {
         var current = _hotkeys.Binding;
-        var dlg = new CaptureHotkeyDialog(current) { Owner = null };
+        var dlg = new CaptureHotkeyDialog(current) { Owner = DialogOwner };
         if (dlg.ShowDialog() != true) return;
         if (dlg.Result == null) return;
 
@@ -4541,6 +4614,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
         try
         {
             _bookmarks.SaveToCsv(Session.CsvPath, Session.Bookmarks);
+
+            // Remember what we just wrote. ReloadBookmarksFromDisk runs on
+            // every activation to pick up an external edit, and decides there
+            // was one by comparing the file's timestamp to this. Leaving it
+            // stale meant our own saves looked external: set a timestamp from
+            // the player, come back to this window, and it announced "Reloaded
+            // N bookmark(s) from disk" over the top of whatever the action had
+            // just reported — and renumbered the rows while it was at it, since
+            // the file is written sorted by start time.
+            try { _lastBookmarkWriteUtc = File.GetLastWriteTimeUtc(Session.CsvPath); }
+            catch { /* unreadable stamp just costs one redundant reload */ }
 
             // Writing the first timestamp is what brings the bookmark file
             // into existence, so this is where "loaded" becomes true.
@@ -4920,7 +5004,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ManageShortcuts()
     {
-        var dlg = new ManageShortcutsDialog(Shortcuts) { Owner = null };
+        var dlg = new ManageShortcutsDialog(Shortcuts) { Owner = DialogOwner };
         dlg.ShowDialog();
 
         // The dialog mutates the ObservableCollection in place (add / remove
@@ -5260,7 +5344,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ManageSuffixes()
     {
-        var dlg = new ManageSuffixesDialog(Suffixes) { Owner = null };
+        var dlg = new ManageSuffixesDialog(Suffixes) { Owner = DialogOwner };
         dlg.ShowDialog();
 
         _settings.ReorderSuffixes(Suffixes);

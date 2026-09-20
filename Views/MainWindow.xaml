@@ -1,4 +1,4 @@
-<!-- Title is set in the constructor from the assembly version — see AppVersion.
+﻿<!-- Title is set in the constructor from the assembly version — see AppVersion.
      The literal that used to be on the Title attribute below is why 3.0.1
      shipped with a window still captioned 3.0; what is left there is only what
      the XAML designer shows. -->
@@ -32,6 +32,7 @@
 
     <Window.Resources>
         <helpers:BoolToVisibilityConverter x:Key="BoolToVis"/>
+        <helpers:InverseBoolToVisibilityConverter x:Key="NotBoolToVis"/>
         <helpers:ProgressToBrushConverter x:Key="ProgressBrush"/>
 
 
@@ -79,6 +80,12 @@
             <Setter Property="Foreground" Value="{DynamicResource MenuBarForeground}"/>
             <Setter Property="Background" Value="{DynamicResource MenuBarBackground}"/>
             <Setter Property="FlowDirection" Value="LeftToRight"/>
+            <!-- A highlighted item pops its own tooltip, which lands on top of
+                 the item below it — every menu opened with its second entry
+                 covered up. Set here rather than on the Menu: the dropdown is a
+                 Popup, its own visual tree, and the attached property does not
+                 reach across from the parent. Hovering still shows them. -->
+            <Setter Property="ToolTipService.ShowsToolTipOnKeyboardFocus" Value="False"/>
             <Style.Triggers>
                 <Trigger Property="IsHighlighted" Value="True">
                     <Setter Property="Background" Value="{DynamicResource LinkBlue}"/>
@@ -212,12 +219,19 @@
 
     <DockPanel>
         <!-- Menu -->
+        <!-- No access keys on any of these headers — no "_" in a Header below.
+             Alt+<letter> would open a menu, and the timestamp hotkey is free to
+             be any combination the user likes: binding one that collided meant
+             the press went to the menu bar instead of to the bookmark, which is
+             a strange thing to have to know. Everything here is reachable with
+             the mouse, and the one keyboard action worth having — the hotkey
+             itself — is global and configurable. -->
         <Menu x:Name="HeaderMenu" DockPanel.Dock="Top" Background="{DynamicResource MenuBarBackground}" Foreground="{DynamicResource MenuBarForeground}" FlowDirection="LeftToRight" Padding="4">
             <!-- x:Name, and not the header text, is what the code-behind finds
                  these by. Four menus are filled in at runtime, and looking them
                  up by header meant any change to the wording — a rename, an
                  icon — silently emptied them. -->
-            <MenuItem x:Name="FileMenu" Header="&#128193; _File">
+            <MenuItem x:Name="FileMenu" Header="&#128193; File">
                 <MenuItem Header="Open…" Command="{Binding OpenFileCommand}"
                           ToolTip="Open a video file, bookmark CSV, or .pls playlist (auto-detected by extension)"/>
                 <!-- Where every action except the one-click row button writes.
@@ -252,7 +266,7 @@
                 <MenuItem Header="Exit" Click="Exit_Click"/>
             </MenuItem>
 
-            <MenuItem Header="&#9998; _Edit">
+            <MenuItem Header="&#9998; Edit">
                 <!-- The headers name what will be reversed — "Undo the speed"
                      rather than a bare "Undo" — so the entry says what it is
                      about to do before it does it. -->
@@ -262,7 +276,7 @@
                 <MenuItem Header="{Binding RedoEditHeader}" Command="{Binding RedoEditCommand}"
                           InputGestureText="Ctrl+Y"/>
             </MenuItem>
-            <MenuItem Header="&#9889; _Actions">
+            <MenuItem Header="&#9889; Actions">
                 <MenuItem Header="Merge selected / all / any" Command="{Binding MergeSelectedCommand}"
                           ToolTip="Merges the checked cuts, or every cut, or — with no video loaded — files you pick. A single cut is written out on its own as a trim.">
                     <MenuItem.Icon>
@@ -311,7 +325,7 @@
                 <MenuItem Header="Export as chapters…" Command="{Binding ExportChaptersCommand}"
                           ToolTip="Writes the video out once with the bookmarks as chapter marks, instead of cutting it into separate clips"/>
             </MenuItem>
-            <MenuItem Header="&#9000; _Hotkey">
+            <MenuItem Header="&#9000; Hotkey">
                 <!-- Header shows the current binding live (e.g. "Hotkey: MButton",
                      "Hotkey: Ctrl+Shift+T", "Hotkey: OFF"). Bound to the
                      ViewModel's HotkeyMenuLabel which is updated whenever the
@@ -322,7 +336,7 @@
                           ToolTip="Pick a mouse button or capture a keyboard combination"/>
                 <MenuItem Header="Disable hotkey" Command="{Binding DisableTimestampHotkeyCommand}"/>
             </MenuItem>
-            <MenuItem Header="&#128278; _Bookmarks">
+            <MenuItem Header="&#128278; Bookmarks">
                 <!-- Header carries the live hotkey binding, e.g.
                      "Set timestamp: MButton". Bound to SetTimestampMenuLabel. -->
                 <MenuItem Header="{Binding SetTimestampMenuLabel}" Command="{Binding SetTimestampCommand}"
@@ -347,7 +361,7 @@
                 <MenuItem Header="Select none" Command="{Binding SelectNoneCommand}"/>
                 <Separator/>
             </MenuItem>
-            <MenuItem x:Name="PlaylistMenu" Header="&#127902; _Playlist">
+            <MenuItem x:Name="PlaylistMenu" Header="&#127902; Playlist">
                 <MenuItem Header="{Binding PlaylistFolderDisplay}" Command="{Binding SetPlaylistFolderCommand}"
                           ToolTip="Folder scanned for playlists (.pls, .m3u8)"/>
                 <!-- These three are Click handlers rather than commands, so
@@ -386,7 +400,7 @@
             <!-- History — the recently-played videos, promoted out of the File
                  menu to a top-level menu of its own. Entries between the two
                  named separators are inserted at runtime from RecentVideos. -->
-            <MenuItem Header="&#128336; H_istory" x:Name="RecentMenuItem" ToolTip="Recently played videos">
+            <MenuItem Header="&#128336; History" x:Name="RecentMenuItem" ToolTip="Recently played videos">
                 <MenuItem Header="(no recent videos)" IsEnabled="False" x:Name="RecentEmptyPlaceholder"/>
                 <Separator x:Name="RecentStartSeparator" Visibility="Collapsed"/>
                 <!-- Dynamic per-video entries inserted here at runtime -->
@@ -395,7 +409,7 @@
             </MenuItem>
             <!-- Shortcuts menu — lets the user add folder shortcuts that then
                  appear as clickable items at the bottom of the File menu. -->
-            <MenuItem x:Name="ShortcutsMenu" Header="&#128279; Sho_rtcuts">
+            <MenuItem x:Name="ShortcutsMenu" Header="&#128279; Shortcuts">
                 <MenuItem Header="Add shortcut…" Command="{Binding AddShortcutCommand}"/>
                 <MenuItem Header="Manage shortcuts…" Command="{Binding ManageShortcutsCommand}"/>
                 <Separator x:Name="ShortcutsMenuStartSeparator"/>
@@ -408,7 +422,7 @@
                  outputs (merge, split, convert, strip audio, bulk merge).
                  The first item shows the currently-active suffix; the dynamic
                  list below lets the user switch by clicking. -->
-            <MenuItem x:Name="OptionsMenu" Header="&#9881; _Options">
+            <MenuItem x:Name="OptionsMenu" Header="&#9881; Options">
                 <!-- Not IsEnabled="False", unlike the example line below it: the
                      MenuItem style grays disabled items to #888888, and this is
                      the one line here that says which tag is actually in use, so
@@ -426,7 +440,7 @@
                 <MenuItem Header="Add new naming tag…" Command="{Binding AddSuffixCommand}"/>
                 <MenuItem Header="Manage naming tags…" Command="{Binding ManageSuffixesCommand}"/>
             </MenuItem>
-            <MenuItem Header="&#128421; _View">
+            <MenuItem Header="&#128421; View">
                 <MenuItem Header="Bring MPC-HC to front" Command="{Binding BringMpcToFrontCommand}"/>
                 <Separator/>
                 <!-- The whole of the view control, and on by default. Picking
@@ -443,7 +457,7 @@
                           ToolTip="Drop to the minimal overlay whenever MPC-HC becomes the active window. Either way, this window returns as soon as MPC-HC stops being active. Press X over the overlay to bring this window back."/>
             </MenuItem>
 
-            <MenuItem Header="&#10067; _Help">
+            <MenuItem Header="&#10067; Help">
                 <MenuItem Header="About…" Command="{Binding ShowAboutCommand}"
                           ToolTip="Version, licensing and third-party components"/>
                 <MenuItem Header="Check for updates" Command="{Binding CheckForUpdatesCommand}"
@@ -474,9 +488,13 @@
 
                 <!-- No progress bar here: the job panel directly above owns
                      progress, and a second bar showed the same number twice. -->
+                <!-- The hotkey binding used to sit here too. It is standing
+                     state rather than a message, and it now has a block of its
+                     own in the right panel; the player clock stays, because it
+                     is the one thing here that has to be readable while the
+                     bookmark list is what you are looking at. -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="16,0">
-                    <TextBlock Text="{Binding HotkeyStatus}" Foreground="{DynamicResource ValueYellow}" VerticalAlignment="Center"/>
-                    <StackPanel Orientation="Horizontal" Visibility="{Binding IsMpcRunning, Converter={StaticResource BoolToVis}}" Margin="16,0,0,0">
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding IsMpcRunning, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="{Binding CurrentTimeDisplay}" Foreground="{DynamicResource StatusOk}" FontWeight="SemiBold" VerticalAlignment="Center"/>
                         <TextBlock Text=" / " Foreground="{DynamicResource AccentBright}" VerticalAlignment="Center"/>
                         <TextBlock Text="{Binding DurationDisplay}" Foreground="{DynamicResource AccentBright}" VerticalAlignment="Center"/>
@@ -582,31 +600,56 @@
                      button across the top. -->
             </WrapPanel>
 
-            <!-- Timeline. Bottom to top: track, playback position, then the
-                 bookmark ranges drawn across the upper half so they read as
-                 marks on the bar rather than competing with the position. -->
-            <Grid Grid.Row="1" Margin="0,0,0,8" Height="18">
-                <Border Background="{DynamicResource TimelineTrack}" CornerRadius="3"/>
+            <!-- Timeline, in two lanes: the bookmark marks in a strip of their
+                 own on top, the playback position owning the bar underneath.
+                 They used to be stacked on the same 18px with overlapping
+                 margins, so the position line ran behind the marks and was
+                 hidden wherever a range covered it — which is most of the bar
+                 on a well-marked video. Separating them also lets the position
+                 bar be worth looking at instead of a 6px sliver. -->
+            <Grid Grid.Row="1" Margin="0,0,0,10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="9"/>
+                    <RowDefinition Height="4"/>
+                    <RowDefinition Height="14"/>
+                </Grid.RowDefinitions>
 
-                <!-- The audio, behind everything else. Stretched to the bar's
-                     width rather than re-rendered on resize: it is a guide to
-                     where sound is, not a measurement, and decoding the whole
-                     track again for a crisper approximation is a poor trade.
-                     Dimmed so the range marks and position stay readable over
-                     it. Absent when the video has no audio, which is simply
-                     nothing to draw. -->
-                <Image Source="{Binding Waveform}" Stretch="Fill" Opacity="0.38"
-                       IsHitTestVisible="False"/>
-
-                <ProgressBar Value="{Binding TimelineProgress}" Minimum="0" Maximum="1"
-                             Height="6" Margin="0,6" Background="Transparent"
-                             Foreground="{DynamicResource TimelinePosition}" BorderThickness="0"/>
-
-                <helpers:TimelineRanges Height="8" Margin="0,2,0,8"
-                                        VerticalAlignment="Top"
+                <helpers:TimelineRanges Grid.Row="0"
                                         Bookmarks="{Binding Session.Bookmarks}"
                                         DurationSeconds="{Binding Session.VideoDurationSeconds}"
                                         ToolTip="Bookmarked ranges — teal when checked, orange when marked for inversion, red tick for an open bookmark"/>
+
+                <Grid Grid.Row="2">
+                    <Border Background="{DynamicResource TimelineTrack}" CornerRadius="4"/>
+
+                    <!-- The audio, behind the position. Stretched to the bar's
+                         width rather than re-rendered on resize: it is a guide
+                         to where sound is, not a measurement, and decoding the
+                         whole track again for a crisper approximation is a poor
+                         trade. Dimmed so the position stays readable over it.
+                         Absent when the video has no audio, which is simply
+                         nothing to draw. -->
+                    <Image Source="{Binding Waveform}" Stretch="Fill" Opacity="0.38"
+                           IsHitTestVisible="False"/>
+
+                    <!-- Templated rather than styled: the stock ProgressBar
+                         chrome draws its own track and square-cornered fill
+                         inside ours. This is the fill and nothing else. -->
+                    <ProgressBar Value="{Binding TimelineProgress}" Minimum="0" Maximum="1"
+                                 Background="Transparent" BorderThickness="0"
+                                 Foreground="{DynamicResource TimelinePosition}"
+                                 ToolTip="Playback position">
+                        <ProgressBar.Template>
+                            <ControlTemplate TargetType="ProgressBar">
+                                <Grid>
+                                    <Border x:Name="PART_Track"/>
+                                    <Border x:Name="PART_Indicator" HorizontalAlignment="Left"
+                                            Background="{TemplateBinding Foreground}" CornerRadius="4"/>
+                                </Grid>
+                            </ControlTemplate>
+                        </ProgressBar.Template>
+                    </ProgressBar>
+                </Grid>
             </Grid>
 
             <Grid Grid.Row="2">
@@ -645,7 +688,11 @@
                             <TextBlock Grid.Column="0" Grid.ColumnSpan="4"
                                        Text="{Binding CompletePairCount, StringFormat='Bookmarks: {0}'}"
                                        FontWeight="SemiBold" Foreground="{DynamicResource TextDim}"/>
+                            <!-- Only once there is something to set a speed on.
+                                 The sliders live on the rows, so with an empty
+                                 list this headed a column of nothing. -->
                             <TextBlock Grid.Column="5" Grid.ColumnSpan="2" Text="PLAY SPEED"
+                                       Visibility="{Binding HasNoBookmarks, Converter={StaticResource NotBoolToVis}}"
                                        FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}"
                                        TextWrapping="Wrap" LineHeight="11"
                                        ToolTip="Each clip can be written out slower or faster than it was recorded. Drag a row's slider to change that clip; the length beside it updates to match."/>
@@ -776,31 +823,41 @@
                                                     CommandParameter="start+"
                                                     ToolTip="Move the start one frame later"/>
 
-                                            <TextBlock Style="{StaticResource RowGap}"/>
-                                            <TextBlock Text="-" Foreground="{DynamicResource Accent}" VerticalAlignment="Center"/>
-                                            <TextBlock Style="{StaticResource RowGap}"/>
+                                            <!-- Everything past the opening timestamp belongs to a
+                                                 range, and an open bookmark has not got one. It
+                                                 used to render the absent end as a number anyway —
+                                                 "40s - 0s (0s)" — which reads as a cut that starts
+                                                 at 40 seconds and runs backwards to nothing. An
+                                                 open bookmark is now just its start time, and the
+                                                 word after it says why there is nothing else. -->
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                                        Visibility="{Binding IsIncomplete, Converter={StaticResource NotBoolToVis}}">
+                                                <TextBlock Style="{StaticResource RowGap}"/>
+                                                <TextBlock Text="-" Foreground="{DynamicResource Accent}" VerticalAlignment="Center"/>
+                                                <TextBlock Style="{StaticResource RowGap}"/>
 
-                                            <Button Content="&lt;" Style="{StaticResource NudgeArrow}"
-                                                    Command="{Binding DataContext.NudgeFrameCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                    CommandParameter="end-"
-                                                    ToolTip="Move the end one frame earlier"/>
-                                            <TextBlock Style="{StaticResource RowGap}"/>
-                                            <TextBlock VerticalAlignment="Center"
-                                                       ToolTip="Click to seek MPC-HC to this time">
-                                                <Hyperlink Style="{StaticResource TimestampLink}"
-                                                           Tag="{Binding EndSeconds}"
-                                                           Click="TimestampHyperlink_Click">
-                                                    <Run Text="{Binding EndDisplay, Mode=OneWay}"/>
-                                                </Hyperlink>
-                                            </TextBlock>
-                                            <TextBlock Style="{StaticResource RowGap}"/>
-                                            <Button Content="&gt;" Style="{StaticResource NudgeArrow}"
-                                                    Command="{Binding DataContext.NudgeFrameCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                    CommandParameter="end+"
-                                                    ToolTip="Move the end one frame later"/>
+                                                <Button Content="&lt;" Style="{StaticResource NudgeArrow}"
+                                                        Command="{Binding DataContext.NudgeFrameCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                        CommandParameter="end-"
+                                                        ToolTip="Move the end one frame earlier"/>
+                                                <TextBlock Style="{StaticResource RowGap}"/>
+                                                <TextBlock VerticalAlignment="Center"
+                                                           ToolTip="Click to seek MPC-HC to this time">
+                                                    <Hyperlink Style="{StaticResource TimestampLink}"
+                                                               Tag="{Binding EndSeconds}"
+                                                               Click="TimestampHyperlink_Click">
+                                                        <Run Text="{Binding EndDisplay, Mode=OneWay}"/>
+                                                    </Hyperlink>
+                                                </TextBlock>
+                                                <TextBlock Style="{StaticResource RowGap}"/>
+                                                <Button Content="&gt;" Style="{StaticResource NudgeArrow}"
+                                                        Command="{Binding DataContext.NudgeFrameCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                        CommandParameter="end+"
+                                                        ToolTip="Move the end one frame later"/>
 
-                                            <TextBlock Style="{StaticResource RowGap}"/>
-                                            <TextBlock Text="{Binding DurationDisplay, StringFormat=({0})}" Foreground="{DynamicResource ValueGreen}" VerticalAlignment="Center"/>
+                                                <TextBlock Style="{StaticResource RowGap}"/>
+                                                <TextBlock Text="{Binding DurationDisplay, StringFormat=({0})}" Foreground="{DynamicResource ValueGreen}" VerticalAlignment="Center"/>
+                                            </StackPanel>
                                             <TextBlock Style="{StaticResource RowGap}"/>
                                             <TextBlock Text="incomplete" Foreground="{DynamicResource StatusError}" FontStyle="Italic" VerticalAlignment="Center"
                                                        Visibility="{Binding IsIncomplete, Converter={StaticResource BoolToVis}}"/>
@@ -838,23 +895,70 @@
                                     Command="{Binding RevealVideoCommand}"
                                     ToolTip="Show this video in Explorer"/>
                         </StackPanel>
-                        <TextBlock Text="{Binding Session.VideoFileName}" TextWrapping="Wrap" Foreground="{DynamicResource Accent}" FontSize="14" Margin="0,0,0,16"/>
+                        <!-- Red for the placeholder, the same as the two fields
+                             below: "<none>" is nothing loaded, and nothing
+                             loaded should not be wearing the colour the panel
+                             uses for a healthy value. -->
+                        <TextBlock Text="{Binding Session.VideoFileName}" TextWrapping="Wrap" FontSize="14" Margin="0,0,0,16">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource StatusError}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Session.HasVideo}" Value="True">
+                                            <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
 
-                        <!-- No video means no duration to report, so the whole
-                             block goes rather than showing 00:00. -->
-                        <StackPanel Visibility="{Binding Session.HasVideo, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="DURATION" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}"/>
-                            <TextBlock Text="{Binding DurationDisplay}" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" Margin="0,2,0,14"/>
-                        </StackPanel>
+                        <!-- Duration and edit length on one row: they are the
+                             same kind of number and get read against each other
+                             ("a minute of video, twenty seconds kept"), so
+                             stacking them put a comparison a line apart and
+                             pushed everything below down for nothing.
 
-                        <!-- Edit length needs a video, a loaded bookmark file
-                             and at least one complete pair. It shows the sum of
-                             the checked cuts, or of every cut when none are
-                             checked (see EditSession.SelectedDurationSeconds). -->
-                        <StackPanel Visibility="{Binding HasEditLength, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="EDIT LENGTH" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}"/>
-                            <TextBlock Text="{Binding Session.SelectedDurationDisplay}" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource ValueYellow}" Margin="0,2,0,18"/>
+                             No video means no duration to report, so the row
+                             goes rather than showing 00:00. -->
+                        <Grid Visibility="{Binding Session.HasVideo, Converter={StaticResource BoolToVis}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="DURATION" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}"/>
+                                <TextBlock Text="{Binding DurationDisplay}" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" Margin="0,2,0,14"/>
+                            </StackPanel>
+
+                            <!-- Edit length needs a video, a loaded bookmark file
+                                 and at least one complete pair. It shows the sum of
+                                 the checked cuts, or of every cut when none are
+                                 checked (see EditSession.SelectedDurationSeconds).
+                                 Its column simply stays empty until then. -->
+                            <StackPanel Grid.Column="1" Visibility="{Binding HasEditLength, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="EDIT LENGTH" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}"/>
+                                <TextBlock Text="{Binding Session.SelectedDurationDisplay}" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource ValueYellow}" Margin="0,2,0,14"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- The timestamp binding. It used to sit in the status
+                             bar, which is for messages about what just happened;
+                             this is standing state, and it belongs with the rest
+                             of the state down this side. Wraps because a captured
+                             combination can be a good deal longer than "MButton". -->
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="CURRENT HOTKEY" FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center"/>
+                            <!-- Same idea as the folder beside CURRENT VIDEO and
+                                 the pencil beside CURRENT BOOKMARKS: the thing
+                                 that changes this value, next to the value. -->
+                            <Button Content="&#9000;" Style="{StaticResource HeaderIcon}"
+                                    Command="{Binding SetTimestampHotkeyCommand}"
+                                    ToolTip="Set the timestamp hotkey — pick a mouse button or capture a keyboard combination"/>
                         </StackPanel>
+                        <TextBlock Text="{Binding HotkeyDisplay}" TextWrapping="Wrap" FontSize="16" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource ValueYellow}" Margin="0,2,0,18"/>
 
                         <!-- First and last frame of the highlighted clip. Only the
                              selected one is rendered: two frames per selection is
@@ -901,10 +1005,36 @@
                                     Command="{Binding EditBookmarksCommand}"
                                     ToolTip="Open the bookmark CSV in a text editor — changes are picked up when this window regains focus"/>
                         </StackPanel>
-                        <TextBlock Text="{Binding BookmarksFileName}" TextWrapping="Wrap" Foreground="{DynamicResource ValueGreen}" FontSize="14" Margin="0,0,0,14"/>
+                        <!-- Green says "this is loaded and fine". A placeholder
+                             is the opposite of that, so both of these fields
+                             turn red when there is nothing behind them rather
+                             than reporting "<none>" in the healthy colour. -->
+                        <TextBlock Text="{Binding BookmarksFileName}" TextWrapping="Wrap" FontSize="14" Margin="0,0,0,14">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource StatusError}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasBookmarksFile}" Value="True">
+                                            <Setter Property="Foreground" Value="{DynamicResource ValueGreen}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
 
                         <TextBlock Text="CURRENT PLAYLIST" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4"/>
-                        <TextBlock Text="{Binding PlaylistFileName}" TextWrapping="Wrap" Foreground="{DynamicResource ValueGreen}" FontSize="14" Margin="0,0,0,18"/>
+                        <TextBlock Text="{Binding PlaylistFileName}" TextWrapping="Wrap" FontSize="14" Margin="0,0,0,18">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource StatusError}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasLoadedPlaylist}" Value="True">
+                                            <Setter Property="Foreground" Value="{DynamicResource ValueGreen}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
 
                         <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Margin="0,4,0,12"/>
 

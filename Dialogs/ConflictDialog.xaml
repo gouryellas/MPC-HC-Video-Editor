@@ -21,11 +21,14 @@
         <TextBlock Grid.Row="2" x:Name="IncrementHint" Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap"
                    FontStyle="Italic" VerticalAlignment="Top"/>
 
-        <Grid Grid.Row="3">
+        <!-- The checkbox gets a row of its own rather than sharing one with the
+             buttons. Side by side they overlapped: four buttons need most of a
+             480-wide window, and the label was printed underneath them. -->
+        <StackPanel Grid.Row="3">
             <!-- Applies to Overwrite and Increment only: those repeat cleanly
                  on any later file, whereas a name typed into Rename cannot be
                  reused without colliding. -->
-            <CheckBox x:Name="ApplyToAllCheck" HorizontalAlignment="Left" VerticalAlignment="Center"
+            <CheckBox x:Name="ApplyToAllCheck" HorizontalAlignment="Left" Margin="0,0,0,8"
                       Foreground="{DynamicResource TextDim}" Visibility="Collapsed"
                       ToolTip="Applies to Overwrite and Increment. Rename always asks, since a typed name cannot repeat."
                       Content="Do this for all remaining files"/>
@@ -36,6 +39,6 @@
                 <Button Content="Rename…" Width="90" Margin="4" Click="Rename_Click" Padding="8,4"/>
                 <Button Content="Cancel" Width="80" Margin="4" Click="Cancel_Click" Padding="8,4"/>
             </StackPanel>
-        </Grid>
+        </StackPanel>
     </Grid>
 </Window>
