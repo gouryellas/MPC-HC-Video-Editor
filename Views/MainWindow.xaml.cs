@@ -4,6 +4,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Media;
 using MpcHcVideoEditor.Helpers;
 using MpcHcVideoEditor.Models;
@@ -42,6 +43,54 @@ public partial class MainWindow : Window
         Deactivated += (_, _) => _vm?.PausePollTimer();
 
         StateChanged += MainWindow_StateChanged;
+    }
+
+    // ------------------------------------------------------------------
+    // Alt
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Whether this is Alt on its own, rather than Alt holding down another
+    /// key.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A bare press reports <see cref="Key.System"/> with
+    /// <see cref="KeyEventArgs.SystemKey"/> naming the Alt key itself. Every
+    /// combination worth keeping names its other key there instead — Alt+F4 is
+    /// <c>F4</c>, Alt+Space is <c>Space</c> — so testing for the Alt keys by
+    /// name catches the bare press and nothing else. Alt+Tab never reaches an
+    /// application at all.
+    /// </para>
+    /// </remarks>
+    private static bool IsBareAlt(KeyEventArgs e) =>
+        e.Key == Key.System && e.SystemKey is Key.LeftAlt or Key.RightAlt;
+
+    /// <summary>
+    /// Swallows a bare Alt so it cannot put the menu bar into menu mode.
+    /// </summary>
+    /// <remarks>
+    /// The menus carry no access keys, so Alt has nothing left to reach — but
+    /// Alt alone still moved focus to the menu bar and left the next keystroke
+    /// going there rather than to the window. The timestamp hotkey is global
+    /// and can be bound to anything, Alt included, and a binding that quietly
+    /// activated the menu bar instead of recording a bookmark is the sort of
+    /// thing a user would have to discover.
+    ///
+    /// Both directions are handled: the down stroke is what WPF arms menu mode
+    /// on, the up stroke is what enters it.
+    /// </remarks>
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        if (IsBareAlt(e)) { e.Handled = true; return; }
+        base.OnPreviewKeyDown(e);
+    }
+
+    /// <inheritdoc cref="OnPreviewKeyDown"/>
+    protected override void OnPreviewKeyUp(KeyEventArgs e)
+    {
+        if (IsBareAlt(e)) { e.Handled = true; return; }
+        base.OnPreviewKeyUp(e);
     }
 
     // ------------------------------------------------------------------
