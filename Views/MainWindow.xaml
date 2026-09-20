@@ -579,8 +579,14 @@
                 <Button Content="🔇 Mute" Command="{Binding ToggleMuteCommand}"
                         ToolTip="Write the selected cuts without sound. The audio track stays in place carrying silence, so a merge of muted and unmuted cuts still joins cleanly."/>
                 <Rectangle Width="12"/>
-                <Button Content="Select All" Command="{Binding SelectAllCommand}"/>
-                <Button Content="None" Command="{Binding SelectNoneCommand}"/>
+                <!-- One button, not two. "Select All" and "None" sat side by
+                     side and one of them was always the wrong one to want; this
+                     offers whichever is worth doing from where the list already
+                     is. MinWidth so the toolbar does not shuffle along by a few
+                     pixels every time the caption changes. -->
+                <Button Content="{Binding SelectAllButtonLabel}" MinWidth="104"
+                        Command="{Binding ToggleSelectAllCommand}"
+                        ToolTip="Check every cut, or clear them all. Follows the list: it offers to clear once everything is checked, and to select once nothing is."/>
                 <Rectangle Width="12"/>
                 <!-- Bulk merge sits next to Merge; the rest keep their order.
                      None of these set an explicit Width — the button style

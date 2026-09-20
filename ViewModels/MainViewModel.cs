@@ -1146,6 +1146,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         PlaySelectedCommand.NotifyCanExecuteChanged();
         SelectAllCommand.NotifyCanExecuteChanged();
         SelectNoneCommand.NotifyCanExecuteChanged();
+        ToggleSelectAllCommand.NotifyCanExecuteChanged();
+
+        // The selection just moved, which is the only thing that can turn the
+        // toolbar's select button around.
+        RefreshSelectionButton();
         MergeSelectedCommand.NotifyCanExecuteChanged();
         SplitSelectedCommand.NotifyCanExecuteChanged();
         AddCurrentToPlaylistCommand.NotifyCanExecuteChanged();
@@ -2022,6 +2027,68 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     [RelayCommand(CanExecute = nameof(CanSelectNone))]
     private void SelectNone() { foreach (var b in Session.Bookmarks) b.IsSelected = false; }
+
+    /// <summary>
+    /// Backing state for <see cref="SelectAllButtonLabel"/>: true while the
+    /// toolbar's one select button is offering to clear the selection.
+    /// </summary>
+    private bool _selectionButtonClears;
+
+    /// <summary>
+    /// The caption on the toolbar's select button — "Select All" or
+    /// "Select None".
+    /// </summary>
+    /// <remarks>
+    /// It replaced a pair of buttons, one of which was always the wrong one to
+    /// want. Which way it points is decided in
+    /// <see cref="RefreshSelectionButton"/>, not here.
+    /// </remarks>
+    public string SelectAllButtonLabel => _selectionButtonClears ? "Select None" : "Select All";
+
+    /// <summary>
+    /// Points the select button at whichever action is worth offering.
+    /// </summary>
+    /// <remarks>
+    /// The caption moves only at the two ends — everything checked, or nothing
+    /// checked — and holds its ground in between. Flipping it the instant a
+    /// selection stopped being complete would mean unticking one row of twenty
+    /// took the "clear them all" action off the toolbar, which is exactly the
+    /// moment it is wanted. So: filling the list offers to clear it, emptying
+    /// the list offers to fill it, and a partial selection leaves the last
+    /// answer standing.
+    /// </remarks>
+    private void RefreshSelectionButton()
+    {
+        var total = Session.Bookmarks.Count;
+        var selected = SelectedCount;
+
+        bool clears;
+        if (total > 0 && selected == total) clears = true;
+        else if (selected == 0) clears = false;
+        else return;                      // Partial — leave it as it was.
+
+        if (clears == _selectionButtonClears) return;
+        _selectionButtonClears = clears;
+        OnPropertyChanged(nameof(SelectAllButtonLabel));
+    }
+
+    /// <summary>
+    /// The toolbar's select button: fills the selection, or clears it,
+    /// according to what it is currently offering.
+    /// </summary>
+    /// <remarks>
+    /// The caption is not set here. Either branch lands the selection on one of
+    /// the two ends, and the resulting IsSelected changes run
+    /// <see cref="RefreshSelectionButton"/> through the usual plumbing — so the
+    /// button reads the same whether it was pressed or the boxes were ticked by
+    /// hand, which is the whole point of deriving it from the count.
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(CanSelectAll))]
+    private void ToggleSelectAll()
+    {
+        if (_selectionButtonClears) SelectNone();
+        else SelectAll();
+    }
 
     /// <summary>
     /// Removes the single most recent <em>timestamp</em>, not the whole
