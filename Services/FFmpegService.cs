@@ -189,7 +189,7 @@ public class FFmpegService
     /// has already exited, which is the normal case.
     /// </summary>
     /// <remarks>
-    /// For the short-lived helpers — thumbnails, waveforms, encoder probes —
+    /// For the short-lived helpers — thumbnails, encoder probes —
     /// that are not registered in <see cref="_running"/>. Disposing a
     /// <see cref="Process"/> only releases the handle, so a run abandoned by a
     /// cancellation or a timeout would otherwise stay alive, blocked on a pipe
@@ -947,77 +947,6 @@ public class FFmpegService
         finally
         {
             lock (_running) _running.Remove(process);
-        }
-    }
-
-    /// <summary>
-    /// Renders the whole audio track as a waveform image, as PNG bytes.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Drawn behind the timeline so sound is visible while marking. On
-    /// speech-driven material the gaps are the joins, and seeing them beats
-    /// scrubbing for them.
-    /// </para>
-    /// <para>
-    /// Transparent background and a single color, because it sits underneath
-    /// the existing range marks rather than replacing them. Rendered once per
-    /// video at a fixed width and stretched — the picture is a guide, not a
-    /// measurement, and re-rendering on every window resize would decode the
-    /// whole track again for a slightly crisper approximation.
-    /// </para>
-    /// </remarks>
-    public async Task<byte[]?> RenderWaveformAsync(
-        string videoPath, int width = 1600, int height = 120, CancellationToken ct = default)
-    {
-        if (string.IsNullOrWhiteSpace(videoPath) || !File.Exists(videoPath)) return null;
-
-        var args = $"-hide_banner -loglevel error -nostats -i \"{videoPath}\" " +
-                   $"-filter_complex \"showwavespic=s={width}x{height}:colors=0x4EC9B0|0x4EC9B0:split_channels=0\" " +
-                   $"-frames:v 1 -f image2pipe -c:v png -";
-
-        try
-        {
-            var psi = new ProcessStartInfo(_ffmpegPath, args)
-            {
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var process = Process.Start(psi);
-            if (process == null) return null;
-
-            try
-            {
-                using var buffer = new MemoryStream();
-                var copy = process.StandardOutput.BaseStream.CopyToAsync(buffer, ct);
-                var errors = process.StandardError.ReadToEndAsync(ct);
-                await Task.WhenAll(copy, errors).ConfigureAwait(false);
-
-                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                timeout.CancelAfter(TimeSpan.FromMinutes(3));
-                await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
-
-                if (process.ExitCode != 0 || buffer.Length == 0) return null;
-                return buffer.ToArray();
-            }
-            finally
-            {
-                EndProcess(process);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch
-        {
-            // A video with no audio track is the common case here, and it is
-            // not a failure worth telling anyone about — there is simply no
-            // waveform to draw.
-            return null;
         }
     }
 

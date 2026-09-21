@@ -207,12 +207,63 @@
                 </Setter.Value>
             </Setter>
             <Style.Triggers>
-                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True">
-                    <Setter Property="Visibility" Value="Visible"/>
-                </DataTrigger>
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Foreground" Value="{DynamicResource AccentBright}"/>
                 </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- One style per arrow, because each asks a different question before
+             showing itself: pointing over the row is necessary but not enough,
+             the arrow also has to have somewhere left to go. An arrow that
+             refuses the click reads as a broken button, so it is taken off the
+             row instead — which is also how you can see, without pressing
+             anything, that a timestamp is up against its limit. -->
+        <Style x:Key="NudgeStartBack" TargetType="Button" BasedOn="{StaticResource NudgeArrow}">
+            <Style.Triggers>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True"/>
+                        <Condition Binding="{Binding CanNudgeStartBack}" Value="True"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Visible"/>
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="NudgeStartForward" TargetType="Button" BasedOn="{StaticResource NudgeArrow}">
+            <Style.Triggers>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True"/>
+                        <Condition Binding="{Binding CanNudgeStartForward}" Value="True"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Visible"/>
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="NudgeEndBack" TargetType="Button" BasedOn="{StaticResource NudgeArrow}">
+            <Style.Triggers>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True"/>
+                        <Condition Binding="{Binding CanNudgeEndBack}" Value="True"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Visible"/>
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="NudgeEndForward" TargetType="Button" BasedOn="{StaticResource NudgeArrow}">
+            <Style.Triggers>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True"/>
+                        <Condition Binding="{Binding CanNudgeEndForward}" Value="True"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Visible"/>
+                </MultiDataTrigger>
             </Style.Triggers>
         </Style>
     </Window.Resources>
@@ -474,33 +525,19 @@
         </Menu>
 
         <!-- Status bar -->
+        <!-- Messages and nothing else now. The hotkey binding moved to the
+             right panel and the player clock moved onto the timeline, where it
+             sits either side of the bar it describes. Both were standing state
+             parked in the one strip meant for reporting what just happened, and
+             between them they had taken most of its width.
+
+             No progress bar here either: the job panel directly above owns
+             progress, and a second bar showed the same number twice. -->
         <Border DockPanel.Dock="Bottom" Background="{DynamicResource PrimaryButton}" Padding="10,6">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-
-                <!-- Marquee rather than TextBlock: "Created <name> — <warning>"
-                     runs past the end of the bar on a long file name, and the
-                     warning is the half that gets clipped. -->
-                <helpers:MarqueeText Text="{Binding StatusText}" Foreground="{DynamicResource OnAccent}" VerticalAlignment="Center"/>
-
-                <!-- No progress bar here: the job panel directly above owns
-                     progress, and a second bar showed the same number twice. -->
-                <!-- The hotkey binding used to sit here too. It is standing
-                     state rather than a message, and it now has a block of its
-                     own in the right panel; the player clock stays, because it
-                     is the one thing here that has to be readable while the
-                     bookmark list is what you are looking at. -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="16,0">
-                    <StackPanel Orientation="Horizontal" Visibility="{Binding IsMpcRunning, Converter={StaticResource BoolToVis}}">
-                        <TextBlock Text="{Binding CurrentTimeDisplay}" Foreground="{DynamicResource StatusOk}" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                        <TextBlock Text=" / " Foreground="{DynamicResource AccentBright}" VerticalAlignment="Center"/>
-                        <TextBlock Text="{Binding DurationDisplay}" Foreground="{DynamicResource AccentBright}" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </StackPanel>
-            </Grid>
+            <!-- Marquee rather than TextBlock: "Created <name> — <warning>"
+                 runs past the end of the bar on a long file name, and the
+                 warning is the half that gets clipped. -->
+            <helpers:MarqueeText Text="{Binding StatusText}" Foreground="{DynamicResource OnAccent}" VerticalAlignment="Center"/>
         </Border>
 
         <!-- Job progress. Sits above the status bar and only takes space while
@@ -566,8 +603,13 @@
 
             <!-- Toolbar. WrapPanel, not StackPanel: a horizontal StackPanel
                  keeps laying out past the right edge, so at narrow widths the
-                 last buttons were cut off rather than moving to a second row. -->
-            <WrapPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                 last buttons were cut off rather than moving to a second row.
+
+                 Named so the window can take its minimum width from what this
+                 row actually measures. The wrap is still the safety net — for a
+                 display too narrow to hold the row at all, and for the moment
+                 during startup before the first measurement. -->
+            <WrapPanel x:Name="ActionToolbar" Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
                 <Button Content="📍 Set timestamp" Command="{Binding SetTimestampCommand}" ToolTip="Set a timestamp at the current MPC-HC position"/>
                 <Button Content="🗑" Command="{Binding DeleteSelectedCommand}" Width="36" ToolTip="Delete selected"/>
                 <Button Content="↕ Flip" Command="{Binding ToggleFlipCommand}" ToolTip="Toggle vertical flip"/>
@@ -613,49 +655,126 @@
                  hidden wherever a range covered it — which is most of the bar
                  on a well-marked video. Separating them also lets the position
                  bar be worth looking at instead of a 6px sliver. -->
-            <Grid Grid.Row="1" Margin="0,0,0,10">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="9"/>
-                    <RowDefinition Height="4"/>
-                    <RowDefinition Height="14"/>
-                </Grid.RowDefinitions>
+            <!-- Position on the left, length on the right, the way a transport
+                 bar reads. These used to be a single "26s / 1:00" in the corner
+                 of the status bar, which is the wrong place for them: the status
+                 bar reports what just happened, and this is where you are.
 
-                <helpers:TimelineRanges Grid.Row="0"
-                                        Bookmarks="{Binding Session.Bookmarks}"
-                                        DurationSeconds="{Binding Session.VideoDurationSeconds}"
-                                        ToolTip="Bookmarked ranges — teal when checked, orange when marked for inversion, red tick for an open bookmark"/>
+                 Both ends are one shared-size group, so they are always the same
+                 width and the bar between them cannot move. The width comes from
+                 whichever is wider, which is the duration — the position can
+                 never be longer than the thing it is a position in. That holds
+                 for an hour-long file reading 1:04:22 as readily as for a minute
+                 reading 12s, without a guessed-at fixed width to outgrow.
 
-                <Grid Grid.Row="2">
-                    <Border Background="{DynamicResource TimelineTrack}" CornerRadius="4"/>
+                 Each number is aligned towards the bar, so the growth on a long
+                 file happens on the outside edges and the track keeps its ends.
+                 Consolas for the same reason: proportional digits shuffle the
+                 label's width every time a 1 ticks over to a 2. -->
+            <Grid Grid.Row="1" Margin="0,0,0,10" Grid.IsSharedSizeScope="True">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="TimelineClock"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="TimelineClock"/>
+                </Grid.ColumnDefinitions>
 
-                    <!-- The audio, behind the position. Stretched to the bar's
-                         width rather than re-rendered on resize: it is a guide
-                         to where sound is, not a measurement, and decoding the
-                         whole track again for a crisper approximation is a poor
-                         trade. Dimmed so the position stays readable over it.
-                         Absent when the video has no audio, which is simply
-                         nothing to draw. -->
-                    <Image Source="{Binding Waveform}" Stretch="Fill" Opacity="0.38"
-                           IsHitTestVisible="False"/>
+                <TextBlock Grid.Column="0" Text="{Binding CurrentTimeDisplay}" VerticalAlignment="Bottom"
+                           HorizontalAlignment="Right" TextAlignment="Right"
+                           FontFamily="Consolas" FontSize="13" FontWeight="SemiBold" Margin="0,0,10,0"
+                           Foreground="{DynamicResource AccentBright}"
+                           ToolTip="Where the player is now"/>
 
-                    <!-- Templated rather than styled: the stock ProgressBar
-                         chrome draws its own track and square-cornered fill
-                         inside ours. This is the fill and nothing else. -->
-                    <ProgressBar Value="{Binding TimelineProgress}" Minimum="0" Maximum="1"
-                                 Background="Transparent" BorderThickness="0"
-                                 Foreground="{DynamicResource TimelinePosition}"
-                                 ToolTip="Playback position">
-                        <ProgressBar.Template>
-                            <ControlTemplate TargetType="ProgressBar">
-                                <Grid>
-                                    <Border x:Name="PART_Track"/>
-                                    <Border x:Name="PART_Indicator" HorizontalAlignment="Left"
-                                            Background="{TemplateBinding Foreground}" CornerRadius="4"/>
-                                </Grid>
-                            </ControlTemplate>
-                        </ProgressBar.Template>
-                    </ProgressBar>
-                </Grid>
+                <!-- One rectangular bar holding everything. The marks used to be
+                     a separate strip floating above the track, which read as two
+                     controls for one thing; they are now lanes inside the same
+                     frame — the marks along the top of it, the position along the
+                     bottom — so the bar is the timeline rather than a bar with a
+                     timeline over it.
+
+                     The two lanes rather than one layer on top of the other: a
+                     range painted across the position is what hid the position in
+                     the first place. Stacked, each keeps its own room and the
+                     handle crosses both to tie them together. -->
+                <Border Grid.Column="1" Background="{DynamicResource TimelineTrack}" CornerRadius="0"
+                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Height="22"
+                        Cursor="Hand" MouseLeftButtonDown="Timeline_MouseLeftButtonDown"
+                        ToolTip="Click anywhere to seek the player there">
+                    <!-- Named because the click handler measures against it
+                         rather than against the Border: the border line is a
+                         pixel the bar does not represent any time with. -->
+                    <Grid x:Name="TimelineArea">
+                        <!-- Full height, underneath the position rather than
+                             beside it. One line for both means they share the
+                             same pixels, so the position is drawn over these
+                             translucently — see the indicator below. Painting it
+                             solid is what buried the position when these two last
+                             shared a row. -->
+                        <helpers:TimelineRanges Bookmarks="{Binding Session.Bookmarks}"
+                                                DurationSeconds="{Binding Session.VideoDurationSeconds}"
+                                                ToolTip="Where the cuts fall — a bracket at each end of every range, with the cut's number between them and a tick when it is checked. A bookmark still waiting for its closing timestamp shows an opening bracket on its own."/>
+
+                        <!-- Templated rather than styled: the stock ProgressBar
+                             chrome draws its own track and border inside ours.
+                             This is the fill, and the handle riding the end of it.
+
+                             The handle lives inside PART_Indicator, pinned to its
+                             right edge and hanging half its width past it. The
+                             indicator is the one part of the template whose width
+                             the control sets, so anything anchored to its end
+                             tracks the position without a converter or a
+                             code-behind hook. Nothing here clips, so the handle
+                             stands taller than its lane and crosses the marks
+                             above it. -->
+                        <ProgressBar Value="{Binding TimelineProgress}" Minimum="0" Maximum="1"
+                                     Background="Transparent" BorderThickness="0"
+                                     Foreground="{DynamicResource TimelinePosition}"
+                                     ToolTip="Playback position">
+                            <ProgressBar.Template>
+                                <ControlTemplate TargetType="ProgressBar">
+                                    <Grid>
+                                        <Border x:Name="PART_Track"/>
+                                        <!-- The indicator itself draws nothing —
+                                             it is here for its width, which is the
+                                             one thing the control sets, and which
+                                             the wash and the handle both hang off.
+                                             Opacity belongs on the wash and not on
+                                             the indicator: set here it would carry
+                                             into the handle and fade that too. -->
+                                        <Border x:Name="PART_Indicator" HorizontalAlignment="Left"
+                                                Background="Transparent" CornerRadius="0">
+                                            <Grid>
+                                                <Border Background="{TemplateBinding Foreground}" Opacity="0.5"/>
+
+                                                <!-- Pale with a blue edge rather
+                                                     than a second colour: the
+                                                     handle belongs to the bar it
+                                                     rides, and an amber one on a
+                                                     blue bar read as a different
+                                                     control. Taller than the bar
+                                                     so it stays findable where the
+                                                     wash crosses a bookmark. -->
+                                                <Border Width="7" Height="26" HorizontalAlignment="Right"
+                                                        VerticalAlignment="Center" Margin="0,0,-3.5,0"
+                                                        Background="{DynamicResource TextPrimary}"
+                                                        BorderBrush="{DynamicResource TimelinePosition}"
+                                                        BorderThickness="1" CornerRadius="0">
+                                                    <Rectangle Width="1" Margin="0,4"
+                                                               Fill="{DynamicResource TimelinePosition}" Opacity="0.55"/>
+                                                </Border>
+                                            </Grid>
+                                        </Border>
+                                    </Grid>
+                                </ControlTemplate>
+                            </ProgressBar.Template>
+                        </ProgressBar>
+                    </Grid>
+                </Border>
+
+                <TextBlock Grid.Column="2" Text="{Binding DurationDisplay}" VerticalAlignment="Bottom"
+                           HorizontalAlignment="Left" TextAlignment="Left"
+                           FontFamily="Consolas" FontSize="13" FontWeight="SemiBold" Margin="10,0,0,0"
+                           Foreground="{DynamicResource AccentBright}"
+                           ToolTip="How long the video runs"/>
             </Grid>
 
             <Grid Grid.Row="2">
@@ -803,9 +922,8 @@
                                                  late — and retyping the whole timestamp was
                                                  previously the only way to make it. -->
                                             <TextBlock Style="{StaticResource RowGap}"/>
-                                            <Button Content="&lt;" Style="{StaticResource NudgeArrow}"
-                                                    Command="{Binding DataContext.NudgeFrameCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                    CommandParameter="start-"
+                                            <Button Content="&lt;" Style="{StaticResource NudgeStartBack}"
+                                                    Click="NudgeArrow_Click" Tag="start-"
                                                     ToolTip="Move the start one frame earlier"/>
                                             <TextBlock Style="{StaticResource RowGap}"/>
                                             <!-- Centered like everything else in the row. Without
@@ -824,9 +942,8 @@
                                                 </Hyperlink>
                                             </TextBlock>
                                             <TextBlock Style="{StaticResource RowGap}"/>
-                                            <Button Content="&gt;" Style="{StaticResource NudgeArrow}"
-                                                    Command="{Binding DataContext.NudgeFrameCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                    CommandParameter="start+"
+                                            <Button Content="&gt;" Style="{StaticResource NudgeStartForward}"
+                                                    Click="NudgeArrow_Click" Tag="start+"
                                                     ToolTip="Move the start one frame later"/>
 
                                             <!-- Everything past the opening timestamp belongs to a
@@ -842,9 +959,8 @@
                                                 <TextBlock Text="-" Foreground="{DynamicResource Accent}" VerticalAlignment="Center"/>
                                                 <TextBlock Style="{StaticResource RowGap}"/>
 
-                                                <Button Content="&lt;" Style="{StaticResource NudgeArrow}"
-                                                        Command="{Binding DataContext.NudgeFrameCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                        CommandParameter="end-"
+                                                <Button Content="&lt;" Style="{StaticResource NudgeEndBack}"
+                                                        Click="NudgeArrow_Click" Tag="end-"
                                                         ToolTip="Move the end one frame earlier"/>
                                                 <TextBlock Style="{StaticResource RowGap}"/>
                                                 <TextBlock VerticalAlignment="Center"
@@ -856,9 +972,8 @@
                                                     </Hyperlink>
                                                 </TextBlock>
                                                 <TextBlock Style="{StaticResource RowGap}"/>
-                                                <Button Content="&gt;" Style="{StaticResource NudgeArrow}"
-                                                        Command="{Binding DataContext.NudgeFrameCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                        CommandParameter="end+"
+                                                <Button Content="&gt;" Style="{StaticResource NudgeEndForward}"
+                                                        Click="NudgeArrow_Click" Tag="end+"
                                                         ToolTip="Move the end one frame later"/>
 
                                                 <TextBlock Style="{StaticResource RowGap}"/>
@@ -891,8 +1006,10 @@
                     </DockPanel>
                 </Border>
 
-                <!-- Right panel -->
-                <Border Grid.Column="1" Background="{DynamicResource PanelBackground}" CornerRadius="6" Padding="14">
+                <!-- Right panel. Named so the window can refuse to be shortened
+                     past the point where its last line — whether MPC-HC is
+                     running — is cut off. -->
+                <Border x:Name="SidePanel" Grid.Column="1" Background="{DynamicResource PanelBackground}" CornerRadius="6" Padding="14">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                             <TextBlock Text="CURRENT VIDEO" FontSize="11" FontWeight="SemiBold"

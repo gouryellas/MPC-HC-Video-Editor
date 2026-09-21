@@ -212,6 +212,48 @@ public class Bookmark : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// Whether each of the four frame-nudge arrows has anywhere left to go.
+    /// </summary>
+    /// <remarks>
+    /// Set by the view model, not worked out here: the limits depend on the
+    /// row above and on the video's length, and a bookmark knows about neither.
+    /// The arrows bind their visibility to these, so one that would refuse the
+    /// click is simply not offered — a live arrow that does nothing reads as a
+    /// broken button rather than as a limit being enforced.
+    /// </remarks>
+    public bool CanNudgeStartBack
+    {
+        get => _canNudgeStartBack;
+        set { if (_canNudgeStartBack == value) return; _canNudgeStartBack = value; OnPropertyChanged(); }
+    }
+
+    /// <inheritdoc cref="CanNudgeStartBack"/>
+    public bool CanNudgeStartForward
+    {
+        get => _canNudgeStartForward;
+        set { if (_canNudgeStartForward == value) return; _canNudgeStartForward = value; OnPropertyChanged(); }
+    }
+
+    /// <inheritdoc cref="CanNudgeStartBack"/>
+    public bool CanNudgeEndBack
+    {
+        get => _canNudgeEndBack;
+        set { if (_canNudgeEndBack == value) return; _canNudgeEndBack = value; OnPropertyChanged(); }
+    }
+
+    /// <inheritdoc cref="CanNudgeStartBack"/>
+    public bool CanNudgeEndForward
+    {
+        get => _canNudgeEndForward;
+        set { if (_canNudgeEndForward == value) return; _canNudgeEndForward = value; OnPropertyChanged(); }
+    }
+
+    private bool _canNudgeStartBack;
+    private bool _canNudgeStartForward;
+    private bool _canNudgeEndBack;
+    private bool _canNudgeEndForward;
+
     /// <summary>Whether this bookmark carries a name.</summary>
     public bool HasLabel => !string.IsNullOrWhiteSpace(_label);
 

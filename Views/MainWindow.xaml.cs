@@ -43,6 +43,74 @@ public partial class MainWindow : Window
         Deactivated += (_, _) => _vm?.PausePollTimer();
 
         StateChanged += MainWindow_StateChanged;
+
+        // Once there is a laid-out window to measure. SizeChanged as well as
+        // Loaded because the two things being measured are not fixed: the
+        // toolbar row grows with the system font, and the side panel grows a
+        // clip preview when a row is selected.
+        SizeChanged += (_, _) => UpdateMinimumSize();
+    }
+
+    // ------------------------------------------------------------------
+    // Minimum size
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Holds the window to a size that keeps the toolbar on one row and the
+    /// side panel's last line on screen.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Measured rather than written down. A pair of literals in the XAML was
+    /// what was there before, and literals do not know that the toolbar row is
+    /// as wide as its buttons' text — which moves with the system font and
+    /// again if a button is ever renamed — so the row wrapped to a second line
+    /// well above the stated minimum.
+    /// </para>
+    /// <para>
+    /// Both are summed from the children rather than read off the container.
+    /// A <see cref="FrameworkElement"/> clamps its own DesiredSize to the room
+    /// it was offered, so a panel that is already too short reports wanting
+    /// exactly the height it has got — asking it is asking the wrong thing, and
+    /// gives a minimum that only ever agrees with the current size. The
+    /// children are measured against unbounded space in the direction that
+    /// matters, so each one's DesiredSize is the honest figure: a WrapPanel's
+    /// children are measured unwrapped, and a StackPanel's are measured with
+    /// unbounded height. Collapsed children measure zero, which is right —
+    /// the clip preview should only be accounted for while it is on screen.
+    /// </para>
+    /// <para>
+    /// Both are capped to the work area. A minimum larger than the screen is
+    /// one the user cannot satisfy, and WPF would grow the window to meet it.
+    /// </para>
+    /// </remarks>
+    private void UpdateMinimumSize()
+    {
+        if (!IsLoaded) return;
+
+        var work = SystemParameters.WorkArea;
+
+        if (ActionToolbar is { ActualWidth: > 0 })
+        {
+            double row = 0;
+            foreach (UIElement child in ActionToolbar.Children)
+                row += child.DesiredSize.Width;
+
+            // Everything horizontal that is not the toolbar itself: the window
+            // border, and the padding of everything it sits inside.
+            var chrome = ActualWidth - ActionToolbar.ActualWidth;
+            MinWidth = Math.Min(row + chrome, work.Width);
+        }
+
+        if (SidePanel is { ActualHeight: > 0, Child: Panel stack })
+        {
+            double content = SidePanel.Padding.Top + SidePanel.Padding.Bottom;
+            foreach (UIElement child in stack.Children)
+                content += child.DesiredSize.Height;
+
+            var chrome = ActualHeight - SidePanel.ActualHeight;
+            MinHeight = Math.Min(content + chrome, work.Height);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -1247,4 +1315,47 @@ public partial class MainWindow : Window
             _vm?.SeekToTimeCommand.Execute(seconds);
     }
 
+    /// <summary>
+    /// Nudges one end of the row the arrow belongs to.
+    /// </summary>
+    /// <remarks>
+    /// A handler rather than a command because two things have to travel: which
+    /// row, and which of its four arrows. A command takes one parameter, so the
+    /// direction went in it and the row came from the selection — but these
+    /// arrows appear on whichever row the pointer is over, which need not be
+    /// the selected one. The row comes off the button's own DataContext, which
+    /// is the bookmark it is drawn on; the direction rides on Tag.
+    /// </remarks>
+    private void NudgeArrow_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: Bookmark b, Tag: string request })
+            _vm?.NudgeFrame(b, request);
+    }
+
+    /// <summary>
+    /// Seeks the player to wherever the timeline was clicked.
+    /// </summary>
+    /// <remarks>
+    /// The same command the timestamps in the list use, given a time worked out
+    /// from where the click landed instead of one read off a bookmark. The bar
+    /// already showed the position; this makes it somewhere you can put it.
+    ///
+    /// Measured against the inner area rather than the Border so the border
+    /// line, which stands for no time at all, does not shift every seek by a
+    /// pixel's worth of video.
+    /// </remarks>
+    private void Timeline_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (_vm is null) return;
+
+        var duration = _vm.Session.VideoDurationSeconds;
+        var width = TimelineArea.ActualWidth;
+
+        // No duration means no scale to map the click onto, and the bar is
+        // drawing nothing either.
+        if (duration <= 0 || width <= 0) return;
+
+        var fraction = Math.Clamp(e.GetPosition(TimelineArea).X / width, 0, 1);
+        _vm.SeekToTimeCommand.Execute(fraction * duration);
+    }
 }

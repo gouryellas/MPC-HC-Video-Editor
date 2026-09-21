@@ -85,12 +85,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Heading over the preview, naming which clip is shown.</summary>
     [ObservableProperty] private string _clipPreviewHeading = string.Empty;
 
-    /// <summary>
-    /// The loaded video's audio drawn as a waveform, shown behind the timeline.
-    /// Null when there is no video, no audio track, or it is still rendering.
-    /// </summary>
-    [ObservableProperty] private BitmapSource? _waveform;
-
     /// <summary>Line under the preview: what the clip will run to, and how to change it.</summary>
     [ObservableProperty] private string _clipPreviewSubtext = string.Empty;
     [ObservableProperty] private bool _isMpcRunning;
@@ -892,59 +886,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>The clip currently drawn, so a change to it can be noticed.</summary>
     private Bookmark? _previewedBookmark;
 
-    /// <summary>Cancels an in-flight waveform render when the video changes.</summary>
-    private CancellationTokenSource? _waveformCts;
-
-    /// <summary>
-    /// Redraws the waveform for the loaded video.
-    /// </summary>
-    /// <remarks>
-    /// Decoding a whole audio track takes seconds on a long file, so this runs
-    /// in the background and the timeline simply gains its backdrop when it is
-    /// ready. A video with no audio leaves it null, which the view treats as
-    /// nothing to draw rather than as an error.
-    /// </remarks>
-    private void RefreshWaveform()
-    {
-        _waveformCts?.Cancel();
-        _waveformCts = null;
-        Waveform = null;
-
-        var video = Session.VideoPath;
-        if (string.IsNullOrWhiteSpace(video) || !File.Exists(video)) return;
-
-        var cts = new CancellationTokenSource();
-        _waveformCts = cts;
-        _ = RenderWaveformAsync(video, cts.Token);
-    }
-
-    private async Task RenderWaveformAsync(string video, CancellationToken ct)
-    {
-        try
-        {
-            var png = await _ffmpeg.RenderWaveformAsync(video, ct: ct);
-            if (ct.IsCancellationRequested || png is null) return;
-
-            using var stream = new MemoryStream(png);
-            var image = new BitmapImage();
-            image.BeginInit();
-            image.CacheOption = BitmapCacheOption.OnLoad;
-            image.StreamSource = stream;
-            image.EndInit();
-            image.Freeze();
-
-            if (!ct.IsCancellationRequested) Waveform = image;
-        }
-        catch (OperationCanceledException)
-        {
-            // Superseded by another video.
-        }
-        catch
-        {
-            // A waveform is decoration. Failing to draw one must not surface.
-        }
-    }
-
     private async Task RenderClipPreviewAsync(string video, double start, double end, CancellationToken ct)
     {
         try
@@ -1011,6 +952,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // cleared instances are dropped entirely.
         RefreshCommandStates();
 
+        // Adding or removing a row changes which row is above which, and a
+        // start's floor is the row above it.
+        RefreshNudgeLimits();
+
         // The first bookmark appearing is what makes the preview pane possible
         // at all, and a removed one may have been the clip it was drawing.
         RefreshClipPreview();
@@ -1059,6 +1004,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (e.PropertyName is nameof(Bookmark.IsIncomplete)
             && (_previewedBookmark is null || ReferenceEquals(sender, _previewedBookmark)))
             RefreshClipPreview();
+
+        // A moved timestamp changes how much room the arrows either side of it
+        // have left — and, since a start is held off the row above, how much
+        // room the row below has too. So the whole list is recomputed, not just
+        // the row that moved.
+        if (e.PropertyName is nameof(Bookmark.StartSeconds)
+                           or nameof(Bookmark.EndSeconds)
+                           or nameof(Bookmark.IsIncomplete))
+            RefreshNudgeLimits();
     }
 
     private void Session_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -1066,13 +1020,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (e.PropertyName is nameof(EditSession.VideoPath) or nameof(EditSession.CsvPath))
             RefreshCommandStates();
 
+        // The length arrives a moment after the video, and it is the ceiling
+        // every forward arrow is measured against.
+        if (e.PropertyName is nameof(EditSession.VideoDurationSeconds))
+            RefreshNudgeLimits();
+
         // A different video makes every cached frame useless, and the pane has
         // to be redrawn from the new one.
         if (e.PropertyName is nameof(EditSession.VideoPath))
         {
             _thumbnails.Clear();
             RefreshClipPreview();
-            RefreshWaveform();
         }
     }
 
@@ -1686,6 +1644,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (File.Exists(csvPath))
             foreach (var b in _bookmarks.LoadFromCsv(csvPath))
                 Session.Bookmarks.Add(b);
+
+        // The list and the file agree as of now; say so, or the first time this
+        // window is activated it re-reads a file nobody has touched and throws
+        // away whatever the user had ticked in the meantime.
+        RememberBookmarkFile();
 
         // A different video is a different list. Stepping back past this point
         // would restore cuts belonging to a file that is no longer open, and
@@ -2560,6 +2523,35 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     private DateTime _lastBookmarkWriteUtc;
+
+    /// <summary>
+    /// Records the bookmark file's write time as one this session already knows
+    /// about, so the next activation does not mistake it for an outside edit.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="ReloadBookmarksFromDisk"/> spots a hand-edit by comparing the
+    /// file's timestamp against this, so anything that leaves the list and the
+    /// file already agreeing — a save, or a load — has to say so here.
+    ///
+    /// Loading did not, which cost more than a stray message: the reload
+    /// rebuilds every <see cref="Bookmark"/>, and a check lives on the object
+    /// rather than in the file. Tick four cuts, look at the player, come back,
+    /// and the reload had quietly handed you four fresh unticked ones.
+    /// </remarks>
+    private void RememberBookmarkFile()
+    {
+        try
+        {
+            _lastBookmarkWriteUtc =
+                !string.IsNullOrEmpty(Session.CsvPath) && File.Exists(Session.CsvPath)
+                    ? File.GetLastWriteTimeUtc(Session.CsvPath)
+                    : default;
+        }
+        catch
+        {
+            // An unreadable stamp costs one redundant reload, nothing worse.
+        }
+    }
 
     // ------------------------------------------------------------------
     // Output filename collisions
@@ -4682,16 +4674,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             _bookmarks.SaveToCsv(Session.CsvPath, Session.Bookmarks);
 
-            // Remember what we just wrote. ReloadBookmarksFromDisk runs on
-            // every activation to pick up an external edit, and decides there
-            // was one by comparing the file's timestamp to this. Leaving it
-            // stale meant our own saves looked external: set a timestamp from
-            // the player, come back to this window, and it announced "Reloaded
-            // N bookmark(s) from disk" over the top of whatever the action had
-            // just reported — and renumbered the rows while it was at it, since
-            // the file is written sorted by start time.
-            try { _lastBookmarkWriteUtc = File.GetLastWriteTimeUtc(Session.CsvPath); }
-            catch { /* unreadable stamp just costs one redundant reload */ }
+            RememberBookmarkFile();
 
             // Writing the first timestamp is what brings the bookmark file
             // into existence, so this is where "loaded" becomes true.
@@ -4772,6 +4755,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IsBookmarkFileLoaded = File.Exists(csvPath);
         RefreshBookmarksFileDisplay();
         Session.NotifyDurationChanged();
+        RememberBookmarkFile();
 
         // Opening a bookmark file replaces the list wholesale — see the note in
         // LoadVideoAsync for why that has to be the end of the history.
@@ -5914,27 +5898,122 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// to describe, and nudging into it would silently drop the row out of
     /// every selection.
     /// </remarks>
-    [RelayCommand]
-    private void NudgeFrame(string? request)
-    {
-        if (SelectedBookmark is not { } b || string.IsNullOrWhiteSpace(request)) return;
+    /// <summary>
+    /// The clearance a nudged timestamp keeps from whatever bounds it.
+    /// </summary>
+    /// <remarks>
+    /// A second, not a frame. A frame's clearance is true to the arithmetic and
+    /// useless in practice — nothing survives a cut that short, and a start
+    /// that lands a frame after the previous cut's end reads as touching it.
+    /// </remarks>
+    private const double NudgeGapSeconds = 1.0;
 
-        var step = FrameStep * (request.EndsWith('+') ? 1 : -1);
+    /// <summary>Slack for comparing two times that floating point has been near.</summary>
+    private const double NudgeEpsilon = 1e-6;
+
+    /// <summary>
+    /// How far one end of a cut may be nudged, given its neighbours.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A start is held off the row above it — that row's end, or its start if
+    /// it is still open — and a close is held off its own opening. Either way
+    /// the floor is a second past whatever came before.
+    /// </para>
+    /// <para>
+    /// The ceiling is the video's length, less the same second, except for a
+    /// start that has an end to stay behind. An open bookmark's start is
+    /// therefore free to travel the whole file, which is the point of it: the
+    /// closing timestamp is not there yet to say where it stops.
+    /// </para>
+    /// <para>
+    /// An unknown duration yields no ceiling rather than a ceiling of zero.
+    /// The length arrives a moment after the video does, and clamping to it
+    /// before it is known would pin every timestamp to the start of the file.
+    /// </para>
+    /// </remarks>
+    private (double Floor, double Ceiling) NudgeRange(Bookmark b, bool movingStart)
+    {
+        var duration = Session.VideoDurationSeconds;
+        var ceiling = duration > 0 ? duration - NudgeGapSeconds : double.PositiveInfinity;
+
+        if (!movingStart)
+            return (b.StartSeconds + NudgeGapSeconds, ceiling);
+
+        var index = Session.Bookmarks.IndexOf(b);
+        var previous = index > 0 ? Session.Bookmarks[index - 1] : null;
+
+        var floor = previous is null
+            ? 0
+            : (previous.IsValid ? previous.EndSeconds : previous.StartSeconds) + NudgeGapSeconds;
+
+        if (b.IsValid) ceiling = Math.Min(ceiling, b.EndSeconds - NudgeGapSeconds);
+
+        return (floor, ceiling);
+    }
+
+    /// <summary>
+    /// Works out which of each row's four arrows still has room to move, so the
+    /// ones that do not can be taken off the row.
+    /// </summary>
+    private void RefreshNudgeLimits()
+    {
+        foreach (var b in Session.Bookmarks)
+        {
+            var (startFloor, startCeiling) = NudgeRange(b, movingStart: true);
+            b.CanNudgeStartBack = b.StartSeconds > startFloor + NudgeEpsilon;
+            b.CanNudgeStartForward = b.StartSeconds < startCeiling - NudgeEpsilon;
+
+            // A bookmark with no closing timestamp has no closing arrows; the
+            // row does not draw that half at all.
+            if (!b.IsValid)
+            {
+                b.CanNudgeEndBack = false;
+                b.CanNudgeEndForward = false;
+                continue;
+            }
+
+            var (endFloor, endCeiling) = NudgeRange(b, movingStart: false);
+            b.CanNudgeEndBack = b.EndSeconds > endFloor + NudgeEpsilon;
+            b.CanNudgeEndForward = b.EndSeconds < endCeiling - NudgeEpsilon;
+        }
+    }
+
+    /// <summary>
+    /// Moves one end of <paramref name="b"/> by a single frame, clamped to the
+    /// room <see cref="NudgeRange"/> allows.
+    /// </summary>
+    /// <remarks>
+    /// The bookmark is passed in rather than read from the selection. The
+    /// arrows appear on the row the pointer is over, which is not necessarily
+    /// the row that is selected — so taking the selection meant hovering any
+    /// other row gave you four arrows that moved a different cut, or, with
+    /// nothing selected at all, four arrows that did nothing.
+    ///
+    /// Clamped rather than refused at the boundary: the last press before a
+    /// limit should land on the limit, not be ignored for overshooting it by
+    /// part of a frame.
+    /// </remarks>
+    public void NudgeFrame(Bookmark? b, string? request)
+    {
+        if (b is null || string.IsNullOrWhiteSpace(request)) return;
+
+        var forward = request.EndsWith('+');
         var movingStart = request.StartsWith("start", StringComparison.OrdinalIgnoreCase);
 
-        if (movingStart)
-        {
-            var proposed = Math.Max(0, b.StartSeconds + step);
-            if (b.IsValid && proposed >= b.EndSeconds - FrameStep) return;
-            b.StartSeconds = proposed;
-        }
-        else
-        {
-            if (b.IsIncomplete) return;
-            var proposed = Math.Max(0, b.EndSeconds + step);
-            if (proposed <= b.StartSeconds + FrameStep) return;
-            b.EndSeconds = proposed;
-        }
+        if (!movingStart && !b.IsValid) return;
+
+        var (floor, ceiling) = NudgeRange(b, movingStart);
+        if (floor > ceiling) return;
+
+        var current = movingStart ? b.StartSeconds : b.EndSeconds;
+        var proposed = Math.Clamp(current + (forward ? FrameStep : -FrameStep),
+                                  Math.Max(0, floor), ceiling);
+
+        if (Math.Abs(proposed - current) < NudgeEpsilon) return;
+
+        if (movingStart) b.StartSeconds = proposed;
+        else b.EndSeconds = proposed;
 
         Session.NotifyDurationChanged();
         if (IsBookmarkFileLoaded) SaveBookmarks();
@@ -5942,8 +6021,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var which = movingStart ? "Start" : "End";
         var rate = _frameRate > 0.1 ? $"{_frameRate:0.##} fps" : "assumed 30 fps";
         StatusText = $"{which} of cut {b.Index} moved one frame " +
-                     $"{(step > 0 ? "later" : "earlier")} ({rate}) — now " +
-                     $"{Bookmark.FormatTime(movingStart ? b.StartSeconds : b.EndSeconds)}";
+                     $"{(forward ? "later" : "earlier")} ({rate}) — now " +
+                     $"{Bookmark.FormatTime(proposed)}";
     }
 
     // ------------------------------------------------------------------
