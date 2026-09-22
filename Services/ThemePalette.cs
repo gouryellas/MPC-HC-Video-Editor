@@ -114,7 +114,14 @@ public sealed record ThemePalette(
     /// which would have left the settings list empty and every lookup falling
     /// back to the default.
     /// </remarks>
-    public static IReadOnlyList<ThemePalette> All => new[] { Graphite, Midnight, Daylight };
+    /// <remarks>
+    /// Dark first, then light, each group in the order it was added. The
+    /// settings dialog lists them exactly as they come out of here, so the two
+    /// kinds are not interleaved — a reader picking a dark theme should not
+    /// have to step over a light one to compare two of them.
+    /// </remarks>
+    public static IReadOnlyList<ThemePalette> All =>
+        new[] { Graphite, Midnight, Obsidian, Daylight, Parchment };
 
     /// <summary>Falls back to <see cref="Graphite"/> for an unknown key.</summary>
     public static ThemePalette FromKey(string? key) =>
@@ -168,6 +175,41 @@ public sealed record ThemePalette(
         OverlayBackground: "#F00F151E", ToastBackground: "#FF0C1119",
         IconBackground: "#161F2B", IconBody: "#5AC8E0", IconDetail: "#3E9DB5");
 
+    /// <summary>Near-black neutral with a blue accent.</summary>
+    /// <remarks>
+    /// The darkest of the three darks, and the only one with no temperature to
+    /// it: Graphite leans warm and Midnight leans blue, so a plain grey was the
+    /// hole in the set. What separates it from Midnight is the surfaces rather
+    /// than the accent — neutral grey against a blue-grey — so the two are told
+    /// apart by the thing that covers most of the window.
+    ///
+    /// The accent is a cornflower blue, lighter and flatter than the playback
+    /// position it shares the window with, and the index beside it is pushed
+    /// towards sky so a row is not two shades of one color.
+    /// </remarks>
+    public static ThemePalette Obsidian { get; } = new(
+        Key: "obsidian", Display: "Obsidian — near-black neutral, blue accent", IsLight: false,
+        TimelineTrack: "#0A0A0C", InsetBackground: "#0D0D10",
+        WindowBackground: "#121214", PanelBackground: "#1A1A1D",
+        ControlBackground: "#27272C", ControlHover: "#32323A",
+        RowHover: "#222228", RowSelected: "#24416B",
+        MenuBarBackground: "#F0F0F3", MenuBarForeground: "#1A1A1D",
+        BorderBrush: "#33333A",
+        TextPrimary: "#ECECF0", TextBody: "#D6D6DC", TextDim: "#BFBFC7",
+        TextSecondary: "#9999A2", TextMuted: "#7A7A84",
+        Accent: "#6C9CF0", AccentBright: "#93B7F7",
+        PrimaryButton: "#2B4C85", PrimaryButtonBorder: "#3C67AD",
+        TimelinePosition: "#4A90D9",
+        OnAccent: "#F2F6FF",
+        LinkBlue: "#79CCEE", ValueYellow: "#E5CE85", ValueGreen: "#9ED9A8",
+        StatusOk: "#86D19A", StatusError: "#E8706E", StatusWarn: "#E3B266",
+        MergeBackground: "#2B4C85", MergeBorder: "#3C67AD",
+        SplitBackground: "#23604E", SplitBorder: "#2F8068",
+        ConvertBackground: "#7A3560", ConvertBorder: "#9C457C",
+        AudioBackground: "#5C4A2A", AudioBorder: "#7C6537",
+        OverlayBackground: "#F0121214", ToastBackground: "#FF0F0F12",
+        IconBackground: "#1A1A1D", IconBody: "#6C9CF0", IconDetail: "#4A74C4");
+
     /// <summary>Light surfaces with an indigo accent.</summary>
     public static ThemePalette Daylight { get; } = new(
         Key: "daylight", Display: "Daylight — light surfaces, indigo accent", IsLight: true,
@@ -191,4 +233,42 @@ public sealed record ThemePalette(
         AudioBackground: "#9A6708", AudioBorder: "#7C5206",
         OverlayBackground: "#F0FAFBFD", ToastBackground: "#FFFFFFFF",
         IconBackground: "#2B3040", IconBody: "#7C8CE0", IconDetail: "#5566C4");
+
+    /// <summary>Warm paper with a teal accent.</summary>
+    /// <remarks>
+    /// The second light theme, and warm where Daylight is cool, so the pair
+    /// differ in the thing a light theme is actually chosen for — a white that
+    /// is too blue to sit in front of all evening is the usual complaint, and
+    /// picking the other one is now the answer.
+    ///
+    /// Teal rather than another blue: the accent lands on text as often as on a
+    /// button, and an indigo accent beside <see cref="LinkBlue"/> made a
+    /// timestamp and a link the same color at a glance.
+    /// </remarks>
+    public static ThemePalette Parchment { get; } = new(
+        Key: "parchment", Display: "Parchment — warm paper, teal accent", IsLight: true,
+        TimelineTrack: "#DCD6C9", InsetBackground: "#EFE9DD",
+        WindowBackground: "#FCF9F2", PanelBackground: "#F5F0E6",
+        ControlBackground: "#EAE3D5", ControlHover: "#DCD4C4",
+        RowHover: "#EFEADD", RowSelected: "#C8DED8",
+        MenuBarBackground: "#EFEADF", MenuBarForeground: "#2E2A24",
+        BorderBrush: "#D0C8B8",
+        TextPrimary: "#221F19", TextBody: "#2E2A24", TextDim: "#443F36",
+        TextSecondary: "#635C50", TextMuted: "#837B6D",
+        // Only a little brighter than Accent. A light theme has nowhere to go
+        // upwards without the hover state fading into the paper behind it;
+        // the obvious teal reads at 3.4:1 against the panel, which is below
+        // what the rest of the set manages.
+        Accent: "#1E6F6B", AccentBright: "#227A74",
+        PrimaryButton: "#1E6F6B", PrimaryButtonBorder: "#175754",
+        TimelinePosition: "#2C6BB8",
+        OnAccent: "#FFFFFF",
+        LinkBlue: "#2C6BB8", ValueYellow: "#8A6A18", ValueGreen: "#3F6B2E",
+        StatusOk: "#2E7D4F", StatusError: "#B3312C", StatusWarn: "#9A6708",
+        MergeBackground: "#1E6F6B", MergeBorder: "#175754",
+        SplitBackground: "#4A6B22", SplitBorder: "#3A551A",
+        ConvertBackground: "#A05A24", ConvertBorder: "#82481B",
+        AudioBackground: "#7A4E8C", AudioBorder: "#613E70",
+        OverlayBackground: "#F0FCF9F2", ToastBackground: "#FFFDFBF5",
+        IconBackground: "#2E2A24", IconBody: "#3FA5A0", IconDetail: "#2A8F8A");
 }
