@@ -122,6 +122,19 @@ public sealed record ThemePalette(
     public string AudioBackground => "#3F5A8A";
     public string AudioBorder => "#5A7BB5";
 
+    /// <summary>Text on the four buttons above.</summary>
+    /// <remarks>
+    /// White, and fixed like the buttons it sits on. Those four never inherited
+    /// a foreground at all, so they took <see cref="TextPrimary"/> — near-white
+    /// in a dark theme, which is why it went unnoticed, and near-black in a
+    /// light one, where the labels turned into dark text on a dark button.
+    ///
+    /// Not <see cref="OnAccent"/>, which the dialogs use: that one changes with
+    /// the theme because the button under it does. These backgrounds do not
+    /// change, so neither should what is written on them.
+    /// </remarks>
+    public string OnOperation => "#FFFFFF";
+
     /// <summary>Every theme, in the order the settings dialog lists them.</summary>
     /// <remarks>
     /// Computed on access rather than stored in a field. As a field initialized

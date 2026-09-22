@@ -640,14 +640,24 @@
                      dialog", which follows the theme and belongs to the OK
                      buttons. Borrowing it also meant Merge was amber in the
                      default theme, a shade off the olive of Strip audio. -->
+                <!-- Each one states its Foreground. Without it they fall back to
+                     the button style's TextPrimary, which is near-white in a
+                     dark theme and near-black in a light one — so on Daylight
+                     and Parchment these four were dark labels on dark buttons.
+                     OnOperation is white and does not move with the theme, the
+                     same as the backgrounds underneath it. -->
                 <Button Content="🎬 Merge" Command="{Binding MergeSelectedCommand}"
-                        Background="{DynamicResource MergeBackground}" BorderBrush="{DynamicResource MergeBorder}" FontWeight="SemiBold"/>
+                        Background="{DynamicResource MergeBackground}" BorderBrush="{DynamicResource MergeBorder}"
+                        Foreground="{DynamicResource OnOperation}" FontWeight="SemiBold"/>
                 <Button Content="✂ Split" Command="{Binding SplitSelectedCommand}"
-                        Background="{DynamicResource SplitBackground}" BorderBrush="{DynamicResource SplitBorder}"/>
+                        Background="{DynamicResource SplitBackground}" BorderBrush="{DynamicResource SplitBorder}"
+                        Foreground="{DynamicResource OnOperation}"/>
                 <Button Content="🔄 Convert video" Command="{Binding ConvertFilesCommand}"
-                        Background="{DynamicResource ConvertBackground}" BorderBrush="{DynamicResource ConvertBorder}"/>
+                        Background="{DynamicResource ConvertBackground}" BorderBrush="{DynamicResource ConvertBorder}"
+                        Foreground="{DynamicResource OnOperation}"/>
                 <Button Content="🔊 Strip audio" Command="{Binding StripAudioCommand}"
-                        Background="{DynamicResource AudioBackground}" BorderBrush="{DynamicResource AudioBorder}"/>
+                        Background="{DynamicResource AudioBackground}" BorderBrush="{DynamicResource AudioBorder}"
+                        Foreground="{DynamicResource OnOperation}"/>
                 <!-- "Edit bookmarks" is the pencil beside CURRENT BOOKMARKS in
                      the right panel now, next to the file it opens. "Enter
                      time" keeps its Actions menu entry; neither was earning a
