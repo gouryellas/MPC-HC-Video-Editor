@@ -114,8 +114,13 @@ public sealed record ThemePalette(
     public string SplitBorder => "#5D7038";
     public string ConvertBackground => "#6B3A2E";
     public string ConvertBorder => "#8A4A3A";
-    public string AudioBackground => "#6B5A20";
-    public string AudioBorder => "#8A7429";
+    // Slate blue, and the only cool one of the four. It was a dark gold, which
+    // put it a shade away from Merge on the same row — two warm browns telling
+    // two unrelated operations apart. Merge, Split and Convert are amber, olive
+    // and rust, close enough in temperature that a fourth warm color had
+    // nowhere to sit.
+    public string AudioBackground => "#3F5A8A";
+    public string AudioBorder => "#5A7BB5";
 
     /// <summary>Every theme, in the order the settings dialog lists them.</summary>
     /// <remarks>

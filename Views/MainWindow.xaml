@@ -331,7 +331,7 @@
                 <MenuItem Header="Merge selected / all / any" Command="{Binding MergeSelectedCommand}"
                           ToolTip="Merges the checked cuts, or every cut, or — with no video loaded — files you pick. A single cut is written out on its own as a trim.">
                     <MenuItem.Icon>
-                        <Rectangle Width="12" Height="12" Fill="{DynamicResource PrimaryButton}" RadiusX="2" RadiusY="2"/>
+                        <Rectangle Width="12" Height="12" Fill="{DynamicResource MergeBackground}" RadiusX="2" RadiusY="2"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Split selected / all" Command="{Binding SplitSelectedCommand}">
@@ -634,8 +634,14 @@
                      None of these set an explicit Width — the button style
                      pads around the content, so each one is as wide as its
                      text needs. A fixed width was clipping "Convert video". -->
+                <!-- MergeBackground, not PrimaryButton. It is an operation
+                     button like the three after it and keeps its color in every
+                     theme; PrimaryButton is "the button that commits this
+                     dialog", which follows the theme and belongs to the OK
+                     buttons. Borrowing it also meant Merge was amber in the
+                     default theme, a shade off the olive of Strip audio. -->
                 <Button Content="🎬 Merge" Command="{Binding MergeSelectedCommand}"
-                        Background="{DynamicResource PrimaryButton}" BorderBrush="{DynamicResource PrimaryButtonBorder}" FontWeight="SemiBold"/>
+                        Background="{DynamicResource MergeBackground}" BorderBrush="{DynamicResource MergeBorder}" FontWeight="SemiBold"/>
                 <Button Content="✂ Split" Command="{Binding SplitSelectedCommand}"
                         Background="{DynamicResource SplitBackground}" BorderBrush="{DynamicResource SplitBorder}"/>
                 <Button Content="🔄 Convert video" Command="{Binding ConvertFilesCommand}"
