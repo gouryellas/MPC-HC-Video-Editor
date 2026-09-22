@@ -68,9 +68,9 @@ public sealed record ThemePalette(
     /// moving every primary button with it.
     ///
     /// Blue in every theme, and deliberately not drawn from the theme's accent:
-    /// the range marks above it are fixed colors (amber, teal, salmon, red), so
-    /// an accent-colored position collided with them outright in the warm theme,
-    /// where amber sat under amber. Blue is the one hue none of them use.
+    /// the cut marks are drawn on the same track in fixed colors — white, and
+    /// red for one still waiting to be closed — so a position taking its color
+    /// from the theme would eventually be handed one of them.
     /// </remarks>
     string TimelinePosition,
 
@@ -87,16 +87,6 @@ public sealed record ThemePalette(
     string StatusError,
     string StatusWarn,
 
-    // The colored action buttons on the toolbar.
-    string MergeBackground,
-    string MergeBorder,
-    string SplitBackground,
-    string SplitBorder,
-    string ConvertBackground,
-    string ConvertBorder,
-    string AudioBackground,
-    string AudioBorder,
-
     // Overlay windows, which float over the player and carry their own alpha.
     string OverlayBackground,
     string ToastBackground,
@@ -106,6 +96,27 @@ public sealed record ThemePalette(
     string IconBody,
     string IconDetail)
 {
+    // The colored action buttons on the toolbar. The same four colors in every
+    // theme, which is why they are here rather than on the constructor above.
+    //
+    // They are not decoration: each one is how its operation is found on a row
+    // of buttons, and somebody who reaches for the olive one to split has to
+    // learn the row again if it turns blue with the theme. The roles that do
+    // vary are the ones describing a surface or a piece of text, which have to
+    // suit the theme around them; a filled button carries its own background
+    // and its own label, so it does not.
+    //
+    // Every label clears 6:1 against its button in all five themes, checked
+    // against each theme's OnAccent rather than assuming white.
+    public string MergeBackground => "#7A5320";
+    public string MergeBorder => "#A87423";
+    public string SplitBackground => "#4A5A2C";
+    public string SplitBorder => "#5D7038";
+    public string ConvertBackground => "#6B3A2E";
+    public string ConvertBorder => "#8A4A3A";
+    public string AudioBackground => "#6B5A20";
+    public string AudioBorder => "#8A7429";
+
     /// <summary>Every theme, in the order the settings dialog lists them.</summary>
     /// <remarks>
     /// Computed on access rather than stored in a field. As a field initialized
@@ -113,11 +124,10 @@ public sealed record ThemePalette(
     /// initializers execute in declaration order — so it captured three nulls,
     /// which would have left the settings list empty and every lookup falling
     /// back to the default.
-    /// </remarks>
-    /// <remarks>
+    ///
     /// Dark first, then light, each group in the order it was added. The
     /// settings dialog lists them exactly as they come out of here, so the two
-    /// kinds are not interleaved — a reader picking a dark theme should not
+    /// kinds are not interleaved — somebody picking a dark theme should not
     /// have to step over a light one to compare two of them.
     /// </remarks>
     public static IReadOnlyList<ThemePalette> All =>
@@ -144,10 +154,6 @@ public sealed record ThemePalette(
         OnAccent: "#FFF6EA",
         LinkBlue: "#D8A96A", ValueYellow: "#E8C87E", ValueGreen: "#BFCF95",
         StatusOk: "#A9C98A", StatusError: "#E4736B", StatusWarn: "#E0A253",
-        MergeBackground: "#7A5320", MergeBorder: "#A87423",
-        SplitBackground: "#4A5A2C", SplitBorder: "#5D7038",
-        ConvertBackground: "#6B3A2E", ConvertBorder: "#8A4A3A",
-        AudioBackground: "#6B5A20", AudioBorder: "#8A7429",
         OverlayBackground: "#F01A1817", ToastBackground: "#FF171514",
         IconBackground: "#221F1D", IconBody: "#E0A253", IconDetail: "#C9853A");
 
@@ -168,10 +174,6 @@ public sealed record ThemePalette(
         OnAccent: "#F0FAFD",
         LinkBlue: "#6FB3E8", ValueYellow: "#E8D48E", ValueGreen: "#9FD8B8",
         StatusOk: "#8FD4A8", StatusError: "#E8706E", StatusWarn: "#E8B366",
-        MergeBackground: "#1F5F7A", MergeBorder: "#2E7E9E",
-        SplitBackground: "#1D5C4E", SplitBorder: "#2A7A68",
-        ConvertBackground: "#4A3570", ConvertBorder: "#63498F",
-        AudioBackground: "#5A4A73", AudioBorder: "#756294",
         OverlayBackground: "#F00F151E", ToastBackground: "#FF0C1119",
         IconBackground: "#161F2B", IconBody: "#5AC8E0", IconDetail: "#3E9DB5");
 
@@ -203,10 +205,6 @@ public sealed record ThemePalette(
         OnAccent: "#F2F6FF",
         LinkBlue: "#79CCEE", ValueYellow: "#E5CE85", ValueGreen: "#9ED9A8",
         StatusOk: "#86D19A", StatusError: "#E8706E", StatusWarn: "#E3B266",
-        MergeBackground: "#2B4C85", MergeBorder: "#3C67AD",
-        SplitBackground: "#23604E", SplitBorder: "#2F8068",
-        ConvertBackground: "#7A3560", ConvertBorder: "#9C457C",
-        AudioBackground: "#5C4A2A", AudioBorder: "#7C6537",
         OverlayBackground: "#F0121214", ToastBackground: "#FF0F0F12",
         IconBackground: "#1A1A1D", IconBody: "#6C9CF0", IconDetail: "#4A74C4");
 
@@ -227,10 +225,6 @@ public sealed record ThemePalette(
         OnAccent: "#FFFFFF",
         LinkBlue: "#2C6BB8", ValueYellow: "#8A6A18", ValueGreen: "#3F6B2E",
         StatusOk: "#2E7D4F", StatusError: "#B3312C", StatusWarn: "#9A6708",
-        MergeBackground: "#3B4CA8", MergeBorder: "#2E3D8C",
-        SplitBackground: "#1D7A5F", SplitBorder: "#166049",
-        ConvertBackground: "#8A4A9E", ConvertBorder: "#703A82",
-        AudioBackground: "#9A6708", AudioBorder: "#7C5206",
         OverlayBackground: "#F0FAFBFD", ToastBackground: "#FFFFFFFF",
         IconBackground: "#2B3040", IconBody: "#7C8CE0", IconDetail: "#5566C4");
 
@@ -265,10 +259,6 @@ public sealed record ThemePalette(
         OnAccent: "#FFFFFF",
         LinkBlue: "#2C6BB8", ValueYellow: "#8A6A18", ValueGreen: "#3F6B2E",
         StatusOk: "#2E7D4F", StatusError: "#B3312C", StatusWarn: "#9A6708",
-        MergeBackground: "#1E6F6B", MergeBorder: "#175754",
-        SplitBackground: "#4A6B22", SplitBorder: "#3A551A",
-        ConvertBackground: "#A05A24", ConvertBorder: "#82481B",
-        AudioBackground: "#7A4E8C", AudioBorder: "#613E70",
         OverlayBackground: "#F0FCF9F2", ToastBackground: "#FFFDFBF5",
         IconBackground: "#2E2A24", IconBody: "#3FA5A0", IconDetail: "#2A8F8A");
 }
