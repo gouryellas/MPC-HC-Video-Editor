@@ -39,21 +39,34 @@
              so the cursor never changes and the hover trigger never fires. The
              affordance appears exactly when it means something.
 
-             Underline only on hover — the resting color stays what it has
-             always been, so turning the setting on does not repaint the list.
              Tag carries the time to seek to, per-instance, the way the main
-             window's timestamp hyperlinks carry theirs. -->
+             window's timestamp hyperlinks carry theirs.
+
+             Colored and lit on hover exactly like TimestampLink in the main
+             window: Accent at rest, AccentBright and underlined under the
+             pointer. It is a TextBlock rather than a Hyperlink because the
+             overlay is click-through until the OverlayClickable setting turns
+             it on, and a Hyperlink in a window that is not hit-tested still
+             draws itself as one. -->
         <Style x:Key="OverlayTimestamp" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource AccentBright}"/>
-            <Setter Property="FontFamily" Value="Consolas"/>
-            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="Cursor" Value="Hand"/>
             <EventSetter Event="MouseLeftButtonUp" Handler="Timestamp_Click"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Foreground" Value="{DynamicResource AccentBright}"/>
                     <Setter Property="TextDecorations" Value="Underline"/>
                 </Trigger>
             </Style.Triggers>
+        </Style>
+
+        <!-- One space, the only separator the main window's rows use between
+             the index, the timestamps, the dash and the length. Same style,
+             same name, so the two lists stay in step. -->
+        <Style x:Key="RowGap" TargetType="TextBlock">
+            <Setter Property="Text" Value="&#32;"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
     </Window.Resources>
 
@@ -98,9 +111,23 @@
                 <ItemsControl ItemsSource="{Binding Session.Bookmarks}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <StackPanel Orientation="Horizontal" Margin="0,2">
+                            <!-- Laid out to read identically to a row in the main
+                                 window's list: the same colors, the same
+                                 inherited font, one space between each part, and
+                                 the same 4px above and below that the list's
+                                 ListViewItem padding gives it.
+
+                                 Nothing here sets a font. The main window's rows
+                                 do not either, so both inherit the same one; the
+                                 fixed-width column the index used to sit in is
+                                 gone for the same reason, since the main list
+                                 sizes it to the number and follows it with a
+                                 space rather than padding "[1]" out to the width
+                                 of "[10]". -->
+                            <StackPanel Orientation="Horizontal" Margin="0,4">
                                 <TextBlock Text="{Binding Index, StringFormat=[{0}]}" Foreground="{DynamicResource LinkBlue}"
-                                           FontWeight="Bold" FontFamily="Consolas" FontSize="13" MinWidth="34"/>
+                                           FontWeight="Bold" VerticalAlignment="Center"/>
+                                <TextBlock Style="{StaticResource RowGap}"/>
                                 <TextBlock Text="{Binding StartDisplay}" Tag="{Binding StartSeconds}"
                                            Style="{StaticResource OverlayTimestamp}"/>
                                 <!-- Hidden on an open bookmark, which has no end
@@ -109,21 +136,35 @@
                                      window's list. -->
                                 <StackPanel Orientation="Horizontal"
                                             Visibility="{Binding IsIncomplete, Converter={StaticResource NotBoolToVis}}">
-                                    <!-- Was #666, which on a dark card was very nearly
-                                         the background. -->
                                     <!-- Not part of either timestamp: the dash sits
                                          between the two click targets, so giving it
                                          the clickable style would make the gap seek
                                          to whichever time the pointer happened to
                                          be nearer. -->
-                                    <TextBlock Text=" - " Foreground="{DynamicResource TextSecondary}" FontFamily="Consolas" FontSize="13"/>
+                                    <TextBlock Style="{StaticResource RowGap}"/>
+                                    <TextBlock Text="-" Foreground="{DynamicResource Accent}" VerticalAlignment="Center"/>
+                                    <TextBlock Style="{StaticResource RowGap}"/>
                                     <TextBlock Text="{Binding EndDisplay}" Tag="{Binding EndSeconds}"
                                                Style="{StaticResource OverlayTimestamp}"/>
-                                    <TextBlock Text="{Binding DurationDisplay, StringFormat=  ({0})}"
-                                               Foreground="{DynamicResource ValueGreen}" FontFamily="Consolas" FontSize="13"/>
+                                    <TextBlock Style="{StaticResource RowGap}"/>
+                                    <TextBlock Text="{Binding DurationDisplay, StringFormat=({0})}"
+                                               Foreground="{DynamicResource ValueGreen}" VerticalAlignment="Center"/>
                                 </StackPanel>
+                                <!-- The word the main window puts after a lone
+                                     opening timestamp, saying why the rest of the
+                                     row is absent. The overlay hid the end and the
+                                     length and said nothing in their place. -->
+                                <TextBlock Style="{StaticResource RowGap}"/>
+                                <TextBlock Text="incomplete" Foreground="{DynamicResource StatusError}" FontStyle="Italic"
+                                           VerticalAlignment="Center"
+                                           Visibility="{Binding IsIncomplete, Converter={StaticResource MinimalBoolToVis}}"/>
+                                <!-- Flip, rotation, mute and speed, combined into
+                                     one string because the overlay has no columns
+                                     to put them in. Styled like the main window's
+                                     marker column. -->
+                                <TextBlock Style="{StaticResource RowGap}"/>
                                 <TextBlock Text="{Binding Prefix}" Foreground="{DynamicResource StatusWarn}"
-                                           FontFamily="Consolas" FontSize="13" Margin="6,0,0,0"/>
+                                           FontWeight="Bold" FontSize="11" VerticalAlignment="Center"/>
                             </StackPanel>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
