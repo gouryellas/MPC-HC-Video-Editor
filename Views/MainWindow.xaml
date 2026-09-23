@@ -345,7 +345,8 @@
                         <Rectangle Width="12" Height="12" Fill="{DynamicResource ConvertBackground}" RadiusX="2" RadiusY="2"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Strip audio to MP3…" Command="{Binding StripAudioCommand}">
+                <MenuItem Header="Strip audio…" Command="{Binding StripAudioCommand}"
+                          ToolTip="Pulls the sound out of files you pick: an MP3 of the audio, a silent copy of the video, or both. The file you pick is not changed.">
                     <MenuItem.Icon>
                         <Rectangle Width="12" Height="12" Fill="{DynamicResource AudioBackground}" RadiusX="2" RadiusY="2"/>
                     </MenuItem.Icon>
@@ -657,7 +658,8 @@
                         Foreground="{DynamicResource OnOperation}"/>
                 <Button Content="🔊 Strip audio" Command="{Binding StripAudioCommand}"
                         Background="{DynamicResource AudioBackground}" BorderBrush="{DynamicResource AudioBorder}"
-                        Foreground="{DynamicResource OnOperation}"/>
+                        Foreground="{DynamicResource OnOperation}"
+                        ToolTip="Pulls the sound out of files you pick: an MP3 of the audio, a silent copy of the video, or both. The file you pick is not changed."/>
                 <!-- "Edit bookmarks" is the pencil beside CURRENT BOOKMARKS in
                      the right panel now, next to the file it opens. "Enter
                      time" keeps its Actions menu entry; neither was earning a

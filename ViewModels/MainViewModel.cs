@@ -3884,43 +3884,113 @@ public partial class MainViewModel : ObservableObject, IDisposable
         await RunPostOperationCleanup(convertedSources, includeBookmarks: false);
     }
 
+    /// <summary>
+    /// What the last Strip audio run produced, preselected on the next one.
+    /// </summary>
+    /// <remarks>
+    /// A field rather than a setting. Somebody pulling the audio out of a
+    /// folder of files is usually doing it to all of them, so asking twice with
+    /// the answer already filled in is the least the dialog can do; persisting
+    /// it would mean a choice made weeks ago deciding a run silently.
+    /// </remarks>
+    private StripAudioOutputs _lastStripOutputs = StripAudioOutputs.Audio;
+
     [RelayCommand]
     private async Task StripAudioAsync()
     {
         var ofd = new OpenFileDialog { Filter = "Video Files|*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.webm|All Files|*.*", Multiselect = true };
         if (ofd.ShowDialog() != true) return;
-        IsBusy = true; int done = 0;
+
+        // Asked after the files are picked, so the silent copy can name the
+        // extension it would actually carry.
+        var ask = new StripAudioDialog(_lastStripOutputs, Path.GetExtension(ofd.FileNames[0]))
+        {
+            Owner = DialogOwner
+        };
+        if (ask.ShowDialog() != true) return;
+        _lastStripOutputs = ask.Outputs;
+
+        var wantAudio = _lastStripOutputs.HasFlag(StripAudioOutputs.Audio);
+        var wantVideo = _lastStripOutputs.HasFlag(StripAudioOutputs.SilentVideo);
+
+        // Each file is one ffmpeg run per output asked for, and the progress
+        // bar has to divide by the total rather than by the file count.
+        var perFile = (wantAudio ? 1 : 0) + (wantVideo ? 1 : 0);
+        var totalSteps = ofd.FileNames.Length * perFile;
+        var step = 0;
+
+        IsBusy = true;
+        int done = 0;
+        var stripped = new List<string>();
         Job.Begin("Stripping audio", ofd.FileNames.Length);
         BeginNameBatch(ofd.FileNames.Length);
+
         foreach (var file in ofd.FileNames)
         {
             _batchRemaining = ofd.FileNames.Length - done;
             StatusText = $"Extracting: {Path.GetFileName(file)}";
-            ProgressPercent = (double)done / ofd.FileNames.Length * 100;
+            ProgressPercent = (double)step / totalSteps * 100;
             Job.SetFile(done, Path.GetFileName(file));
-            // The action already says "audio"; joined it reads
-            // "Stripping audio · Extracting to MP3".
-            Job.Report("Extracting to MP3", (double)done / ofd.FileNames.Length * 100);
 
-            // Suffix applies to audio extraction too: <name>[done].mp3
-            var outPath = await ResolveOutputPathAsync(
-                GetSuffixedOutputPath(file, ".mp3", ResolveSaveToDirectory()));
-            if (outPath == null) { done++; continue; }
-
-            var slice = 100.0 / ofd.FileNames.Length;
-            var basePct = done * slice;
-            var fileProgress = new Progress<FFmpegProgressEventArgs>(p =>
+            // One ffmpeg run. Returns false when the name was not resolved or
+            // the run failed, so a file only counts as consumed — and only
+            // becomes eligible for cleanup — once everything asked of it worked.
+            async Task<bool> Write(string extension, string label,
+                                   Func<string, IProgress<FFmpegProgressEventArgs>, Task> run)
             {
-                Job.Report(p.Message, basePct + p.Percent / 100.0 * slice);
-                ProgressPercent = basePct + p.Percent / 100.0 * slice;
-            });
+                // The suffix applies to both outputs: <name>[done].mp3 and
+                // <name>[done].mp4. The bracket is always there, so the silent
+                // copy can never land on the name of the file it came from.
+                var outPath = await ResolveOutputPathAsync(
+                    GetSuffixedOutputPath(file, extension, ResolveSaveToDirectory()));
+                if (outPath == null) return false;
 
-            try { await _ffmpeg.StripAudioAsync(file, outPath, fileProgress); } catch (Exception ex) { MessageBox.Show(ex.Message); }
+                // The action already says "audio"; joined it reads
+                // "Stripping audio · Extracting to MP3".
+                Job.Report(label, (double)step / totalSteps * 100);
+
+                var slice = 100.0 / totalSteps;
+                var basePct = step * slice;
+                var fileProgress = new Progress<FFmpegProgressEventArgs>(p =>
+                {
+                    Job.Report(p.Message, basePct + p.Percent / 100.0 * slice);
+                    ProgressPercent = basePct + p.Percent / 100.0 * slice;
+                });
+
+                try { await run(outPath, fileProgress); }
+                catch (Exception ex) { MessageBox.Show(ex.Message); return false; }
+                finally { step++; }
+
+                return true;
+            }
+
+            var ok = true;
+            if (wantAudio)
+                ok &= await Write(".mp3", "Extracting to MP3",
+                                  (o, p) => _ffmpeg.StripAudioAsync(file, o, p));
+            if (wantVideo)
+                ok &= await Write(Path.GetExtension(file), "Removing the audio track",
+                                  (o, p) => _ffmpeg.RemoveAudioAsync(file, o, p));
+
+            if (ok) stripped.Add(file);
             done++;
         }
+
         IsBusy = false; ProgressPercent = 0;
-        Job.Complete($"Extracted audio from {done} file(s) to", ResolveSaveToDirectory());
-        StatusText = "Audio extraction finished";
+
+        var produced = _lastStripOutputs switch
+        {
+            StripAudioOutputs.SilentVideo => "Removed the audio from",
+            StripAudioOutputs.Both => "Extracted the audio and silenced",
+            _ => "Extracted audio from"
+        };
+        Job.Complete($"{produced} {done} file(s) to", ResolveSaveToDirectory());
+        StatusText = wantVideo && !wantAudio ? "Audio removal finished" : "Audio extraction finished";
+
+        // Same rule as Convert: these are files the user picked here, so the
+        // session's bookmark file — which belongs to a different video — is not
+        // swept up with them.
+        await RunPostOperationCleanup(stripped, includeBookmarks: false);
     }
 
     [RelayCommand]

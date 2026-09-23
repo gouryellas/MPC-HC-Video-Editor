@@ -107,8 +107,12 @@ Output filenames use the active **naming tag** (see Options), e.g.
   the checked ones, or all of them when none are checked. With no video or cuts
   it falls back to a file picker and joins whatever you select.
 - **Split selected / all** — one clip per cut.
-- **Convert files to MP4…** and **Strip audio to MP3…** — both take multiple
-  files at once.
+- **Convert files to MP4…** — takes multiple files at once.
+- **Strip audio…** — also takes multiple files at once, and asks what to write:
+  an MP3 of the audio, a copy of the video with its sound removed, or both. The
+  silent copy is not re-encoded, so it is quick and the picture is untouched.
+  Neither option modifies the file you picked; it is only deleted afterwards if
+  you have asked for that under **Settings ▸ Cleanup**.
 
 ### Filename collisions
 

@@ -448,6 +448,34 @@ public class FFmpegService
         await RunAsync(args, progress, ct, await GetDurationAsync(inputPath));
     }
 
+    /// <summary>
+    /// Writes a copy of the video with its audio removed. Keeps the container
+    /// and every other stream as they are.
+    /// </summary>
+    /// <remarks>
+    /// <c>-c copy</c>, so nothing is re-encoded: the picture is the same
+    /// bitstream it was, and the operation runs at disk speed rather than
+    /// encoder speed. Dropping a stream needs no decoding, which is the whole
+    /// reason this is not a Convert with the audio turned off.
+    ///
+    /// <c>-map 0 -map -0:a</c> rather than a bare <c>-an</c>: the default
+    /// mapping takes one stream per type and would quietly drop subtitles and
+    /// any second video track. This takes everything and then removes the audio
+    /// from what it took.
+    /// </remarks>
+    public async Task RemoveAudioAsync(string inputPath, string? outputPath = null,
+        IProgress<FFmpegProgressEventArgs>? progress = null, CancellationToken ct = default)
+    {
+        outputPath ??= Path.Combine(
+            Path.GetDirectoryName(inputPath) ?? "",
+            Path.GetFileNameWithoutExtension(inputPath) + "-silent" + Path.GetExtension(inputPath));
+
+        var args = $"-hide_banner -y -fflags +igndts -i \"{inputPath}\" " +
+                   $"-map 0 -map -0:a -c copy \"{outputPath}\"";
+
+        await RunAsync(args, progress, ct, await GetDurationAsync(inputPath));
+    }
+
     // ------------------------------------------------------------------
     // Merge selected bookmarks (with optional flip + speed)
     // ------------------------------------------------------------------
