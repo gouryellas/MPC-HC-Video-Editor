@@ -69,9 +69,10 @@ A bookmark is a **timestamp pair**: press the hotkey once to open it, again to
 close it. An open bookmark shows as *incomplete* until it has an end time.
 
 - **Set timestamp: `<hotkey>`** — the menu label shows the live binding.
-- Closing a bookmark at or before its start is **refused**: the whole entry is
-  discarded rather than silently fudged into a bogus one-second cut, so a bad
-  entry never survives the action that created it.
+- Closing a bookmark at or before its start is **refused** — not fudged forward
+  into a bogus one-second cut. The bookmark stays open and says why, so the
+  opening timestamp survives a mis-timed second press; seek past it and press
+  again.
 - A first timestamp at 0 is nudged to the first second — the player reports 0
   before playback has really begun, and ffmpeg's seek at 0 is unreliable.
 - **Undo last bookmark** removes the last *single timestamp*, not the pair: a

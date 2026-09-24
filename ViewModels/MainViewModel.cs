@@ -1955,15 +1955,26 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (current > 0) Session.CurrentTimeSeconds = current;
         var closing = Session.CurrentTimeSeconds;
 
-        // A close at or before the open is not a cut. Rather than fudging it
-        // forward by a second — which quietly produced a bogus one-second pair
-        // — throw the whole attempt away, so no invalid or half-written entry
-        // survives for the next action to trip over.
+        // A close at or before the open is not a cut, and it is not fudged
+        // forward by a second either — that quietly produced a bogus one-second
+        // pair. The bookmark is left open and the press is refused.
+        //
+        // It used to be thrown away, opening timestamp and all, on the reasoning
+        // that the pair was what was wrong. It is not: the opening time is still
+        // exactly where it was wanted, and the only thing wrong is where the
+        // player happens to be now. Discarding meant a mis-timed second press
+        // destroyed a good timestamp and left nothing to correct — the same
+        // reasoning the overlap check below already followed.
         if (closing <= incomplete.StartSeconds)
         {
-            DiscardOpenBookmark(incomplete,
-                $"Closing time {Bookmark.FormatTime(closing)} is not after the opening time " +
-                $"{incomplete.StartDisplay} — bookmark {incomplete.Index} discarded");
+            StatusText = $"Cannot close bookmark {incomplete.Index} at " +
+                         $"{Bookmark.FormatTime(closing)} — that is " +
+                         (Math.Abs(closing - incomplete.StartSeconds) < 0.001 ? "its opening time" : "before its opening time") +
+                         $" of {incomplete.StartDisplay}. Seek past it and press again.";
+
+            _toast.Show($"Bookmark {incomplete.Index} still open",
+                        $"A closing time has to come after {incomplete.StartDisplay}",
+                        "⚠", force: NeedsHotkeyToast);
             return;
         }
 
@@ -1992,34 +2003,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     $"{incomplete.StartDisplay} → {incomplete.EndDisplay}  ({incomplete.DurationDisplay})",
                     "✅",
                     force: NeedsHotkeyToast);
-    }
-
-    /// <summary>
-    /// Removes an open bookmark that cannot be completed validly, leaving no
-    /// trace of it in the list or on disk.
-    /// </summary>
-    /// <remarks>
-    /// The point is that a bad entry never outlives the action that created
-    /// it. If dropping it empties the list the CSV goes too, rather than
-    /// lingering as a zero-byte file that still counts as loaded.
-    /// </remarks>
-    private void DiscardOpenBookmark(Bookmark bookmark, string reason)
-    {
-        Session.Bookmarks.Remove(bookmark);
-
-        if (Session.Bookmarks.Count == 0)
-        {
-            TryDeleteBookmarkFile(out _);
-        }
-        else
-        {
-            Renumber();
-            SaveBookmarks();
-        }
-
-        Session.NotifyDurationChanged();
-        StatusText = reason;
-        _toast.Show("Bookmark discarded", reason, "⚠", force: NeedsHotkeyToast);
     }
 
     /// <summary>
