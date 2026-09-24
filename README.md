@@ -83,6 +83,13 @@ close it. An open bookmark shows as *incomplete* until it has an end time.
   refusal is the same wherever the times come from: the hotkey, a typed range, or
   a scan appended to an existing list. The frame arrows on each row stop a second
   clear of the neighbouring cut for the same reason.
+- **Marks go forwards.** A new cut has to open at or after the latest time
+  already marked, so a mark cannot land behind work already done — not even in
+  an empty gap. Nothing is added when it is refused, and the reason appears over
+  the player. Landing exactly on the last mark is allowed: that is how one cut
+  starts where the last one ended. A scan is the exception, since it proposes
+  the whole file at once; to re-cut an earlier stretch, delete the cuts after it
+  or scan with **replace**.
 - **Undo last bookmark** removes the last *single timestamp*, not the pair: a
   closed bookmark loses only its end time and reopens; a lone start time is
   dropped. If that empties the file, the CSV goes too.

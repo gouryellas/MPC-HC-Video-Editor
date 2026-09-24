@@ -2034,21 +2034,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // unreliable anyway — start at the first second instead.
         var timestamp = Session.CurrentTimeSeconds <= 0 ? 1 : Session.CurrentTimeSeconds;
 
-        // Inside a cut that already exists. Opening here would start a second
-        // cut over the top of the first, and the press is far more likely to be
-        // a misread of where the player is than a request for that.
-        if (CutContaining(timestamp) is { } clash)
+        // Behind work already marked. Nothing is added — an opening timestamp
+        // that cannot be closed where it stands is not a start, and leaving it
+        // in the list as an incomplete row makes the user delete something they
+        // never asked for.
+        if (WhyCannotOpenAt(timestamp) is { } refusal)
         {
-            StatusText = $"{Bookmark.FormatTime(timestamp)} is inside cut {clash.Index} " +
-                         $"({clash.StartDisplay} – {clash.EndDisplay}) — cuts cannot overlap";
+            StatusText = $"Not added — {refusal}. Marks go forwards.";
 
-            // Names both times rather than the cut's number. The number is the
-            // row to go and look at; the range is the answer to "why not here",
-            // and this is on screen for two seconds over a video.
-            _toast.Show("That time is inside a cut",
-                        $"{Bookmark.FormatTime(timestamp)} falls in cut {clash.Index} " +
-                        $"({clash.StartDisplay} – {clash.EndDisplay})",
-                        force: NeedsHotkeyToast);
+            // Says the time it refused and the time it wanted, because this is
+            // on screen for two seconds over a video and "invalid" would send
+            // the user to the main window to work out which.
+            _toast.Show("Timestamp not added", refusal, force: NeedsHotkeyToast);
             return;
         }
 
@@ -3341,6 +3338,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
                              $"overlap.\n\n{TimeFormatHelp}";
                     continue;
                 }
+                if (WhyCannotOpenAt(start) is { } backwards)
+                {
+                    prompt = $"{backwards}. Cuts are marked going forwards, so a new one " +
+                             $"has to start at or after the last mark.\n\n{TimeFormatHelp}";
+                    continue;
+                }
 
                 Session.Bookmarks.Add(new Bookmark
                 {
@@ -3357,11 +3360,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     prompt = $"{error}\n\n{TimeFormatHelp}";
                     continue;
                 }
-                if (CutContaining(start) is { } inside)
+                if (WhyCannotOpenAt(start) is { } refusal)
                 {
-                    prompt = $"{Bookmark.FormatTime(start)} is inside cut {inside.Index} " +
-                             $"({inside.StartDisplay} – {inside.EndDisplay}). Cuts cannot " +
-                             $"overlap.\n\n{TimeFormatHelp}";
+                    prompt = $"{refusal}. Cuts are marked going forwards, so a new one has " +
+                             $"to start at or after the last mark.\n\n{TimeFormatHelp}";
                     continue;
                 }
 
@@ -6663,6 +6665,48 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             if (time >= other.StartSeconds && time < other.EndSeconds) return other;
         }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The latest time any bookmark has claimed — the end of the last cut, or
+    /// the opening of one still waiting to be closed. Zero when the list is
+    /// empty.
+    /// </summary>
+    private double LatestMarkedTime() =>
+        Session.Bookmarks.Count == 0
+            ? 0
+            : Session.Bookmarks.Max(b => b.IsValid ? b.EndSeconds : b.StartSeconds);
+
+    /// <summary>
+    /// Why a new cut may not open at <paramref name="time"/>, or null when it
+    /// may.
+    /// </summary>
+    /// <remarks>
+    /// Cuts are marked going forwards. A new one has to open at or after the
+    /// latest time already marked — not merely outside the existing cuts, which
+    /// was the old rule and let a mark land in a gap behind the work already
+    /// done.
+    ///
+    /// Being inside a cut is reported as its own case even though the forward
+    /// rule already covers it. "That is inside cut 2" and "the last mark is at
+    /// 4s" are answers to different questions, and the one that fits tells the
+    /// user what to do next.
+    ///
+    /// Landing exactly on the latest time is allowed, because that is how one
+    /// cut is made to start where the last one ended.
+    /// </remarks>
+    private string? WhyCannotOpenAt(double time)
+    {
+        if (CutContaining(time) is { } inside)
+            return $"{Bookmark.FormatTime(time)} is inside cut {inside.Index} " +
+                   $"({inside.StartDisplay} – {inside.EndDisplay})";
+
+        var latest = LatestMarkedTime();
+        if (time < latest)
+            return $"{Bookmark.FormatTime(time)} is behind the last mark at " +
+                   $"{Bookmark.FormatTime(latest)}";
 
         return null;
     }
