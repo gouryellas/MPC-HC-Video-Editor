@@ -2037,12 +2037,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // Inside a cut that already exists. Opening here would start a second
         // cut over the top of the first, and the press is far more likely to be
         // a misread of where the player is than a request for that.
-        if (OverlappingCut(timestamp, timestamp) is { } clash)
+        if (CutContaining(timestamp) is { } clash)
         {
             StatusText = $"{Bookmark.FormatTime(timestamp)} is inside cut {clash.Index} " +
                          $"({clash.StartDisplay} – {clash.EndDisplay}) — cuts cannot overlap";
-            _toast.Show("Already inside a cut",
-                        $"{Bookmark.FormatTime(timestamp)} falls in cut {clash.Index}",
+
+            // Names both times rather than the cut's number. The number is the
+            // row to go and look at; the range is the answer to "why not here",
+            // and this is on screen for two seconds over a video.
+            _toast.Show("That time is inside a cut",
+                        $"{Bookmark.FormatTime(timestamp)} falls in cut {clash.Index} " +
+                        $"({clash.StartDisplay} – {clash.EndDisplay})",
                         force: NeedsHotkeyToast);
             return;
         }
@@ -3352,7 +3357,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     prompt = $"{error}\n\n{TimeFormatHelp}";
                     continue;
                 }
-                if (OverlappingCut(start, start) is { } inside)
+                if (CutContaining(start) is { } inside)
                 {
                     prompt = $"{Bookmark.FormatTime(start)} is inside cut {inside.Index} " +
                              $"({inside.StartDisplay} – {inside.EndDisplay}). Cuts cannot " +
@@ -6623,6 +6628,40 @@ public partial class MainViewModel : ObservableObject, IDisposable
             var otherEnd = other.IsValid ? other.EndSeconds : other.StartSeconds;
 
             if (start < otherEnd && otherStart < end) return other;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The existing cut that <paramref name="time"/> falls inside, or
+    /// <c>null</c> when nothing covers that instant.
+    /// </summary>
+    /// <remarks>
+    /// A single time is not a span, and asking <see cref="OverlappingCut"/>
+    /// about an empty one silently answered wrong. Its test is
+    /// <c>start &lt; otherEnd &amp;&amp; otherStart &lt; end</c>, and with
+    /// start and end both the same instant the second half is
+    /// <c>otherStart &lt; time</c> — false at exactly a cut's opening. So a
+    /// new bookmark opened on the very first second of an existing cut passed
+    /// the overlap check and was added, leaving a second cut starting inside
+    /// the first with nothing to say it could not be there.
+    ///
+    /// Half-open, matching the rule everywhere else: the opening instant is
+    /// inside the cut, the closing instant is not. Landing exactly where a cut
+    /// ends is how two cuts are made to touch, which is allowed.
+    ///
+    /// An incomplete bookmark covers nothing at all — it has no span yet to
+    /// defend, and <c>time &lt; other.StartSeconds</c> is false for the one
+    /// instant it does occupy.
+    /// </remarks>
+    private Bookmark? CutContaining(double time, Bookmark? ignore = null)
+    {
+        foreach (var other in Session.Bookmarks)
+        {
+            if (ReferenceEquals(other, ignore) || !other.IsValid) continue;
+
+            if (time >= other.StartSeconds && time < other.EndSeconds) return other;
         }
 
         return null;
