@@ -755,16 +755,6 @@
                         <Image Source="{Binding Waveform}" Stretch="Fill" Opacity="0.5"
                                IsHitTestVisible="False"/>
 
-                        <!-- Full height, underneath the position rather than
-                             beside it. One line for both means they share the
-                             same pixels, so the position is drawn over these
-                             translucently — see the indicator below. Painting it
-                             solid is what buried the position when these two last
-                             shared a row. -->
-                        <helpers:TimelineRanges Bookmarks="{Binding Session.Bookmarks}"
-                                                DurationSeconds="{Binding Session.VideoDurationSeconds}"
-                                                ToolTip="Where the cuts fall — a bracket at each end of every range, with the cut's number between them and a tick when it is checked. A bookmark still waiting for its closing timestamp shows an opening bracket on its own."/>
-
                         <!-- Templated rather than styled: the stock ProgressBar
                              chrome draws its own track and border inside ours.
                              This is the fill, and the handle riding the end of it.
@@ -775,8 +765,7 @@
                              the control sets, so anything anchored to its end
                              tracks the position without a converter or a
                              code-behind hook. Nothing here clips, so the handle
-                             stands taller than its lane and crosses the marks
-                             above it. -->
+                             stands taller than its lane. -->
                         <ProgressBar Value="{Binding TimelineProgress}" Minimum="0" Maximum="1"
                                      Background="Transparent" BorderThickness="0"
                                      Foreground="{DynamicResource TimelinePosition}"
@@ -819,6 +808,27 @@
                                 </ControlTemplate>
                             </ProgressBar.Template>
                         </ProgressBar>
+
+                        <!-- Last, so it draws on top of everything. The marks
+                             used to sit under the position, and the wash —
+                             half-opaque blue across everything played so far —
+                             went over them: a white bracket behind it came out
+                             pale blue, and on a video watched to the end every
+                             mark in the list was under it.
+
+                             The wash was never going to lose that fight. It
+                             covers whole stretches of the bar while a bracket is
+                             two pixels wide, so whichever is on top wins
+                             outright, and the marks are the thing being read.
+                             The position is still perfectly legible under them —
+                             it is a coloured region metres wide, interrupted by
+                             a few white strokes.
+
+                             Full height, so the brackets stand clear of the
+                             handle rather than being hidden behind it. -->
+                        <helpers:TimelineRanges Bookmarks="{Binding Session.Bookmarks}"
+                                                DurationSeconds="{Binding Session.VideoDurationSeconds}"
+                                                ToolTip="Where the cuts fall — a bracket at each end of every range, with the cut's number between them and a tick when it is checked. A bookmark still waiting for its closing timestamp shows an opening bracket on its own."/>
                     </Grid>
                 </Border>
 
