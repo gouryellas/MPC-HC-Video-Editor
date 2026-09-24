@@ -31,7 +31,13 @@ public partial class UpdateAvailableDialog : Window
     /// <param name="latestVersion">Published version, e.g. <c>"4.5"</c>.</param>
     /// <param name="runningVersion">This build's version.</param>
     /// <param name="releaseUrl">Page the buttons open.</param>
-    public UpdateAvailableDialog(string latestVersion, string runningVersion, string releaseUrl)
+    /// <param name="highlights">
+    /// Short lines from the release's notes. Optional, and an empty list takes
+    /// the whole section off the window — see
+    /// <see cref="Services.UpdateCheckService.Highlights"/>.
+    /// </param>
+    public UpdateAvailableDialog(string latestVersion, string runningVersion, string releaseUrl,
+                                 IReadOnlyList<string>? highlights = null)
     {
         InitializeComponent();
 
@@ -42,6 +48,21 @@ public partial class UpdateAvailableDialog : Window
             : $"Version {latestVersion} is available";
 
         RunningText.Text = $"You are running {runningVersion}.";
+
+        if (highlights is { Count: > 0 })
+        {
+            // Named rather than a bare "What's new", so it is clear these lines
+            // describe the release being offered and not this build.
+            ChangesHeading.Text = string.IsNullOrWhiteSpace(latestVersion)
+                ? "WHAT CHANGED"
+                : $"WHAT CHANGED IN {latestVersion}";
+
+            ChangesList.ItemsSource = highlights;
+        }
+        else
+        {
+            ChangesPanel.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void Releases_Click(object sender, RoutedEventArgs e)

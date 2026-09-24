@@ -5597,7 +5597,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void ShowUpdateAvailable(UpdateCheckResult result)
     {
         var dlg = new UpdateAvailableDialog(
-            result.LatestVersion ?? "", AppVersion.Display, result.ReleaseUrl);
+            result.LatestVersion ?? "", AppVersion.Display, result.ReleaseUrl, result.Highlights);
 
         if (Application.Current?.MainWindow is { IsVisible: true } owner)
             dlg.Owner = owner;

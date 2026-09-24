@@ -45,6 +45,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="0,0,0,12">
@@ -54,14 +55,44 @@
                        FontSize="12" Margin="0,4,0,0"/>
         </StackPanel>
 
-        <TextBlock Grid.Row="1" Foreground="{DynamicResource TextDim}" FontSize="12"
+        <!-- What changed, taken from the release's own notes. Collapsed when the
+             release has none: the point of the list is to answer "is this worth
+             downloading", and an empty box answers nothing. -->
+        <Border x:Name="ChangesPanel" Grid.Row="1" Background="{DynamicResource PanelBackground}"
+                CornerRadius="6" Padding="12,10" Margin="0,0,0,14">
+            <StackPanel>
+                <TextBlock x:Name="ChangesHeading" Foreground="{DynamicResource TextSecondary}"
+                           FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                <ItemsControl x:Name="ChangesList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <!-- Dot in its own column so a wrapped line lines up
+                                 under the text rather than under the bullet. -->
+                            <Grid Margin="0,0,0,3">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="•" Foreground="{DynamicResource Accent}"
+                                           FontSize="12" Margin="0,0,7,0"/>
+                                <TextBlock Grid.Column="1" Text="{Binding}" FontSize="12"
+                                           Foreground="{DynamicResource TextPrimary}"
+                                           TextWrapping="Wrap"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <TextBlock Grid.Row="2" Foreground="{DynamicResource TextDim}" FontSize="12"
                    TextWrapping="Wrap" Margin="0,0,0,14"
-                   Text="The releases page has the archive and the notes for what changed. This program does not update itself — download the new archive and replace your copy. Your settings live beside the executable and are not touched by the check."/>
+                   Text="The releases page has the archive and the notes in full. This program does not update itself — download the new archive and replace your copy. Your settings live beside the executable and are not touched by the check."/>
 
         <!-- The way out of this notice sits in the notice, rather than only in
              a Settings tab the user would have to go looking for. The second
              sentence is there so turning it off does not feel permanent. -->
-        <Border Grid.Row="2" Background="{DynamicResource PanelBackground}" CornerRadius="6"
+        <Border Grid.Row="3" Background="{DynamicResource PanelBackground}" CornerRadius="6"
                 Padding="12" Margin="0,0,0,14">
             <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap">
                 <Run Text="This check runs once each time the program starts."/>
@@ -75,7 +106,7 @@
             </TextBlock>
         </Border>
 
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
             <!-- Closed from code-behind, not by IsCancel. IsCancel closes a
                  window by setting DialogResult, and DialogResult only means
                  anything on a window shown with ShowDialog. This notice is
