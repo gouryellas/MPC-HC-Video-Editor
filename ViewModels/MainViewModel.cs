@@ -1912,19 +1912,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // unreliable anyway — start at the first second instead.
         var timestamp = Session.CurrentTimeSeconds <= 0 ? 1 : Session.CurrentTimeSeconds;
 
-        // Inside a cut that already exists. Opening here would start a second
-        // cut over the top of the first, and the press is far more likely to be
-        // a misread of where the player is than a request for that.
-        if (OverlappingCut(timestamp, timestamp) is { } clash)
-        {
-            StatusText = $"{Bookmark.FormatTime(timestamp)} is inside cut {clash.Index} " +
-                         $"({clash.StartDisplay} – {clash.EndDisplay}) — cuts cannot overlap";
-            _toast.Show("Already inside a cut",
-                        $"{Bookmark.FormatTime(timestamp)} falls in cut {clash.Index}",
-                        force: NeedsHotkeyToast);
-            return;
-        }
-
+        // Opening inside a cut that already exists is allowed. Two cuts over the
+        // same footage is a thing people want — the same moment kept twice at
+        // different speeds, or a short version of a long take — and the program
+        // has no business deciding that a press there was a mistake.
+        //
         // No end time is what makes it open — there is no separate flag to set.
         var nextIndex = Session.Bookmarks.Count + 1;
         var bookmark = new Bookmark { Index = nextIndex, StartSeconds = timestamp, EndSeconds = 0 };
@@ -1963,8 +1955,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // that the pair was what was wrong. It is not: the opening time is still
         // exactly where it was wanted, and the only thing wrong is where the
         // player happens to be now. Discarding meant a mis-timed second press
-        // destroyed a good timestamp and left nothing to correct — the same
-        // reasoning the overlap check below already followed.
+        // destroyed a good timestamp and left nothing to correct.
+        //
+        // This is the only thing that can refuse a closing timestamp. Running
+        // over another cut does not — cuts are allowed to overlap.
         if (closing <= incomplete.StartSeconds)
         {
             StatusText = $"Cannot close bookmark {incomplete.Index} at " +
@@ -1975,22 +1969,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
             _toast.Show($"Bookmark {incomplete.Index} still open",
                         $"A closing time has to come after {incomplete.StartDisplay}",
                         "⚠", force: NeedsHotkeyToast);
-            return;
-        }
-
-        // Closing here would reach over a cut that is already there. Unlike a
-        // close that lands before its own opening, the opening timestamp is
-        // still perfectly good — it is only this closing time that will not do
-        // — so the bookmark is left open to be closed somewhere else, rather
-        // than thrown away along with it.
-        if (OverlappingCut(incomplete.StartSeconds, closing, incomplete) is { } clash)
-        {
-            StatusText = $"Closing at {Bookmark.FormatTime(closing)} would run over cut " +
-                         $"{clash.Index} ({clash.StartDisplay} – {clash.EndDisplay}) — " +
-                         $"bookmark {incomplete.Index} is still open";
-            _toast.Show($"Would overlap cut {clash.Index}",
-                        $"Bookmark {incomplete.Index} left open — close it before {clash.StartDisplay}",
-                        force: NeedsHotkeyToast);
             return;
         }
 
@@ -3171,14 +3149,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                              $"start time ({Bookmark.FormatTime(start)}).\n\n{TimeFormatHelp}";
                     continue;
                 }
-                if (OverlappingCut(start, end) is { } clash)
-                {
-                    prompt = $"That range runs over cut {clash.Index} " +
-                             $"({clash.StartDisplay} – {clash.EndDisplay}). Cuts cannot " +
-                             $"overlap.\n\n{TimeFormatHelp}";
-                    continue;
-                }
-
+                // A range that runs over another cut is accepted. The end being
+                // after the start is the only thing a typed range has to satisfy.
                 Session.Bookmarks.Add(new Bookmark
                 {
                     Index = Session.Bookmarks.Count + 1,
@@ -3194,14 +3166,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     prompt = $"{error}\n\n{TimeFormatHelp}";
                     continue;
                 }
-                if (OverlappingCut(start, start) is { } inside)
-                {
-                    prompt = $"{Bookmark.FormatTime(start)} is inside cut {inside.Index} " +
-                             $"({inside.StartDisplay} – {inside.EndDisplay}). Cuts cannot " +
-                             $"overlap.\n\n{TimeFormatHelp}";
-                    continue;
-                }
-
                 Session.Bookmarks.Add(new Bookmark
                 {
                     Index = Session.Bookmarks.Count + 1,
@@ -4365,20 +4329,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         if (dlg.ReplaceExisting) Session.Bookmarks.Clear();
 
-        // A scan's own proposals never overlap each other, but added to a list
-        // that is already there they can land on top of it. Those are skipped
-        // rather than refusing the lot: the rest of the scan is still worth
-        // having, and the cuts already on the list are the ones that were
-        // placed deliberately.
-        var skipped = 0;
+        // Every accepted proposal is added, including ones that land on top of
+        // cuts already in the list. Appending without "replace" is a deliberate
+        // choice to have both sets, and dropping the ones that overlapped meant
+        // a scan of an already-marked video could silently add almost nothing.
         foreach (var r in dlg.Accepted)
         {
-            if (OverlappingCut(r.Start, r.End) is not null)
-            {
-                skipped++;
-                continue;
-            }
-
             Session.Bookmarks.Add(new Bookmark
             {
                 Index = Session.Bookmarks.Count + 1,
@@ -4404,11 +4360,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         RefreshCommandStates();
 
-        var added = dlg.Accepted.Count - skipped;
-        StatusText = skipped == 0
-            ? $"Added {added} {Entries(added)} from the scan"
-            : $"Added {added} {Entries(added)} from the scan — skipped {skipped} that " +
-              $"overlapped cuts already in the list";
+        var added = dlg.Accepted.Count;
+        StatusText = $"Added {added} {Entries(added)} from the scan";
     }
 
     /// <summary>
@@ -6344,12 +6297,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// every selection.
     /// </remarks>
     /// <summary>
-    /// The clearance a nudged timestamp keeps from whatever bounds it.
+    /// The clearance a nudged timestamp keeps from whatever bounds it — the
+    /// other end of its own cut, and the ends of the file.
     /// </summary>
     /// <remarks>
     /// A second, not a frame. A frame's clearance is true to the arithmetic and
-    /// useless in practice — nothing survives a cut that short, and a start
-    /// that lands a frame after the previous cut's end reads as touching it.
+    /// useless in practice: nothing survives a cut one frame long.
     /// </remarks>
     private const double NudgeGapSeconds = 1.0;
 
@@ -6357,73 +6310,30 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private const double NudgeEpsilon = 1e-6;
 
     /// <summary>
-    /// The existing cut that <paramref name="start"/> to <paramref name="end"/>
-    /// would run into, or <c>null</c> when that span is clear.
-    /// </summary>
-    /// <param name="ignore">
-    /// The cut being edited, which must not be found overlapping itself.
-    /// </param>
-    /// <remarks>
-    /// <para>
-    /// Cuts may not overlap. Two that share any of the file are two that will
-    /// both be written out carrying the same footage, and the list stops being
-    /// a description of an edit and becomes a set of claims about it that
-    /// cannot all hold.
-    /// </para>
-    /// <para>
-    /// The comparison is half-open — touching is not overlapping — so a cut may
-    /// start exactly where the one before it ended. A bookmark still waiting
-    /// for its closing timestamp occupies only the instant it was opened at,
-    /// since it has no span yet to defend.
-    /// </para>
-    /// </remarks>
-    private Bookmark? OverlappingCut(double start, double end, Bookmark? ignore = null)
-    {
-        foreach (var other in Session.Bookmarks)
-        {
-            if (ReferenceEquals(other, ignore)) continue;
-
-            var otherStart = other.StartSeconds;
-            var otherEnd = other.IsValid ? other.EndSeconds : other.StartSeconds;
-
-            if (start < otherEnd && otherStart < end) return other;
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// How far one end of a cut may be nudged before it would touch a
-    /// neighbouring cut.
+    /// How far one end of a cut may be nudged.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Cuts do not overlap, so along the file the times run start, end, start,
-    /// end. Each timestamp is therefore fenced by the two beside it in that
-    /// run, a second clear of each:
+    /// A cut is bounded by itself and by the file, and by nothing else. Cuts are
+    /// allowed to overlap — two of them over the same footage is a thing people
+    /// want, whether that is the same moment kept twice at different speeds or a
+    /// short version of a long take — so a neighbour is not a wall.
     /// </para>
     /// <list type="bullet">
-    ///   <item>a start sits above the previous cut's end and below its own;</item>
-    ///   <item>an end sits above its own start and below the next cut's start.</item>
+    ///   <item>a start sits at or after the beginning of the file, and a second below its own end;</item>
+    ///   <item>an end sits a second above its own start, and a second inside the file's length.</item>
     /// </list>
     /// <para>
-    /// An end is never measured against another end. Two ends are never
-    /// adjacent — there is always a start between them — so the only end that
-    /// could bound one is a cut further away, and stopping short of that one
-    /// would leave the cut in between free to be overlapped anyway.
+    /// The clearance is between the two ends of the one cut, which is the only
+    /// pair of times that cannot cross: a cut has to be long enough to be a cut.
     /// </para>
     /// <para>
-    /// Neighbours are taken in time order rather than row order. A bookmark set
-    /// from the player is appended to the list and only sorted when the file is
-    /// written, so the row above is not reliably the cut before.
-    /// </para>
-    /// <para>
-    /// The video's length caps everything, and an unknown length lifts the cap
-    /// rather than setting it to zero: the duration arrives a moment after the
-    /// video does, and clamping to it before it is known would pin every
-    /// timestamp to the start of the file. A start with no closing timestamp
-    /// yet has only that cap above it — there is no end to stay behind, which
-    /// is the whole state of an open bookmark.
+    /// The video's length caps both, and an unknown length lifts the cap rather
+    /// than setting it to zero: the duration arrives a moment after the video
+    /// does, and clamping to it before it is known would pin every timestamp to
+    /// the start of the file. A start with no closing timestamp yet has only that
+    /// cap above it — there is no end to stay behind, which is the whole state of
+    /// an open bookmark.
     /// </para>
     /// </remarks>
     private (double Floor, double Ceiling) NudgeRange(Bookmark b, bool movingStart)
@@ -6431,27 +6341,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var duration = Session.VideoDurationSeconds;
         var cap = duration > 0 ? duration - NudgeGapSeconds : double.PositiveInfinity;
 
-        var ordered = Session.Bookmarks.OrderBy(x => x.StartSeconds).ToList();
-        var index = ordered.IndexOf(b);
-
         if (movingStart)
-        {
-            var previous = index > 0 ? ordered[index - 1] : null;
+            return (0, b.IsValid ? Math.Min(cap, b.EndSeconds - NudgeGapSeconds) : cap);
 
-            // Clear the whole of the cut before — its end, or its start when it
-            // is still open and has no end to clear.
-            var floor = previous is null
-                ? 0
-                : (previous.IsValid ? previous.EndSeconds : previous.StartSeconds) + NudgeGapSeconds;
-
-            var ceiling = b.IsValid ? Math.Min(cap, b.EndSeconds - NudgeGapSeconds) : cap;
-            return (floor, ceiling);
-        }
-
-        var next = index >= 0 && index < ordered.Count - 1 ? ordered[index + 1] : null;
-
-        return (b.StartSeconds + NudgeGapSeconds,
-                next is null ? cap : Math.Min(cap, next.StartSeconds - NudgeGapSeconds));
+        return (b.StartSeconds + NudgeGapSeconds, cap);
     }
 
     /// <summary>

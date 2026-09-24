@@ -75,6 +75,10 @@ close it. An open bookmark shows as *incomplete* until it has an end time.
   again.
 - A first timestamp at 0 is nudged to the first second — the player reports 0
   before playback has really begun, and ffmpeg's seek at 0 is unreliable.
+- **Cuts may overlap.** Two of them over the same footage is allowed and
+  sometimes the point — the same moment kept twice at different speeds, or a
+  short version of a long take. The frame arrows on each row are held apart only
+  by the other end of their own cut and by the length of the video.
 - **Undo last bookmark** removes the last *single timestamp*, not the pair: a
   closed bookmark loses only its end time and reopens; a lone start time is
   dropped. If that empties the file, the CSV goes too.

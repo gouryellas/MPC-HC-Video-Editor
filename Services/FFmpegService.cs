@@ -1322,7 +1322,16 @@ public class FFmpegService
         string inputPath, string outputPath, IList<Bookmark> bookmarks,
         IProgress<FFmpegProgressEventArgs>? progress = null, CancellationToken ct = default)
     {
-        var usable = bookmarks.Where(b => b.IsValid).ToList();
+        // In time order, not list order. A bookmark set from the player is
+        // appended and only sorted when the file is written, so the list can hold
+        // them out of sequence — and chapter metadata has to ascend.
+        //
+        // Cuts are allowed to overlap, which chapters cannot: a chapter is a
+        // division of the running time, so two of them over the same footage has
+        // no meaning. Sorting keeps the file valid and the marks in the right
+        // places; what an overlapping pair does to the chapter list is up to the
+        // player reading it.
+        var usable = bookmarks.Where(b => b.IsValid).OrderBy(b => b.StartSeconds).ToList();
         if (usable.Count == 0) throw new ArgumentException("No complete bookmarks to write as chapters");
 
         var metaPath = Path.Combine(Path.GetTempPath(), "mpc-chapters-" + Guid.NewGuid().ToString("N")[..8] + ".txt");
