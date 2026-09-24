@@ -129,7 +129,10 @@ Output filenames use the active **naming tag** (see Options), e.g.
 - **Export cuts as GIF / WebP…** — writes each checked cut as an animation, no
   sound. Asks for the frame rate and width, which decide the size more than
   anything else; the cut’s own flip, rotation, speed and fades are applied. The
-  original is never deleted after this, whatever Cleanup says.
+  original is never deleted after this, whatever Cleanup says. An animated WebP
+  plays in any browser and in Windows Photos, but a fair number of desktop image
+  viewers handle only still WebP and report the file as unreadable — that is the
+  viewer, not the export.
 - **Save the frame on screen…** — writes the frame MPC-HC is showing to a PNG at
   its own size, next to the other output. The time is part of the filename, so a
   run of grabs does not collide.

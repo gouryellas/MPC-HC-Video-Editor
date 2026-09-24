@@ -63,8 +63,13 @@
             <RadioButton x:Name="FormatWebp" GroupName="Format">
                 <StackPanel>
                     <TextBlock Text="Animated WebP"/>
+                    <!-- Names image viewers specifically. "Some older tools"
+                         was true and useless: the thing that actually happens
+                         is a desktop viewer opening the file and reporting it
+                         as unreadable, which reads as a broken export rather
+                         than a format it does not handle. -->
                     <TextBlock Style="{StaticResource OptionNote}"
-                               Text="A fraction of the size, full color and real transparency. Every current browser reads it; some older tools and chat clients do not."/>
+                               Text="A fraction of the size, full color and real transparency. Every current browser reads it, and so does Windows Photos. Image viewers are the catch — plenty of them show a still WebP but cannot play an animated one, and say the file could not be read rather than saying that."/>
                 </StackPanel>
             </RadioButton>
         </StackPanel>
