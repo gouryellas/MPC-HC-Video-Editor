@@ -147,39 +147,6 @@ public class BookmarkService
         return fields;
     }
 
-    /// <summary>
-    /// A bookmark time: whole seconds when that is all it is, hundredths when it
-    /// is not.
-    /// </summary>
-    /// <remarks>
-    /// This used to be a cast to <c>int</c>, which silently threw away every
-    /// frame nudge: moving a start one frame earlier put 5.96 on the bookmark and
-    /// 5 in the file, and the next reload — which happens whenever the window is
-    /// activated — took the 5. So the arrows appeared to work and their work did
-    /// not survive leaving the window.
-    ///
-    /// Whole times still write as bare integers, with no decimal point and no
-    /// trailing zeros, so a file nobody has nudged is byte-identical to what
-    /// every earlier build wrote. That keeps the original AutoHotkey format for
-    /// the common case; a fraction appears only once something has actually been
-    /// moved by less than a second, and the loader has always parsed these as
-    /// doubles.
-    ///
-    /// Two decimals, not three: a frame at 240 fps is 4 milliseconds, but the
-    /// cut itself is handed to ffmpeg to the millisecond from the value in
-    /// memory, and the file is the record of where the marks are rather than the
-    /// precision the encoder works to.
-    /// </remarks>
-    private static string WriteTime(double seconds)
-    {
-        if (seconds < 0) seconds = 0;
-        var rounded = Math.Round(seconds, 2, MidpointRounding.AwayFromZero);
-
-        return Math.Abs(rounded - Math.Round(rounded)) < 0.0005
-            ? ((long)Math.Round(rounded)).ToString(CultureInfo.InvariantCulture)
-            : rounded.ToString("0.##", CultureInfo.InvariantCulture);
-    }
-
     /// <summary>Quotes a field only when it would otherwise split or mislead.</summary>
     private static string WriteField(string? value)
     {
@@ -195,17 +162,14 @@ public class BookmarkService
         {
             if (b.IsIncomplete)
             {
-                // Through WriteTime as well: an open bookmark's start has frame
-                // arrows of its own, and truncating here would lose their work
-                // exactly as it did on a complete row.
-                sb.AppendLine($"{WriteTime(b.StartSeconds)},");
+                sb.AppendLine($"{(int)b.StartSeconds},");
                 continue;
             }
 
             // The name, then everything the clip carries beyond its range.
             // An unnamed clip writes an empty field rather than the old
             // "BookmarkN" filler, which said nothing the row number did not.
-            sb.Append($"{WriteTime(b.StartSeconds)},{WriteTime(b.EndSeconds)},{WriteField(b.Label)},");
+            sb.Append($"{(int)b.StartSeconds},{(int)b.EndSeconds},{WriteField(b.Label)},");
             sb.Append(b.Speed.ToString("0.###", CultureInfo.InvariantCulture));
             sb.Append(b.IsFlipped ? ",1," : ",0,");
             sb.Append(b.Rotation);

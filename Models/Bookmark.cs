@@ -330,8 +330,8 @@ public class Bookmark : INotifyPropertyChanged
     public bool IsIncomplete => EndSeconds <= StartSeconds;
 
     // Computed properties
-    public string StartDisplay => FormatMark(StartSeconds);
-    public string EndDisplay => FormatMark(EndSeconds);
+    public string StartDisplay => FormatTime(StartSeconds);
+    public string EndDisplay => FormatTime(EndSeconds);
     public double DurationSeconds => Math.Max(0, EndSeconds - StartSeconds);
     public string DurationDisplay => FormatDuration(DurationSeconds);
     public string EffectiveDurationDisplay => FormatDuration(DurationSeconds / Speed);
@@ -571,46 +571,6 @@ public class Bookmark : INotifyPropertyChanged
     /// name the rest of the app already calls it by.
     /// </summary>
     public static string FormatTime(double totalSeconds) => FormatClock(totalSeconds);
-
-    /// <summary>
-    /// A cut's own start or end: the clock style, plus hundredths when the time
-    /// has them.
-    /// </summary>
-    /// <remarks>
-    /// A bookmark's times are the only ones in the app that can be moved by a
-    /// fraction of a second, and <see cref="FormatClock"/> truncates. A cut
-    /// starting at 6s nudged one frame earlier became 5.96 and read as "5s" — a
-    /// whole second of apparent movement for a frame of real movement, and then
-    /// nothing at all for the next twenty-four presses, since they all truncate
-    /// to the same 5. The arrow looked like it had stopped working.
-    ///
-    /// Only shown when there is a fraction to show, so a list nobody has nudged
-    /// reads exactly as it did: whole seconds, no trailing zeros, no decimal
-    /// point. The playback position keeps <see cref="FormatTime"/> — it is
-    /// fractional constantly, and hundredths there would be a flickering blur.
-    /// </remarks>
-    public static string FormatMark(double totalSeconds)
-    {
-        if (totalSeconds < 0) totalSeconds = 0;
-
-        var whole = Math.Floor(totalSeconds);
-        var fraction = totalSeconds - whole;
-
-        // Below half a hundredth there is nothing to print, and printing it
-        // anyway would put ".0" on every ordinary time in the list.
-        if (fraction < 0.005) return FormatClock(totalSeconds);
-
-        var (h, m, s) = Split(whole);
-        var seconds = (s + fraction).ToString("0.##");
-
-        // The seconds field is padded to two digits when something precedes it,
-        // the same rule the clock style follows — "1:05.5", not "1:5.5".
-        var padded = s < 10 ? "0" + seconds : seconds;
-
-        if (h > 0) return $"{h}:{m:D2}:{padded}";
-        if (m > 0) return $"{m}:{padded}";
-        return $"{seconds}s";
-    }
 
     /// <summary>How long something runs, always in the spoken style.</summary>
     public static string FormatDuration(double totalSeconds)

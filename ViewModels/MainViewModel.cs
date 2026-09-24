@@ -1766,11 +1766,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
             {
                 var dur = await _ffmpeg.GetDurationAsync(path);
                 if (dur > 0) Session.VideoDurationSeconds = dur;
-
-                // Read alongside the duration, from the same file, so the
-                // nudge buttons know what a frame is worth before anyone
-                // presses one.
-                await RefreshFrameRateAsync(path);
             }
         }
         catch { }
@@ -6304,53 +6299,31 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // ------------------------------------------------------------------
 
     /// <summary>
-    /// Frames per second of the loaded video, or 0 before it has been read.
+    /// Moves one end of a cut by one second. The parameter names which end and
+    /// which direction — "start-", "start+", "end-", "end+".
     /// </summary>
     /// <remarks>
-    /// Probed once when a video is opened rather than per nudge: it cannot
-    /// change while the file is open, and a button that shells out to ffprobe
-    /// on every click would be a button with a lag.
-    /// </remarks>
-    private double _frameRate;
-
-    /// <summary>How far one frame moves the mark, in seconds.</summary>
-    /// <remarks>
-    /// Falls back to 1/30 when the rate is unknown — a rate this app could not
-    /// read is still a video whose marks the user wants to inch, and a nudge of
-    /// roughly a frame beats a button that refuses.
-    /// </remarks>
-    private double FrameStep => _frameRate > 0.1 ? 1.0 / _frameRate : 1.0 / 30.0;
-
-    /// <summary>Reads the frame rate for the open video, quietly.</summary>
-    private async Task RefreshFrameRateAsync(string videoPath)
-    {
-        try { _frameRate = await _ffmpeg.GetFrameRateAsync(videoPath); }
-        catch { _frameRate = 0; }
-    }
-
-    /// <summary>
-    /// Moves one end of a cut by a single frame. The parameter names which end
-    /// and which direction — "start-", "start+", "end-", "end+".
-    /// </summary>
-    /// <remarks>
-    /// A cut that is one frame late is the common correction, and until now the
-    /// only way to make it was to retype the whole timestamp. The bookmark is
-    /// taken from the command parameter rather than the selection so a row's
-    /// own buttons act on that row.
+    /// A whole second, and every timestamp is a whole number of them. The arrows
+    /// moved a single frame at first, which was the wrong unit twice over: a
+    /// frame is 0.04s at 25fps, so the row — which shows whole seconds — did not
+    /// visibly change for twenty-four presses out of twenty-five, and the CSV
+    /// holds whole seconds anyway, so the fraction was discarded on the next save
+    /// regardless. A second moves the mark by the smallest amount the rest of the
+    /// program can actually represent.
     ///
-    /// The two marks are kept apart by at least one frame: a range that closes
-    /// before it opens is the state <see cref="Bookmark.IsIncomplete"/> exists
-    /// to describe, and nudging into it would silently drop the row out of
-    /// every selection.
+    /// A cut that is a second late is the common correction, and before these
+    /// arrows the only way to make it was to retype the whole timestamp. The
+    /// bookmark is taken from the command parameter rather than the selection so
+    /// a row's own buttons act on that row.
+    ///
+    /// The two marks are kept a second apart: a range that closes before it
+    /// opens is the state <see cref="Bookmark.IsIncomplete"/> exists to describe,
+    /// and nudging into it would silently drop the row out of every selection.
     /// </remarks>
     /// <summary>
-    /// The clearance a nudged timestamp keeps from whatever bounds it.
+    /// The clearance a nudged timestamp keeps from whatever bounds it, which is
+    /// also the distance one press moves it.
     /// </summary>
-    /// <remarks>
-    /// A second, not a frame. A frame's clearance is true to the arithmetic and
-    /// useless in practice — nothing survives a cut that short, and a start
-    /// that lands a frame after the previous cut's end reads as touching it.
-    /// </remarks>
     private const double NudgeGapSeconds = 1.0;
 
     /// <summary>Slack for comparing two times that floating point has been near.</summary>
@@ -6426,6 +6399,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// is the whole state of an open bookmark.
     /// </para>
     /// </remarks>
+    /// <remarks>
+    /// Both bounds come back on a whole second — the floor rounded up, the
+    /// ceiling rounded down — so a clamp against one can never leave a fraction
+    /// behind. The video's length is the only fractional number in here, and
+    /// a file 100.5 seconds long would otherwise cap an end at 99.5.
+    /// </remarks>
     private (double Floor, double Ceiling) NudgeRange(Bookmark b, bool movingStart)
     {
         var duration = Session.VideoDurationSeconds;
@@ -6434,24 +6413,33 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var ordered = Session.Bookmarks.OrderBy(x => x.StartSeconds).ToList();
         var index = ordered.IndexOf(b);
 
+        double floor, ceiling;
+
         if (movingStart)
         {
             var previous = index > 0 ? ordered[index - 1] : null;
 
             // Clear the whole of the cut before — its end, or its start when it
             // is still open and has no end to clear.
-            var floor = previous is null
+            floor = previous is null
                 ? 0
                 : (previous.IsValid ? previous.EndSeconds : previous.StartSeconds) + NudgeGapSeconds;
 
-            var ceiling = b.IsValid ? Math.Min(cap, b.EndSeconds - NudgeGapSeconds) : cap;
-            return (floor, ceiling);
+            ceiling = b.IsValid ? Math.Min(cap, b.EndSeconds - NudgeGapSeconds) : cap;
+        }
+        else
+        {
+            var next = index >= 0 && index < ordered.Count - 1 ? ordered[index + 1] : null;
+
+            floor = b.StartSeconds + NudgeGapSeconds;
+            ceiling = next is null ? cap : Math.Min(cap, next.StartSeconds - NudgeGapSeconds);
         }
 
-        var next = index >= 0 && index < ordered.Count - 1 ? ordered[index + 1] : null;
-
-        return (b.StartSeconds + NudgeGapSeconds,
-                next is null ? cap : Math.Min(cap, next.StartSeconds - NudgeGapSeconds));
+        // Ceiling(floor) and Floor(ceiling): rounding each bound inwards to a
+        // whole second keeps both of them somewhere a timestamp is allowed to be.
+        // Infinity survives Math.Floor unchanged, which is what the unknown-length
+        // case needs.
+        return (Math.Ceiling(floor), Math.Floor(ceiling));
     }
 
     /// <summary>
@@ -6482,8 +6470,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Moves one end of <paramref name="b"/> by a single frame, clamped to the
-    /// room <see cref="NudgeRange"/> allows.
+    /// Moves one end of <paramref name="b"/> by one second, clamped to the room
+    /// <see cref="NudgeRange"/> allows.
     /// </summary>
     /// <remarks>
     /// The bookmark is passed in rather than read from the selection. The
@@ -6493,10 +6481,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// nothing selected at all, four arrows that did nothing.
     ///
     /// Clamped rather than refused at the boundary: the last press before a
-    /// limit should land on the limit, not be ignored for overshooting it by
-    /// part of a frame.
+    /// limit should land on the limit rather than be ignored for overshooting it.
     /// </remarks>
-    public void NudgeFrame(Bookmark? b, string? request)
+    public void NudgeSecond(Bookmark? b, string? request)
     {
         if (b is null || string.IsNullOrWhiteSpace(request)) return;
 
@@ -6509,8 +6496,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (floor > ceiling) return;
 
         var current = movingStart ? b.StartSeconds : b.EndSeconds;
-        var proposed = Math.Clamp(current + (forward ? FrameStep : -FrameStep),
-                                  Math.Max(0, floor), ceiling);
+
+        // Floor then +1 going forward, Ceiling then -1 going back. For a whole
+        // second — which every timestamp is — that is exactly one second either
+        // way. For a fractional one, which only a hand-edited CSV can produce, it
+        // lands on the next whole second in the direction pressed rather than
+        // carrying the fraction along for the rest of the file's life.
+        var proposed = forward ? Math.Floor(current) + NudgeGapSeconds
+                               : Math.Ceiling(current) - NudgeGapSeconds;
+
+        proposed = Math.Clamp(proposed, Math.Max(0, floor), ceiling);
 
         if (Math.Abs(proposed - current) < NudgeEpsilon) return;
 
@@ -6528,9 +6523,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (IsBookmarkFileLoaded) SaveBookmarks();
 
         var which = movingStart ? "Start" : "End";
-        var rate = _frameRate > 0.1 ? $"{_frameRate:0.##} fps" : "assumed 30 fps";
-        StatusText = $"{which} of cut {b.Index} moved one frame " +
-                     $"{(forward ? "later" : "earlier")} ({rate}) — now " +
+        StatusText = $"{which} of cut {b.Index} moved " +
+                     $"{(forward ? "later" : "earlier")} — now " +
                      $"{Bookmark.FormatTime(proposed)}";
     }
 

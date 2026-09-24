@@ -1329,7 +1329,7 @@ public partial class MainWindow : Window
     private void NudgeArrow_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { DataContext: Bookmark b, Tag: string request })
-            _vm?.NudgeFrame(b, request);
+            _vm?.NudgeSecond(b, request);
     }
 
     /// <summary>

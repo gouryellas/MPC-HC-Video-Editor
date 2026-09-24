@@ -1515,19 +1515,6 @@ public class FFmpegService
     }
 
     /// <summary>
-    /// Frames per second for the first video stream, or 0 when it cannot be
-    /// read.
-    /// </summary>
-    /// <remarks>
-    /// <c>r_frame_rate</c> comes back as a rational — "30000/1001" for 29.97,
-    /// "25/1" for a plain 25 — so it is divided rather than parsed as a
-    /// decimal. Callers treat 0 as "unknown" and fall back; a nudge that moves
-    /// by the wrong amount would be worse than one that says it cannot.
-    /// </remarks>
-    public async Task<double> GetFrameRateAsync(string filePath)
-        => (await GetFrameRateRationalAsync(filePath)).Value;
-
-    /// <summary>
     /// Above this, a reported frame rate is treated as a measurement artefact
     /// rather than a rate anything was shot at.
     /// </summary>

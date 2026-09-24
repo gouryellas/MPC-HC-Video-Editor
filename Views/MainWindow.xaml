@@ -169,7 +169,7 @@
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
 
-        <!-- The frame-nudge arrows flanking each timestamp in the bookmark
+        <!-- The nudge arrows flanking each timestamp in the bookmark
              list. Hidden rather than collapsed off-hover: they keep their
              width, so the row reads the same whether or not the pointer is
              over it, and hovering reveals the arrows instead of shoving the
@@ -983,14 +983,14 @@
                                             </StackPanel>
 
                                             <!-- [1] < 4s > - < 12s > (8s), one space between each
-                                                 of them. Nudging the opening mark by a frame is
-                                                 the common correction — a cut that is one frame
-                                                 late — and retyping the whole timestamp was
-                                                 previously the only way to make it. -->
+                                                 of them. Nudging the opening mark by a second is
+                                                 the common correction — a cut that came in a
+                                                 second late — and retyping the whole timestamp
+                                                 was previously the only way to make it. -->
                                             <TextBlock Style="{StaticResource RowGap}"/>
                                             <Button Content="&lt;" Style="{StaticResource NudgeStartBack}"
                                                     Click="NudgeArrow_Click" Tag="start-"
-                                                    ToolTip="Move the start one frame earlier"/>
+                                                    ToolTip="Move the start one second earlier"/>
                                             <TextBlock Style="{StaticResource RowGap}"/>
                                             <!-- Centered like everything else in the row. Without
                                                  this a TextBlock stretches to the row's full
@@ -1010,7 +1010,7 @@
                                             <TextBlock Style="{StaticResource RowGap}"/>
                                             <Button Content="&gt;" Style="{StaticResource NudgeStartForward}"
                                                     Click="NudgeArrow_Click" Tag="start+"
-                                                    ToolTip="Move the start one frame later"/>
+                                                    ToolTip="Move the start one second later"/>
 
                                             <!-- Everything past the opening timestamp belongs to a
                                                  range, and an open bookmark has not got one. It
@@ -1027,7 +1027,7 @@
 
                                                 <Button Content="&lt;" Style="{StaticResource NudgeEndBack}"
                                                         Click="NudgeArrow_Click" Tag="end-"
-                                                        ToolTip="Move the end one frame earlier"/>
+                                                        ToolTip="Move the end one second earlier"/>
                                                 <TextBlock Style="{StaticResource RowGap}"/>
                                                 <TextBlock VerticalAlignment="Center"
                                                            ToolTip="Click to seek MPC-HC to this time">
@@ -1040,7 +1040,7 @@
                                                 <TextBlock Style="{StaticResource RowGap}"/>
                                                 <Button Content="&gt;" Style="{StaticResource NudgeEndForward}"
                                                         Click="NudgeArrow_Click" Tag="end+"
-                                                        ToolTip="Move the end one frame later"/>
+                                                        ToolTip="Move the end one second later"/>
 
                                                 <TextBlock Style="{StaticResource RowGap}"/>
                                                 <TextBlock Text="{Binding DurationDisplay, StringFormat=({0})}" Foreground="{DynamicResource ValueGreen}" VerticalAlignment="Center"/>
