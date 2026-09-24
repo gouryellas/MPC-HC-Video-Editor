@@ -1287,6 +1287,11 @@ public class FFmpegService
     /// to <paramref name="height"/> pixels tall. Returns <c>null</c> if the
     /// frame could not be read.
     /// </summary>
+    /// <param name="height">
+    /// Pixels tall, or zero or less for the frame at its own size. Saving a
+    /// still wants the whole frame; the panel's thumbnails want 76 pixels of
+    /// it, and asking for that is what the default is for.
+    /// </param>
     /// <remarks>
     /// <para>
     /// Piped out of ffmpeg's stdout rather than written to a file: a thumbnail
@@ -1307,8 +1312,9 @@ public class FFmpegService
         if (seconds < 0) seconds = 0;
 
         var timestamp = seconds.ToString("0.###", CultureInfo.InvariantCulture);
+        var scale = height > 0 ? $"-vf scale=-2:{height} " : string.Empty;
         var args = $"-hide_banner -loglevel error -ss {timestamp} -i \"{videoPath}\" " +
-                   $"-frames:v 1 -vf scale=-2:{height} -f image2pipe -c:v png -";
+                   $"-frames:v 1 {scale}-f image2pipe -c:v png -";
 
         try
         {

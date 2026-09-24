@@ -345,6 +345,9 @@
                         <Rectangle Width="12" Height="12" Fill="{DynamicResource ConvertBackground}" RadiusX="2" RadiusY="2"/>
                     </MenuItem.Icon>
                 </MenuItem>
+                <MenuItem Header="Save the frame on screen…" Command="{Binding SaveCurrentFrameCommand}"
+                          ToolTip="Write the frame MPC-HC is showing to a PNG at its own size. The time is part of the filename, so a run of them does not collide."/>
+                <Separator/>
                 <MenuItem Header="Strip audio…" Command="{Binding StripAudioCommand}"
                           ToolTip="Pulls the sound out of files you pick: an MP3 of the audio, a silent copy of the video, or both. The file you pick is not changed.">
                     <MenuItem.Icon>
@@ -612,6 +615,10 @@
                  during startup before the first measurement. -->
             <WrapPanel x:Name="ActionToolbar" Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
                 <Button Content="📍 Set timestamp" Command="{Binding SetTimestampCommand}" ToolTip="Set a timestamp at the current MPC-HC position"/>
+                <!-- Beside Set timestamp because it acts on the same thing: the
+                     frame the player is sitting on right now. -->
+                <Button Content="📷" Command="{Binding SaveCurrentFrameCommand}" Width="36"
+                        ToolTip="Save the frame MPC-HC is showing as a PNG, full size, next to the other output"/>
                 <Button Content="🗑" Command="{Binding DeleteSelectedCommand}" Width="36" ToolTip="Delete selected"/>
                 <Button Content="↕ Flip" Command="{Binding ToggleFlipCommand}" ToolTip="Toggle vertical flip"/>
                 <!-- Cycles rather than toggles: one button reaching four states

@@ -112,6 +112,9 @@ Output filenames use the active **naming tag** (see Options), e.g.
   capped at half the clip, so a short cut fades as far as it can rather than
   being refused. Press again to take the fades off.
 - **Convert files to MP4…** — takes multiple files at once.
+- **Save the frame on screen…** — writes the frame MPC-HC is showing to a PNG at
+  its own size, next to the other output. The time is part of the filename, so a
+  run of grabs does not collide.
 - **Strip audio…** — also takes multiple files at once, and asks what to write:
   an MP3 of the audio, a copy of the video with its sound removed, or both. The
   silent copy is not re-encoded, so it is quick and the picture is untouched.

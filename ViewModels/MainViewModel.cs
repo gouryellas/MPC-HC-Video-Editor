@@ -1101,6 +1101,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         RotateSelectedCommand.NotifyCanExecuteChanged();
         ToggleMuteCommand.NotifyCanExecuteChanged();
         ToggleFadeCommand.NotifyCanExecuteChanged();
+        SaveCurrentFrameCommand.NotifyCanExecuteChanged();
         PlayAllCommand.NotifyCanExecuteChanged();
         PlaySelectedCommand.NotifyCanExecuteChanged();
         SelectAllCommand.NotifyCanExecuteChanged();
@@ -1160,6 +1161,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private bool CanSplitSelected() => HasActiveVideo && IsBookmarkFileLoaded && CompletePairCount >= 1;
 
     private bool CanAddCurrentToPlaylist() => HasActiveVideo;
+
+    // Only a video, deliberately. Grabbing a still has nothing to do with the
+    // cut list, and needing a bookmark file first would put a still behind a
+    // decision about where the cuts are going to be saved.
+    private bool CanSaveCurrentFrame() => HasActiveVideo;
 
     private bool CanToggleFlip() =>
         HasActiveVideo && IsBookmarkFileLoaded && CompletePairCount >= 1 && SelectedPairCount >= 1;
@@ -6031,6 +6037,76 @@ public partial class MainViewModel : ObservableObject, IDisposable
         StatusText = turningOn
             ? $"{selected.Count} cut(s) will fade in and out over {length:0.##}s"
             : $"{selected.Count} cut(s) will start and end hard";
+    }
+
+    // ------------------------------------------------------------------
+    // Save the frame on screen
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Writes the frame the player is sitting on to a PNG beside the other
+    /// output.
+    /// </summary>
+    /// <remarks>
+    /// At the frame's own size, not the 76-pixel thumbnail the panel asks for —
+    /// the point of saving a still is to keep the whole thing.
+    ///
+    /// The position is read from the player rather than taken from
+    /// <c>Session.CurrentTimeSeconds</c>, which is only as fresh as the last
+    /// poll: at the slowest poll speed that can be a second and a half stale,
+    /// and a still is asked for while looking at one particular frame. The
+    /// cached value is the fallback for when the player cannot be reached.
+    ///
+    /// The time goes in the filename because these are taken in runs. A plain
+    /// suffix would mean the collision dialog on every grab after the first,
+    /// and answering "increment" to reach [done2], [done3] is a worse way to
+    /// say "a different frame" than the timestamp is.
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(CanSaveCurrentFrame))]
+    private async Task SaveCurrentFrameAsync()
+    {
+        var video = Session.VideoPath;
+        if (string.IsNullOrWhiteSpace(video) || !File.Exists(video))
+        {
+            Notify("No video to take a frame from.");
+            return;
+        }
+
+        var (live, _) = _mpc.GetPlaybackPosition();
+        var seconds = live > 0 ? live : Session.CurrentTimeSeconds;
+
+        // Spaces and colons are not filename material; the spoken form with the
+        // gaps closed up reads as a time and survives as a name — "1m35s".
+        var stamp = Bookmark.FormatSpoken(seconds).Replace(" ", "");
+
+        var candidate = Path.Combine(
+            ResolveSaveToDirectory() is { Length: > 0 } dir ? dir : Path.GetDirectoryName(video) ?? "",
+            $"{Path.GetFileNameWithoutExtension(video)} {stamp}.png");
+
+        var outPath = await ResolveOutputPathAsync(candidate);
+        if (outPath == null) return;
+
+        StatusText = $"Saving the frame at {Bookmark.FormatTime(seconds)}…";
+
+        try
+        {
+            var png = await _ffmpeg.ExtractFrameAsync(video, seconds, height: 0);
+            if (png is null || png.Length == 0)
+            {
+                StatusText = "That frame could not be read";
+                Notify($"No frame could be read at {Bookmark.FormatTime(seconds)}.");
+                return;
+            }
+
+            await File.WriteAllBytesAsync(outPath, png);
+            StatusText = $"Saved {Path.GetFileName(outPath)}";
+            _toast.Show("Frame saved", Path.GetFileName(outPath));
+        }
+        catch (Exception ex)
+        {
+            StatusText = "The frame could not be saved";
+            MessageBox.Show(ex.Message);
+        }
     }
 
     // ------------------------------------------------------------------
