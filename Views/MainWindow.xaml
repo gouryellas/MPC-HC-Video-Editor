@@ -737,6 +737,24 @@
                          rather than against the Border: the border line is a
                          pixel the bar does not represent any time with. -->
                     <Grid x:Name="TimelineArea">
+                        <!-- Behind everything else in the bar, which is the only
+                             place it can go: it is the shape of the sound across
+                             the whole file, and the marks and the position are
+                             things read against it.
+
+                             Stretch, not Uniform. The picture is drawn 1600
+                             pixels wide whatever the window is, so the bar
+                             squeezes or stretches it horizontally to fit; the
+                             point is where the loud parts are, and that is a
+                             position along the file rather than a shape with an
+                             aspect ratio to keep.
+
+                             IsHitTestVisible="False" so it never eats the click
+                             that seeks — the handler is on the Border and this
+                             covers all of it. -->
+                        <Image Source="{Binding Waveform}" Stretch="Fill" Opacity="0.5"
+                               IsHitTestVisible="False"/>
+
                         <!-- Full height, underneath the position rather than
                              beside it. One line for both means they share the
                              same pixels, so the position is drawn over these

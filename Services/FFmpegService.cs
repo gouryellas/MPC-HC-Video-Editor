@@ -1403,6 +1403,56 @@ public class FFmpegService
         var args = $"-hide_banner -loglevel error -ss {timestamp} -i \"{videoPath}\" " +
                    $"-frames:v 1 {scale}-f image2pipe -c:v png -";
 
+        return await PipePngAsync(args, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Draws the whole audio track as a single waveform image, as PNG bytes.
+    /// </summary>
+    /// <param name="videoPath">The video to read the audio from.</param>
+    /// <param name="width">
+    /// Pixels wide. Rendered well past the width of the bar it is drawn in, so
+    /// the picture survives the window being widened without being generated
+    /// again.
+    /// </param>
+    /// <remarks>
+    /// Mid grey rather than a theme color, and one image for all of them. The
+    /// color is baked into the pixels, so taking it from the palette would mean
+    /// decoding the audio again every time the theme changed; a mid grey reads
+    /// against both the near-black track of the dark themes and the pale one of
+    /// the light themes, and the opacity it is drawn at does the rest.
+    ///
+    /// <c>split_channels=0</c> — one trace for the lot. Two channels stacked in
+    /// twenty pixels is a pattern rather than a shape.
+    ///
+    /// This decodes the entire audio track, so it is slow on a long file and
+    /// belongs off the UI thread and behind a cache. It is also why it went away
+    /// in 5.1: nothing was drawing the result.
+    /// </remarks>
+    public async Task<byte[]?> RenderWaveformAsync(
+        string videoPath, int width = 1600, int height = 60, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(videoPath) || !File.Exists(videoPath)) return null;
+
+        var args = $"-hide_banner -loglevel error -nostats -i \"{videoPath}\" " +
+                   $"-filter_complex \"showwavespic=s={width}x{height}:colors=0x8C8C8C:split_channels=0\" " +
+                   $"-frames:v 1 -f image2pipe -c:v png -";
+
+        return await PipePngAsync(args, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Runs ffmpeg and returns what it wrote to stdout, or null if it wrote
+    /// nothing usable.
+    /// </summary>
+    /// <remarks>
+    /// Shared by the frame grab and the waveform: both pipe a single PNG out
+    /// rather than writing a file, because both are throwaways and a portable
+    /// app should not scatter images beside itself — or leave them behind when
+    /// it is killed.
+    /// </remarks>
+    private async Task<byte[]?> PipePngAsync(string args, CancellationToken ct)
+    {
         try
         {
             var psi = new ProcessStartInfo(_ffmpegPath, args)
@@ -1453,8 +1503,10 @@ public class FFmpegService
         }
         catch
         {
-            // A thumbnail is a nicety. Failing to make one must never surface
-            // as an error, let alone interrupt an edit.
+            // A thumbnail and a waveform are both niceties. Failing to make one
+            // must never surface as an error, let alone interrupt an edit — and a
+            // file with no audio at all reaches this path, which is an ordinary
+            // thing for a file to be rather than a fault.
             return null;
         }
     }

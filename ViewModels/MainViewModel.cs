@@ -1497,6 +1497,98 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </remarks>
     private DateTime _loadGraceUntilUtc = DateTime.MinValue;
 
+    // ------------------------------------------------------------------
+    // The waveform behind the timeline
+    // ------------------------------------------------------------------
+
+    [ObservableProperty]
+    private BitmapSource? _waveform;
+
+    /// <summary>
+    /// Cancels the render in flight when the video changes under it.
+    /// </summary>
+    /// <remarks>
+    /// Drawing a waveform decodes the whole audio track, so on a long file it
+    /// outlives the load that asked for it. Without this, opening three videos in
+    /// a row leaves three decodes running and the last one to finish wins —
+    /// which is not necessarily the one for the video on screen.
+    /// </remarks>
+    private CancellationTokenSource? _waveformRender;
+
+    /// <summary>The video the current waveform was drawn from.</summary>
+    private string _waveformSource = string.Empty;
+
+    /// <summary>
+    /// Draws the waveform for the loaded video, unless it is already the one on
+    /// screen.
+    /// </summary>
+    /// <remarks>
+    /// Not awaited by the load. A waveform is decoration behind the bar; making
+    /// the video take a second longer to open for it would be the wrong trade,
+    /// so it arrives when it arrives and the bar is usable throughout.
+    ///
+    /// Rendered 1600 pixels wide, well past any window, so widening the window
+    /// stretches the picture rather than starting the decode again.
+    /// </remarks>
+    private async Task RefreshWaveformAsync(string path)
+    {
+        _waveformRender?.Cancel();
+        _waveformRender?.Dispose();
+        _waveformRender = null;
+
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            Waveform = null;
+            _waveformSource = string.Empty;
+            return;
+        }
+
+        // Same file as last time — the picture on screen is still right. Worth
+        // checking because the poll can re-report the same video.
+        if (string.Equals(path, _waveformSource, StringComparison.OrdinalIgnoreCase)
+            && Waveform is not null)
+            return;
+
+        Waveform = null;
+        var cts = new CancellationTokenSource();
+        _waveformRender = cts;
+
+        try
+        {
+            var png = await _ffmpeg.RenderWaveformAsync(path, ct: cts.Token);
+            if (cts.IsCancellationRequested) return;
+
+            // Null is the ordinary answer for a file with no audio, not a
+            // failure worth reporting. The bar simply has nothing behind it.
+            if (png is null || png.Length == 0)
+            {
+                _waveformSource = path;
+                return;
+            }
+
+            var image = new BitmapImage();
+            using (var stream = new MemoryStream(png))
+            {
+                image.BeginInit();
+                image.CacheOption = BitmapCacheOption.OnLoad;
+                image.StreamSource = stream;
+                image.EndInit();
+            }
+            // Frozen so it can be handed to the UI without WPF tracking changes
+            // to it, and so the stream above can be disposed under it.
+            image.Freeze();
+
+            Waveform = image;
+            _waveformSource = path;
+        }
+        catch (OperationCanceledException) { }
+        catch
+        {
+            // Decoration. Nothing here is worth interrupting an edit for.
+            Waveform = null;
+        }
+    }
+
     /// <summary>
     /// Drops the loaded video and its bookmarks. Does nothing while a load is
     /// still settling, so a deliberate load is never undone by the poll.
@@ -1520,6 +1612,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         TimelineProgress = 0;
         ProgressPercent = 0;
         OnPropertyChanged(nameof(Session));
+
+        // Fire and forget: with no path it only cancels whatever was drawing and
+        // clears the picture, so there is nothing to wait for.
+        _ = RefreshWaveformAsync(string.Empty);
 
         StatusText = "No video loaded";
     }
@@ -1678,6 +1774,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
             }
         }
         catch { }
+
+        // Started, not awaited: it decodes the whole audio track, and the video
+        // should be ready to work on long before the picture behind the bar is.
+        _ = RefreshWaveformAsync(path);
 
         DurationDisplay = Bookmark.FormatTime(Session.VideoDurationSeconds);
 

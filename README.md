@@ -92,6 +92,10 @@ close it. An open bookmark shows as *incomplete* until it has an end time.
   the checked cuts for vertical inversion, shown as `[F]` on the row.
 - Only complete pairs can be checked — an open bookmark has no range to act on.
 - Clicking a start or end time **seeks MPC-HC** to that moment.
+- The **timeline** under the toolbar carries the position on the left, the length
+  on the right, a bracket at each end of every cut, and the shape of the audio
+  behind all of it — so a gap in the dialogue is visible before you seek to it.
+  Clicking anywhere on it seeks the player there.
 
 The CSV format matches the original AutoHotkey version. It is saved next to the
 video, and an empty one is never created.
