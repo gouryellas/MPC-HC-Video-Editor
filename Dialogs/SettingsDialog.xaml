@@ -576,12 +576,12 @@
                                 <TextBlock Text="Clicking" Style="{StaticResource Heading}"/>
                                 <CheckBox x:Name="OverlayClickableCheck"
                                           Content="Clicking a time on the overlay seeks MPC-HC"/>
-                                <!-- The trade is the whole reason this is a
-                                     setting rather than the default, so it is
-                                     spelled out rather than left to be
-                                     discovered by a click that did nothing. -->
+                                <!-- What turning it off buys is the part that
+                                     needs saying now: with it on, clicking a
+                                     time does the obvious thing, and there is
+                                     nothing to explain. -->
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="Off by default, because the overlay normally passes clicks straight through to the video behind it. Turning this on means clicks landing on the panel go to the panel — that corner of the screen will no longer pause the video. Applied the next time the overlay appears."/>
+                                           Text="On by default. Clicks landing on the panel go to the panel. Turn it off to make the overlay click-through instead — clicks pass straight to the video behind it, so that corner of the screen still pauses the player, and the times become a display rather than something to click. Applied the next time the overlay appears."/>
                             </StackPanel>
                         </Border>
 

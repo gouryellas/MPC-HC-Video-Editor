@@ -25,8 +25,9 @@ that same place.
 
 ## Screenshots
 
-The overlay above is what you work in while the video is playing — it is
-click-through, never takes focus, and lists every bookmark without scrolling.
+The overlay above is what you work in while the video is playing — it never
+takes focus, lists every bookmark without scrolling, and its times seek the
+player when clicked.
 
 The full window is the other half: the bookmark list and its per-cut controls,
 the action toolbar, and the current video, bookmarks and player state down the
@@ -162,8 +163,8 @@ renamed — only what the app is about to write has to comply.
 - **View ▸ Switch views automatically** is the whole of the view control, and is
   **on by default**. The view follows focus: a compact always-on-top overlay
   listing just the bookmarks while MPC-HC is the active window, and the full
-  window as soon as it is not. The overlay is click-through and never takes
-  focus, so it sits over the video without getting in the way, and it never
+  window as soon as it is not. The overlay never takes focus, so it sits over
+  the video without getting in the way, and it never
   floats over an unrelated application — anything else taking focus brings the
   full window back.
 - **X** returns to the full window while the player still has focus. If the
@@ -188,12 +189,12 @@ The overlay comes down if the bookmark list empties (opening another video in th
 player clears it), and returns with the next bookmark.
 
 **Settings ▸ Overlay ▸ Clicking** makes the overlay's timestamps seek MPC-HC,
-the way they do in the full window. Off by default, and worth understanding
-before turning on: the overlay is click-through, so clicks over it normally
-reach the video underneath. Switching this on means they no longer do — the
-panel catches them, and that corner of the screen stops pausing the video. The
-transparent area around the panel is unaffected. The overlay still never takes
-focus, so seeking from it does not bring the full window back.
+the way they do in the full window. On by default. The cost is that the panel
+catches those clicks, so that corner of the screen no longer pauses the video —
+turn it off to make the overlay click-through instead, and clicks over it reach
+the video underneath as if it were not there. The transparent area around the
+panel is unaffected either way. The overlay never takes focus, so seeking from
+it does not bring the full window back.
 
 ### Timeline
 

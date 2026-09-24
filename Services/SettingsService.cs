@@ -344,15 +344,20 @@ public class AppSettings
     /// Lets the overlay's timestamps be clicked to seek the player.
     /// </summary>
     /// <remarks>
-    /// Off by default, and deliberately so: the overlay is otherwise
-    /// click-through, and a click anywhere over it reaches the video
-    /// underneath. Turning this on trades that away — the card becomes a
-    /// region of the screen that no longer pauses the video when clicked — for
-    /// being able to jump to a bookmark without leaving the player. Which of
-    /// those is worth more depends on how the overlay is used, so it is asked
-    /// rather than assumed.
+    /// On by default. The trade is real — with this off the overlay is
+    /// click-through and a click anywhere over it reaches the video underneath,
+    /// and with it on that corner of the screen no longer pauses the video —
+    /// but a list of times that does nothing when you click one is the
+    /// surprising half of that trade. Someone who wants the corner back can
+    /// turn it off; someone who clicks a timestamp expecting to go there
+    /// cannot discover a setting they do not know exists.
+    ///
+    /// Turning the default around does not move anyone already running: the
+    /// settings file carries every key, so a build that has written one keeps
+    /// whatever is in it. Only a file older than this property — or a fresh
+    /// install — takes the new default.
     /// </remarks>
-    public bool OverlayClickable { get; set; }
+    public bool OverlayClickable { get; set; } = true;
 
     public string QuickSaveFolder { get; set; } = "";
     public string PlaylistFolder { get; set; } = "";
