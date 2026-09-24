@@ -760,13 +760,27 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// restart rather than silently doing nothing.
     /// </remarks>
     /// <summary>
+    /// The player for <see cref="PlayCompletionSound"/>, kept between jobs so
+    /// the wav is not re-read for every operation, and rebuilt if the sound
+    /// changes underneath it.
+    /// </summary>
+    private System.Media.SoundPlayer? _completionChime;
+    private string? _completionChimePath;
+
+    /// <summary>
     /// The ding at the end of an operation, when it is switched on.
     /// </summary>
     /// <remarks>
-    /// <c>SystemSounds.Asterisk</c> rather than a bundled wav: it is the sound
-    /// this machine already uses to say "that's done", it follows whatever
-    /// scheme the user has chosen, and it costs the install nothing. Playing is
-    /// asynchronous, so it never holds up the panel.
+    /// Plays the machine's own notification sound, read from the sound scheme.
+    /// The first version of this used <c>SystemSounds.Asterisk</c>, which is
+    /// the wrong sound: it is what dialogs use, so a finished export announced
+    /// itself in the voice Windows keeps for telling you something has gone
+    /// wrong. Notification.Default is the one meant for "here is a thing that
+    /// happened", and taking it from the scheme means it matches whatever the
+    /// user has already chosen to hear from everything else.
+    ///
+    /// Playing is asynchronous — <see cref="System.Media.SoundPlayer.Play"/>
+    /// hands off to its own thread — so it never holds up the panel.
     ///
     /// Wrapped because audio is hardware: a machine with no output device
     /// throws here, and an operation that wrote its files must not be reported
@@ -776,8 +790,52 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         if (!_settings.Current.CompletionSound) return;
 
-        try { System.Media.SystemSounds.Asterisk.Play(); }
+        try
+        {
+            var path = CompletionSoundPath();
+            if (path == null) return;
+
+            if (_completionChime == null ||
+                !string.Equals(_completionChimePath, path, StringComparison.OrdinalIgnoreCase))
+            {
+                _completionChime = new System.Media.SoundPlayer(path);
+                _completionChimePath = path;
+            }
+
+            _completionChime.Play();
+        }
         catch { /* no audio device — the files are still written */ }
+    }
+
+    /// <summary>
+    /// The wav this machine plays for a notification, or null if there is none
+    /// to play.
+    /// </summary>
+    /// <remarks>
+    /// The scheme first, so someone who has chosen their own notification sound
+    /// hears that one. It can legitimately be empty — "None" is a valid choice
+    /// in the Sounds control panel — but an empty entry means the user asked
+    /// for silence from notifications generally, which is not a reason to fall
+    /// back to something louder. Only a missing or unreadable key falls through
+    /// to the stock sound.
+    /// </remarks>
+    private static string? CompletionSoundPath()
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                @"AppEvents\Schemes\Apps\.Default\Notification.Default\.Current");
+
+            if (key?.GetValue(null) is string configured)
+                return File.Exists(configured) ? configured : null;
+        }
+        catch { /* fall through to the stock sound */ }
+
+        var stock = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+            "Media", "Windows Notify System Generic.wav");
+
+        return File.Exists(stock) ? stock : null;
     }
 
     private void ApplyServiceSettings()

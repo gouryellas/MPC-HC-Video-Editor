@@ -173,7 +173,7 @@
                                 <CheckBox x:Name="CompletionSoundCheck" Margin="0,12,0,0"
                                           Content="Play a sound when an operation finishes"/>
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="A short ding after a merge, split, convert, export or strip finishes — for the long ones you walk away from. It uses the Windows notification sound, so it stays quiet on a machine with system sounds turned off."/>
+                                           Text="A short chime after a merge, split, convert, export or strip finishes — for the long ones you walk away from. It plays whatever this machine uses for notifications, set under Windows' own Sound settings, so it matches everything else and stays quiet if you have those turned off."/>
                             </StackPanel>
                         </Border>
 
