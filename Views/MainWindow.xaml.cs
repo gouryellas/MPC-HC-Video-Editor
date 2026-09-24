@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -1088,8 +1089,25 @@ public partial class MainWindow : Window
         };
         parent.Items.Add(loadThis);
 
-        // Add current video to this playlist
+        // Add current video to this playlist.
+        //
+        // Enabled only when there is a video to add. The command already refused
+        // without one, but refusing is not the same as saying so beforehand: the
+        // entry looked available with nothing loaded, and clicking it produced a
+        // dialog explaining why it could not have worked. The Playlist menu's own
+        // "Add current video to playlist…" has been gated on this from the start;
+        // this one is built in code, so it never picked up the command's
+        // CanExecute the way a XAML Command binding would.
+        //
+        // Bound rather than assigned, because these items are built when the
+        // playlist list changes and a video can be loaded long afterwards —
+        // a value set once here would be stale by the time it mattered.
         var addCurrent = new MenuItem { Header = "Add current video", Tag = plsPath };
+        if (_vm is not null)
+        {
+            addCurrent.SetBinding(UIElement.IsEnabledProperty,
+                new Binding(nameof(MainViewModel.HasActiveVideo)) { Source = _vm });
+        }
         addCurrent.Click += (_, e) =>
         {
             e.Handled = true;

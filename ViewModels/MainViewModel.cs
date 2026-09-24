@@ -3705,7 +3705,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             MessageBox.Show(string.Join("\n", errors), "Image conversion",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
 
-        OfferToDeleteSources(convertedSources, format);
+        OfferToDeleteSources(convertedSources);
     }
 
     // ------------------------------------------------------------------
@@ -3908,13 +3908,20 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// dialog — deleting the user's images is precisely the sort of thing a
     /// status-bar line should not decide silently, and it defaults to No.
     /// </remarks>
-    private void OfferToDeleteSources(List<string> sources, ImageConversionService.Format format)
+    private void OfferToDeleteSources(List<string> sources)
     {
         if (sources.Count == 0) return;
 
-        var prompt =
-            $"Delete the {sources.Count} original image(s) that were converted to {format.Display}?\n\n" +
-            DeletionNote(sources.Count);
+        // Just the question. It named the count and the format it had converted
+        // to — "Delete the 12 original image(s) that were converted to JPEG?" —
+        // which is a recap of what just happened rather than part of the
+        // decision, and the operation had only just reported both. What is
+        // being deleted, and that it goes to the Recycle Bin, is on the line
+        // below.
+        var prompt = (sources.Count == 1
+                         ? "Delete the original image?"
+                         : "Delete the original images?")
+                     + "\n\n" + DeletionNote(sources.Count);
 
         if (!Confirm(prompt, "Delete originals")) return;
 
