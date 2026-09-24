@@ -446,6 +446,77 @@ public class FFmpegService
         ConvertVideoAsync(inputPath, outputPath, VideoFormats.Default, progress, ct);
 
     // ------------------------------------------------------------------
+    // Export a cut as an animation
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Writes one cut as an animated GIF or WebP, with no sound.
+    /// </summary>
+    /// <param name="webp">
+    /// WebP rather than GIF. Both are offered because they are not
+    /// interchangeable: GIF goes anywhere at all, WebP is a fraction of the size
+    /// and has real alpha and more than 256 colors.
+    /// </param>
+    /// <param name="fps">
+    /// Frames a second. The single biggest lever on the size of the result,
+    /// which is why it is asked rather than assumed.
+    /// </param>
+    /// <param name="width">
+    /// Pixels wide; the height follows the aspect ratio. Zero leaves the frame
+    /// at its own width.
+    /// </param>
+    /// <remarks>
+    /// The cut's own flip, rotation, speed and fades are applied, so an
+    /// animation of a cut matches the clip of it.
+    ///
+    /// GIF gets a palette generated from the clip itself in the same pass, via
+    /// <c>split</c> — one stream feeds <c>palettegen</c> and the other waits for
+    /// the result. GIF has 256 colors to spend and the default web palette
+    /// spends them badly on real footage; <c>stats_mode=diff</c> weights them
+    /// towards what actually moves, which is what the eye is on.
+    ///
+    /// The two passes this normally takes would mean a palette file beside the
+    /// executable, which a portable app should not scatter — and one pass cannot
+    /// be cancelled halfway leaving the other behind.
+    /// </remarks>
+    public async Task ExportAnimationAsync(string inputPath, string outputPath, Bookmark b,
+        bool webp, int fps, int width,
+        IProgress<FFmpegProgressEventArgs>? progress = null, CancellationToken ct = default)
+    {
+        var start = TimeSpan.FromSeconds(b.StartSeconds).ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);
+        var end = TimeSpan.FromSeconds(b.EndSeconds).ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);
+
+        // The cut's own filters first, then the ones this format needs.
+        var vf = PictureFilters(b);
+        vf.Add($"fps={fps}");
+        if (width > 0) vf.Add($"scale={width}:-1:flags=lanczos");
+
+        string args;
+        if (webp)
+        {
+            args = $"-hide_banner -y -fflags +igndts -ss {start} -to {end} -i \"{inputPath}\" " +
+                   $"-an -vf \"{string.Join(",", vf)}\" " +
+                   $"-c:v libwebp_anim -lossless 0 -q:v 75 -compression_level 5 -loop 0 " +
+                   $"\"{outputPath}\"";
+        }
+        else
+        {
+            // Appended to the filter chain rather than given as a separate
+            // filter_complex, so the cut's own filters run before the palette is
+            // measured — a palette taken before a fade would be built from
+            // colors the output never shows.
+            var chain = string.Join(",", vf) +
+                        ",split[s0][s1];[s0]palettegen=stats_mode=diff[p];" +
+                        "[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle";
+
+            args = $"-hide_banner -y -fflags +igndts -ss {start} -to {end} -i \"{inputPath}\" " +
+                   $"-an -vf \"{chain}\" -loop 0 \"{outputPath}\"";
+        }
+
+        await RunAsync(args, progress, ct, b.DurationSeconds / b.Speed);
+    }
+
+    // ------------------------------------------------------------------
     // Strip audio → MP3
     // ------------------------------------------------------------------
     public async Task StripAudioAsync(string inputPath, string? outputPath = null,
@@ -573,30 +644,27 @@ public class FFmpegService
         }
     }
 
-    private async Task CreateSegmentAsync(string input, string output, Bookmark b, CancellationToken ct)
+    /// <summary>
+    /// The picture filters a cut asks for, in the order they have to run.
+    /// </summary>
+    /// <remarks>
+    /// Shared by the cut path and the animated-export path so the two cannot
+    /// drift: a GIF of a cut that is flipped, turned, sped up and faded looks
+    /// like the clip of it.
+    ///
+    /// Order is load-bearing. Transpose swaps width and height, so it goes
+    /// before anything that cares about the frame's shape. The fades go last
+    /// because <c>fade</c> takes timestamps and <c>setpts</c> has already
+    /// rewritten them — a one-second fade on a half-speed cut then means one
+    /// second of the clip as written, which is what the row says.
+    /// </remarks>
+    private static List<string> PictureFilters(Bookmark b)
     {
-        var start = TimeSpan.FromSeconds(b.StartSeconds).ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);
-        var end   = TimeSpan.FromSeconds(b.EndSeconds).ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);
-
         var vf = new List<string>();
-        var af = new List<string>();
 
-        // A stream copy can only begin at a keyframe, so an exact cut has to be
-        // re-encoded whether or not any filter asked for it. Normalizing
-        // loudness means touching the audio, which rules out a copy for the
-        // same reason.
-        bool reencode = PreciseCuts || NormalizeAudio;
+        if (b.IsFlipped) vf.Add("vflip");
 
-        if (b.IsFlipped)
-        {
-            vf.Add("vflip");
-            reencode = true;
-        }
-
-        // Before the speed change: transpose swaps width and height, and doing
-        // it first keeps the frame the right shape for anything after it.
         if (b.Rotation != Rotation.None)
-        {
             vf.Add(b.Rotation switch
             {
                 Rotation.Clockwise => "transpose=1",
@@ -605,75 +673,94 @@ public class FFmpegService
                 // same way is the standard spelling of it.
                 _ => "transpose=1,transpose=1"
             });
-            reencode = true;
-        }
+
+        if (Math.Abs(b.Speed - 1.0) > 0.01)
+            vf.Add($"setpts=PTS/{b.Speed.ToString(CultureInfo.InvariantCulture)}");
+
+        foreach (var fade in FadeFilters(b, video: true)) vf.Add(fade);
+
+        return vf;
+    }
+
+    /// <summary>
+    /// The audio filters a cut asks for, in order. Mute, then tempo, then
+    /// loudness, then the fades.
+    /// </summary>
+    /// <remarks>
+    /// Loudness after the tempo change, so it measures what will actually be
+    /// heard rather than what was there before. The fades after loudness,
+    /// because a fade is the shape of the ending rather than part of the
+    /// material being levelled — normalizing afterwards would read the silent
+    /// tail as programme and lift the whole clip to compensate.
+    /// </remarks>
+    private List<string> SoundFilters(Bookmark b)
+    {
+        var af = new List<string>();
 
         // Silenced rather than dropped. "-an" would leave this segment with no
         // audio stream while its neighbours kept theirs, and the concat demuxer
         // requires every segment to have the same streams in the same order —
         // a merge of a muted clip and an unmuted one would fail outright, or
         // produce a file that loses audio from the first mute onward.
-        if (b.IsMuted)
-        {
-            af.Add("volume=0");
-            reencode = true;
-        }
+        if (b.IsMuted) af.Add("volume=0");
 
         if (Math.Abs(b.Speed - 1.0) > 0.01)
         {
-            // setpts for video, atempo for audio (atempo limited to 0.5-2.0)
-            vf.Add($"setpts=PTS/{b.Speed.ToString(CultureInfo.InvariantCulture)}");
-            // chain atempo if needed
+            // atempo only accepts 0.5–2.0, so anything outside that is reached
+            // by chaining it.
             var speed = b.Speed;
             while (speed > 2.0) { af.Add("atempo=2.0"); speed /= 2.0; }
             while (speed < 0.5) { af.Add("atempo=0.5"); speed /= 0.5; }
             af.Add($"atempo={speed.ToString(CultureInfo.InvariantCulture)}");
-            reencode = true;
         }
 
-        // Last in the audio chain: normalizing after a tempo change measures
-        // what will actually be heard, not what was there before it.
         if (NormalizeAudio) af.Add(LoudnormFilter);
 
-        // Fades go after everything above, on both chains.
-        //
-        // After the speed change because fade takes timestamps, and setpts has
-        // already rewritten them: a one-second fade on a half-speed clip means
-        // one second of the clip as written, which is what was asked for and
-        // what the row says.
-        //
-        // After loudnorm because a fade is the shape of the ending, not part of
-        // the material being levelled. Normalizing afterwards would measure the
-        // silence at the tail as part of the programme and lift the whole clip
-        // to compensate.
-        if (b.HasFade)
-        {
-            // The clip as written, which is what the fades are measured in.
-            var length = b.DurationSeconds / b.Speed;
+        foreach (var fade in FadeFilters(b, video: false)) af.Add(fade);
 
-            // Capped here rather than on the bookmark: the times can move after
-            // a fade is set, and a value clamped at the point it was entered
-            // could not grow back when the cut was lengthened again. Half the
-            // clip each, so a fade in and a fade out can meet in the middle but
-            // never cross — crossing makes the tail brighten as it ends.
-            var fadeIn = Math.Min(b.FadeInSeconds, length / 2);
-            var fadeOut = Math.Min(b.FadeOutSeconds, length / 2);
+        return af;
+    }
 
-            if (fadeIn > 0)
-            {
-                vf.Add($"fade=t=in:st=0:d={Fmt(fadeIn)}");
-                af.Add($"afade=t=in:st=0:d={Fmt(fadeIn)}");
-            }
+    /// <summary>
+    /// The fade filters for one chain, or nothing when the cut does not fade.
+    /// </summary>
+    /// <remarks>
+    /// Capped at half the clip here rather than on the bookmark: a bookmark's
+    /// times move, and a value clamped where it was entered could not grow back
+    /// when the cut was lengthened again. Half at each end means a fade in and a
+    /// fade out can meet in the middle but never cross — crossing makes the tail
+    /// brighten as it ends.
+    /// </remarks>
+    private static IEnumerable<string> FadeFilters(Bookmark b, bool video)
+    {
+        if (!b.HasFade) yield break;
 
-            if (fadeOut > 0)
-            {
-                var from = Math.Max(0, length - fadeOut);
-                vf.Add($"fade=t=out:st={Fmt(from)}:d={Fmt(fadeOut)}");
-                af.Add($"afade=t=out:st={Fmt(from)}:d={Fmt(fadeOut)}");
-            }
+        // The clip as written, which is what the fades are measured in.
+        var length = b.DurationSeconds / b.Speed;
+        var name = video ? "fade" : "afade";
 
-            reencode = true;
-        }
+        var fadeIn = Math.Min(b.FadeInSeconds, length / 2);
+        if (fadeIn > 0) yield return $"{name}=t=in:st=0:d={Fmt(fadeIn)}";
+
+        var fadeOut = Math.Min(b.FadeOutSeconds, length / 2);
+        if (fadeOut > 0)
+            yield return $"{name}=t=out:st={Fmt(Math.Max(0, length - fadeOut))}:d={Fmt(fadeOut)}";
+    }
+
+    private async Task CreateSegmentAsync(string input, string output, Bookmark b, CancellationToken ct)
+    {
+        var start = TimeSpan.FromSeconds(b.StartSeconds).ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);
+        var end   = TimeSpan.FromSeconds(b.EndSeconds).ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);
+
+        var vf = PictureFilters(b);
+        var af = SoundFilters(b);
+
+        // A stream copy can only begin at a keyframe, so an exact cut has to be
+        // re-encoded whether or not any filter asked for it. Normalizing
+        // loudness means touching the audio, which rules out a copy for the same
+        // reason — as does muting, which is the one thing that puts a filter on
+        // the audio chain without putting one on the picture.
+        bool reencode = PreciseCuts || NormalizeAudio || b.IsMuted || vf.Count > 0;
 
         var sb = new StringBuilder();
         sb.Append($"-hide_banner -y -fflags +igndts -ss {start} -to {end} -i \"{input}\" ");

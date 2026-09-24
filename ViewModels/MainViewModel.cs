@@ -1102,6 +1102,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ToggleMuteCommand.NotifyCanExecuteChanged();
         ToggleFadeCommand.NotifyCanExecuteChanged();
         SaveCurrentFrameCommand.NotifyCanExecuteChanged();
+        ExportAnimationCommand.NotifyCanExecuteChanged();
         PlayAllCommand.NotifyCanExecuteChanged();
         PlaySelectedCommand.NotifyCanExecuteChanged();
         SelectAllCommand.NotifyCanExecuteChanged();
@@ -6037,6 +6038,112 @@ public partial class MainViewModel : ObservableObject, IDisposable
         StatusText = turningOn
             ? $"{selected.Count} cut(s) will fade in and out over {length:0.##}s"
             : $"{selected.Count} cut(s) will start and end hard";
+    }
+
+    // ------------------------------------------------------------------
+    // Export cuts as animations
+    // ------------------------------------------------------------------
+
+    /// <summary>The last animation choice, preselected on the next export.</summary>
+    private AnimationChoice _lastAnimationChoice = new(Webp: false, Fps: 15, Width: 480);
+
+    /// <summary>
+    /// Writes each checked cut as an animated GIF or WebP.
+    /// </summary>
+    /// <remarks>
+    /// Shares <see cref="CanSplitSelected"/>'s requirements — a video, a
+    /// bookmark file and at least one complete cut — because it is the same
+    /// operation with a different encoder on the end. It writes from the checked
+    /// cuts, and falls back to all of them when none are checked, the way Split
+    /// does.
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(CanSplitSelected))]
+    private async Task ExportAnimationAsync()
+    {
+        var cuts = Session.Bookmarks.Where(b => b.IsSelected && b.IsValid).ToList();
+        if (cuts.Count == 0) cuts = Session.Bookmarks.Where(b => b.IsValid).ToList();
+        if (cuts.Count == 0) { Notify("No complete cuts to export."); return; }
+
+        var outDir = ResolveSaveToDirectory();
+        if (string.IsNullOrWhiteSpace(outDir))
+        {
+            Notify("Could not determine where to save the animations.", "Export as animation",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        Directory.CreateDirectory(outDir);
+
+        // Named so the dialog can say what the animation will inherit. An export
+        // that quietly applied a rotation the user had forgotten about is a
+        // surprise; one that says so first is a feature.
+        var carried = cuts.Where(b => b.Prefix.Length > 0).Select(b => b.Prefix).Distinct().ToList();
+        var appliedNote = carried.Count switch
+        {
+            0 => string.Empty,
+            1 => $"The cut's own settings are applied: {carried[0]}.",
+            _ => "Each cut's own flip, rotation, speed and fades are applied."
+        };
+
+        var dlg = new ExportAnimationDialog(_lastAnimationChoice, cuts.Count, appliedNote)
+        {
+            Owner = DialogOwner
+        };
+        if (dlg.ShowDialog() != true) return;
+        _lastAnimationChoice = dlg.Choice;
+
+        var choice = dlg.Choice;
+        var written = 0;
+        var label = choice.Webp ? "WebP" : "GIF";
+
+        IsBusy = true; ProgressPercent = 0;
+        Job.Begin($"Exporting {label}", cuts.Count);
+        BeginNameBatch(cuts.Count);
+
+        try
+        {
+            var i = 0;
+            foreach (var b in cuts)
+            {
+                i++;
+                _batchRemaining = cuts.Count - i + 1;
+                StatusText = $"Exporting {b.StartDisplay} → {b.EndDisplay} as {label}";
+                Job.SetFile(i - 1, Path.GetFileName(Session.VideoPath));
+
+                var outPath = await ResolveOutputPathAsync(
+                    BuildSplitPath(outDir, Session.VideoFileName, i, choice.Extension));
+                if (outPath == null) continue;
+
+                var slice = 100.0 / cuts.Count;
+                var basePct = (i - 1) * slice;
+                var progress = new Progress<FFmpegProgressEventArgs>(p =>
+                {
+                    Job.Report(p.Message, basePct + p.Percent / 100.0 * slice);
+                    ProgressPercent = basePct + p.Percent / 100.0 * slice;
+                });
+
+                await _ffmpeg.ExportAnimationAsync(Session.VideoPath, outPath, b,
+                                                   choice.Webp, choice.Fps, choice.Width, progress);
+                written++;
+            }
+
+            StatusText = $"Wrote {written} {label} file(s) to {outDir}";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"{label} export failed";
+            MessageBox.Show(ex.Message);
+        }
+        finally
+        {
+            IsBusy = false; ProgressPercent = 0;
+            if (written == 0) Job.End();
+        }
+
+        // No cleanup call. The source is still the only copy of the footage —
+        // an animation is a derivative to send somewhere, not a replacement for
+        // the video, so deleting the original after one would be wrong whatever
+        // the Cleanup setting says.
+        if (written > 0) Job.Complete($"Exported {written} {label} file(s) to", outDir);
     }
 
     // ------------------------------------------------------------------

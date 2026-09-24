@@ -112,6 +112,10 @@ Output filenames use the active **naming tag** (see Options), e.g.
   capped at half the clip, so a short cut fades as far as it can rather than
   being refused. Press again to take the fades off.
 - **Convert files to MP4…** — takes multiple files at once.
+- **Export cuts as GIF / WebP…** — writes each checked cut as an animation, no
+  sound. Asks for the frame rate and width, which decide the size more than
+  anything else; the cut’s own flip, rotation, speed and fades are applied. The
+  original is never deleted after this, whatever Cleanup says.
 - **Save the frame on screen…** — writes the frame MPC-HC is showing to a PNG at
   its own size, next to the other output. The time is part of the filename, so a
   run of grabs does not collide.
