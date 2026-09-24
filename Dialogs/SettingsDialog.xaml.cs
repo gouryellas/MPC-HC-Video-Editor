@@ -111,7 +111,12 @@ public partial class SettingsDialog : Window
         // The tag the filename preview should demonstrate. Read once here:
         // naming tags are managed under Options, not in this dialog, so it
         // cannot change while the dialog is open.
-        _activeSuffix = $"[{current.ResolveActiveSuffixText()}]";
+        //
+        // Empty stays empty rather than becoming "[]": with None selected under
+        // Options the tag is absent, and a preview showing bare brackets would
+        // be demonstrating something the program never writes.
+        var tag = current.ResolveActiveSuffixText();
+        _activeSuffix = tag.Length == 0 ? string.Empty : $"[{tag}]";
 
         // Seed every control from the live settings. Nothing is bound: the
         // dialog must not write through to the real object before Save.

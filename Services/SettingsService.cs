@@ -419,18 +419,41 @@ public class AppSettings
     public string? ActiveSuffixText { get; set; }
 
     /// <summary>
-    /// The active naming tag's text, resolved against <see cref="Suffixes"/>.
-    /// Falls back to the first entry, or to <c>"done"</c> when the list is
-    /// empty, so it never returns null or empty.
+    /// Whether output names carry a naming tag at all.
+    /// </summary>
+    /// <remarks>
+    /// A flag of its own rather than an empty <see cref="ActiveSuffixText"/> or a
+    /// blank entry in <see cref="Suffixes"/>. Empty already means "not set, use
+    /// the first one", and a blank entry would have to get past the validation
+    /// that keeps tags alphanumeric — so either would be a second meaning
+    /// hidden inside an existing value.
+    ///
+    /// The chosen tag is remembered while this is off, so turning the tag back on
+    /// restores the one that was in use rather than the top of the list.
+    ///
+    /// On by default, and the migration below leaves an existing settings file
+    /// alone: anyone who has been using tags carries on using them.
+    /// </remarks>
+    public bool UseNamingTag { get; set; } = true;
+
+    /// <summary>
+    /// The active naming tag's text, resolved against <see cref="Suffixes"/>, or
+    /// an empty string when <see cref="UseNamingTag"/> is off.
     /// </summary>
     /// <remarks>
     /// Lives on the settings object rather than only on the service so that
     /// anything holding a plain <see cref="AppSettings"/> — the Settings
     /// dialog, which is handed one and deliberately has no service — resolves
     /// it the same way instead of approximating.
+    ///
+    /// Empty is now a real answer, so callers building a filename have to ask
+    /// for the bracket rather than wrapping this in one; see
+    /// <c>MainViewModel.SuffixBracket</c>.
     /// </remarks>
     public string ResolveActiveSuffixText()
     {
+        if (!UseNamingTag) return string.Empty;
+
         if (Suffixes.Count == 0) return "done";
 
         if (!string.IsNullOrWhiteSpace(ActiveSuffixText) &&
@@ -889,7 +912,8 @@ public class SettingsService
     /// Returns the active suffix text. Falls back to the first entry's
     /// text if <see cref="AppSettings.ActiveSuffixText"/> is unset or
     /// doesn't match any entry, or to <c>"done"</c> if the list is empty.
-    /// Never returns null/empty — always guarantees a usable suffix.
+    /// Empty when <see cref="AppSettings.UseNamingTag"/> is off, which is the
+    /// one case a caller has to expect nothing from.
     /// </summary>
     public string GetActiveSuffixText() => Current.ResolveActiveSuffixText();
 
@@ -897,6 +921,11 @@ public class SettingsService
     /// Sets the active suffix by text (case-insensitive). The text must
     /// match an existing entry. Returns true if set successfully.
     /// </summary>
+    /// <remarks>
+    /// Turns tagging back on. Picking a tag by name is an unambiguous request for
+    /// that tag, so needing to turn tags on first and then choose one would be a
+    /// second step for something already said.
+    /// </remarks>
     public bool SetActiveSuffix(string? text)
     {
         if (string.IsNullOrWhiteSpace(text)) return false;
@@ -904,8 +933,23 @@ public class SettingsService
             string.Equals(s.Text, text, StringComparison.OrdinalIgnoreCase));
         if (match == null) return false;
         Current.ActiveSuffixText = match.Text;
+        Current.UseNamingTag = true;
         Save();
         return true;
+    }
+
+    /// <summary>
+    /// Stops output names carrying a naming tag.
+    /// </summary>
+    /// <remarks>
+    /// The chosen tag is left in place, so turning tagging back on restores it
+    /// rather than the top of the list.
+    /// </remarks>
+    public void ClearActiveSuffix()
+    {
+        if (!Current.UseNamingTag) return;
+        Current.UseNamingTag = false;
+        Save();
     }
 
     /// <summary>

@@ -1241,7 +1241,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // Brackets are an output detail, not part of the tag's name — the
         // menu shows "done", the example below it shows where the brackets
         // actually land.
-        ActiveSuffixDisplay = $"Current rename tag: {text}";
+        ActiveSuffixDisplay = text.Length == 0
+            ? "Current rename tag: none"
+            : $"Current rename tag: {text}";
         SuffixExampleDisplay = BuildSuffixExample(text);
     }
 
@@ -1256,6 +1258,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private string BuildSuffixExample(string suffixText)
     {
         var ext = OutputFormat.Extension;
+
+        // With no tag the name does not change at all, which is worth saying
+        // outright — and worth warning about, because an output written beside
+        // its source then wants the source's own name.
+        if (suffixText.Length == 0)
+            return $"Example: filename{ext}  →  filename{ext}  (asks before replacing the original)";
+
         return $"Example: filename{ext}  →  filename[{suffixText}]{ext}";
     }
 
@@ -1299,7 +1308,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             // collision still reads [done2] rather than gaining a suffix of its
             // own. With a custom template the bracket is whatever {suffix}
             // expanded to, and the counter follows the same rule.
-            var bracket = counter == 1 ? $"[{suffix}]" : $"[{suffix}{counter}]";
+            var bracket = SuffixBracket(counter);
             var stem = NameTemplate.Build(template, nameWithoutExt, bracket, bookmark);
             var candidate = Path.Combine(dir, $"{stem}{extension}");
             if (!File.Exists(candidate)) return candidate;
@@ -2879,7 +2888,32 @@ public partial class MainViewModel : ObservableObject, IDisposable
             : outputDirectory;
 
         return Path.Combine(dir,
-            $"{Path.GetFileNameWithoutExtension(basePath)}[{_settings.GetActiveSuffixText()}]{extension}");
+            $"{Path.GetFileNameWithoutExtension(basePath)}{SuffixBracket()}{extension}");
+    }
+
+    /// <summary>
+    /// The bracket an output name carries: <c>[done]</c> for the first of
+    /// something, <c>[done2]</c> for the second.
+    /// </summary>
+    /// <param name="counter">
+    /// 1-based. One means the first and takes no number, which is the rule every
+    /// caller already followed by hand.
+    /// </param>
+    /// <remarks>
+    /// One place for the format, because four callers were spelling it out and
+    /// the no-tag case had to reach all of them. With **None** selected under
+    /// Options the first of something carries no bracket at all — the whole point
+    /// of choosing None — and the rest carry a bare number, since two files in a
+    /// folder still cannot share a name.
+    /// </remarks>
+    private string SuffixBracket(int counter = 1)
+    {
+        var suffix = _settings.GetActiveSuffixText();
+
+        if (suffix.Length == 0)
+            return counter <= 1 ? string.Empty : $"[{counter}]";
+
+        return counter <= 1 ? $"[{suffix}]" : $"[{suffix}{counter}]";
     }
 
     /// <summary>
@@ -2921,7 +2955,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         var open = stem.LastIndexOf('[');
         if (open < 0 || !stem.EndsWith(']'))
-            return Path.Combine(dir, $"{stem}[{_settings.GetActiveSuffixText()}2]{ext}");
+            return Path.Combine(dir, $"{stem}{SuffixBracket(2)}{ext}");
 
         var head = stem[..open];
         var inner = stem[(open + 1)..^1];
@@ -3472,9 +3506,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private string BuildSplitPath(string outDir, string videoFileName, int index, string? extension = null)
     {
         var nameWithoutExt = Path.GetFileNameWithoutExtension(videoFileName);
-        var suffix = _settings.GetActiveSuffixText();
-        var bracket = index == 1 ? $"[{suffix}]" : $"[{suffix}{index}]";
-        return Path.Combine(outDir, $"{nameWithoutExt}{bracket}{extension ?? OutputFormat.Extension}");
+        return Path.Combine(outDir, $"{nameWithoutExt}{SuffixBracket(index)}{extension ?? OutputFormat.Extension}");
     }
 
     /// <summary>
@@ -5603,6 +5635,33 @@ public partial class MainViewModel : ObservableObject, IDisposable
             UpdateActiveSuffixDisplay();
             StatusText = $"Active suffix: {entry.Display}";
         }
+    }
+
+    /// <summary>
+    /// Stops output names carrying a naming tag. The "None" entry in the Options
+    /// menu.
+    /// </summary>
+    /// <remarks>
+    /// A tag was mandatory: the list always held at least one and something in it
+    /// was always active, so every file this program wrote gained a bracket
+    /// whether that was wanted or not.
+    ///
+    /// Choosing None leaves the previously-selected tag in the list and selected,
+    /// so picking it up again is one click rather than a hunt.
+    ///
+    /// Worth saying plainly at the point of choosing, because it changes what a
+    /// collision means: with no tag, output written beside its source wants the
+    /// source's own name, and the overwrite prompt is then the only thing between
+    /// a split and the original video. Everything still goes through that prompt
+    /// — see ResolveOutputPathAsync — so nothing is replaced silently.
+    /// </remarks>
+    [RelayCommand]
+    private void ClearActiveSuffix()
+    {
+        _settings.ClearActiveSuffix();
+        UpdateActiveSuffixDisplay();
+        StatusText = "No naming tag — output keeps the source's name, " +
+                     "and you will be asked before anything is replaced";
     }
 
     /// <summary>

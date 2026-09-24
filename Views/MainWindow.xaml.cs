@@ -913,6 +913,24 @@ public partial class MainWindow : Window
             suffixMenu.Items.RemoveAt(i);
 
         int insertAt = startIdx + 1;
+
+        // "None" first, and built here rather than sitting in the XAML so it
+        // carries the same tick as the tags and is chosen the same way. A tag
+        // used to be mandatory — the list always held one and one was always
+        // active — so every file the program wrote gained a bracket whether or
+        // not that was wanted.
+        var noneActive = _vm.ActiveSuffixText.Length == 0;
+        var noneItem = new MenuItem
+        {
+            Header = noneActive ? "✓  None" : "    None",
+            ToolTip = "Write output under the source's own name, with no tag added. " +
+                      "Saved beside the source that means the same filename, so you will be " +
+                      "asked whether to replace it.",
+            FontWeight = noneActive ? FontWeights.SemiBold : FontWeights.Normal
+        };
+        noneItem.Click += (_, _) => _vm?.ClearActiveSuffixCommand.Execute(null);
+        suffixMenu.Items.Insert(insertAt++, noneItem);
+
         foreach (var entry in _vm.Suffixes)
         {
             // Compare against the active text directly. This used to scrape

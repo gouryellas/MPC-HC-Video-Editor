@@ -113,7 +113,8 @@ video, and an empty one is never created.
 ## Actions
 
 Output filenames use the active **naming tag** (see Options), e.g.
-`vacation.mp4` → `vacation[done].mp4`.
+`vacation.mp4` → `vacation[done].mp4`. Choosing **None** under Options writes
+`vacation.mp4` unchanged instead.
 
 - **Merge selected / all / any** — always available. With cuts loaded it joins
   the checked ones, or all of them when none are checked. With no video or cuts
@@ -258,6 +259,12 @@ recorded.
 
 - **Current rename tag:** shows the active suffix, with an **Example:** line
   beneath it. Click any tag in the list to activate it (marked ✓).
+- **None** — no tag at all. Output keeps the source's own name, so a clip saved
+  beside its source wants the same filename and you are asked whether to replace
+  it; nothing is overwritten without that prompt. Where one operation writes
+  several files the second onward are numbered `[2]`, `[3]`, since two files in
+  a folder still cannot share a name. Whichever tag was selected stays selected,
+  so picking it up again is one click.
 - **Add new naming tag…** (letters and numbers, max 50 characters) and
   **Manage naming tags…** (drag to reorder, double-click to rename).
 - **Switch views automatically** — see Views.
