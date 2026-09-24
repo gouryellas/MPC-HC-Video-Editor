@@ -516,10 +516,20 @@ public class Bookmark : INotifyPropertyChanged
     /// to run past 24 — <see cref="TimeSpan.Hours"/> rolls over into Days,
     /// which would report a 25-hour recording as one hour in.
     /// </summary>
+    /// <remarks>
+    /// Rounded to the nearest second, not truncated. Every reading in the
+    /// program comes through here, so this is the one place the rule has to
+    /// hold: 16.67s is 17s and 1.3s is 1s, wherever it is printed.
+    ///
+    /// Truncating made two parts of the same window disagree about one number —
+    /// the panel's edit length rounded to 17s while the output warning about the
+    /// same 16.67 truncated to 16s — and made a mark sitting a fraction past a
+    /// second read as the second below it.
+    /// </remarks>
     private static (int Hours, int Minutes, int Seconds) Split(double totalSeconds)
     {
         if (totalSeconds < 0) totalSeconds = 0;
-        var whole = (long)totalSeconds;
+        var whole = (long)Math.Round(totalSeconds, MidpointRounding.AwayFromZero);
         return ((int)(whole / 3600), (int)(whole / 60 % 60), (int)(whole % 60));
     }
 
@@ -573,13 +583,12 @@ public class Bookmark : INotifyPropertyChanged
     public static string FormatTime(double totalSeconds) => FormatClock(totalSeconds);
 
     /// <summary>How long something runs, always in the spoken style.</summary>
-    public static string FormatDuration(double totalSeconds)
-    {
-        // Rounded, not truncated. Only whole seconds are shown, and truncating
-        // reported a 2.5s clip as "2s" — always short, never long.
-        if (totalSeconds < 0) totalSeconds = 0;
-        return FormatSpoken(Math.Round(totalSeconds, MidpointRounding.AwayFromZero));
-    }
+    /// <remarks>
+    /// The rounding this used to do itself now happens in <see cref="Split"/>,
+    /// where every other reading gets it too. It was here alone, which is why a
+    /// duration and a timestamp could disagree about the same number.
+    /// </remarks>
+    public static string FormatDuration(double totalSeconds) => FormatSpoken(totalSeconds);
 
     public event PropertyChangedEventHandler? PropertyChanged;
     protected void OnPropertyChanged([CallerMemberName] string? name = null)

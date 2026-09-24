@@ -147,6 +147,25 @@ public class BookmarkService
         return fields;
     }
 
+    /// <summary>
+    /// A bookmark time as a whole number of seconds, rounded to the nearest.
+    /// </summary>
+    /// <remarks>
+    /// Was a cast to <c>int</c>, which truncates: a hand-edited 5.7 was written
+    /// back as 5 while the row displayed it as 6. The file and the list now agree,
+    /// because both round.
+    ///
+    /// Whole seconds is the format — the original AutoHotkey one — and every time
+    /// the program itself produces is already whole, so this only ever changes a
+    /// value that arrived from outside.
+    /// </remarks>
+    private static string WriteTime(double seconds)
+    {
+        if (seconds < 0) seconds = 0;
+        return ((long)Math.Round(seconds, MidpointRounding.AwayFromZero))
+            .ToString(CultureInfo.InvariantCulture);
+    }
+
     /// <summary>Quotes a field only when it would otherwise split or mislead.</summary>
     private static string WriteField(string? value)
     {
@@ -162,14 +181,14 @@ public class BookmarkService
         {
             if (b.IsIncomplete)
             {
-                sb.AppendLine($"{(int)b.StartSeconds},");
+                sb.AppendLine($"{WriteTime(b.StartSeconds)},");
                 continue;
             }
 
             // The name, then everything the clip carries beyond its range.
             // An unnamed clip writes an empty field rather than the old
             // "BookmarkN" filler, which said nothing the row number did not.
-            sb.Append($"{(int)b.StartSeconds},{(int)b.EndSeconds},{WriteField(b.Label)},");
+            sb.Append($"{WriteTime(b.StartSeconds)},{WriteTime(b.EndSeconds)},{WriteField(b.Label)},");
             sb.Append(b.Speed.ToString("0.###", CultureInfo.InvariantCulture));
             sb.Append(b.IsFlipped ? ",1," : ",0,");
             sb.Append(b.Rotation);
