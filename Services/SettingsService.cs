@@ -297,10 +297,9 @@ public class AppSettings
     /// <remarks>
     /// On by default. The point of it is the encode you walked away from —
     /// something you only benefit from if it is already on when you leave, and
-    /// a setting nobody knows about is off forever. It plays the machine's own
-    /// notification sound rather than a bundled clip, so it matches what the
-    /// user hears from everything else, and a machine with that turned off
-    /// stays silent — which is the answer that machine already gave.
+    /// a setting nobody knows about is off forever. It plays Windows' own
+    /// <c>tada.wav</c> rather than a bundled clip: the install stays one
+    /// folder, and the sound is already on every machine this runs on.
     /// </remarks>
     public bool CompletionSound { get; set; } = true;
 

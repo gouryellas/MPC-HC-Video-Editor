@@ -771,13 +771,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// The ding at the end of an operation, when it is switched on.
     /// </summary>
     /// <remarks>
-    /// Plays the machine's own notification sound, read from the sound scheme.
-    /// The first version of this used <c>SystemSounds.Asterisk</c>, which is
-    /// the wrong sound: it is what dialogs use, so a finished export announced
-    /// itself in the voice Windows keeps for telling you something has gone
-    /// wrong. Notification.Default is the one meant for "here is a thing that
-    /// happened", and taking it from the scheme means it matches whatever the
-    /// user has already chosen to hear from everything else.
+    /// Plays <c>tada.wav</c>, the stock Windows fanfare, shipped with every
+    /// install since the beginning and unambiguously a "finished" sound. This
+    /// started as <c>SystemSounds.Asterisk</c>, which is what dialogs use — so
+    /// a finished export announced itself in the voice Windows keeps for
+    /// telling you something has gone wrong.
     ///
     /// Playing is asynchronous — <see cref="System.Media.SoundPlayer.Play"/>
     /// hands off to its own thread — so it never holds up the panel.
@@ -808,34 +806,35 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// The wav this machine plays for a notification, or null if there is none
-    /// to play.
+    /// The wav played when a job finishes, or null if there is none to play.
     /// </summary>
     /// <remarks>
-    /// The scheme first, so someone who has chosen their own notification sound
-    /// hears that one. It can legitimately be empty — "None" is a valid choice
-    /// in the Sounds control panel — but an empty entry means the user asked
-    /// for silence from notifications generally, which is not a reason to fall
-    /// back to something louder. Only a missing or unreadable key falls through
-    /// to the stock sound.
+    /// Windows' own media folder, located through the environment rather than
+    /// assumed to be on C: — a machine that boots from another drive has it
+    /// somewhere else, and hardcoding the path would fail there for no reason.
+    ///
+    /// Falls back to the scheme's notification sound if the file is missing,
+    /// which a stripped-down or heavily customised install can manage.
     /// </remarks>
     private static string? CompletionSoundPath()
     {
+        var media = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Media");
+
+        var tada = Path.Combine(media, "tada.wav");
+        if (File.Exists(tada)) return tada;
+
         try
         {
             using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
                 @"AppEvents\Schemes\Apps\.Default\Notification.Default\.Current");
 
-            if (key?.GetValue(null) is string configured)
-                return File.Exists(configured) ? configured : null;
+            if (key?.GetValue(null) is string configured && File.Exists(configured))
+                return configured;
         }
-        catch { /* fall through to the stock sound */ }
+        catch { /* nothing to play, which is survivable */ }
 
-        var stock = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
-            "Media", "Windows Notify System Generic.wav");
-
-        return File.Exists(stock) ? stock : null;
+        return null;
     }
 
     private void ApplyServiceSettings()
