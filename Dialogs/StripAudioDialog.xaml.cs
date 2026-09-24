@@ -48,7 +48,8 @@ public partial class StripAudioDialog : Window
 
         AudioHint.Text = "An MP3 of the sound, at the highest quality the encoder offers.";
         VideoHint.Text = $"A copy of the picture as {videoExtension.TrimStart('.').ToUpperInvariant()}, "
-                       + "with no sound. Nothing is re-encoded, so it is quick and loses no quality.";
+                       + "with no sound, named with -silent on the end. Nothing is re-encoded, so it "
+                       + "is quick and loses no quality.";
 
         switch (initial)
         {

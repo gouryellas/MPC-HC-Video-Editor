@@ -4057,6 +4057,32 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </remarks>
     private StripAudioOutputs _lastStripOutputs = StripAudioOutputs.Audio;
 
+    /// <summary>
+    /// The silent copy's name, which must not be the MP3's name with a
+    /// different extension.
+    /// </summary>
+    /// <remarks>
+    /// This is not decoration. MPC-HC — and most players — auto-load an audio
+    /// file sitting beside a video whose name starts with the video's, and
+    /// attach it as an external track. Writing <c>clip[done].mp3</c> next to
+    /// <c>clip[done].mp4</c> hands the player a matched pair, so the silent
+    /// copy plays with the very sound that was taken out of it. The file is
+    /// genuinely silent — ffprobe shows one video stream — but nobody watching
+    /// it would believe that, and they would be right not to: what they asked
+    /// for was a video that makes no noise.
+    ///
+    /// Only the video moves. The player searches for audio whose name begins
+    /// with the <em>video's</em> name, so lengthening the video's stem breaks
+    /// the match in the one direction that matters; renaming the MP3 instead
+    /// would leave it still starting with the video's name.
+    ///
+    /// Applied whether or not an MP3 is being written this run. A silent copy
+    /// made today and an MP3 made from the same source next week would pair up
+    /// just as well, and the marker also says which file is which in a folder
+    /// of near-identical names.
+    /// </remarks>
+    private static string SilentStem(string stem) => stem.TrimEnd('-', '_', ' ') + "-silent";
+
     [RelayCommand]
     private async Task StripAudioAsync()
     {
@@ -4117,10 +4143,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
             // One ffmpeg run. Returns false when the name was not resolved or
             // the run failed, so a file only counts as consumed — and only
             // becomes eligible for cleanup — once everything asked of it worked.
-            async Task<bool> Write(string extension, string label,
+            async Task<bool> Write(string extension, string label, bool silentCopy,
                                    Func<string, IProgress<FFmpegProgressEventArgs>, Task> run)
             {
-                var candidate = Path.Combine(outDir, outStem + extension);
+                var stem = silentCopy ? SilentStem(outStem) : outStem;
+                var candidate = Path.Combine(outDir, stem + extension);
 
                 // The silent copy carries the source's own extension, so it is
                 // the one output that can be handed the name of the file it is
@@ -4129,7 +4156,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 // leaves the original as it was, which looks exactly like an
                 // operation that ran and did nothing.
                 if (string.Equals(candidate, file, StringComparison.OrdinalIgnoreCase))
-                    candidate = Path.Combine(outDir, outStem + "-silent" + extension);
+                    candidate = NextFreeName(candidate);
 
                 var outPath = await ResolveOutputPathAsync(candidate, enforcePolicy: false);
                 if (outPath == null) return false;
@@ -4156,7 +4183,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             var ok = true;
             if (wantAudio)
             {
-                var wrote = await Write(".mp3", "Extracting to MP3",
+                var wrote = await Write(".mp3", "Extracting to MP3", silentCopy: false,
                                         (o, p) => _ffmpeg.StripAudioAsync(file, o, p));
                 if (wrote) wroteAudio++;
                 ok &= wrote;
@@ -4164,6 +4191,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             if (wantVideo)
             {
                 var wrote = await Write(Path.GetExtension(file), "Removing the audio track",
+                                        silentCopy: true,
                                         (o, p) => _ffmpeg.RemoveAudioAsync(file, o, p));
                 if (wrote) wroteVideo++;
                 ok &= wrote;
