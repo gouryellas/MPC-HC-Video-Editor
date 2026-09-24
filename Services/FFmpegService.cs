@@ -422,7 +422,18 @@ public class FFmpegService
         format ??= VideoFormats.Default;
         outputPath ??= Path.ChangeExtension(inputPath, format.Extension);
 
-        var args = $"-hide_banner -y -fflags +igndts -i \"{inputPath}\" " +
+        // Convert is a re-encode whatever happens, so normalizing costs nothing
+        // extra here — unlike a cut, where it is the thing that rules out the
+        // stream copy. A folder of files gathered from different sources is
+        // exactly the problem the setting exists for, and this operation was
+        // not applying it: the same checkbox evened out a merge and did nothing
+        // at all to a batch convert.
+        //
+        // Safe for every format offered, because all of them re-encode the
+        // audio — there is no "-c:a copy" here for a filter to conflict with.
+        var normalize = NormalizeAudio ? $"-af \"{LoudnormFilter}\" " : string.Empty;
+
+        var args = $"-hide_banner -y -fflags +igndts -i \"{inputPath}\" {normalize}" +
                    $"{VideoFormats.ApplyEncoder(format, VideoCodec, QualityArgs)} \"{outputPath}\"";
 
         // Probe first so the progress bar has something to divide by.

@@ -373,9 +373,9 @@
                             <StackPanel>
                                 <TextBlock Text="Audio" Style="{StaticResource Heading}"/>
                                 <CheckBox x:Name="NormalizeAudioCheck"
-                                          Content="Even out loudness across clips"/>
+                                          Content="Even out loudness across clips and converted files"/>
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="Brings every written clip to a common loudness (EBU R128, -16 LUFS), so a merge of material recorded at different levels does not jump in volume. Like precise cutting, it forces a re-encode — audio cannot be normalized while being copied."/>
+                                           Text="Brings everything written to a common loudness (EBU R128, -16 LUFS), so a merge of material recorded at different levels does not jump in volume. Applies to Convert too, where a folder of files from different sources has the same problem. On a cut it forces a re-encode, like precise cutting — audio cannot be normalized while being copied — but Convert re-encodes anyway, so there it costs nothing."/>
                             </StackPanel>
                         </Border>
 
