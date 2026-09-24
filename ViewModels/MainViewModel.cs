@@ -759,6 +759,27 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// shelling out to <c>where.exe</c>. Changing it therefore asks for a
     /// restart rather than silently doing nothing.
     /// </remarks>
+    /// <summary>
+    /// The ding at the end of an operation, when it is switched on.
+    /// </summary>
+    /// <remarks>
+    /// <c>SystemSounds.Asterisk</c> rather than a bundled wav: it is the sound
+    /// this machine already uses to say "that's done", it follows whatever
+    /// scheme the user has chosen, and it costs the install nothing. Playing is
+    /// asynchronous, so it never holds up the panel.
+    ///
+    /// Wrapped because audio is hardware: a machine with no output device
+    /// throws here, and an operation that wrote its files must not be reported
+    /// as failed because nothing could be played afterwards.
+    /// </remarks>
+    private void PlayCompletionSound()
+    {
+        if (!_settings.Current.CompletionSound) return;
+
+        try { System.Media.SystemSounds.Asterisk.Play(); }
+        catch { /* no audio device — the files are still written */ }
+    }
+
     private void ApplyServiceSettings()
     {
         _mpc.WebInterfacePort = ResolveWebInterfacePort();
@@ -771,6 +792,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         _toast.Enabled = _settings.Current.ToastsEnabled;
         _toast.HoldDuration = TimeSpan.FromSeconds(_settings.Current.ToastSeconds);
+
+        // Assigned rather than added, so saving Settings twice cannot end up
+        // playing the sound twice. The setting is read inside the handler, not
+        // captured here, so it takes effect on the job already running.
+        Job.Finished = PlayCompletionSound;
 
         // Static rather than injected — see RecycleBin.SendToBin. Pushed here
         // so it is set before anything can delete, and re-pushed when Settings
@@ -2704,12 +2730,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// Loops rather than asking once: a rename or an increment can collide
     /// too, and the user has to be re-asked until the name is actually free.
     /// </remarks>
-    private Task<string?> ResolveOutputPathAsync(string candidate)
+    /// <param name="enforcePolicy">
+    /// Run the name through <see cref="EnforceFileNamePolicy"/> first. Pass
+    /// false when the caller has already done that for this file — an operation
+    /// writing two outputs from one source shares a stem, and the rename prompt
+    /// must not be shown twice for the same name.
+    /// </param>
+    private Task<string?> ResolveOutputPathAsync(string candidate, bool enforcePolicy = true)
     {
         // Policy first: a name we are about to write must satisfy
         // FileNameRules, whatever the source file happens to be called.
-        candidate = EnforceFileNamePolicy(candidate, out var canceled);
-        if (canceled) return Task.FromResult<string?>(null);
+        if (enforcePolicy)
+        {
+            candidate = EnforceFileNamePolicy(candidate, out var canceled);
+            if (canceled) return Task.FromResult<string?>(null);
+        }
 
         while (File.Exists(candidate))
         {
@@ -4048,6 +4083,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         IsBusy = true;
         int done = 0;
+        int wroteAudio = 0, wroteVideo = 0;
         var stripped = new List<string>();
         Job.Begin("Stripping audio", ofd.FileNames.Length);
         BeginNameBatch(ofd.FileNames.Length);
@@ -4059,17 +4095,43 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ProgressPercent = (double)step / totalSteps * 100;
             Job.SetFile(done, Path.GetFileName(file));
 
+            // The name is settled once per file, before either output is
+            // written. Both outputs share a stem and differ only in extension,
+            // so a source whose name breaks FileNameRules — spaces and brackets
+            // are common in video filenames — used to raise the same rename
+            // prompt twice for the same name. The second one reads as a
+            // duplicate and gets dismissed, which silently dropped whichever
+            // output it belonged to.
+            var named = EnforceFileNamePolicy(
+                GetSuffixedOutputPath(file, Path.GetExtension(file), ResolveSaveToDirectory()),
+                out var nameCanceled);
+
+            // Its runs are not going to happen, so the bar has to be told —
+            // otherwise the denominator counts steps nothing will ever fill and
+            // the job finishes short of 100%.
+            if (nameCanceled) { step += perFile; done++; continue; }
+
+            var outDir = Path.GetDirectoryName(named) ?? "";
+            var outStem = Path.GetFileNameWithoutExtension(named);
+
             // One ffmpeg run. Returns false when the name was not resolved or
             // the run failed, so a file only counts as consumed — and only
             // becomes eligible for cleanup — once everything asked of it worked.
             async Task<bool> Write(string extension, string label,
                                    Func<string, IProgress<FFmpegProgressEventArgs>, Task> run)
             {
-                // The suffix applies to both outputs: <name>[done].mp3 and
-                // <name>[done].mp4. The bracket is always there, so the silent
-                // copy can never land on the name of the file it came from.
-                var outPath = await ResolveOutputPathAsync(
-                    GetSuffixedOutputPath(file, extension, ResolveSaveToDirectory()));
+                var candidate = Path.Combine(outDir, outStem + extension);
+
+                // The silent copy carries the source's own extension, so it is
+                // the one output that can be handed the name of the file it is
+                // reading — with the naming tag set to None there is no bracket
+                // to tell them apart. ffmpeg refuses to write in place and
+                // leaves the original as it was, which looks exactly like an
+                // operation that ran and did nothing.
+                if (string.Equals(candidate, file, StringComparison.OrdinalIgnoreCase))
+                    candidate = Path.Combine(outDir, outStem + "-silent" + extension);
+
+                var outPath = await ResolveOutputPathAsync(candidate, enforcePolicy: false);
                 if (outPath == null) return false;
 
                 // The action already says "audio"; joined it reads
@@ -4093,11 +4155,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             var ok = true;
             if (wantAudio)
-                ok &= await Write(".mp3", "Extracting to MP3",
-                                  (o, p) => _ffmpeg.StripAudioAsync(file, o, p));
+            {
+                var wrote = await Write(".mp3", "Extracting to MP3",
+                                        (o, p) => _ffmpeg.StripAudioAsync(file, o, p));
+                if (wrote) wroteAudio++;
+                ok &= wrote;
+            }
             if (wantVideo)
-                ok &= await Write(Path.GetExtension(file), "Removing the audio track",
-                                  (o, p) => _ffmpeg.RemoveAudioAsync(file, o, p));
+            {
+                var wrote = await Write(Path.GetExtension(file), "Removing the audio track",
+                                        (o, p) => _ffmpeg.RemoveAudioAsync(file, o, p));
+                if (wrote) wroteVideo++;
+                ok &= wrote;
+            }
 
             if (ok) stripped.Add(file);
             done++;
@@ -4105,13 +4175,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         IsBusy = false; ProgressPercent = 0;
 
-        var produced = _lastStripOutputs switch
+        // Counted, not assumed. Asking for both and getting one — because a
+        // name prompt was cancelled or a run failed — used to be reported as
+        // though both had been written.
+        var produced = (wantAudio, wantVideo) switch
         {
-            StripAudioOutputs.SilentVideo => "Removed the audio from",
-            StripAudioOutputs.Both => "Extracted the audio and silenced",
-            _ => "Extracted audio from"
+            (true, true) => $"Extracted the audio from {wroteAudio} file(s) and silenced {wroteVideo}",
+            (false, true) => $"Removed the audio from {wroteVideo} file(s)",
+            _ => $"Extracted the audio from {wroteAudio} file(s)"
         };
-        Job.Complete($"{produced} {done} file(s) to", ResolveSaveToDirectory());
+
+        Job.Complete(produced + " to", ResolveSaveToDirectory());
         StatusText = wantVideo && !wantAudio ? "Audio removal finished" : "Audio extraction finished";
 
         // Same rule as Convert: these are files the user picked here, so the
@@ -5370,6 +5444,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         s.AutoDetectMpcWebInterface = dlg.AutoDetectMpcWebInterface;
         s.FfmpegFolder = dlg.FfmpegFolder;
         s.ToastsEnabled = dlg.ToastsEnabled;
+        s.CompletionSound = dlg.CompletionSound;
         s.ToastSeconds = dlg.ToastSeconds;
         s.CheckForUpdates = dlg.CheckForUpdates;
 

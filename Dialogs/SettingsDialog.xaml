@@ -169,6 +169,11 @@
                                 </StackPanel>
                                 <TextBlock Style="{StaticResource Hint}"
                                            Text="The toast appears over MPC-HC, where the status bar can't be seen. 0.5 to 10 seconds."/>
+
+                                <CheckBox x:Name="CompletionSoundCheck" Margin="0,12,0,0"
+                                          Content="Play a sound when an operation finishes"/>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="A short ding after a merge, split, convert, export or strip finishes — for the long ones you walk away from. It uses the Windows notification sound, so it stays quiet on a machine with system sounds turned off."/>
                             </StackPanel>
                         </Border>
 

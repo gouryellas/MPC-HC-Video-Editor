@@ -292,6 +292,18 @@ public class AppSettings
     public bool ToastsEnabled { get; set; } = true;
 
     /// <summary>
+    /// Play a short sound when a file operation finishes.
+    /// </summary>
+    /// <remarks>
+    /// On by default. The point of it is the encode you walked away from —
+    /// something you only benefit from if it is already on when you leave, and
+    /// a setting nobody knows about is off forever. It uses the Windows
+    /// notification sound rather than a bundled clip, so a machine with system
+    /// sounds muted stays silent, which is the answer that machine already gave.
+    /// </remarks>
+    public bool CompletionSound { get; set; } = true;
+
+    /// <summary>
     /// Ask GitHub at startup whether a newer release has been published.
     /// </summary>
     /// <remarks>

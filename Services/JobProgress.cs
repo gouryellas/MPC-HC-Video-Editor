@@ -19,6 +19,14 @@ public partial class JobProgress : ObservableObject
     /// </summary>
     private int _generation;
 
+    /// <summary>
+    /// Raised once when a job completes successfully. Set by the view model,
+    /// which owns the decision of what — if anything — that should do;
+    /// <see cref="End"/> deliberately does not raise it, since a cancelled or
+    /// failed job has nothing to announce.
+    /// </summary>
+    public Action? Finished;
+
     /// <summary>True while a job is running — drives the panel's visibility.</summary>
     [ObservableProperty] private bool _isRunning;
 
@@ -124,6 +132,12 @@ public partial class JobProgress : ObservableObject
     public async Task CompleteAsync(string headline, string? createdFile = null, int holdMs = 3000)
     {
         var generation = _generation;
+
+        // Every successful operation in the app ends here, which makes this the
+        // one place a "finished" sound can be raised from without nine callers
+        // having to remember it. Raised before the hold, not after: the sound is
+        // for whoever is not watching the panel.
+        Finished?.Invoke();
 
         _clock.Stop();
         if (FileCount > 0) FileIndex = FileCount;

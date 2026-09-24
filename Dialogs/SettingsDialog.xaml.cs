@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -44,6 +44,9 @@ public partial class SettingsDialog : Window
     public bool AutoDetectMpcWebInterface { get; private set; }
     public string FfmpegFolder { get; private set; }
     public bool ToastsEnabled { get; private set; }
+
+    /// <summary>Whether a finished operation makes a sound.</summary>
+    public bool CompletionSound { get; private set; }
 
     /// <summary>Whether the startup update check runs.</summary>
     public bool CheckForUpdates { get; private set; }
@@ -139,6 +142,7 @@ public partial class SettingsDialog : Window
         AutoDetectMpcWebInterface = current.AutoDetectMpcWebInterface;
         FfmpegFolder = current.FfmpegFolder ?? "";
         ToastsEnabled = current.ToastsEnabled;
+        CompletionSound = current.CompletionSound;
         ToastSeconds = current.ToastSeconds;
         CheckForUpdates = current.CheckForUpdates;
         UseChapterNames = current.UseChapterNames;
@@ -167,6 +171,7 @@ public partial class SettingsDialog : Window
 
         AutoSwitchCheck.IsChecked = autoSwitchViews;
         ToastsCheck.IsChecked = current.ToastsEnabled;
+        CompletionSoundCheck.IsChecked = current.CompletionSound;
         CheckForUpdatesCheck.IsChecked = current.CheckForUpdates;
         UseChapterNamesCheck.IsChecked = current.UseChapterNames;
         RememberSaveToCheck.IsChecked = current.RememberSaveToFolder;
@@ -339,6 +344,7 @@ public partial class SettingsDialog : Window
 
         AutoSwitchViews = AutoSwitchCheck.IsChecked == true;
         ToastsEnabled = ToastsCheck.IsChecked == true;
+        CompletionSound = CompletionSoundCheck.IsChecked == true;
         CheckForUpdates = CheckForUpdatesCheck.IsChecked == true;
         UseChapterNames = UseChapterNamesCheck.IsChecked == true;
         RememberSaveToFolder = RememberSaveToCheck.IsChecked == true;
