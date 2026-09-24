@@ -87,11 +87,14 @@
         </Border.Effect>
 
         <DockPanel HorizontalAlignment="Stretch" LastChildFill="True">
+            <!-- The video, and nothing under it. The bookmark file used to be
+                 named here too, and it is the video's name with a different
+                 extension — a second line of the same word, over a video, for
+                 something there is nothing to do about from in here. The main
+                 window still names it, next to the pencil that opens it. -->
             <TextBlock DockPanel.Dock="Top" Text="{Binding Session.VideoFileName}" Foreground="{DynamicResource AccentBright}"
                        FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
-                       Margin="0,0,0,2"/>
-            <TextBlock DockPanel.Dock="Top" Text="{Binding BookmarksFileName}" Foreground="{DynamicResource ValueGreen}"
-                       FontSize="12" TextTrimming="CharacterEllipsis" Margin="0,0,0,8"/>
+                       Margin="0,0,0,8"/>
 
             <!-- Docked to the bottom before the list is added, so the hint and
                  its rule keep their place and the list takes what is left. -->
@@ -155,7 +158,7 @@
                                      row is absent. The overlay hid the end and the
                                      length and said nothing in their place. -->
                                 <TextBlock Style="{StaticResource RowGap}"/>
-                                <TextBlock Text="incomplete" Foreground="{DynamicResource StatusError}" FontStyle="Italic"
+                                <TextBlock Text="(incomplete)" Foreground="{DynamicResource StatusError}" FontStyle="Italic"
                                            VerticalAlignment="Center"
                                            Visibility="{Binding IsIncomplete, Converter={StaticResource MinimalBoolToVis}}"/>
                                 <!-- Flip, rotation, mute and speed, combined into
