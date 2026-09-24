@@ -806,6 +806,30 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// Stock Windows sounds to finish a job with, best first.
+    /// </summary>
+    /// <remarks>
+    /// <c>tada.wav</c> is the one meant — a fanfare, unmistakably "done".
+    /// The rest are there because the first may not be: the list runs from
+    /// most wanted to most likely to exist. <c>chimes</c>, <c>ding</c> and
+    /// <c>notify</c> have shipped since Windows 95 and are pleasant enough to
+    /// stand in; the Notify System Generic wav is the modern notification
+    /// sound, present on 10 and 11 but not before.
+    ///
+    /// None of them is an error sound. A machine missing the whole list would
+    /// be better off silent than announcing a finished export with the noise
+    /// Windows makes when something breaks.
+    /// </remarks>
+    private static readonly string[] _completionSounds =
+    {
+        "tada.wav",
+        "chimes.wav",
+        "ding.wav",
+        "notify.wav",
+        "Windows Notify System Generic.wav"
+    };
+
+    /// <summary>
     /// The wav played when a job finishes, or null if there is none to play.
     /// </summary>
     /// <remarks>
@@ -813,16 +837,24 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// assumed to be on C: — a machine that boots from another drive has it
     /// somewhere else, and hardcoding the path would fail there for no reason.
     ///
-    /// Falls back to the scheme's notification sound if the file is missing,
-    /// which a stripped-down or heavily customised install can manage.
+    /// The sound scheme is the last resort rather than the first. It is the
+    /// most certain to resolve to a file that exists on this particular
+    /// machine, but it is also whatever the user has pointed their
+    /// notifications at, which may be a sound with a meaning of its own — so
+    /// it is worth asking only once the known-good list has come up empty.
+    /// That takes a Media folder with none of five stock wavs in it, which
+    /// means a stripped install, and by then any sound is a good sound.
     /// </remarks>
     private static string? CompletionSoundPath()
     {
         var media = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Media");
 
-        var tada = Path.Combine(media, "tada.wav");
-        if (File.Exists(tada)) return tada;
+        foreach (var name in _completionSounds)
+        {
+            var candidate = Path.Combine(media, name);
+            if (File.Exists(candidate)) return candidate;
+        }
 
         try
         {
