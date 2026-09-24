@@ -2020,6 +2020,31 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private bool NeedsHotkeyToast => !_minimalViewActive && _mpc.IsForeground();
 
     /// <summary>
+    /// Reports a hotkey press that was refused, over whatever is on screen.
+    /// </summary>
+    /// <remarks>
+    /// Always forced, unlike the confirmations, and for a reason the general
+    /// rule gets wrong. <see cref="NeedsHotkeyToast"/> holds back when the
+    /// overlay is up because the overlay already shows what happened — true of
+    /// a timestamp that was set, since a row appears, and false of one that was
+    /// refused, because the list is exactly as it was. A refusal has no other
+    /// channel: the status bar is behind the player, and the overlay has
+    /// nothing to show.
+    ///
+    /// That overrides "toasts off", which is worth being uneasy about. The
+    /// setting asks for less noise from a hotkey that worked; it is not a
+    /// request for a key that quietly does nothing.
+    ///
+    /// Held longer than a confirmation. "Timestamp 3 set" only has to be
+    /// noticed; "behind the last mark at 4s" has to be read, and two seconds
+    /// over a moving picture is not long enough to read a sentence with two
+    /// times in it.
+    /// </remarks>
+    private void ShowRefusal(string title, string detail) =>
+        _toast.Show(title, detail, "⚠", force: true,
+                    hold: TimeSpan.FromSeconds(Math.Max(4.5, _toast.HoldDuration.TotalSeconds)));
+
+    /// <summary>
     /// Opens a new incomplete bookmark at the current playback position.
     /// Called by <see cref="SetTimestamp"/> when no incomplete bookmark
     /// is awaiting its closing timestamp.
@@ -2043,9 +2068,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
             StatusText = $"Not added — {refusal}. Marks go forwards.";
 
             // Says the time it refused and the time it wanted, because this is
-            // on screen for two seconds over a video and "invalid" would send
-            // the user to the main window to work out which.
-            _toast.Show("Timestamp not added", refusal, force: NeedsHotkeyToast);
+            // read over a video and "invalid" would send the user to the main
+            // window to work out which.
+            ShowRefusal("Timestamp not added", refusal + ". Marks go forwards.");
             return;
         }
 
@@ -2096,9 +2121,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                          (Math.Abs(closing - incomplete.StartSeconds) < 0.001 ? "its opening time" : "before its opening time") +
                          $" of {incomplete.StartDisplay}. Seek past it and press again.";
 
-            _toast.Show($"Bookmark {incomplete.Index} still open",
-                        $"A closing time has to come after {incomplete.StartDisplay}",
-                        "⚠", force: NeedsHotkeyToast);
+            ShowRefusal($"Bookmark {incomplete.Index} still open",
+                        $"A closing time has to come after {incomplete.StartDisplay}");
             return;
         }
 
@@ -2112,9 +2136,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
             StatusText = $"Closing at {Bookmark.FormatTime(closing)} would run over cut " +
                          $"{clash.Index} ({clash.StartDisplay} – {clash.EndDisplay}) — " +
                          $"bookmark {incomplete.Index} is still open";
-            _toast.Show($"Would overlap cut {clash.Index}",
-                        $"Bookmark {incomplete.Index} left open — close it before {clash.StartDisplay}",
-                        force: NeedsHotkeyToast);
+            ShowRefusal($"Would overlap cut {clash.Index}",
+                        $"Cut {clash.Index} is {clash.StartDisplay} – {clash.EndDisplay}. " +
+                        $"Bookmark {incomplete.Index} is still open — close it before {clash.StartDisplay}");
             return;
         }
 

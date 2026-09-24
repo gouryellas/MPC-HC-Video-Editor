@@ -64,7 +64,14 @@ public sealed class ToastService : IDisposable
     /// false. For the callers where the toast is the only thing on screen that
     /// could report what happened — turning toasts off asks for less noise, not
     /// for a hotkey that silently does nothing.</param>
-    public void Show(string title, string? detail = null, string icon = "📍", bool force = false)
+    /// <param name="hold">
+    /// How long to stay up before fading, overriding
+    /// <see cref="HoldDuration"/> for this one toast. For a message that has to
+    /// be read rather than merely noticed — a refusal explains itself, where a
+    /// confirmation only has to register.
+    /// </param>
+    public void Show(string title, string? detail = null, string icon = "📍", bool force = false,
+                     TimeSpan? hold = null)
     {
         if (_disposed || (!Enabled && !force)) return;
 
@@ -86,7 +93,7 @@ public sealed class ToastService : IDisposable
             window.Opacity = 1.0;
 
             _holdTimer.Stop();
-            _holdTimer.Interval = HoldDuration;
+            _holdTimer.Interval = hold ?? HoldDuration;
             _holdTimer.Start();
         }
         catch
