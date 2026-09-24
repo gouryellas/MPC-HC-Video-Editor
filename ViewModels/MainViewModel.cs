@@ -1093,13 +1093,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
         DeleteBookmarksCommand.NotifyCanExecuteChanged();
         EnterTimeManualCommand.NotifyCanExecuteChanged();
         DeleteSelectedCommand.NotifyCanExecuteChanged();
-        // All three share CanToggleFlip. Notifying only the first left Rotate
+        // All four share CanToggleFlip. Notifying only the first left Rotate
         // and Mute stuck in the state they were evaluated in at startup —
         // disabled, since nothing was selected then — so neither button ever
         // became usable.
         ToggleFlipCommand.NotifyCanExecuteChanged();
         RotateSelectedCommand.NotifyCanExecuteChanged();
         ToggleMuteCommand.NotifyCanExecuteChanged();
+        ToggleFadeCommand.NotifyCanExecuteChanged();
         PlayAllCommand.NotifyCanExecuteChanged();
         PlaySelectedCommand.NotifyCanExecuteChanged();
         SelectAllCommand.NotifyCanExecuteChanged();
@@ -5230,6 +5231,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         s.VideoEncoder = dlg.VideoEncoder;
         s.PreciseCuts = dlg.PreciseCuts;
         s.NormalizeAudio = dlg.NormalizeAudio;
+        s.FadeSeconds = dlg.FadeSeconds;
         s.NameTemplate = dlg.NameTemplate;
 
         // The dialog already applied this live so it could be seen; this is
@@ -5982,6 +5984,53 @@ public partial class MainViewModel : ObservableObject, IDisposable
         StatusText = turningOn
             ? $"{selected.Count} cut(s) will be written silent"
             : $"{selected.Count} cut(s) will keep their audio";
+    }
+
+    /// <summary>
+    /// Fades every checked cut up at the start and down at the end, or takes
+    /// the fades off if they all already have them.
+    /// </summary>
+    /// <remarks>
+    /// Both ends at once, at the length in Settings ▸ Output. A fade in without
+    /// a fade out is a real thing to want but not the common one, and offering
+    /// two buttons for it would put a pair on the toolbar that nearly always
+    /// get pressed together. A cut fading at one end only can still be written
+    /// by hand into the bookmark file, which is where the two lengths live.
+    ///
+    /// "All of them already have one" rather than per-cut toggling, the same
+    /// rule as <see cref="ToggleFlip"/> and <see cref="ToggleMute"/>: advancing
+    /// each cut from its own state would leave a mixed selection permanently
+    /// out of step.
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(CanToggleFlip))]
+    private void ToggleFade()
+    {
+        var selected = Session.Bookmarks.Where(b => b.IsSelected && b.IsValid).ToList();
+        if (selected.Count == 0) return;
+
+        var length = _settings.Current.FadeSeconds;
+        var turningOn = !selected.All(b => b.HasFade);
+
+        // Turning them on with the length set to zero would report a fade and
+        // apply nothing. The setting is the thing to change, so say so.
+        if (turningOn && length <= 0)
+        {
+            Notify("The fade length is set to zero — see Settings ▸ Output.");
+            return;
+        }
+
+        foreach (var b in selected)
+        {
+            b.FadeInSeconds = turningOn ? length : 0;
+            b.FadeOutSeconds = turningOn ? length : 0;
+        }
+
+        Session.NotifyDurationChanged();
+        if (IsBookmarkFileLoaded) SaveBookmarks();
+
+        StatusText = turningOn
+            ? $"{selected.Count} cut(s) will fade in and out over {length:0.##}s"
+            : $"{selected.Count} cut(s) will start and end hard";
     }
 
     // ------------------------------------------------------------------

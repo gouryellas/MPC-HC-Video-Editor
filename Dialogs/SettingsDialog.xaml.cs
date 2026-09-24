@@ -76,6 +76,9 @@ public partial class SettingsDialog : Window
     /// <summary>Whether written clips are brought to a common loudness.</summary>
     public bool NormalizeAudio { get; private set; }
 
+    /// <summary>Seconds of fade the Fade button applies.</summary>
+    public double FadeSeconds { get; private set; } = 0.5;
+
     /// <summary>Pattern for output filenames.</summary>
     public string NameTemplate { get; private set; } = Helpers.NameTemplate.Default;
 
@@ -121,6 +124,7 @@ public partial class SettingsDialog : Window
         VideoEncoder = current.VideoEncoder;
         PreciseCuts = current.PreciseCuts;
         NormalizeAudio = current.NormalizeAudio;
+        FadeSeconds = current.FadeSeconds;
         NameTemplate = string.IsNullOrWhiteSpace(current.NameTemplate)
             ? Helpers.NameTemplate.Default
             : current.NameTemplate;
@@ -171,6 +175,7 @@ public partial class SettingsDialog : Window
         CutFast.IsChecked = !current.PreciseCuts;
         CutPrecise.IsChecked = current.PreciseCuts;
         NormalizeAudioCheck.IsChecked = current.NormalizeAudio;
+        FadeSecondsBox.Text = current.FadeSeconds.ToString("0.##", CultureInfo.CurrentCulture);
         NameTemplateBox.Text = NameTemplate;
         VariableList.ItemsSource = Helpers.NameTemplate.Variables;
         TemplateExamples.ItemsSource = Helpers.NameTemplate.Examples;
@@ -320,6 +325,9 @@ public partial class SettingsDialog : Window
         if (!TryReadInt(PortBox, "web interface port", 1, 65535, out var port)) return;
         if (!TryReadInt(MaxHistoryBox, "recent videos count", 1, 50, out var history)) return;
         if (!TryReadDouble(ToastSecondsBox, "toast duration", 0.5, 10.0, out var toastSeconds)) return;
+        // Zero is allowed: it is how the box says "no fade", and it agrees with
+        // what the Fade button does when it turns one off.
+        if (!TryReadDouble(FadeSecondsBox, "fade length", 0, 10.0, out var fadeSeconds)) return;
 
         VideoFormatKey = (FormatCombo.SelectedItem as VideoFormats.Format)?.Key
                          ?? VideoFormats.Default.Key;
@@ -345,6 +353,7 @@ public partial class SettingsDialog : Window
 
         PreciseCuts = CutPrecise.IsChecked == true;
         NormalizeAudio = NormalizeAudioCheck.IsChecked == true;
+        FadeSeconds = fadeSeconds;
 
         // An empty box means the default, not an empty filename.
         var template = NameTemplateBox.Text?.Trim();

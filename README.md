@@ -107,6 +107,10 @@ Output filenames use the active **naming tag** (see Options), e.g.
   the checked ones, or all of them when none are checked. With no video or cuts
   it falls back to a file picker and joins whatever you select.
 - **Split selected / all** — one clip per cut.
+- **Fade** — fades the checked cuts up at the start and down at the end, picture
+  and sound together. The length is set under **Settings ▸ Output** and is
+  capped at half the clip, so a short cut fades as far as it can rather than
+  being refused. Press again to take the fades off.
 - **Convert files to MP4…** — takes multiple files at once.
 - **Strip audio…** — also takes multiple files at once, and asks what to write:
   an MP3 of the audio, a copy of the video with its sound removed, or both. The

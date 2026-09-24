@@ -624,6 +624,46 @@ public class FFmpegService
         // what will actually be heard, not what was there before it.
         if (NormalizeAudio) af.Add(LoudnormFilter);
 
+        // Fades go after everything above, on both chains.
+        //
+        // After the speed change because fade takes timestamps, and setpts has
+        // already rewritten them: a one-second fade on a half-speed clip means
+        // one second of the clip as written, which is what was asked for and
+        // what the row says.
+        //
+        // After loudnorm because a fade is the shape of the ending, not part of
+        // the material being levelled. Normalizing afterwards would measure the
+        // silence at the tail as part of the programme and lift the whole clip
+        // to compensate.
+        if (b.HasFade)
+        {
+            // The clip as written, which is what the fades are measured in.
+            var length = b.DurationSeconds / b.Speed;
+
+            // Capped here rather than on the bookmark: the times can move after
+            // a fade is set, and a value clamped at the point it was entered
+            // could not grow back when the cut was lengthened again. Half the
+            // clip each, so a fade in and a fade out can meet in the middle but
+            // never cross — crossing makes the tail brighten as it ends.
+            var fadeIn = Math.Min(b.FadeInSeconds, length / 2);
+            var fadeOut = Math.Min(b.FadeOutSeconds, length / 2);
+
+            if (fadeIn > 0)
+            {
+                vf.Add($"fade=t=in:st=0:d={Fmt(fadeIn)}");
+                af.Add($"afade=t=in:st=0:d={Fmt(fadeIn)}");
+            }
+
+            if (fadeOut > 0)
+            {
+                var from = Math.Max(0, length - fadeOut);
+                vf.Add($"fade=t=out:st={Fmt(from)}:d={Fmt(fadeOut)}");
+                af.Add($"afade=t=out:st={Fmt(from)}:d={Fmt(fadeOut)}");
+            }
+
+            reencode = true;
+        }
+
         var sb = new StringBuilder();
         sb.Append($"-hide_banner -y -fflags +igndts -ss {start} -to {end} -i \"{input}\" ");
 

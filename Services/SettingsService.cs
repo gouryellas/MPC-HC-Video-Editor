@@ -172,6 +172,21 @@ public class AppSettings
     public bool NormalizeAudio { get; set; }
 
     /// <summary>
+    /// How long a fade lasts when the Fade button puts one on a cut, in
+    /// seconds.
+    /// </summary>
+    /// <remarks>
+    /// The button applies this rather than asking, so a fade is one click on
+    /// however many cuts are checked. Half a second is short enough not to eat
+    /// a short clip and long enough to read as deliberate.
+    ///
+    /// A length, not an on/off: the fade itself lives on each bookmark, because
+    /// two cuts in one list can reasonably want different ones. This is only
+    /// what the button reaches for.
+    /// </remarks>
+    public double FadeSeconds { get; set; } = 0.5;
+
+    /// <summary>
     /// The British spelling this setting shipped under, read once so that an
     /// existing settings file keeps whatever the user had chosen.
     /// </summary>

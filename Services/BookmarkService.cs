@@ -82,6 +82,14 @@ public class BookmarkService
                 if (fields.Count > 6)
                     bookmark.IsMuted = fields[6] == "1";
 
+                if (fields.Count > 7 &&
+                    double.TryParse(fields[7], NumberStyles.Float, CultureInfo.InvariantCulture, out var fadeIn))
+                    bookmark.FadeInSeconds = fadeIn;
+
+                if (fields.Count > 8 &&
+                    double.TryParse(fields[8], NumberStyles.Float, CultureInfo.InvariantCulture, out var fadeOut))
+                    bookmark.FadeOutSeconds = fadeOut;
+
                 result.Add(bookmark);
                 continue;
             }
@@ -165,7 +173,10 @@ public class BookmarkService
             sb.Append(b.Speed.ToString("0.###", CultureInfo.InvariantCulture));
             sb.Append(b.IsFlipped ? ",1," : ",0,");
             sb.Append(b.Rotation);
-            sb.AppendLine(b.IsMuted ? ",1" : ",0");
+            sb.Append(b.IsMuted ? ",1," : ",0,");
+            sb.Append(b.FadeInSeconds.ToString("0.###", CultureInfo.InvariantCulture));
+            sb.Append(',');
+            sb.AppendLine(b.FadeOutSeconds.ToString("0.###", CultureInfo.InvariantCulture));
         }
 
         var dir = Path.GetDirectoryName(csvPath);

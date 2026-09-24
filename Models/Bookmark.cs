@@ -39,6 +39,8 @@ public class Bookmark : INotifyPropertyChanged
     private double _speed = 1.0;
     private Rotation _rotation;
     private bool _isMuted;
+    private double _fadeInSeconds;
+    private double _fadeOutSeconds;
     private string? _label;
 
     public int Index
@@ -194,6 +196,58 @@ public class Bookmark : INotifyPropertyChanged
     }
 
     /// <summary>
+    /// Seconds of fade up from black and silence at the start of this clip.
+    /// Zero for a hard start, which is the default.
+    /// </summary>
+    /// <remarks>
+    /// Stored in seconds of the clip as written, so a fade on a half-speed cut
+    /// lasts as long as it says it does rather than twice that.
+    ///
+    /// Not clamped against the clip's length here — a bookmark's times can move
+    /// after a fade is set, and a fade that quietly shrank when a cut was
+    /// shortened could not be restored by lengthening it again. The value is
+    /// capped where it is used, in <c>FFmpegService.CreateSegmentAsync</c>.
+    /// </remarks>
+    public double FadeInSeconds
+    {
+        get => _fadeInSeconds;
+        set
+        {
+            var clamped = Math.Max(0, value);
+            if (Math.Abs(_fadeInSeconds - clamped) < 1e-6) return;
+            _fadeInSeconds = clamped;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasFade));
+            OnPropertyChanged(nameof(FadeDisplay));
+            OnPropertyChanged(nameof(Prefix));
+            OnPropertyChanged(nameof(RowMarkers));
+        }
+    }
+
+    /// <inheritdoc cref="FadeInSeconds"/>
+    /// <summary>
+    /// Seconds of fade down to black and silence at the end of this clip.
+    /// </summary>
+    public double FadeOutSeconds
+    {
+        get => _fadeOutSeconds;
+        set
+        {
+            var clamped = Math.Max(0, value);
+            if (Math.Abs(_fadeOutSeconds - clamped) < 1e-6) return;
+            _fadeOutSeconds = clamped;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasFade));
+            OnPropertyChanged(nameof(FadeDisplay));
+            OnPropertyChanged(nameof(Prefix));
+            OnPropertyChanged(nameof(RowMarkers));
+        }
+    }
+
+    /// <summary>Whether either end of this clip fades.</summary>
+    public bool HasFade => FadeInSeconds > 0 || FadeOutSeconds > 0;
+
+    /// <summary>
     /// This clip's name — a chapter title, and something to tell twenty cuts
     /// apart by. Null or empty when the range is unnamed, which is the state
     /// the whole list is in while "use chapter names" is off.
@@ -310,16 +364,45 @@ public class Bookmark : INotifyPropertyChanged
     {
         get
         {
-            var parts = new List<string>(3);
+            var parts = new List<string>(4);
             if (IsFlipped) parts.Add("flipped");
             if (Rotation != Rotation.None) parts.Add(DescribeRotation(Rotation));
             if (IsMuted) parts.Add("muted");
+            if (HasFade) parts.Add(FadeDisplay);
             return string.Join(" · ", parts);
         }
     }
 
     /// <summary>Whether the clip will be silent.</summary>
     public string MuteDisplay => IsMuted ? "muted" : string.Empty;
+
+    /// <summary>
+    /// Which ends of the clip fade, and for how long. Named by end rather than
+    /// by number when both match, since "fades 1s" covers the common case in
+    /// fewer words than "fade in 1s · fade out 1s".
+    /// </summary>
+    public string FadeDisplay
+    {
+        get
+        {
+            if (!HasFade) return string.Empty;
+
+            var inLen = FormatFadeLength(FadeInSeconds);
+            var outLen = FormatFadeLength(FadeOutSeconds);
+
+            if (FadeInSeconds > 0 && FadeOutSeconds > 0)
+                return inLen == outLen ? $"fades {inLen}" : $"fade in {inLen} · fade out {outLen}";
+
+            return FadeInSeconds > 0 ? $"fade in {inLen}" : $"fade out {outLen}";
+        }
+    }
+
+    /// <summary>
+    /// A fade length. Fractions of a second are the normal case here, so this
+    /// is not <see cref="FormatDuration"/> — that rounds to whole seconds and
+    /// would report every fade shorter than half a second as "0s".
+    /// </summary>
+    private static string FormatFadeLength(double seconds) => $"{seconds:0.##}s";
 
     public static string DescribeRotation(Rotation rotation) => rotation switch
     {
@@ -377,12 +460,13 @@ public class Bookmark : INotifyPropertyChanged
     {
         get
         {
-            var parts = new List<string>(4);
+            var parts = new List<string>(5);
 
             if (IsFlipped) parts.Add("flipped");
             if (Rotation != Rotation.None) parts.Add(DescribeRotation(Rotation));
             if (IsMuted) parts.Add("muted");
             if (!Is(Speed, 1.0)) parts.Add(DescribeSpeed(Speed));
+            if (HasFade) parts.Add(FadeDisplay);
 
             return string.Join(" + ", parts);
         }

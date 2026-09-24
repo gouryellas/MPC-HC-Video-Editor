@@ -621,6 +621,8 @@
                         ToolTip="Turn the selected cuts a quarter further round — right, upside down, left, then back to normal"/>
                 <Button Content="🔇 Mute" Command="{Binding ToggleMuteCommand}"
                         ToolTip="Write the selected cuts without sound. The audio track stays in place carrying silence, so a merge of muted and unmuted cuts still joins cleanly."/>
+                <Button Content="◐ Fade" Command="{Binding ToggleFadeCommand}"
+                        ToolTip="Fade the selected cuts up at the start and down at the end, picture and sound together. Length is set under Settings ▸ Output; press again to take the fades off."/>
                 <Rectangle Width="12"/>
                 <!-- One button, not two. "Select All" and "None" sat side by
                      side and one of them was always the wrong one to want; this

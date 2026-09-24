@@ -381,6 +381,19 @@
 
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
+                                <TextBlock Text="Fades" Style="{StaticResource Heading}"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Length" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBox x:Name="FadeSecondsBox" Width="60"/>
+                                    <TextBlock Text="seconds" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="What the Fade button puts on a cut, at both ends, in picture and sound together. The button applies this rather than asking, so fading twenty checked cuts is one click. A fade is capped at half the clip it is on, so a short cut fades as far as it can rather than being refused."/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
                                 <TextBlock Text="When the output name already exists" Style="{StaticResource Heading}"/>
                                 <RadioButton x:Name="CollisionAsk" GroupName="Collision"
                                              Content="Ask each time"/>
