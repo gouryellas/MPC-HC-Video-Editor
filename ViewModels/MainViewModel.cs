@@ -1269,10 +1269,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private bool CanSelectAll() => HasActiveVideo && IsBookmarkFileLoaded && !HasNoBookmarks;
     private bool CanSelectNone() => HasActiveVideo && IsBookmarkFileLoaded && SelectedCount >= 1;
 
-    // Play needs something to sequence, so it wants two or more pairs. Split
-    // works on a single pair, and so does Merge — one cut is a trim.
-    private bool CanPlayAll() => HasActiveVideo && IsBookmarkFileLoaded && CompletePairCount > 1;
-    private bool CanPlaySelected() => CanPlayAll() && SelectedPairCount > 1;
+    // One cut is enough to play. These wanted two, on the reasoning that
+    // sequencing needs something to sequence — but playing a single cut is
+    // seeking to its start and stopping at its end, which is the most direct
+    // way there is to check that a cut is the piece you meant. Merge and Split
+    // already work on one, for the same reason.
+    private bool CanPlayAll() => HasActiveVideo && IsBookmarkFileLoaded && CompletePairCount >= 1;
+    private bool CanPlaySelected() => CanPlayAll() && SelectedPairCount >= 1;
     private bool CanMergeSelected() => HasActiveVideo && IsBookmarkFileLoaded && CompletePairCount >= 1;
     private bool CanSplitSelected() => HasActiveVideo && IsBookmarkFileLoaded && CompletePairCount >= 1;
 
