@@ -85,9 +85,18 @@
             </StackPanel>
         </Border>
 
+        <!-- Says what upgrading actually involves, and answers the question that
+             stops people doing it: replacing the folder looks like it throws
+             the settings away with it. It does not — every save is mirrored to
+             %APPDATA%, and a folder that arrives without a settings file
+             restores from that copy on its first run. -->
         <TextBlock Grid.Row="2" Foreground="{DynamicResource TextDim}" FontSize="12"
-                   TextWrapping="Wrap" Margin="0,0,0,14"
-                   Text="The releases page has the archive and the notes in full. This program does not update itself — download the new archive and replace your copy. Your settings live beside the executable and are not touched by the check."/>
+                   TextWrapping="Wrap" Margin="0,0,0,14">
+            <Run Text="The releases page has the archive and the notes in full. This program does not update itself — just replace the folder and all the files in it with the new version, and run it from there."/>
+            <LineBreak/><LineBreak/>
+            <Run Text="You will not lose your settings. They live beside the executable, and a copy of them is also kept in your AppData folder — so a new folder that arrives without a settings file restores that copy the first time it runs. Shortcuts, naming tags, folders and hotkeys all come back."
+                 Foreground="{DynamicResource ValueGreen}"/>
+        </TextBlock>
 
         <!-- The way out of this notice sits in the notice, rather than only in
              a Settings tab the user would have to go looking for. The second
