@@ -6366,19 +6366,27 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// How far one end of a cut may be nudged before it would touch a
+    /// How far one end of a cut may be nudged before it would run into a
     /// neighbouring cut.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Cuts do not overlap, so along the file the times run start, end, start,
-    /// end. Each timestamp is therefore fenced by the two beside it in that
-    /// run, a second clear of each:
+    /// Cuts may touch, so a neighbour's timestamp is a place a mark is allowed
+    /// to land on, not one it has to stop short of. Along the file the times run
+    /// start, end, start, end, and each is fenced by the two beside it in that
+    /// run:
     /// </para>
     /// <list type="bullet">
-    ///   <item>a start sits above the previous cut's end and below its own;</item>
-    ///   <item>an end sits above its own start and below the next cut's start.</item>
+    ///   <item>a start may reach the previous cut's end exactly, and stops a second below its own end;</item>
+    ///   <item>an end may reach the next cut's start exactly, and stops a second above its own start.</item>
     /// </list>
+    /// <para>
+    /// The second of clearance is only ever between the two ends of one cut,
+    /// which is the one pair of times that cannot meet: a cut has to be long
+    /// enough to be a cut. Against a neighbour there is no clearance at all,
+    /// because 1s–10s followed by 10s–20s is a legal pair and an arrow that
+    /// vanished at 11s would be refusing to let you build it.
+    /// </para>
     /// <para>
     /// An end is never measured against another end. Two ends are never
     /// adjacent — there is always a start between them — so the only end that
@@ -6391,19 +6399,20 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// written, so the row above is not reliably the cut before.
     /// </para>
     /// <para>
-    /// The video's length caps everything, and an unknown length lifts the cap
+    /// The video's length caps everything, less a second, so the last cut cannot
+    /// end on the final instant of the file. An unknown length lifts the cap
     /// rather than setting it to zero: the duration arrives a moment after the
     /// video does, and clamping to it before it is known would pin every
     /// timestamp to the start of the file. A start with no closing timestamp
     /// yet has only that cap above it — there is no end to stay behind, which
     /// is the whole state of an open bookmark.
     /// </para>
-    /// </remarks>
-    /// <remarks>
+    /// <para>
     /// Both bounds come back on a whole second — the floor rounded up, the
     /// ceiling rounded down — so a clamp against one can never leave a fraction
     /// behind. The video's length is the only fractional number in here, and
     /// a file 100.5 seconds long would otherwise cap an end at 99.5.
+    /// </para>
     /// </remarks>
     private (double Floor, double Ceiling) NudgeRange(Bookmark b, bool movingStart)
     {
@@ -6419,11 +6428,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             var previous = index > 0 ? ordered[index - 1] : null;
 
-            // Clear the whole of the cut before — its end, or its start when it
-            // is still open and has no end to clear.
+            // The cut before's own end, reachable exactly — or its start when it
+            // is still open, which is the whole of the instant it occupies.
             floor = previous is null
                 ? 0
-                : (previous.IsValid ? previous.EndSeconds : previous.StartSeconds) + NudgeGapSeconds;
+                : previous.IsValid ? previous.EndSeconds : previous.StartSeconds;
 
             ceiling = b.IsValid ? Math.Min(cap, b.EndSeconds - NudgeGapSeconds) : cap;
         }
@@ -6432,7 +6441,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             var next = index >= 0 && index < ordered.Count - 1 ? ordered[index + 1] : null;
 
             floor = b.StartSeconds + NudgeGapSeconds;
-            ceiling = next is null ? cap : Math.Min(cap, next.StartSeconds - NudgeGapSeconds);
+            ceiling = next is null ? cap : Math.Min(cap, next.StartSeconds);
         }
 
         // Ceiling(floor) and Floor(ceiling): rounding each bound inwards to a
