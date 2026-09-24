@@ -36,12 +36,17 @@ public partial class RenameFileDialog : Window
     /// <param name="suffix">Trailing bracket suffix, kept as-is.</param>
     /// <param name="extension">Extension including the dot, kept as-is.</param>
     /// <param name="reason">Why the rename is being asked for.</param>
+    /// <param name="directory">
+    /// Where the file is going. Shown under the name, because "saves as" only
+    /// answers half the question — and the half it leaves out is the one that
+    /// matters when output is going somewhere other than beside the video.
+    /// </param>
     /// <param name="offerApplyToAll">
     /// Show the "do this for all remaining files" option. Only meaningful when
     /// more than one file is being processed.
     /// </param>
     public RenameFileDialog(string originalName, string stem, string suffix, string extension,
-                            string reason, bool offerApplyToAll = false)
+                            string reason, string? directory = null, bool offerApplyToAll = false)
     {
         InitializeComponent();
 
@@ -51,6 +56,18 @@ public partial class RenameFileDialog : Window
 
         ReasonText.Text = reason;
         OriginalText.Text = originalName;
+
+        // Collapsed rather than blank when there is no folder to name, so the
+        // preview does not sit above an empty line.
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            FolderText.Visibility = System.Windows.Visibility.Collapsed;
+        }
+        else
+        {
+            FolderText.Text = $"in  {directory}";
+            FolderText.ToolTip = directory;
+        }
 
         ApplyToAllCheck.Visibility = offerApplyToAll
             ? System.Windows.Visibility.Visible

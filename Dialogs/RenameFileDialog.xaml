@@ -27,8 +27,22 @@
                  PreviewTextInput="NameBox_PreviewTextInput"
                  TextChanged="NameBox_TextChanged"/>
 
-        <TextBlock Grid.Row="3" x:Name="PreviewText" Foreground="{DynamicResource Accent}"
-                   TextWrapping="Wrap" Margin="0,8,0,0"/>
+        <!-- The name and the folder together, because either alone leaves the
+             question half answered: "saves as" without a folder does not say
+             where, and a run that writes into a quick-save folder rather than
+             beside the video is exactly when that matters.
+
+             One row holding both, so neither has to be renumbered to sit under
+             the other. -->
+        <StackPanel Grid.Row="3" Margin="0,8,0,0">
+            <TextBlock x:Name="PreviewText" Foreground="{DynamicResource Accent}"
+                       TextWrapping="Wrap"/>
+            <!-- Trimmed rather than wrapped: a deep path would otherwise take
+                 three lines and push the buttons off a fixed-width dialog. The
+                 whole path is on the tooltip. -->
+            <TextBlock x:Name="FolderText" Foreground="{DynamicResource TextSecondary}"
+                       FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,3,0,0"/>
+        </StackPanel>
 
         <TextBlock Grid.Row="4" x:Name="MessageText" Foreground="{DynamicResource ValueYellow}"
                    TextWrapping="Wrap" Margin="0,10,0,0" VerticalAlignment="Top"/>

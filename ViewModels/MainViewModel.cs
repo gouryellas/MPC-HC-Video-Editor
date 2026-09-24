@@ -2725,6 +2725,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             var dlg = new ConflictDialog(Path.GetFileName(candidate),
                                          Path.GetFileName(NextFreeName(candidate)),
+                                         Path.GetDirectoryName(candidate),
                                          offerApplyToAll: _batchRemaining > 1)
             { Owner = DialogOwner };
 
@@ -2849,6 +2850,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 Path.GetFileName(candidate), stem, suffix, ext,
                 "This output filename contains characters that are not allowed. " +
                 "Enter a name to save it as.",
+                Path.GetDirectoryName(candidate),
                 offerApplyToAll: _batchRemaining > 1)
             { Owner = DialogOwner };
 

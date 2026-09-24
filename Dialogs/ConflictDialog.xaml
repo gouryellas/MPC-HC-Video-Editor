@@ -15,8 +15,17 @@
         </Grid.RowDefinitions>
 
         <TextBlock Text="This file already exists:" Foreground="{DynamicResource TextDim}" Margin="0,0,0,8"/>
-        <TextBlock Grid.Row="1" x:Name="FileNameText" Foreground="{DynamicResource StatusError}" FontWeight="SemiBold"
-                   TextWrapping="Wrap" Margin="0,0,0,16"/>
+        <!-- The name, then the folder it is already in. "This file exists" is
+             not a complete statement without saying where — and Overwrite is
+             about to replace whatever is sitting there. -->
+        <StackPanel Grid.Row="1" Margin="0,0,0,16">
+            <TextBlock x:Name="FileNameText" Foreground="{DynamicResource StatusError}" FontWeight="SemiBold"
+                       TextWrapping="Wrap"/>
+            <!-- Trimmed, not wrapped: a deep path would take three lines in a
+                 480-wide dialog. The whole path is on the tooltip. -->
+            <TextBlock x:Name="FolderText" Foreground="{DynamicResource TextSecondary}"
+                       FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,3,0,0"/>
+        </StackPanel>
 
         <TextBlock Grid.Row="2" x:Name="IncrementHint" Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap"
                    FontStyle="Italic" VerticalAlignment="Top"/>
