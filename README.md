@@ -75,10 +75,13 @@ close it. An open bookmark shows as *incomplete* until it has an end time.
   again.
 - A first timestamp at 0 is nudged to the first second — the player reports 0
   before playback has really begun, and ffmpeg's seek at 0 is unreliable.
-- **Cuts may overlap.** Two of them over the same footage is allowed and
-  sometimes the point — the same moment kept twice at different speeds, or a
-  short version of a long take. The frame arrows on each row are held apart only
-  by the other end of their own cut and by the length of the video.
+- **Cuts may touch but not overlap.** `1:00 – 10:00` followed by `10:00 – 20:00`
+  is fine: the second begins exactly where the first ended, and nothing is in
+  both. `1:00 – 10:00` alongside `5:00 – 15:00` is refused — they share five
+  minutes, so both clips would carry it and a merge would play it twice. The
+  refusal is the same wherever the times come from: the hotkey, a typed range, or
+  a scan appended to an existing list. The frame arrows on each row stop a second
+  clear of the neighbouring cut for the same reason.
 - **Undo last bookmark** removes the last *single timestamp*, not the pair: a
   closed bookmark loses only its end time and reopens; a lone start time is
   dropped. If that empties the file, the CSV goes too.
