@@ -4,7 +4,7 @@ Marking fixes. A timestamp that cannot be used is refused rather than added,
 the refusal is said over the player instead of into a status bar you cannot
 see, and playback no longer waits for a second cut.
 
-## Marks go forwards
+## Timestamps can only be set after your last mark
 
 A new cut has to open at or after the latest time already marked. Anything
 behind that is refused and nothing is added.
@@ -27,7 +27,7 @@ where the last one ended.
 A scan is the exception, since it proposes the whole file at once. To re-cut an
 earlier stretch, delete the cuts after it or scan with **replace**.
 
-## Refusals are shown over the player
+## A refused timestamp now says why, over the video
 
 Every refused press now floats a notice above whatever is on screen, for four
 and a half seconds, naming the time it refused and the time it wanted:
@@ -50,7 +50,7 @@ noticed; a sentence with two times in it has to be read.
 
 Confirmations are unchanged and still respect the setting.
 
-## Playing one cut
+## Play works with a single cut marked
 
 **Play all cuts** and **Play selected cuts** wanted two complete pairs before
 they would turn on. One cut is when playback is most useful — seek to its
@@ -58,13 +58,13 @@ start, stop at its end, and see whether it is the piece you meant, which is
 what you want immediately after marking your first one. Merge and Split have
 always worked on a single pair.
 
-## Smaller things
+## The WebP export says which viewers can open it
 
-- the animated WebP option says which tools cannot play one. The export is
-  sound — a file a desktop image viewer calls unreadable decodes frame for
-  frame in any browser — but plenty of viewers handle only still WebP and
-  report the file as broken rather than as unsupported, and GIF working in the
-  same viewer makes that look like our fault
+The export is sound — a file a desktop image viewer calls unreadable decodes
+frame for frame in any browser — but plenty of viewers handle only still WebP
+and report an animated one as broken rather than as unsupported. GIF working in
+the same viewer makes that look like our fault, so the option now says which
+tools cannot play one.
 
 ## Requirements
 
