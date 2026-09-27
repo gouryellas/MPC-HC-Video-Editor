@@ -1784,8 +1784,30 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var (current, durationFromPlayer) = _cachedPlaybackPosition;
         if (current > 0 || Session.CurrentTimeSeconds == 0)
             Session.CurrentTimeSeconds = current;
-        if (Session.VideoDurationSeconds <= 0 && durationFromPlayer > 0)
+
+        // The player's length wins over ffprobe's, rather than only filling in
+        // for it.
+        //
+        // ffprobe reports what the container claims, and a file can claim
+        // wrongly: one seen here ends its last video packet at 3:15 while
+        // holding 5228 frames, which at its own declared 25fps is 3:29, and
+        // MPC-HC plays it as 3:26. No number there is a typo — the timestamps
+        // and the frame count disagree with each other, and every tool picks a
+        // different one to believe.
+        //
+        // Which is "right" does not matter here. Every mark in this program is
+        // read off MPC-HC's clock, so a timeline that ends before the player's
+        // does makes the last stretch of the video impossible to mark and puts
+        // every position on the bar in the wrong place. The bar has to measure
+        // the same thing the timestamps do.
+        //
+        // A second of tolerance, because the two agree to the frame on a normal
+        // file and this must not rewrite the value on every tick.
+        if (durationFromPlayer > 0 &&
+            Math.Abs(durationFromPlayer - Session.VideoDurationSeconds) > 1)
+        {
             Session.VideoDurationSeconds = durationFromPlayer;
+        }
 
         CurrentTimeDisplay = Bookmark.FormatTime(Session.CurrentTimeSeconds);
         DurationDisplay = Bookmark.FormatTime(Session.VideoDurationSeconds);
