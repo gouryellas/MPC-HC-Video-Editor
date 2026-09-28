@@ -37,6 +37,8 @@
         <helpers:RotationToAngleConverter x:Key="RotationToAngle"/>
         <helpers:BoolToFlipScaleConverter x:Key="FlipScale"/>
         <helpers:PositiveToVisibilityConverter x:Key="PositiveToVis"/>
+        <helpers:SpeedToBadgeConverter x:Key="SpeedBadge"/>
+        <helpers:AlteredSpeedToVisibilityConverter x:Key="AlteredSpeedToVis"/>
 
         <!-- The preview frames are shown as the clip will be written, not as
              the file holds it: turned the way Rotate is set, mirrored if Flip
@@ -58,6 +60,34 @@
                         <RotateTransform Angle="{Binding PreviewedBookmark.Rotation,
                                                  Converter={StaticResource RotationToAngle}}"/>
                     </TransformGroup>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- The clip's speed, in the opposite corner to the mute badge so both
+             can show at once. Nothing at all at normal speed: that is the
+             absence of a setting, and a "1x" on most clips would be a label for
+             the thing not happening.
+
+             The text colour is fixed rather than themed. It sits on a dark pill
+             that is the same in all five themes, so a theme's own foreground —
+             near-black in the light ones — would be unreadable on it. -->
+        <Style TargetType="ContentControl" x:Key="PreviewSpeedBadge">
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+            <Setter Property="VerticalAlignment" Value="Top"/>
+            <Setter Property="Margin" Value="3,3,0,0"/>
+            <Setter Property="IsHitTestVisible" Value="False"/>
+            <Setter Property="ToolTip" Value="{Binding PreviewedBookmark.SpeedDisplay}"/>
+            <Setter Property="Visibility"
+                    Value="{Binding PreviewedBookmark.Speed, Converter={StaticResource AlteredSpeedToVis}}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContentControl">
+                        <Border Background="#CC000000" CornerRadius="3" Padding="4,1">
+                            <TextBlock Text="{Binding PreviewedBookmark.Speed, Converter={StaticResource SpeedBadge}}"
+                                       FontSize="10" FontWeight="SemiBold" Foreground="#F2F2F2"/>
+                        </Border>
+                    </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
@@ -1248,6 +1278,7 @@
                                                     </LinearGradientBrush>
                                                 </Rectangle.Fill>
                                             </Rectangle>
+                                            <ContentControl Style="{StaticResource PreviewSpeedBadge}"/>
                                             <ContentControl Style="{StaticResource PreviewMuteBadge}"/>
                                         </Grid>
                                     </Border>
@@ -1275,6 +1306,7 @@
                                                     </LinearGradientBrush>
                                                 </Rectangle.Fill>
                                             </Rectangle>
+                                            <ContentControl Style="{StaticResource PreviewSpeedBadge}"/>
                                             <ContentControl Style="{StaticResource PreviewMuteBadge}"/>
                                         </Grid>
                                     </Border>
