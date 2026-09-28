@@ -215,6 +215,88 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Progress state for the panel above the status bar.</summary>
     public JobProgress Job { get; } = new();
 
+    /// <summary>
+    /// The action toolbar, in the order it is drawn. Reordered by dragging a
+    /// button onto another; see <see cref="SaveToolbarOrder"/>.
+    /// </summary>
+    public ObservableCollection<ToolbarItem> ToolbarItems { get; } = new();
+
+    /// <summary>
+    /// Builds the toolbar: the buttons the program ships with, put into
+    /// whatever order the settings file remembers.
+    /// </summary>
+    /// <remarks>
+    /// The defaults are the source of truth for what a button <em>is</em> — its
+    /// label, command and colour — and the saved list only says where each one
+    /// goes. So a button whose tooltip or style changes in a later release
+    /// picks that up even for someone who rearranged the row, and a saved key
+    /// that no longer matches anything is dropped rather than leaving a hole.
+    /// </remarks>
+    private void BuildToolbar()
+    {
+        var defaults = new List<ToolbarItem>
+        {
+            new() { Key = "set-timestamp", Label = "📍 Set timestamp", Command = SetTimestampCommand,
+                    ToolTip = "Set a timestamp at the current MPC-HC position" },
+            new() { Key = "save-frame", Label = "📷", Command = SaveCurrentFrameCommand, Width = 36,
+                    ToolTip = "Save the frame MPC-HC is showing as a PNG, full size, next to the other output" },
+            new() { Key = "delete", Label = "🗑", Command = DeleteSelectedCommand, Width = 36,
+                    ToolTip = "Remove the checked timestamps from the list and the bookmark file. With nothing checked it removes the highlighted row." },
+            new() { Key = "flip", Label = "↕ Flip", Command = ToggleFlipCommand,
+                    ToolTip = "Flip the checked cuts upside down. With nothing checked it flips the highlighted row." },
+            new() { Key = "rotate", Label = "⟳ Rotate", Command = RotateSelectedCommand,
+                    ToolTip = "Turn the checked cuts a quarter further round — right, upside down, left, then back to normal. With nothing checked it turns the highlighted row." },
+            new() { Key = "mute", Label = "🔇 Mute", Command = ToggleMuteCommand,
+                    ToolTip = "Write the checked cuts without sound. With nothing checked it mutes the highlighted row. The audio track stays in place carrying silence, so a merge of muted and unmuted cuts still joins cleanly." },
+            new() { Key = "fade", Label = "◐ Fade", Command = ToggleFadeCommand,
+                    ToolTip = "Fade the checked cuts up at the start and down at the end, picture and sound together. With nothing checked it fades the highlighted row. Length is set under Settings ▸ Output; press again to take the fades off." },
+
+            new() { Key = "gap-1", IsSpacer = true },
+
+            new() { Key = "select-all", Label = SelectAllButtonLabel, Command = ToggleSelectAllCommand,
+                    MinWidth = 104,
+                    ToolTip = "Check every cut, or clear them all. Follows the list: it offers to clear once everything is checked, and to select once nothing is." },
+
+            new() { Key = "gap-2", IsSpacer = true },
+
+            new() { Key = "merge", Label = "🎬 Merge", Command = MergeSelectedCommand, StyleKey = "MergeButton" },
+            new() { Key = "split", Label = "✂ Split", Command = SplitSelectedCommand, StyleKey = "SplitButton" },
+            new() { Key = "convert", Label = "🔄 Convert video", Command = ConvertFilesCommand, StyleKey = "ConvertButton" },
+            new() { Key = "strip-audio", Label = "🔊 Strip audio", Command = StripAudioCommand, StyleKey = "AudioButton",
+                    ToolTip = "Pulls the sound out of files you pick: an MP3 of the audio, a silent copy of the video, or both. The file you pick is not changed." },
+        };
+
+        ToolbarItems.Clear();
+
+        // Saved order first, skipping anything that no longer exists, then
+        // whatever the saved order has not mentioned — which is how a button
+        // added since the order was written still turns up.
+        foreach (var key in _settings.Current.ToolbarOrder)
+            if (defaults.FirstOrDefault(d => d.Key == key) is { } known)
+                ToolbarItems.Add(known);
+
+        foreach (var item in defaults)
+            if (!ToolbarItems.Contains(item))
+                ToolbarItems.Add(item);
+    }
+
+    /// <summary>Writes the current toolbar order to settings.</summary>
+    public void SaveToolbarOrder()
+    {
+        _settings.Current.ToolbarOrder = ToolbarItems.Select(i => i.Key).ToList();
+        _settings.Save();
+    }
+
+    /// <summary>Puts the toolbar back the way the program ships it.</summary>
+    [RelayCommand]
+    private void ResetToolbarOrder()
+    {
+        _settings.Current.ToolbarOrder = new List<string>();
+        _settings.Save();
+        BuildToolbar();
+        StatusText = "Toolbar back in its original order";
+    }
+
     /// <summary>Drives the minimal overlay's "(no bookmarks yet)" line.</summary>
     public bool HasNoBookmarks => Session.Bookmarks.Count == 0;
 
@@ -740,6 +822,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         PlaylistsChanged += RefreshPlaylistState;
         RefreshPlaylistState();
         RefreshCommandStates();
+
+        // After the commands exist — every button in it holds one.
+        BuildToolbar();
 
         // Last, so the opening state is the baseline rather than something
         // half-built: everything above this line is setup, not an edit.
@@ -2394,6 +2479,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (clears == _selectionButtonClears) return;
         _selectionButtonClears = clears;
         OnPropertyChanged(nameof(SelectAllButtonLabel));
+
+        // The toolbar is data, so this caption has to be written into the item
+        // rather than picked up from a binding on a button that no longer
+        // exists in the markup.
+        if (ToolbarItems.FirstOrDefault(i => i.Key == "select-all") is { } button)
+            button.Label = SelectAllButtonLabel;
     }
 
     /// <summary>

@@ -362,6 +362,19 @@ public class AppSettings
     public string QuickSaveFolder { get; set; } = "";
     public string PlaylistFolder { get; set; } = "";
     public List<string> RecentVideos { get; set; } = new();
+
+    /// <summary>
+    /// The order of the action toolbar, as <see cref="Models.ToolbarItem.Key"/>
+    /// values. Empty means the order the program ships with.
+    /// </summary>
+    /// <remarks>
+    /// Keys rather than indexes, so the saved order survives a release that
+    /// adds or removes a button. A key that no longer exists is ignored, and a
+    /// button the saved order has never heard of is appended — which is what
+    /// makes a new button appear for someone who rearranged their toolbar two
+    /// versions ago instead of silently going missing.
+    /// </remarks>
+    public List<string> ToolbarOrder { get; set; } = new();
     public string? KeyboardHotkey { get; set; } // e.g. "F8"
     public bool MiddleMouseHotkeyEnabled { get; set; } = true;
     /// <summary>

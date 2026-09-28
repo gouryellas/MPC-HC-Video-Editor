@@ -35,6 +35,9 @@
         <helpers:InverseBoolToVisibilityConverter x:Key="NotBoolToVis"/>
         <helpers:ProgressToBrushConverter x:Key="ProgressBrush"/>
         <helpers:RotationToAngleConverter x:Key="RotationToAngle"/>
+        <helpers:ResourceKeyToStyleConverter x:Key="StyleByKey"/>
+        <helpers:PositiveToWidthConverter x:Key="WidthOrAuto"/>
+        <helpers:DragOpacityConverter x:Key="DragOpacity"/>
         <helpers:BoolToFlipScaleConverter x:Key="FlipScale"/>
         <helpers:PositiveToVisibilityConverter x:Key="PositiveToVis"/>
         <helpers:SpeedToBadgeConverter x:Key="SpeedBadge"/>
@@ -148,6 +151,34 @@
         </Style>
 
         <Style TargetType="Button" BasedOn="{StaticResource DarkButton}"/>
+
+        <!-- The four buttons that write files. Their colours do not follow the
+             theme — you learn where Merge is once — and their labels are white
+             in all five, which the light themes need and the dark ones do not
+             mind. Styles rather than properties on each button, because the
+             toolbar is built from data now and the DynamicResource references
+             have to live somewhere that still tracks a theme change. -->
+        <Style x:Key="MergeButton" TargetType="Button" BasedOn="{StaticResource DarkButton}">
+            <Setter Property="Background" Value="{DynamicResource MergeBackground}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource MergeBorder}"/>
+            <Setter Property="Foreground" Value="{DynamicResource OnOperation}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style x:Key="SplitButton" TargetType="Button" BasedOn="{StaticResource DarkButton}">
+            <Setter Property="Background" Value="{DynamicResource SplitBackground}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SplitBorder}"/>
+            <Setter Property="Foreground" Value="{DynamicResource OnOperation}"/>
+        </Style>
+        <Style x:Key="ConvertButton" TargetType="Button" BasedOn="{StaticResource DarkButton}">
+            <Setter Property="Background" Value="{DynamicResource ConvertBackground}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ConvertBorder}"/>
+            <Setter Property="Foreground" Value="{DynamicResource OnOperation}"/>
+        </Style>
+        <Style x:Key="AudioButton" TargetType="Button" BasedOn="{StaticResource DarkButton}">
+            <Setter Property="Background" Value="{DynamicResource AudioBackground}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AudioBorder}"/>
+            <Setter Property="Foreground" Value="{DynamicResource OnOperation}"/>
+        </Style>
 
         <!-- The menu strip keeps system-like chrome rather than following the
              app's canvas, so its two colors are their own palette roles. -->
@@ -588,6 +619,12 @@
                 <Separator x:Name="SuffixListEndSeparator"/>
                 <MenuItem Header="Add new naming tag…" Command="{Binding AddSuffixCommand}"/>
                 <MenuItem Header="Manage naming tags…" Command="{Binding ManageSuffixesCommand}"/>
+                <Separator/>
+                <!-- The way back from a rearranged toolbar. Dragging is
+                     discoverable by accident; undoing it is not, so it needs a
+                     line somewhere that can be found on purpose. -->
+                <MenuItem Header="Reset toolbar order" Command="{Binding ResetToolbarOrderCommand}"
+                          ToolTip="Put the buttons across the top back in the order the program ships with. Drag a button onto another to rearrange them."/>
             </MenuItem>
             <MenuItem Header="&#128421; View">
                 <MenuItem Header="Bring MPC-HC to front" Command="{Binding BringMpcToFrontCommand}"/>
@@ -707,67 +744,45 @@
                  row actually measures. The wrap is still the safety net — for a
                  display too narrow to hold the row at all, and for the moment
                  during startup before the first measurement. -->
-            <WrapPanel x:Name="ActionToolbar" Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
-                <Button Content="📍 Set timestamp" Command="{Binding SetTimestampCommand}" ToolTip="Set a timestamp at the current MPC-HC position"/>
-                <!-- Beside Set timestamp because it acts on the same thing: the
-                     frame the player is sitting on right now. -->
-                <Button Content="📷" Command="{Binding SaveCurrentFrameCommand}" Width="36"
-                        ToolTip="Save the frame MPC-HC is showing as a PNG, full size, next to the other output"/>
-                <Button Content="🗑" Command="{Binding DeleteSelectedCommand}" Width="36" ToolTip="Remove the checked timestamps from the list and the bookmark file. With nothing checked it removes the highlighted row."/>
-                <Button Content="↕ Flip" Command="{Binding ToggleFlipCommand}" ToolTip="Flip the checked cuts upside down. With nothing checked it flips the highlighted row."/>
-                <!-- Cycles rather than toggles: one button reaching four states
-                     beats three buttons, and the order matches the way someone
-                     correcting sideways footage would try them. -->
-                <Button Content="⟳ Rotate" Command="{Binding RotateSelectedCommand}"
-                        ToolTip="Turn the checked cuts a quarter further round — right, upside down, left, then back to normal. With nothing checked it turns the highlighted row."/>
-                <Button Content="🔇 Mute" Command="{Binding ToggleMuteCommand}"
-                        ToolTip="Write the checked cuts without sound. With nothing checked it mutes the highlighted row. The audio track stays in place carrying silence, so a merge of muted and unmuted cuts still joins cleanly."/>
-                <Button Content="◐ Fade" Command="{Binding ToggleFadeCommand}"
-                        ToolTip="Fade the checked cuts up at the start and down at the end, picture and sound together. With nothing checked it fades the highlighted row. Length is set under Settings ▸ Output; press again to take the fades off."/>
-                <Rectangle Width="12"/>
-                <!-- One button, not two. "Select All" and "None" sat side by
-                     side and one of them was always the wrong one to want; this
-                     offers whichever is worth doing from where the list already
-                     is. MinWidth so the toolbar does not shuffle along by a few
-                     pixels every time the caption changes. -->
-                <Button Content="{Binding SelectAllButtonLabel}" MinWidth="104"
-                        Command="{Binding ToggleSelectAllCommand}"
-                        ToolTip="Check every cut, or clear them all. Follows the list: it offers to clear once everything is checked, and to select once nothing is."/>
-                <Rectangle Width="12"/>
-                <!-- Bulk merge sits next to Merge; the rest keep their order.
-                     None of these set an explicit Width — the button style
-                     pads around the content, so each one is as wide as its
-                     text needs. A fixed width was clipping "Convert video". -->
-                <!-- MergeBackground, not PrimaryButton. It is an operation
-                     button like the three after it and keeps its color in every
-                     theme; PrimaryButton is "the button that commits this
-                     dialog", which follows the theme and belongs to the OK
-                     buttons. Borrowing it also meant Merge was amber in the
-                     default theme, a shade off the olive of Strip audio. -->
-                <!-- Each one states its Foreground. Without it they fall back to
-                     the button style's TextPrimary, which is near-white in a
-                     dark theme and near-black in a light one — so on Daylight
-                     and Parchment these four were dark labels on dark buttons.
-                     OnOperation is white and does not move with the theme, the
-                     same as the backgrounds underneath it. -->
-                <Button Content="🎬 Merge" Command="{Binding MergeSelectedCommand}"
-                        Background="{DynamicResource MergeBackground}" BorderBrush="{DynamicResource MergeBorder}"
-                        Foreground="{DynamicResource OnOperation}" FontWeight="SemiBold"/>
-                <Button Content="✂ Split" Command="{Binding SplitSelectedCommand}"
-                        Background="{DynamicResource SplitBackground}" BorderBrush="{DynamicResource SplitBorder}"
-                        Foreground="{DynamicResource OnOperation}"/>
-                <Button Content="🔄 Convert video" Command="{Binding ConvertFilesCommand}"
-                        Background="{DynamicResource ConvertBackground}" BorderBrush="{DynamicResource ConvertBorder}"
-                        Foreground="{DynamicResource OnOperation}"/>
-                <Button Content="🔊 Strip audio" Command="{Binding StripAudioCommand}"
-                        Background="{DynamicResource AudioBackground}" BorderBrush="{DynamicResource AudioBorder}"
-                        Foreground="{DynamicResource OnOperation}"
-                        ToolTip="Pulls the sound out of files you pick: an MP3 of the audio, a silent copy of the video, or both. The file you pick is not changed."/>
-                <!-- "Edit bookmarks" is the pencil beside CURRENT BOOKMARKS in
-                     the right panel now, next to the file it opens. "Enter
-                     time" keeps its Actions menu entry; neither was earning a
-                     button across the top. -->
-            </WrapPanel>
+            <!-- Built from MainViewModel.ToolbarItems rather than written out
+                 here, so the row can be reordered by dragging and the order
+                 saved. WrapPanel as the items panel, for the same reason it was
+                 one before: a horizontal StackPanel lays out past the right
+                 edge and cuts off the last buttons instead of wrapping.
+
+                 Named so the window can still take its minimum width from what
+                 this row measures. -->
+            <ItemsControl x:Name="ActionToolbar" Grid.Row="0" Margin="0,0,0,10"
+                          ItemsSource="{Binding ToolbarItems}"
+                          PreviewMouseLeftButtonDown="Toolbar_MouseDown"
+                          PreviewMouseMove="Toolbar_MouseMove">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Grid>
+                            <!-- The gaps between groups. Draggable like
+                                 everything else: they are what makes the groups
+                                 visible, so they have to be able to follow the
+                                 buttons they separate. -->
+                            <Rectangle Width="12" Height="4"
+                                       Visibility="{Binding IsSpacer, Converter={StaticResource BoolToVis}}"/>
+
+                            <Button Visibility="{Binding IsSpacer, Converter={StaticResource NotBoolToVis}}"
+                                    Content="{Binding Label}"
+                                    Command="{Binding Command}"
+                                    ToolTip="{Binding ToolTip}"
+                                    Width="{Binding Width, Converter={StaticResource WidthOrAuto}}"
+                                    MinWidth="{Binding MinWidth}"
+                                    Style="{Binding StyleKey, Converter={StaticResource StyleByKey}}"
+                                    Opacity="{Binding IsDragging, Converter={StaticResource DragOpacity}}"/>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
 
             <!-- Timeline, in two lanes: the bookmark marks in a strip of their
                  own on top, the playback position owning the bar underneath.

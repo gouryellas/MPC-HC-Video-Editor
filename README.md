@@ -123,6 +123,11 @@ video, and an empty one is never created.
 
 ## Actions
 
+**The toolbar can be rearranged.** Drag a button onto another and the row
+reorders under the pointer; let go and the order is saved. A press that does not
+move is still a click, so the buttons work as they always did, and a drag never
+fires the command it lands on. **Options ▸ Reset toolbar order** puts it back.
+
 Output filenames use the active **naming tag** (see Options), e.g.
 `vacation.mp4` → `vacation[done].mp4`. Choosing **None** under Options writes
 `vacation.mp4` unchanged instead.

@@ -18,6 +18,115 @@ public partial class MainWindow : Window
 {
     private MainViewModel? _vm;
 
+    // ------------------------------------------------------------------
+    // Rearranging the toolbar
+    // ------------------------------------------------------------------
+
+    /// <summary>Where the left button went down, to measure a drag against.</summary>
+    private Point _toolbarPressPoint;
+
+    /// <summary>The item under the pointer when it went down, if any.</summary>
+    private ToolbarItem? _toolbarPressed;
+
+    /// <summary>The item being carried, once a press has become a drag.</summary>
+    private ToolbarItem? _toolbarDragging;
+
+    /// <summary>
+    /// Notes which button a press landed on, without doing anything about it
+    /// yet.
+    /// </summary>
+    /// <remarks>
+    /// Every one of these is a click target, so a press cannot start a drag on
+    /// its own — that would make Merge impossible to press. The drag only
+    /// begins once the pointer has also moved, in
+    /// <see cref="Toolbar_MouseMove"/>.
+    /// </remarks>
+    private void Toolbar_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _toolbarPressPoint = e.GetPosition(this);
+        _toolbarPressed = ItemUnder(e.OriginalSource as DependencyObject);
+    }
+
+    /// <summary>
+    /// Turns a press that has travelled far enough into a drag, and reorders
+    /// the row live while it is held.
+    /// </summary>
+    /// <remarks>
+    /// The row rearranges under the pointer rather than showing an insertion
+    /// line: the feedback is the thing itself, and there is no adorner to keep
+    /// in step with a WrapPanel that may have wrapped to a second row.
+    ///
+    /// <see cref="SystemParameters.MinimumHorizontalDragDistance"/> is the
+    /// threshold Windows uses everywhere else, so a press that wobbles by a
+    /// pixel is still a click here as it is in File Explorer.
+    /// </remarks>
+    private void Toolbar_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || _vm is null) return;
+        if (_toolbarPressed is null) return;
+
+        var at = e.GetPosition(this);
+
+        if (_toolbarDragging is null)
+        {
+            if (Math.Abs(at.X - _toolbarPressPoint.X) < SystemParameters.MinimumHorizontalDragDistance &&
+                Math.Abs(at.Y - _toolbarPressPoint.Y) < SystemParameters.MinimumVerticalDragDistance)
+                return;
+
+            _toolbarDragging = _toolbarPressed;
+            _toolbarDragging.IsDragging = true;
+            ActionToolbar.CaptureMouse();
+        }
+
+        // Where the pointer is now, in the row's own terms.
+        var over = ItemUnder(ActionToolbar.InputHitTest(e.GetPosition(ActionToolbar)) as DependencyObject);
+        if (over is null || ReferenceEquals(over, _toolbarDragging)) return;
+
+        var from = _vm.ToolbarItems.IndexOf(_toolbarDragging);
+        var to = _vm.ToolbarItems.IndexOf(over);
+        if (from < 0 || to < 0) return;
+
+        _vm.ToolbarItems.Move(from, to);
+    }
+
+    /// <summary>
+    /// Ends a drag, saves the order, and swallows the click that would
+    /// otherwise follow.
+    /// </summary>
+    /// <remarks>
+    /// Handled on the window rather than the toolbar: a drag that ends with the
+    /// pointer off the row still has to finish, and the mouse is captured here
+    /// anyway. Marking the event handled is what stops the button underneath
+    /// from firing its command at the end of a drag — dropping Split onto Merge
+    /// must not also run a merge.
+    /// </remarks>
+    protected override void OnPreviewMouseLeftButtonUp(MouseButtonEventArgs e)
+    {
+        if (_toolbarDragging is not null)
+        {
+            _toolbarDragging.IsDragging = false;
+            _toolbarDragging = null;
+            ActionToolbar.ReleaseMouseCapture();
+            _vm?.SaveToolbarOrder();
+            e.Handled = true;
+        }
+
+        _toolbarPressed = null;
+        base.OnPreviewMouseLeftButtonUp(e);
+    }
+
+    /// <summary>The toolbar item behind a hit-tested element, or null.</summary>
+    private static ToolbarItem? ItemUnder(DependencyObject? source)
+    {
+        while (source is not null)
+        {
+            if (source is FrameworkElement { DataContext: ToolbarItem item }) return item;
+            source = VisualTreeHelper.GetParent(source);
+        }
+
+        return null;
+    }
+
     public MainWindow()
     {
         InitializeComponent();
@@ -93,9 +202,13 @@ public partial class MainWindow : Window
 
         if (ActionToolbar is { ActualWidth: > 0 })
         {
+            // The buttons are generated now, so they are reached through the
+            // container the ItemsControl made for each one rather than off a
+            // panel written in the markup.
             double row = 0;
-            foreach (UIElement child in ActionToolbar.Children)
-                row += child.DesiredSize.Width;
+            for (var i = 0; i < ActionToolbar.Items.Count; i++)
+                if (ActionToolbar.ItemContainerGenerator.ContainerFromIndex(i) is UIElement child)
+                    row += child.DesiredSize.Width;
 
             // Everything horizontal that is not the toolbar itself: the window
             // border, and the padding of everything it sits inside.
