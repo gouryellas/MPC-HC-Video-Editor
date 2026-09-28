@@ -707,16 +707,16 @@
                 <Button Content="📷" Command="{Binding SaveCurrentFrameCommand}" Width="36"
                         ToolTip="Save the frame MPC-HC is showing as a PNG, full size, next to the other output"/>
                 <Button Content="🗑" Command="{Binding DeleteSelectedCommand}" Width="36" ToolTip="Delete selected"/>
-                <Button Content="↕ Flip" Command="{Binding ToggleFlipCommand}" ToolTip="Toggle vertical flip"/>
+                <Button Content="↕ Flip" Command="{Binding ToggleFlipCommand}" ToolTip="Flip the checked cuts upside down. With nothing checked it flips the highlighted row."/>
                 <!-- Cycles rather than toggles: one button reaching four states
                      beats three buttons, and the order matches the way someone
                      correcting sideways footage would try them. -->
                 <Button Content="⟳ Rotate" Command="{Binding RotateSelectedCommand}"
-                        ToolTip="Turn the selected cuts a quarter further round — right, upside down, left, then back to normal"/>
+                        ToolTip="Turn the checked cuts a quarter further round — right, upside down, left, then back to normal. With nothing checked it turns the highlighted row."/>
                 <Button Content="🔇 Mute" Command="{Binding ToggleMuteCommand}"
-                        ToolTip="Write the selected cuts without sound. The audio track stays in place carrying silence, so a merge of muted and unmuted cuts still joins cleanly."/>
+                        ToolTip="Write the checked cuts without sound. With nothing checked it mutes the highlighted row. The audio track stays in place carrying silence, so a merge of muted and unmuted cuts still joins cleanly."/>
                 <Button Content="◐ Fade" Command="{Binding ToggleFadeCommand}"
-                        ToolTip="Fade the selected cuts up at the start and down at the end, picture and sound together. Length is set under Settings ▸ Output; press again to take the fades off."/>
+                        ToolTip="Fade the checked cuts up at the start and down at the end, picture and sound together. With nothing checked it fades the highlighted row. Length is set under Settings ▸ Output; press again to take the fades off."/>
                 <Rectangle Width="12"/>
                 <!-- One button, not two. "Select All" and "None" sat side by
                      side and one of them was always the wrong one to want; this

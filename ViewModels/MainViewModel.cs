@@ -942,7 +942,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
             : Session.Bookmarks.FirstOrDefault(b => b.IsValid);
 
     /// <summary>Re-renders when a different clip is selected.</summary>
-    partial void OnSelectedBookmarkChanged(Bookmark? value) => RefreshClipPreview();
+    /// <summary>
+    /// Re-renders when a different clip is highlighted, and re-asks the
+    /// commands that can act on it.
+    /// </summary>
+    /// <remarks>
+    /// The command refresh is what lets Flip, Rotate, Mute and Fade come alive
+    /// on a row that has merely been clicked. Their predicate reads
+    /// <see cref="SelectedBookmark"/>, and a predicate nobody re-evaluates
+    /// leaves the buttons grey until something else happens to refresh them.
+    /// </remarks>
+    partial void OnSelectedBookmarkChanged(Bookmark? value)
+    {
+        RefreshClipPreview();
+        RefreshCommandStates();
+    }
 
     /// <summary>
     /// Renders the selected clip's first and last frame into the side panel.
@@ -1291,8 +1305,34 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // decision about where the cuts are going to be saved.
     private bool CanSaveCurrentFrame() => HasActiveVideo;
 
+    /// <summary>
+    /// The cuts that Flip, Rotate, Mute and Fade act on: the checked ones, or
+    /// the highlighted row when nothing is checked.
+    /// </summary>
+    /// <remarks>
+    /// These four describe how one clip is written, so the row under the
+    /// pointer is a perfectly good way to say which clip. Requiring a check as
+    /// well made setting a property on a single cut a two-step job — click it,
+    /// then tick it, then remember to untick it — where the click had already
+    /// said everything.
+    ///
+    /// Checks still win when there are any. They are the explicit statement of
+    /// a set, and a selection made deliberately must not be quietly narrowed to
+    /// whichever row happens to be highlighted within it.
+    /// </remarks>
+    private List<Bookmark> ModifierTargets()
+    {
+        var ticked = Session.Bookmarks.Where(b => b.IsSelected && b.IsValid).ToList();
+        if (ticked.Count > 0) return ticked;
+
+        return SelectedBookmark is { IsValid: true } row
+            ? new List<Bookmark> { row }
+            : new List<Bookmark>();
+    }
+
     private bool CanToggleFlip() =>
-        HasActiveVideo && IsBookmarkFileLoaded && CompletePairCount >= 1 && SelectedPairCount >= 1;
+        HasActiveVideo && IsBookmarkFileLoaded &&
+        (SelectedPairCount >= 1 || SelectedBookmark is { IsValid: true });
 
     // Both of these act on the bookmark file rather than on the cuts in it, so
     // both need only the file.
@@ -2220,7 +2260,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanToggleFlip))]
     private void ToggleFlip()
     {
-        var selected = Session.Bookmarks.Where(b => b.IsSelected && b.IsValid).ToList();
+        var selected = ModifierTargets();
         if (selected.Count == 0) return;
 
         // Clear only when every selected cut is already flipped, so a mixed
@@ -6358,7 +6398,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanToggleFlip))]
     private void RotateSelected()
     {
-        var selected = Session.Bookmarks.Where(b => b.IsSelected && b.IsValid).ToList();
+        var selected = ModifierTargets();
         if (selected.Count == 0) return;
 
         var next = Bookmark.NextRotation(selected[0].Rotation);
@@ -6381,7 +6421,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanToggleFlip))]
     private void ToggleMute()
     {
-        var selected = Session.Bookmarks.Where(b => b.IsSelected && b.IsValid).ToList();
+        var selected = ModifierTargets();
         if (selected.Count == 0) return;
 
         var turningOn = !selected.All(b => b.IsMuted);
@@ -6414,7 +6454,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanToggleFlip))]
     private void ToggleFade()
     {
-        var selected = Session.Bookmarks.Where(b => b.IsSelected && b.IsValid).ToList();
+        var selected = ModifierTargets();
         if (selected.Count == 0) return;
 
         var length = _settings.Current.FadeSeconds;

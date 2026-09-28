@@ -105,7 +105,12 @@ close it. An open bookmark shows as *incomplete* until it has an end time.
   for its effective duration (duration ÷ speed). Timed against the wall clock,
   so cuts end where they should.
 - Per-bookmark **speed slider** (0.25x – 2.0x) and a **flip** toggle that marks
-  the checked cuts for vertical inversion, shown as `[F]` on the row.
+  cuts for vertical inversion, shown as `[F]` on the row.
+- **Flip, Rotate, Mute and Fade** act on the checked cuts. With nothing checked
+  they act on the highlighted row, so setting one of them on a single cut is a
+  click rather than a tick, a press and an untick. Checks win whenever there
+  are any: a deliberate selection is never narrowed to whichever row inside it
+  happens to be highlighted.
 - Only complete pairs can be checked — an open bookmark has no range to act on.
 - Clicking a start or end time **seeks MPC-HC** to that moment.
 - The **timeline** under the toolbar carries the position on the left, the length
