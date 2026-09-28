@@ -34,6 +34,56 @@
         <helpers:BoolToVisibilityConverter x:Key="BoolToVis"/>
         <helpers:InverseBoolToVisibilityConverter x:Key="NotBoolToVis"/>
         <helpers:ProgressToBrushConverter x:Key="ProgressBrush"/>
+        <helpers:RotationToAngleConverter x:Key="RotationToAngle"/>
+        <helpers:BoolToFlipScaleConverter x:Key="FlipScale"/>
+        <helpers:PositiveToVisibilityConverter x:Key="PositiveToVis"/>
+
+        <!-- The preview frames are shown as the clip will be written, not as
+             the file holds it: turned the way Rotate is set, mirrored if Flip
+             is on. It costs nothing — the picture is already on screen, and
+             re-rendering it through ffmpeg for a 76-pixel thumbnail would be
+             an encode per click of a toggle.
+
+             LayoutTransform rather than RenderTransform, so a quarter turn is
+             measured in its new shape and the Uniform stretch fits it to the
+             box. Under RenderTransform the image would keep its old footprint
+             and hang out of the border. -->
+        <Style TargetType="Image" x:Key="PreviewFrame">
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+            <Setter Property="LayoutTransform">
+                <Setter.Value>
+                    <TransformGroup>
+                        <ScaleTransform ScaleY="{Binding PreviewedBookmark.IsFlipped,
+                                                 Converter={StaticResource FlipScale}}"/>
+                        <RotateTransform Angle="{Binding PreviewedBookmark.Rotation,
+                                                 Converter={StaticResource RotationToAngle}}"/>
+                    </TransformGroup>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Sits over the corner of a frame when the clip is muted. Outside the
+             transform above, so it stays the right way up on a rotated clip —
+             an upside-down icon reads as part of the picture. -->
+        <Style TargetType="ContentControl" x:Key="PreviewMuteBadge">
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="VerticalAlignment" Value="Top"/>
+            <Setter Property="Margin" Value="0,3,3,0"/>
+            <Setter Property="IsHitTestVisible" Value="False"/>
+            <Setter Property="ToolTip" Value="This clip is muted"/>
+            <Setter Property="Visibility"
+                    Value="{Binding PreviewedBookmark.IsMuted, Converter={StaticResource BoolToVis}}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContentControl">
+                        <Border Background="#CC000000" CornerRadius="3" Padding="3,1">
+                            <TextBlock Text="&#128263;" FontSize="12"
+                                       Foreground="{DynamicResource StatusError}"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
 
         <Style TargetType="Button" x:Key="DarkButton">
@@ -1176,16 +1226,57 @@
                                 </Grid.ColumnDefinitions>
 
                                 <StackPanel Grid.Column="0">
-                                    <Border Background="{DynamicResource InsetBackground}" CornerRadius="3" Height="76">
-                                        <Image Source="{Binding ClipInThumbnail}" Stretch="Uniform"/>
+                                    <Border Background="{DynamicResource InsetBackground}" CornerRadius="3" Height="76"
+                                            ClipToBounds="True">
+                                        <Grid>
+                                            <Image Source="{Binding ClipInThumbnail}" Stretch="Uniform"
+                                                   Style="{StaticResource PreviewFrame}"/>
+                                            <!-- The frame as the cut will start:
+                                                 out of black. Drawn over the
+                                                 picture rather than beside it,
+                                                 because a fade is a thing the
+                                                 frame does, not a property of
+                                                 it. -->
+                                            <Rectangle Visibility="{Binding PreviewedBookmark.FadeInSeconds,
+                                                                     Converter={StaticResource PositiveToVis}}"
+                                                       IsHitTestVisible="False">
+                                                <Rectangle.Fill>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                        <GradientStop Color="#F2000000" Offset="0"/>
+                                                        <GradientStop Color="#99000000" Offset="0.45"/>
+                                                        <GradientStop Color="#00000000" Offset="1"/>
+                                                    </LinearGradientBrush>
+                                                </Rectangle.Fill>
+                                            </Rectangle>
+                                            <ContentControl Style="{StaticResource PreviewMuteBadge}"/>
+                                        </Grid>
                                     </Border>
                                     <TextBlock Text="IN" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Accent}"
                                                HorizontalAlignment="Center" Margin="0,3,0,0"/>
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="2">
-                                    <Border Background="{DynamicResource InsetBackground}" CornerRadius="3" Height="76">
-                                        <Image Source="{Binding ClipOutThumbnail}" Stretch="Uniform"/>
+                                    <Border Background="{DynamicResource InsetBackground}" CornerRadius="3" Height="76"
+                                            ClipToBounds="True">
+                                        <Grid>
+                                            <Image Source="{Binding ClipOutThumbnail}" Stretch="Uniform"
+                                                   Style="{StaticResource PreviewFrame}"/>
+                                            <!-- Mirrored: this end fades down
+                                                 into black rather than up out
+                                                 of it. -->
+                                            <Rectangle Visibility="{Binding PreviewedBookmark.FadeOutSeconds,
+                                                                     Converter={StaticResource PositiveToVis}}"
+                                                       IsHitTestVisible="False">
+                                                <Rectangle.Fill>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                        <GradientStop Color="#00000000" Offset="0"/>
+                                                        <GradientStop Color="#99000000" Offset="0.55"/>
+                                                        <GradientStop Color="#F2000000" Offset="1"/>
+                                                    </LinearGradientBrush>
+                                                </Rectangle.Fill>
+                                            </Rectangle>
+                                            <ContentControl Style="{StaticResource PreviewMuteBadge}"/>
+                                        </Grid>
                                     </Border>
                                     <TextBlock Text="OUT" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource ValueYellow}"
                                                HorizontalAlignment="Center" Margin="0,3,0,0"/>

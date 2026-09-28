@@ -974,7 +974,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ClipPreviewSubtext = string.Empty;
             ClipInThumbnail = null;
             ClipOutThumbnail = null;
-            _previewedBookmark = null;
+            PreviewedBookmark = null;
             return;
         }
 
@@ -985,7 +985,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ClipPreviewSubtext = Session.Bookmarks.Count(b => b.IsValid) > 1
             ? $"Will run {bookmark.EffectiveDurationDisplay} · click a row to preview another"
             : $"Will run {bookmark.EffectiveDurationDisplay}";
-        _previewedBookmark = bookmark;
+        PreviewedBookmark = bookmark;
 
         // The pane appears immediately and fills in, rather than popping into
         // existence a few hundred milliseconds later.
@@ -998,8 +998,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _ = RenderClipPreviewAsync(video, bookmark.StartSeconds, bookmark.EndSeconds, cts.Token);
     }
 
-    /// <summary>The clip currently drawn, so a change to it can be noticed.</summary>
-    private Bookmark? _previewedBookmark;
+    /// <summary>
+    /// The clip currently drawn, so a change to it can be noticed — and so the
+    /// panel can bind to its settings.
+    /// </summary>
+    /// <remarks>
+    /// Observable rather than a plain field because the preview shows the clip
+    /// as it will be written: turned, mirrored, silenced, faded. Those come off
+    /// the bookmark itself, which raises its own notifications, so binding
+    /// through this property means toggling Rotate or Mute on the selected row
+    /// changes the frames on screen without re-running ffmpeg for them.
+    /// </remarks>
+    [ObservableProperty] private Bookmark? _previewedBookmark;
 
     private async Task RenderClipPreviewAsync(string video, double start, double end, CancellationToken ct)
     {
@@ -1109,7 +1119,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // Only for the one actually drawn — editing clip 9 while clip 1 is
         // shown should not re-run ffmpeg.
         if (e.PropertyName is nameof(Bookmark.StartSeconds) or nameof(Bookmark.EndSeconds)
-            && ReferenceEquals(sender, _previewedBookmark))
+            && ReferenceEquals(sender, PreviewedBookmark))
             RefreshClipPreview();
 
         // A bookmark becoming complete can make it the first valid one, which
@@ -1117,7 +1127,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // becoming incomplete has to be dropped for the same reason — it is no
         // longer a clip with two ends to show.
         if (e.PropertyName is nameof(Bookmark.IsIncomplete)
-            && (_previewedBookmark is null || ReferenceEquals(sender, _previewedBookmark)))
+            && (PreviewedBookmark is null || ReferenceEquals(sender, PreviewedBookmark)))
             RefreshClipPreview();
 
         // A moved timestamp changes how much room the arrows either side of it
