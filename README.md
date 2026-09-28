@@ -5,7 +5,7 @@ Modern rewrite of the original AutoHotkey **MPC-HC Video Editor v2.1**.
 Bookmark ranges in a video playing in MPC-HC, then cut, join, convert or
 extract audio from them with ffmpeg.
 
-![The compact overlay in the top-right corner of a video playing in MPC-HC, listing three timestamp pairs with their start, end and duration](Assets/screenshots/1.png)
+![The main window on the Parchment theme, showing four bookmarked clips with their times, durations and speed sliders, the timeline with a bracket at each end of every cut, and the first and last frame of the selected clip](Assets/screenshots/1.png)
 
 **Fully portable.** Everything the app reads and writes — `settings.json`,
 `stalls.log` — lives beside the executable. There is no installer. Copy the
@@ -25,15 +25,13 @@ that same place.
 
 ## Screenshots
 
-The overlay above is what you work in while the video is playing — it never
-takes focus, lists every bookmark without scrolling, and its times seek the
-player when clicked.
+The window above is where the editing happens: the cut list with its per-cut
+controls, the action toolbar, the timeline, and the current video, bookmarks and
+player state down the right-hand side.
 
-The full window is the other half: the bookmark list and its per-cut controls,
-the action toolbar, and the current video, bookmarks and player state down the
-right-hand side.
-
-![The main window on the Graphite theme, showing three bookmarked clips with their durations and speed sliders, range marks along the timeline, and the first and last frame of the selected clip](Assets/screenshots/2.png)
+While a video is playing you work in the compact overlay instead — it appears
+over the player, never takes focus, and lists every bookmark without scrolling.
+The full window comes back the moment MPC-HC stops being the active window.
 
 Settings, in five tabs:
 
