@@ -124,10 +124,23 @@ public class MpcHcService
     // Trackbar class name used to identify MPC-HC's seek bar.
     private const string TrackbarClass = "msctls_trackbar32";
 
-    private const int CMD_PLAY = 889;
-    private const int CMD_PAUSE = 890;
-    private const int CMD_STOP = 891;
-    private const int CMD_PLAYPAUSE = 888;
+    // Verified against a running player rather than taken from a table: each
+    // was sent to MPC-HC's web interface and the resulting state read back.
+    //
+    //   887  Playing -> Playing      explicit play, idempotent
+    //   888  Playing -> Paused       explicit pause
+    //   889  Playing -> Paused -> Playing   toggle
+    //   890  anything -> Stopped     stop, and the position goes back to 0
+    //
+    // These were each one too high. CMD_PLAY was 889, the toggle, which is why
+    // a playback loop that sent Play twice — on purpose, to cover a seek that
+    // paused late — played the cut and then paused it. Pause was 890, so
+    // pausing stopped the file and dropped the position; Stop was 891, which is
+    // the frame-step.
+    private const int CMD_PLAY = 887;
+    private const int CMD_PAUSE = 888;
+    private const int CMD_PLAYPAUSE = 889;
+    private const int CMD_STOP = 890;
 
     /// <summary>
     /// <c>ID_FILE_CLOSEMEDIA</c> — closes the open file and leaves the player

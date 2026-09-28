@@ -2524,8 +2524,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     await Task.Delay(150, token);
                     _mpc.Play();
 
-                    // CMD_PLAY is an explicit play, not a toggle, so re-asserting
-                    // it is harmless and covers a seek that paused late.
+                    // Re-asserted once, which covers a seek that paused late.
+                    // Safe because CMD_PLAY really is an explicit play now:
+                    // sent to a player already playing it changes nothing. It
+                    // used to be the play/pause toggle, so this second call was
+                    // what left every cut sitting paused on its first frame.
                     await Task.Delay(200, token);
                     _mpc.Play();
 
