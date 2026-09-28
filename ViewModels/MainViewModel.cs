@@ -1204,19 +1204,28 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // it: checking a bookmark that has no closing timestamp yet moves only
         // the former, and without it delete and "select none" would not notice
         // the one kind of selection they are the only commands to accept.
-        // Whether a usable row is highlighted, because Flip, Rotate, Mute and
-        // Fade fall back to it when nothing is checked. Without it here, this
-        // method returned early on a plain click — the key was unchanged, so
-        // the four were never re-asked and stayed grey until a check happened
-        // to move one of the counts. Which row it is does not matter: nothing
-        // gated here distinguishes one valid row from another.
-        var hasHighlightedRow = SelectedBookmark is { IsValid: true };
+        // Whether a row is highlighted, because the commands that fall back to
+        // it when nothing is checked have to be re-asked when it moves. Without
+        // this, the method returned early on a plain click — the key was
+        // unchanged, so those commands were never re-asked and stayed grey
+        // until a check happened to move one of the counts.
+        //
+        // Two flags, because the fallbacks do not agree on what counts. Flip,
+        // Rotate, Mute and Fade need a cut with a range; delete also takes a
+        // lone opening timestamp, which is exactly the row someone wants rid of
+        // after a mis-timed press.
+        //
+        // Which row it is stays out of the key. Nothing gated here tells one
+        // valid row from another, and an identity in here would defeat the
+        // bail-out on every arrow-key press down a long list.
+        var hasHighlightedCut = SelectedBookmark is { IsValid: true };
+        var hasHighlightedRow = SelectedBookmark is not null;
 
         var key = string.Join('|', HasActiveVideo, Session.HasVideo,
                                    IsBookmarkFileLoaded, CompletePairCount,
                                    SelectedPairCount, SelectedCount, HasNoBookmarks,
                                    HasPlaylistFiles, LoadedPlaylistHasEntries,
-                                   hasHighlightedRow);
+                                   hasHighlightedCut, hasHighlightedRow);
         if (key == _commandStateKey) return;
         _commandStateKey = key;
 
@@ -1293,7 +1302,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // so they count every checked row, not only the complete ones. A list
     // holding nothing but a lone opening timestamp can still be selected and
     // deleted.
-    private bool CanDeleteSelected() => IsBookmarkFileLoaded && SelectedCount >= 1;
+    // Or the highlighted row, which is what the command body has always fallen
+    // back to — it just could not be reached, because this said no unless
+    // something was checked.
+    //
+    // Any highlighted row, not only a complete one: delete is the one action
+    // that works on a lone opening timestamp, which is exactly the row someone
+    // wants rid of after a mis-timed press.
+    private bool CanDeleteSelected() =>
+        IsBookmarkFileLoaded && (SelectedCount >= 1 || SelectedBookmark is not null);
     private bool CanSelectAll() => HasActiveVideo && IsBookmarkFileLoaded && !HasNoBookmarks;
     private bool CanSelectNone() => HasActiveVideo && IsBookmarkFileLoaded && SelectedCount >= 1;
 

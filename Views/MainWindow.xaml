@@ -492,7 +492,7 @@
                 <MenuItem Header="Delete bookmarks" Command="{Binding DeleteBookmarksCommand}"
                           ToolTip="Delete the bookmark file from disk"/>
                 <MenuItem Header="Remove selected timestamps" Command="{Binding DeleteSelectedCommand}"
-                          ToolTip="Remove the checked timestamps from the list and from the bookmark file"/>
+                          ToolTip="Remove the checked timestamps from the list and from the bookmark file. With nothing checked it removes the highlighted row."/>
                 <Separator/>
                 <MenuItem Header="Play all cuts" Command="{Binding PlayAllCommand}"
                           ToolTip="Seek MPC-HC to each bookmark and play it for its full duration, sequentially"/>
@@ -706,7 +706,7 @@
                      frame the player is sitting on right now. -->
                 <Button Content="📷" Command="{Binding SaveCurrentFrameCommand}" Width="36"
                         ToolTip="Save the frame MPC-HC is showing as a PNG, full size, next to the other output"/>
-                <Button Content="🗑" Command="{Binding DeleteSelectedCommand}" Width="36" ToolTip="Delete selected"/>
+                <Button Content="🗑" Command="{Binding DeleteSelectedCommand}" Width="36" ToolTip="Remove the checked timestamps from the list and the bookmark file. With nothing checked it removes the highlighted row."/>
                 <Button Content="↕ Flip" Command="{Binding ToggleFlipCommand}" ToolTip="Flip the checked cuts upside down. With nothing checked it flips the highlighted row."/>
                 <!-- Cycles rather than toggles: one button reaching four states
                      beats three buttons, and the order matches the way someone
