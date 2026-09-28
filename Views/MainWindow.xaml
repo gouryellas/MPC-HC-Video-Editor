@@ -166,6 +166,13 @@
                  Popup, its own visual tree, and the attached property does not
                  reach across from the parent. Hovering still shows them. -->
             <Setter Property="ToolTipService.ShowsToolTipOnKeyboardFocus" Value="False"/>
+            <!-- Three seconds before a menu tooltip appears, against a default
+                 of about half a second. Reading down a menu means passing over
+                 several items on the way to the one you want, and at the
+                 default each of those pops a panel of text over the ones below
+                 it. At three seconds only resting on an item asks for its
+                 explanation. -->
+            <Setter Property="ToolTipService.InitialShowDelay" Value="3000"/>
             <Style.Triggers>
                 <Trigger Property="IsHighlighted" Value="True">
                     <Setter Property="Background" Value="{DynamicResource LinkBlue}"/>
