@@ -1204,10 +1204,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // it: checking a bookmark that has no closing timestamp yet moves only
         // the former, and without it delete and "select none" would not notice
         // the one kind of selection they are the only commands to accept.
+        // Whether a usable row is highlighted, because Flip, Rotate, Mute and
+        // Fade fall back to it when nothing is checked. Without it here, this
+        // method returned early on a plain click — the key was unchanged, so
+        // the four were never re-asked and stayed grey until a check happened
+        // to move one of the counts. Which row it is does not matter: nothing
+        // gated here distinguishes one valid row from another.
+        var hasHighlightedRow = SelectedBookmark is { IsValid: true };
+
         var key = string.Join('|', HasActiveVideo, Session.HasVideo,
                                    IsBookmarkFileLoaded, CompletePairCount,
                                    SelectedPairCount, SelectedCount, HasNoBookmarks,
-                                   HasPlaylistFiles, LoadedPlaylistHasEntries);
+                                   HasPlaylistFiles, LoadedPlaylistHasEntries,
+                                   hasHighlightedRow);
         if (key == _commandStateKey) return;
         _commandStateKey = key;
 
