@@ -1133,7 +1133,8 @@
                                                         ToolTip="Move the end one second later"/>
 
                                                 <TextBlock Style="{StaticResource RowGap}"/>
-                                                <TextBlock Text="{Binding DurationDisplay, StringFormat=({0})}" Foreground="{DynamicResource ValueGreen}" VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding EffectiveDurationDisplay, StringFormat=({0})}" Foreground="{DynamicResource ValueGreen}" VerticalAlignment="Center"
+                                                           ToolTip="How long the saved clip will run — the marked range at this clip's speed"/>
                                             </StackPanel>
                                             <TextBlock Style="{StaticResource RowGap}"/>
                                             <TextBlock Text="incomplete" Foreground="{DynamicResource StatusError}" FontStyle="Italic" VerticalAlignment="Center"
@@ -1154,7 +1155,7 @@
 
                                         <TextBlock Grid.Column="6" Text="{Binding SpeedDisplay}" Foreground="{DynamicResource LinkBlue}"
                                                    VerticalAlignment="Center" HorizontalAlignment="Right"
-                                                   ToolTip="{Binding EffectiveDurationDisplay, StringFormat=Saved clip will run {0}}"/>
+                                                   ToolTip="{Binding DurationDisplay, StringFormat=Marked range is {0} of the source}"/>
                                     </Grid>
                                 </DataTemplate>
                             </ListView.ItemTemplate>

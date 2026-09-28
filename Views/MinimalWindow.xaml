@@ -1,4 +1,4 @@
-<Window x:Class="MpcHcVideoEditor.Views.MinimalWindow"
+﻿<Window x:Class="MpcHcVideoEditor.Views.MinimalWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Bookmarks"
@@ -150,7 +150,7 @@
                                     <TextBlock Text="{Binding EndDisplay}" Tag="{Binding EndSeconds}"
                                                Style="{StaticResource OverlayTimestamp}"/>
                                     <TextBlock Style="{StaticResource RowGap}"/>
-                                    <TextBlock Text="{Binding DurationDisplay, StringFormat=({0})}"
+                                    <TextBlock Text="{Binding EffectiveDurationDisplay, StringFormat=({0})}"
                                                Foreground="{DynamicResource ValueGreen}" VerticalAlignment="Center"/>
                                 </StackPanel>
                                 <!-- The word the main window puts after a lone

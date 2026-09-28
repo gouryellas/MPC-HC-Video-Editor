@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
@@ -59,6 +59,11 @@ public class Bookmark : INotifyPropertyChanged
             OnPropertyChanged(nameof(StartDisplay));
             OnPropertyChanged(nameof(DurationSeconds));
             OnPropertyChanged(nameof(DurationDisplay));
+
+            // The row shows the length the saved clip will have, which is this
+            // range divided by the speed. Moving either end changes it just as
+            // surely as moving the slider does.
+            OnPropertyChanged(nameof(EffectiveDurationDisplay));
             AnnounceOpenState();
         }
     }
@@ -83,6 +88,11 @@ public class Bookmark : INotifyPropertyChanged
             OnPropertyChanged(nameof(EndDisplay));
             OnPropertyChanged(nameof(DurationSeconds));
             OnPropertyChanged(nameof(DurationDisplay));
+
+            // The row shows the length the saved clip will have, which is this
+            // range divided by the speed. Moving either end changes it just as
+            // surely as moving the slider does.
+            OnPropertyChanged(nameof(EffectiveDurationDisplay));
             AnnounceOpenState();
         }
     }
