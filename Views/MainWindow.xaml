@@ -1248,7 +1248,7 @@
                         <StackPanel Visibility="{Binding HasClipPreview, Converter={StaticResource BoolToVis}}">
                             <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Margin="0,4,0,12"/>
                             <TextBlock Text="{Binding ClipPreviewHeading}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,6"/>
-                            <Grid>
+                            <Grid Margin="0,0,0,16">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="8"/>
@@ -1314,8 +1314,6 @@
                                                HorizontalAlignment="Center" Margin="0,3,0,0"/>
                                 </StackPanel>
                             </Grid>
-                            <TextBlock Foreground="{DynamicResource TextMuted}" FontSize="11" Margin="0,6,0,16" TextWrapping="Wrap"
-                                       Text="{Binding ClipPreviewSubtext}"/>
                         </StackPanel>
 
                         <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Margin="0,4,0,12"/>

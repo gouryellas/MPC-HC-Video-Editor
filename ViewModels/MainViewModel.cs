@@ -86,7 +86,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _clipPreviewHeading = string.Empty;
 
     /// <summary>Line under the preview: what the clip will run to, and how to change it.</summary>
-    [ObservableProperty] private string _clipPreviewSubtext = string.Empty;
     [ObservableProperty] private bool _isMpcRunning;
     [ObservableProperty] private string _currentTimeDisplay = "00:00";
     [ObservableProperty] private string _durationDisplay = "00:00";
@@ -971,7 +970,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             HasClipPreview = false;
             ClipPreviewHeading = string.Empty;
-            ClipPreviewSubtext = string.Empty;
             ClipInThumbnail = null;
             ClipOutThumbnail = null;
             PreviewedBookmark = null;
@@ -982,9 +980,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // the first clip, and a heading claiming otherwise would be a small lie
         // repeated every time the app opens.
         ClipPreviewHeading = $"CLIP [{bookmark.Index}]";
-        ClipPreviewSubtext = Session.Bookmarks.Count(b => b.IsValid) > 1
-            ? $"Will run {bookmark.EffectiveDurationDisplay} · click a row to preview another"
-            : $"Will run {bookmark.EffectiveDurationDisplay}";
         PreviewedBookmark = bookmark;
 
         // The pane appears immediately and fills in, rather than popping into
