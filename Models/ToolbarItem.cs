@@ -110,10 +110,34 @@ public sealed class ToolbarItem : INotifyPropertyChanged
     public bool IsDragging
     {
         get => _isDragging;
-        set { _isDragging = value; OnPropertyChanged(); }
+        set { _isDragging = value; OnPropertyChanged(); OnPropertyChanged(nameof(ChipOpacity)); }
     }
 
     private bool _isDragging;
+
+    /// <summary>
+    /// True for a list entry whose action is already on the toolbar. Drawn
+    /// faded, and refused if dropped — it is there to be found, not to be added
+    /// twice.
+    /// </summary>
+    public bool IsPlaced
+    {
+        get => _isPlaced;
+        set { _isPlaced = value; OnPropertyChanged(); OnPropertyChanged(nameof(ChipOpacity)); }
+    }
+
+    private bool _isPlaced;
+
+    /// <summary>
+    /// How solid this entry is drawn: faded while it is being carried, and
+    /// faded in the list when it is already on the toolbar.
+    /// </summary>
+    /// <remarks>
+    /// A property rather than a converter because two reasons feed one number,
+    /// and a binding cannot multiply two booleans without a multi-converter
+    /// that would exist to answer this one question.
+    /// </remarks>
+    public double ChipOpacity => IsDragging || IsPlaced ? 0.4 : 1.0;
 
     /// <summary>A copy of this entry, for the Customize dialog's working list.</summary>
     /// <remarks>

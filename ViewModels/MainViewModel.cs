@@ -235,7 +235,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// Customize dialog hands out copies, and a spacer dropped twice has to be
     /// two objects.
     /// </remarks>
-    public List<ToolbarItem> ToolbarCatalogue() => new()
+    public List<ToolbarItem> ToolbarCatalogue() => new List<ToolbarItem>
     {
         // The thirteen the toolbar ships with.
         new() { Key = "set-timestamp", Group = "Bookmarks", Label = "📍 Set timestamp", Command = SetTimestampCommand,
@@ -281,10 +281,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 ToolTip = "Propose cuts from silence, black frames or scene changes" },
         new() { Key = "edit-bookmarks", Group = "Bookmarks", Label = "✎ Edit bookmarks", Command = EditBookmarksCommand,
                 ToolTip = "Open the bookmark CSV in a text editor" },
-        new() { Key = "play-all", Group = "Bookmarks", Label = "▶ Play all", Command = PlayAllCommand,
-                ToolTip = "Play every cut in turn" },
-        new() { Key = "play-selected", Group = "Bookmarks", Label = "▶ Play checked", Command = PlaySelectedCommand,
-                ToolTip = "Play the checked cuts in turn" },
+        new() { Key = "play", Group = "Bookmarks", Label = "▶ Play", Command = PlayCutsCommand,
+                ToolTip = "Play the checked cuts in turn, or every cut when none are checked" },
         new() { Key = "export-animation", Group = "Actions", Label = "🎞 GIF / WebP", Command = ExportAnimationCommand,
                 ToolTip = "Export the checked cuts as an animation" },
         new() { Key = "convert-images", Group = "Actions", Label = "🖼 Convert images", Command = ConvertImagesCommand,
@@ -293,8 +291,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 ToolTip = "Write the cuts out as a chapter file" },
         new() { Key = "add-to-playlist", Group = "Playlist", Label = "➕ To playlist", Command = AddCurrentToPlaylistCommand,
                 ToolTip = "Add the current video to a playlist" },
-        new() { Key = "mpc-front", Group = "View", Label = "🖥 Show player", Command = BringMpcToFrontCommand,
-                ToolTip = "Bring MPC-HC to the front" },
 
         // The fillers. Each is a real entry in the layout; only their drawing is
         // particular to the Customize dialog.
@@ -304,7 +300,67 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 ToolTip = "Takes up whatever width is left, pushing what follows it to the right" },
         new() { Key = "row-break", Group = "Layout", Kind = ToolbarItemKind.RowBreak, Label = "New row",
                 ToolTip = "Everything after this is drawn on the next line of the toolbar" },
-    };
+    }.Concat(SuffixButtons()).ToList();
+
+    /// <summary>
+    /// A button for each naming tag, which makes that tag the active one.
+    /// </summary>
+    /// <remarks>
+    /// Read from the settings rather than written down, because the tags are
+    /// the user's — added, renamed and deleted under Options — so the catalogue
+    /// has to be whatever the list says today.
+    ///
+    /// Keyed <c>tag:done</c>, on the tag's own text. A layout naming a tag that
+    /// has since been deleted quietly loses that button, which is the same rule
+    /// every other key follows, and a tag added later appears in the Customize
+    /// dialog rather than on the toolbar.
+    ///
+    /// The command is made here per tag: there is no one action to bind, since
+    /// each button means a different value.
+    /// </remarks>
+    private IEnumerable<ToolbarItem> SuffixButtons()
+    {
+        foreach (var suffix in _settings.Current.Suffixes)
+        {
+            var text = suffix.Text;
+            if (string.IsNullOrWhiteSpace(text)) continue;
+
+            yield return new ToolbarItem
+            {
+                Key = "tag:" + text,
+                Group = "Naming tags",
+                Label = "[" + text + "]",
+                ToolTip = $"Name output files with [{text}]",
+                Command = new RelayCommand(() => ApplyNamingTag(text))
+            };
+        }
+
+        yield return new ToolbarItem
+        {
+            Key = "tag:none",
+            Group = "Naming tags",
+            Label = "[no tag]",
+            ToolTip = "Write output filenames with no tag at all",
+            Command = new RelayCommand(ClearNamingTag)
+        };
+    }
+
+    /// <summary>Makes a tag the active one, as the Options menu does.</summary>
+    private void ApplyNamingTag(string text)
+    {
+        _settings.SetActiveSuffix(text);
+        _settings.Save();
+        UpdateActiveSuffixDisplay();
+        StatusText = $"Naming tag: [{text}]";
+    }
+
+    private void ClearNamingTag()
+    {
+        _settings.ClearActiveSuffix();
+        _settings.Save();
+        UpdateActiveSuffixDisplay();
+        StatusText = "Naming tag: none";
+    }
 
     /// <summary>The layout the program ships with.</summary>
     private static readonly string[] _defaultToolbar =
@@ -1520,6 +1576,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ExportAnimationCommand.NotifyCanExecuteChanged();
         PlayAllCommand.NotifyCanExecuteChanged();
         PlaySelectedCommand.NotifyCanExecuteChanged();
+        PlayCutsCommand.NotifyCanExecuteChanged();
         SelectAllCommand.NotifyCanExecuteChanged();
         SelectNoneCommand.NotifyCanExecuteChanged();
         ToggleSelectAllCommand.NotifyCanExecuteChanged();
@@ -2789,6 +2846,29 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// command does, because for playback the user's checkmarks are the
     /// whole point.
     /// </summary>
+    /// <summary>
+    /// Plays the checked cuts, or every cut when none are checked.
+    /// </summary>
+    /// <remarks>
+    /// One button rather than two. "Play all" and "Play checked" differ only in
+    /// which cuts they walk, and the checkmarks already say which those are —
+    /// so the toolbar asks the list instead of asking the user to pick the
+    /// matching verb. The menu keeps both, where there is room to be explicit.
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(CanPlayAll))]
+    private async Task PlayCutsAsync()
+    {
+        var checkedCuts = Session.Bookmarks.Where(b => b.IsSelected && b.IsValid).ToList();
+
+        if (checkedCuts.Count > 0)
+        {
+            await PlayCutsAsync(checkedCuts.OrderBy(b => b.StartSeconds).ToList(), "checked");
+            return;
+        }
+
+        await PlayAllAsync();
+    }
+
     [RelayCommand(CanExecute = nameof(CanPlaySelected))]
     private async Task PlaySelectedAsync()
     {

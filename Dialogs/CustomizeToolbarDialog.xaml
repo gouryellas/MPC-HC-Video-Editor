@@ -49,7 +49,7 @@
                  around every button would be a second rectangle nothing on the
                  toolbar has. The fillers get the frame instead, because they
                  have nothing of their own to show. -->
-            <Grid Margin="3" Opacity="{Binding IsDragging, Converter={StaticResource DragOpacity}}">
+            <Grid Margin="3" Opacity="{Binding ChipOpacity}">
                 <Button Content="{Binding Label}" IsHitTestVisible="False" Focusable="False"
                         Margin="0" MinWidth="{Binding MinWidth}"
                         Style="{Binding StyleKey, Converter={StaticResource StyleByKey}}"
@@ -142,38 +142,53 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource Heading}" Text="AVAILABLE"/>
-            <TextBox Grid.Row="1" Grid.Column="0" x:Name="SearchBox" Margin="0,0,0,6" Padding="4,3"
-                     TextChanged="Search_TextChanged"
-                     Background="{DynamicResource InsetBackground}"
-                     Foreground="{DynamicResource TextPrimary}"
-                     BorderBrush="{DynamicResource BorderBrush}"
-                     ToolTip="Filter the list"/>
-            <Border Grid.Row="2" Grid.Column="0" Background="{DynamicResource PanelBackground}"
+            <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="0"
+                    Background="{DynamicResource PanelBackground}"
                     BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <ItemsControl x:Name="AvailableList" Margin="6">
-                        <ItemsControl.GroupStyle>
-                            <GroupStyle>
-                                <GroupStyle.HeaderTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="SemiBold"
-                                                   Foreground="{DynamicResource TextSecondary}"
-                                                   Margin="2,8,0,2"/>
-                                    </DataTemplate>
-                                </GroupStyle.HeaderTemplate>
-                            </GroupStyle>
-                        </ItemsControl.GroupStyle>
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <StaticResource ResourceKey="Chip"/>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
+                <DockPanel>
+                    <!-- The heading and the filter belong to this box rather
+                         than floating above it: a caption with a gap under it
+                         reads as a label for empty space, and the search field
+                         on its own read as an empty box nobody could name. -->
+                    <Grid DockPanel.Dock="Top" Margin="10,8,10,6">
+                        <TextBlock Text="AVAILABLE" Style="{StaticResource Heading}" Margin="0"
+                                   VerticalAlignment="Center"/>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <TextBlock Text="Search" VerticalAlignment="Center" Margin="0,0,6,0"
+                                       Foreground="{DynamicResource TextSecondary}" FontSize="11"/>
+                            <TextBox x:Name="SearchBox" Width="150" Padding="4,3"
+                                     TextChanged="Search_TextChanged"
+                                     Background="{DynamicResource InsetBackground}"
+                                     Foreground="{DynamicResource TextPrimary}"
+                                     BorderBrush="{DynamicResource BorderBrush}"
+                                     ToolTip="Show only the actions whose name or menu contains this"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="AvailableList" Margin="6,0,6,6">
+                            <ItemsControl.GroupStyle>
+                                <GroupStyle>
+                                    <GroupStyle.HeaderTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextSecondary}"
+                                                       Margin="2,8,0,2"/>
+                                        </DataTemplate>
+                                    </GroupStyle.HeaderTemplate>
+                                </GroupStyle>
+                            </ItemsControl.GroupStyle>
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <StaticResource ResourceKey="Chip"/>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
             </Border>
 
             <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource Heading}" Text="HOW"/>

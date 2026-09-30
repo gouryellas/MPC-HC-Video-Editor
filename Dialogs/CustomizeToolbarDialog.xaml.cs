@@ -106,10 +106,15 @@ public partial class CustomizeToolbarDialog : Window
     /// three fillers.
     /// </summary>
     /// <remarks>
-    /// Actions are unique — a second Merge button would be a second way to do
-    /// the same thing in the same row — so one that is in use drops out of the
-    /// list. The fillers never do: a layout may want any number of spacers,
-    /// expanders and rows.
+    /// Everything stays listed, including what is already on the toolbar —
+    /// dimmed, and refused if dropped. Dropping placed actions out of the list
+    /// hid them completely, so somebody looking for Save frame or Convert found
+    /// no trace of either and reasonably concluded they were missing. A greyed
+    /// entry answers that: it is here, and it is already on your toolbar.
+    ///
+    /// Actions are still unique. A second Merge button would be a second way to
+    /// do one thing in one row. The fillers are not: a layout may want any
+    /// number of spacers, expanders and rows.
     /// </remarks>
     private void RefreshAvailable()
     {
@@ -120,14 +125,14 @@ public partial class CustomizeToolbarDialog : Window
 
         foreach (var item in _catalogue)
         {
-            if (item.Kind == ToolbarItemKind.Button && placed.Contains(item.Key)) continue;
-
             if (filter.Length > 0 &&
                 !item.Label.Contains(filter, StringComparison.OrdinalIgnoreCase) &&
                 !item.Group.Contains(filter, StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            _available.Add(item.Clone());
+            var copy = item.Clone();
+            copy.IsPlaced = item.Kind == ToolbarItemKind.Button && placed.Contains(item.Key);
+            _available.Add(copy);
         }
     }
 
@@ -222,6 +227,12 @@ public partial class CustomizeToolbarDialog : Window
     internal void Place(ToolbarItem item, ObservableCollection<ToolbarItem>? from,
                         ObservableCollection<ToolbarItem> target, int index)
     {
+        // Already on the toolbar and being dragged in from the list again —
+        // the greyed copy. Nothing to do: the real one is where the user put it.
+        if (from is null && item.Kind == ToolbarItemKind.Button &&
+            _rows.Any(r => r.Any(i => i.Key == item.Key)))
+            return;
+
         // A row break splits the row it lands in rather than sitting in it: it
         // is the one entry with no width of its own, and leaving it in the row
         // would be a button-shaped thing that draws nothing.
@@ -345,7 +356,7 @@ public partial class CustomizeToolbarDialog : Window
         if (ItemUnder(e.OriginalSource as DependencyObject) is not { } item) return;
 
         if (item.Kind == ToolbarItemKind.RowBreak) _rows.Add(new ObservableCollection<ToolbarItem>());
-        else _rows[^1].Add(item.Clone());
+        else Place(item.Clone(), null, _rows[^1], _rows[^1].Count);
 
         RefreshAvailable();
     }
