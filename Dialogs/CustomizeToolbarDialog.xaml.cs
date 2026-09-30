@@ -208,25 +208,67 @@ public partial class CustomizeToolbarDialog : Window
         if (_dragging is null || sender is not Border { DataContext: ObservableCollection<ToolbarItem> target })
             return;
 
-        var item = _dragging;
+        Place(_dragging, _draggingFrom, target, DropIndex(sender, e, target));
+        e.Handled = true;
+    }
 
-        // A row break dropped onto a row splits it there rather than becoming a
-        // chip in it: it is the one entry with no width of its own, and leaving
-        // it in the row would be a button-shaped thing that draws nothing.
+    /// <summary>
+    /// Puts an item into a row at a position, taking it out of wherever it was.
+    /// </summary>
+    /// <remarks>
+    /// The one place the layout is edited, so a drop, a double-click and a test
+    /// all go through the same rules rather than three approximations of them.
+    /// </remarks>
+    internal void Place(ToolbarItem item, ObservableCollection<ToolbarItem>? from,
+                        ObservableCollection<ToolbarItem> target, int index)
+    {
+        // A row break splits the row it lands in rather than sitting in it: it
+        // is the one entry with no width of its own, and leaving it in the row
+        // would be a button-shaped thing that draws nothing.
         if (item.Kind == ToolbarItemKind.RowBreak)
         {
-            SplitRow(target, DropIndex(sender, e, target));
-            e.Handled = true;
+            SplitRow(target, index);
             return;
         }
 
-        _draggingFrom?.Remove(item);
+        // Where it is being taken from, before it is taken, because the index
+        // asked for was read off the row as it looks now — with this item still
+        // in it. Removing it first shifts everything behind it down one, so a
+        // move to the right would land one place too far without this.
+        var wasAt = from?.IndexOf(item) ?? -1;
 
-        var index = Math.Clamp(DropIndex(sender, e, target), 0, target.Count);
-        target.Insert(index, item);
+        from?.Remove(item);
 
+        if (ReferenceEquals(from, target) && wasAt >= 0 && wasAt < index) index--;
+
+        target.Insert(Math.Clamp(index, 0, target.Count), item);
         DropEmptyRows();
-        e.Handled = true;
+    }
+
+    /// <summary>Takes an item off the toolbar.</summary>
+    internal void Remove(ToolbarItem item)
+    {
+        _rows.FirstOrDefault(r => r.Contains(item))?.Remove(item);
+        DropEmptyRows();
+    }
+
+    /// <summary>The rows as they stand, for tests.</summary>
+    internal IReadOnlyList<ObservableCollection<ToolbarItem>> Rows => _rows;
+
+    /// <summary>The layout these rows would be saved as.</summary>
+    internal List<ToolbarItem> Flatten()
+    {
+        var flat = new List<ToolbarItem>();
+
+        foreach (var row in _rows.Where(r => r.Count > 0))
+        {
+            if (flat.Count > 0)
+                flat.Add(new ToolbarItem { Key = "row-break", Kind = ToolbarItemKind.RowBreak, Label = "New row" });
+
+            flat.AddRange(row);
+        }
+
+        return flat;
     }
 
     /// <summary>Where in the row the pointer is, counted in items.</summary>
@@ -312,8 +354,7 @@ public partial class CustomizeToolbarDialog : Window
     {
         if (ItemUnder(e.OriginalSource as DependencyObject) is not { } item) return;
 
-        _rows.FirstOrDefault(r => r.Contains(item))?.Remove(item);
-        DropEmptyRows();
+        Remove(item);
         RefreshAvailable();
     }
 
@@ -340,17 +381,7 @@ public partial class CustomizeToolbarDialog : Window
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
-        var flat = new List<ToolbarItem>();
-
-        foreach (var row in _rows.Where(r => r.Count > 0))
-        {
-            if (flat.Count > 0)
-                flat.Add(new ToolbarItem { Key = "row-break", Kind = ToolbarItemKind.RowBreak, Label = "New row" });
-
-            flat.AddRange(row);
-        }
-
-        Layout = flat;
+        Layout = Flatten();
         DialogResult = true;
     }
 
