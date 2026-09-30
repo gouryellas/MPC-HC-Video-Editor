@@ -94,8 +94,11 @@ close it. An open bookmark shows as *incomplete* until it has an end time.
 - **Edit bookmarks** opens the CSV in a text editor. Changes are picked up when
   the window regains focus; saving it empty deletes the file.
 - **Enter time / range…** accepts `90`, `1:30`, `1:02:03`, `22s`, `5m`, `1h`,
-  `1m30s`, and ranges like `1:00 - 2:30`. A rejected value re-opens the dialog
-  explaining what went wrong and what is accepted, rather than closing.
+  `1m30s`, and ranges like `1:00 - 2:30`. A single time is the *next* timestamp,
+  the same as pressing the hotkey: it closes the open bookmark if there is one,
+  and opens a new one if there is not. A typed range needs no bookmark open. A
+  rejected value re-opens the dialog explaining what went wrong and what is
+  accepted, rather than closing.
 - **Delete bookmarks** deletes the CSV and marks the file not-loaded.
 - **Remove selected timestamps** removes the checked cuts from the list and the
   file.

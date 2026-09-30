@@ -3571,20 +3571,52 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     prompt = $"{error}\n\n{TimeFormatHelp}";
                     continue;
                 }
-                if (WhyCannotOpenAt(start) is { } refusal)
+                // A single time is the next timestamp, not necessarily a new
+                // bookmark. With one already open this closes it, exactly as
+                // pressing the hotkey would — typing a time and pressing the
+                // key are two ways of saying the same thing, and they were
+                // disagreeing: this branch always added a row, so a second
+                // opening timestamp appeared while the first was still waiting
+                // for its end. Two open bookmarks at once is a state nothing
+                // else in the program can produce or knows what to do with.
+                if (OpenBookmark is { } open)
                 {
-                    prompt = $"{refusal}. Cuts are marked going forwards, so a new one has " +
-                             $"to start at or after the last mark.\n\n{TimeFormatHelp}";
-                    continue;
-                }
+                    if (start <= open.StartSeconds)
+                    {
+                        prompt = $"{Bookmark.FormatTime(start)} cannot close bookmark {open.Index} — " +
+                                 $"a closing time has to come after its opening time of " +
+                                 $"{open.StartDisplay}.\n\n{TimeFormatHelp}";
+                        continue;
+                    }
 
-                Session.Bookmarks.Add(new Bookmark
+                    if (OverlappingCut(open.StartSeconds, start, open) is { } inTheWay)
+                    {
+                        prompt = $"Closing at {Bookmark.FormatTime(start)} would run over cut " +
+                                 $"{inTheWay.Index} ({inTheWay.StartDisplay} – {inTheWay.EndDisplay}). " +
+                                 $"Cuts cannot overlap.\n\n{TimeFormatHelp}";
+                        continue;
+                    }
+
+                    open.EndSeconds = start;
+                    StatusText = $"Closed bookmark {open.Index} ({open.DurationDisplay})";
+                }
+                else
                 {
-                    Index = Session.Bookmarks.Count + 1,
-                    StartSeconds = start,
-                    EndSeconds = 0
-                });
-                StatusText = $"Opened bookmark at {Bookmark.FormatTime(start)}";
+                    if (WhyCannotOpenAt(start) is { } refusal)
+                    {
+                        prompt = $"{refusal}. Cuts are marked going forwards, so a new one has " +
+                                 $"to start at or after the last mark.\n\n{TimeFormatHelp}";
+                        continue;
+                    }
+
+                    Session.Bookmarks.Add(new Bookmark
+                    {
+                        Index = Session.Bookmarks.Count + 1,
+                        StartSeconds = start,
+                        EndSeconds = 0
+                    });
+                    StatusText = $"Opened bookmark at {Bookmark.FormatTime(start)}";
+                }
             }
 
             SaveBookmarks();
