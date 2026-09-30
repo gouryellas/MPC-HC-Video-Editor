@@ -49,7 +49,13 @@
                  around every button would be a second rectangle nothing on the
                  toolbar has. The fillers get the frame instead, because they
                  have nothing of their own to show. -->
-            <Grid Margin="3" Opacity="{Binding ChipOpacity}">
+            <!-- Background, not None: the button inside is IsHitTestVisible
+                 false so a press cannot run the command, which leaves this Grid
+                 as the only thing that can be under the pointer — and a Grid
+                 with no background is not hit-tested at all. Without this the
+                 actions could not be picked up, while the fillers, which have a
+                 Border of their own, could. -->
+            <Grid Margin="3" Background="Transparent" Opacity="{Binding ChipOpacity}">
                 <Button Content="{Binding Label}" IsHitTestVisible="False" Focusable="False"
                         Margin="0" MinWidth="{Binding MinWidth}"
                         Style="{Binding StyleKey, Converter={StaticResource StyleByKey}}"
@@ -83,7 +89,7 @@
         </DataTemplate>
     </Window.Resources>
 
-    <Grid Margin="16">
+    <Grid x:Name="RootGrid" Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -101,7 +107,7 @@
                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                 CornerRadius="4" Padding="6" Margin="0,0,0,4"
                 HorizontalAlignment="Left">
-            <ItemsControl x:Name="PreviewRows" AllowDrop="True">
+            <ItemsControl x:Name="PreviewRows">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <!-- A row. The border is what lights up while something
@@ -110,10 +116,7 @@
                              one. -->
                         <Border x:Name="RowFrame" BorderThickness="1" BorderBrush="Transparent"
                                 CornerRadius="3" Padding="2" MinHeight="40" Margin="0,1"
-                                Background="Transparent"
-                                AllowDrop="True"
-                                DragEnter="Row_DragEnter" DragLeave="Row_DragLeave" Drop="Row_Drop"
-                                DragOver="Row_DragOver">
+                                Background="Transparent">
                             <ItemsControl ItemsSource="{Binding}" ItemTemplate="{StaticResource Chip}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>

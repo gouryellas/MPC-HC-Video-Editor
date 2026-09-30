@@ -3,8 +3,10 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using MpcHcVideoEditor.Helpers;
 using MpcHcVideoEditor.Models;
 
 namespace MpcHcVideoEditor.Dialogs;
@@ -42,6 +44,15 @@ public partial class CustomizeToolbarDialog : Window
     private Point _pressPoint;
     private ToolbarItem? _pressed;
 
+    /// <summary>The element pressed, kept for the picture the ghost carries.</summary>
+    private FrameworkElement? _pressedElement;
+
+    /// <summary>The copy of it that follows the pointer while it is being carried.</summary>
+    private DragGhostAdorner? _ghost;
+
+    /// <summary>Where the pointer was on the last move, for a drag that ends by losing capture.</summary>
+    private Point _lastDragPoint;
+
     public CustomizeToolbarDialog(List<ToolbarItem> catalogue,
                                   IEnumerable<ToolbarItem> current,
                                   double minimumWidth)
@@ -62,19 +73,11 @@ public partial class CustomizeToolbarDialog : Window
         AvailableList.ItemsSource = BuildGroupedView();
 
         PreviewRows.PreviewMouseLeftButtonDown += List_MouseDown;
-        PreviewRows.PreviewMouseMove += List_MouseMove;
         PreviewRows.MouseDoubleClick += Preview_DoubleClick;
 
         AvailableList.PreviewMouseLeftButtonDown += List_MouseDown;
-        AvailableList.PreviewMouseMove += List_MouseMove;
         AvailableList.MouseDoubleClick += Available_DoubleClick;
 
-        // Dropping onto the frame rather than a row removes the item: the
-        // gesture for taking a button off the toolbar is dragging it away from
-        // the toolbar, which has to land somewhere.
-        AvailableList.AllowDrop = true;
-        AvailableList.Drop += Available_Drop;
-        AvailableList.DragOver += (_, e) => e.Effects = DragDropEffects.Move;
     }
 
     // ------------------------------------------------------------------
@@ -153,69 +156,250 @@ public partial class CustomizeToolbarDialog : Window
 
     private void List_MouseDown(object sender, MouseButtonEventArgs e)
     {
-        _pressPoint = e.GetPosition(this);
-        _pressed = ItemUnder(e.OriginalSource as DependencyObject);
+        _pressPoint = e.GetPosition(RootGrid);
+        _pressedElement = ChipUnder(e.OriginalSource as DependencyObject);
+        _pressed = _pressedElement?.DataContext as ToolbarItem;
     }
 
-    private void List_MouseMove(object sender, MouseEventArgs e)
-    {
-        if (e.LeftButton != MouseButtonState.Pressed || _pressed is null || _dragging is not null) return;
-
-        var at = e.GetPosition(this);
-        if (Math.Abs(at.X - _pressPoint.X) < SystemParameters.MinimumHorizontalDragDistance &&
-            Math.Abs(at.Y - _pressPoint.Y) < SystemParameters.MinimumVerticalDragDistance)
-            return;
-
-        _dragging = _pressed;
-        _draggingFrom = _rows.FirstOrDefault(r => r.Contains(_pressed));
-        _dragging.IsDragging = true;
-
-        try
-        {
-            DragDrop.DoDragDrop((DependencyObject)sender, _dragging, DragDropEffects.Move);
-        }
-        finally
-        {
-            _dragging.IsDragging = false;
-            _dragging = null;
-            _draggingFrom = null;
-            _pressed = null;
-            RefreshAvailable();
-        }
-    }
-
-    /// <summary>Lights the row the drop would land in.</summary>
+    /// <summary>
+    /// Starts carrying the item once the pointer has moved far enough, and
+    /// keeps the ghost under it.
+    /// </summary>
     /// <remarks>
-    /// Only worth showing once there is more than one row — with a single row
-    /// there is nothing to choose between, and a border that is always on is a
-    /// border nobody reads.
+    /// On the window rather than on the two lists, which is not a detail. The
+    /// drag captures the mouse, and a captured mouse sends its moves to the
+    /// capturing element and nowhere else — so handlers on the lists stop
+    /// hearing anything the moment the drag begins. They did, and the
+    /// consequences were a ghost frozen where it was picked up and a drop
+    /// landing wherever the pointer had been a moment before the capture.
+    ///
+    /// Not <c>DragDrop.DoDragDrop</c>, which is for carrying data between
+    /// applications and shows nothing but a cursor. What is being moved here is
+    /// on screen, and the useful feedback is watching it move.
     /// </remarks>
-    private void Row_DragEnter(object sender, DragEventArgs e)
+    protected override void OnPreviewMouseMove(MouseEventArgs e)
     {
-        if (_rows.Count > 1 && sender is Border row)
-            row.BorderBrush = Services.ThemeService.Brush(nameof(Services.ThemePalette.Accent));
+        base.OnPreviewMouseMove(e);
+
+        if (e.LeftButton != MouseButtonState.Pressed) return;
+        if (_pressed is null || _pressedElement is null) return;
+
+        var at = e.GetPosition(RootGrid);
+
+        if (_dragging is null)
+        {
+            if (Math.Abs(at.X - _pressPoint.X) < SystemParameters.MinimumHorizontalDragDistance &&
+                Math.Abs(at.Y - _pressPoint.Y) < SystemParameters.MinimumVerticalDragDistance)
+                return;
+
+            _dragging = _pressed;
+            _draggingFrom = _rows.FirstOrDefault(r => r.Contains(_pressed));
+            _dragging.IsDragging = true;
+
+            _ghost = new DragGhostAdorner(RootGrid, _pressedElement);
+            AdornerLayer.GetAdornerLayer(RootGrid)?.Add(_ghost);
+
+            CaptureMouse();
+        }
+
+        _lastDragPoint = at;
+        _ghost?.MoveTo(at);
+        HighlightRowUnder(at);
     }
 
-    private void Row_DragLeave(object sender, DragEventArgs e)
+    /// <summary>Puts the carried item down wherever the pointer is.</summary>
+    protected override void OnPreviewMouseLeftButtonUp(MouseButtonEventArgs e)
     {
-        if (sender is Border row) row.BorderBrush = Brushes.Transparent;
-    }
+        base.OnPreviewMouseLeftButtonUp(e);
 
-    private void Row_DragOver(object sender, DragEventArgs e)
-    {
-        e.Effects = DragDropEffects.Move;
-        e.Handled = true;
-    }
-
-    private void Row_Drop(object sender, DragEventArgs e)
-    {
-        if (sender is Border border) border.BorderBrush = Brushes.Transparent;
-        if (_dragging is null || sender is not Border { DataContext: ObservableCollection<ToolbarItem> target })
+        if (_dragging is null)
+        {
+            _pressed = null;
+            _pressedElement = null;
             return;
+        }
 
-        Place(_dragging, _draggingFrom, target, DropIndex(sender, e, target));
+        CompleteDrag(e.GetPosition(RootGrid));
         e.Handled = true;
     }
+
+    /// <summary>
+    /// Finishes a drag that ended by losing the mouse rather than by a release
+    /// this window saw.
+    /// </summary>
+    /// <remarks>
+    /// Releasing the button can take the capture away before the button-up is
+    /// delivered here, and the drop was being thrown away when it did: the
+    /// teardown ran first, the up found nothing in hand, and the carried button
+    /// went back where it came from. Whichever arrives first now completes the
+    /// drag; the other finds nothing to do.
+    ///
+    /// The position comes from the last move rather than from this event, which
+    /// carries none — it is where the pointer was when the drag ended, which is
+    /// the same thing.
+    /// </remarks>
+    protected override void OnLostMouseCapture(MouseEventArgs e)
+    {
+        base.OnLostMouseCapture(e);
+        if (_dragging is not null) CompleteDrag(_lastDragPoint);
+    }
+
+    private void CompleteDrag(Point at)
+    {
+        var item = _dragging;
+        var from = _draggingFrom;
+        if (item is null) return;
+
+        // The ghost comes off before the hit test, not after. It is marked
+        // not-hit-testable, but its layer sits over everything, and asking what
+        // is under the pointer while it is still up gave an answer from the
+        // adorner layer rather than from the toolbar — so every drop read as
+        // "nowhere in particular" and fell to the end of the row.
+        EndDrag();
+
+        var (row, index, overAvailable) = ResolveDrop(at);
+
+        if (row is not null) Place(item, from, row, index);
+        else if (overAvailable && from is not null) Remove(item);
+
+        RefreshAvailable();
+    }
+
+    private void EndDrag()
+    {
+        if (_ghost is not null)
+        {
+            AdornerLayer.GetAdornerLayer(RootGrid)?.Remove(_ghost);
+            _ghost = null;
+        }
+
+        if (_dragging is not null) _dragging.IsDragging = false;
+
+        _dragging = null;
+        _draggingFrom = null;
+        _pressed = null;
+        _pressedElement = null;
+
+        ClearRowHighlights();
+        if (IsMouseCaptured) ReleaseMouseCapture();
+    }
+
+    /// <summary>The chip element under a hit-tested point, or null.</summary>
+    /// <remarks>
+    /// Used to pick an item <em>up</em>, where the pointer is over a real chip
+    /// and nothing is covering it. Putting one down asks
+    /// <see cref="ResolveDrop"/> instead, for the reason given there.
+    /// </remarks>
+    private static FrameworkElement? ChipUnder(DependencyObject? source)
+    {
+        while (source is not null)
+        {
+            if (source is FrameworkElement { DataContext: ToolbarItem } chip) return chip;
+            source = VisualTreeHelper.GetParent(source);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Lights the row the drop would land in, and clears the others.
+    /// </summary>
+    /// <remarks>
+    /// Only once there is more than one row: with a single row there is nothing
+    /// to choose between, and a border that is always on is a border nobody
+    /// reads.
+    /// </remarks>
+    private void HighlightRowUnder(Point at)
+    {
+        ClearRowHighlights();
+        if (_rows.Count < 2) return;
+
+        foreach (var frame in RowFrames())
+            if (Bounds(frame).Contains(at))
+            {
+                frame.BorderBrush = Services.ThemeService.Brush(nameof(Services.ThemePalette.Accent));
+                return;
+            }
+    }
+
+    private void ClearRowHighlights()
+    {
+        foreach (var frame in RowFrames()) frame.BorderBrush = Brushes.Transparent;
+    }
+
+    private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            yield return child;
+            foreach (var d in Descendants(child)) yield return d;
+        }
+    }
+
+    /// <summary>
+    /// Where a point falls: which row, which position in it, or the Available
+    /// list.
+    /// </summary>
+    /// <remarks>
+    /// Measured rather than hit-tested. A hit test answers "what is on top
+    /// here", and while a drag is running what is on top is the adorner layer
+    /// carrying the ghost — so the answers came back from the wrong tree and
+    /// drops landed at the end of the row, or read as the Available list and
+    /// deleted the button. Rectangles do not have that problem: a row is where
+    /// it is whatever is drawn over it.
+    ///
+    /// Bounds come through TransformToAncestor, so a row inside a border inside
+    /// a panel is still measured in this window's own coordinates — the same
+    /// ones the pointer is reported in.
+    /// </remarks>
+    private (ObservableCollection<ToolbarItem>? Row, int Index, bool OverAvailable) ResolveDrop(Point at)
+    {
+        foreach (var frame in RowFrames())
+        {
+            if (frame.DataContext is not ObservableCollection<ToolbarItem> items) continue;
+            if (!Bounds(frame).Contains(at)) continue;
+
+            // The first chip whose middle is past the pointer is the one it
+            // goes in front of. None of them means the empty space at the end.
+            for (var i = 0; i < items.Count; i++)
+            {
+                if (ChipFor(frame, items[i]) is not { } chip) continue;
+
+                var box = Bounds(chip);
+                if (at.X < box.Left + box.Width / 2) return (items, i, false);
+            }
+
+            return (items, items.Count, false);
+        }
+
+        return Bounds(AvailableList).Contains(at) ? (null, 0, true) : (null, 0, false);
+    }
+
+    /// <summary>
+    /// The bounds of an element in the content root's coordinates.
+    /// </summary>
+    /// <remarks>
+    /// RootGrid, not the window. A Window reports pointer positions in its
+    /// client area but measures its visual tree from below the chrome, so the
+    /// two are a title bar apart — and comparing one against the other put
+    /// every drop about thirty pixels below where it looked. One element for
+    /// both, and the question stops depending on which.
+    /// </remarks>
+    private Rect Bounds(FrameworkElement element) =>
+        element.TransformToAncestor(RootGrid)
+               .TransformBounds(new Rect(0, 0, element.ActualWidth, element.ActualHeight));
+
+    /// <summary>The frame drawn around each row of the preview.</summary>
+    private IEnumerable<Border> RowFrames() =>
+        Descendants(PreviewRows).OfType<Border>()
+            .Where(b => b.DataContext is ObservableCollection<ToolbarItem> && b.ActualWidth > 0);
+
+    /// <summary>The chip drawn for one item inside a row.</summary>
+    private static FrameworkElement? ChipFor(DependencyObject row, ToolbarItem item) =>
+        Descendants(row).OfType<FrameworkElement>()
+            .FirstOrDefault(e => e is Grid && ReferenceEquals(e.DataContext, item) && e.ActualWidth > 0);
+
 
     /// <summary>
     /// Puts an item into a row at a position, taking it out of wherever it was.
@@ -282,29 +466,6 @@ public partial class CustomizeToolbarDialog : Window
         return flat;
     }
 
-    /// <summary>Where in the row the pointer is, counted in items.</summary>
-    private static int DropIndex(object sender, DragEventArgs e, ObservableCollection<ToolbarItem> row)
-    {
-        if (sender is not Border border) return row.Count;
-
-        var at = e.GetPosition(border).X;
-        var panel = FindPanel(border);
-        if (panel is null) return row.Count;
-
-        for (var i = 0; i < panel.Children.Count && i < row.Count; i++)
-        {
-            var child = (UIElement)panel.Children[i];
-            var left = child.TranslatePoint(new Point(0, 0), border).X;
-
-            // Past the middle of a chip means after it, which is what makes
-            // dropping onto the right-hand half of a button put the new one
-            // behind it rather than in front.
-            if (at < left + child.RenderSize.Width / 2) return i;
-        }
-
-        return row.Count;
-    }
-
     private static Panel? FindPanel(DependencyObject root)
     {
         if (root is Panel panel && root is not Grid) return panel;
@@ -335,16 +496,6 @@ public partial class CustomizeToolbarDialog : Window
         for (var i = _rows.Count - 1; i >= 0 && _rows.Count > 1; i--)
             if (_rows[i].Count == 0)
                 _rows.RemoveAt(i);
-    }
-
-    /// <summary>Dropping onto the Available side takes the item off the toolbar.</summary>
-    private void Available_Drop(object sender, DragEventArgs e)
-    {
-        if (_dragging is null || _draggingFrom is null) return;
-
-        _draggingFrom.Remove(_dragging);
-        DropEmptyRows();
-        e.Handled = true;
     }
 
     // ------------------------------------------------------------------
