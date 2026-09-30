@@ -222,76 +222,248 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public ObservableCollection<ToolbarItem> ToolbarItems { get; } = new();
 
     /// <summary>
-    /// Builds the toolbar: the buttons the program ships with, put into
-    /// whatever order the settings file remembers.
+    /// Every action that can be put on the toolbar, and the three fillers.
     /// </summary>
     /// <remarks>
-    /// The defaults are the source of truth for what a button <em>is</em> — its
-    /// label, command and colour — and the saved list only says where each one
-    /// goes. So a button whose tooltip or style changes in a later release
-    /// picks that up even for someone who rearranged the row, and a saved key
-    /// that no longer matches anything is dropped rather than leaving a hole.
+    /// A chosen set rather than every command in the menus. Forty-four of those
+    /// are bound, but most either need an argument — a playlist, a naming tag, a
+    /// recent file — or are things nobody reaches for often enough to spend a
+    /// button on. What is here is what someone might want under the pointer
+    /// while cutting.
+    ///
+    /// Built fresh on each call because the items carry per-instance state: the
+    /// Customize dialog hands out copies, and a spacer dropped twice has to be
+    /// two objects.
     /// </remarks>
-    private void BuildToolbar()
+    public List<ToolbarItem> ToolbarCatalogue() => new()
     {
-        var defaults = new List<ToolbarItem>
-        {
-            new() { Key = "set-timestamp", Label = "📍 Set timestamp", Command = SetTimestampCommand,
-                    ToolTip = "Set a timestamp at the current MPC-HC position" },
-            new() { Key = "save-frame", Label = "📷", Command = SaveCurrentFrameCommand, Width = 36,
-                    ToolTip = "Save the frame MPC-HC is showing as a PNG, full size, next to the other output" },
-            new() { Key = "delete", Label = "🗑", Command = DeleteSelectedCommand, Width = 36,
-                    ToolTip = "Remove the checked timestamps from the list and the bookmark file. With nothing checked it removes the highlighted row." },
-            new() { Key = "flip", Label = "↕ Flip", Command = ToggleFlipCommand,
-                    ToolTip = "Flip the checked cuts upside down. With nothing checked it flips the highlighted row." },
-            new() { Key = "rotate", Label = "⟳ Rotate", Command = RotateSelectedCommand,
-                    ToolTip = "Turn the checked cuts a quarter further round — right, upside down, left, then back to normal. With nothing checked it turns the highlighted row." },
-            new() { Key = "mute", Label = "🔇 Mute", Command = ToggleMuteCommand,
-                    ToolTip = "Write the checked cuts without sound. With nothing checked it mutes the highlighted row. The audio track stays in place carrying silence, so a merge of muted and unmuted cuts still joins cleanly." },
-            new() { Key = "fade", Label = "◐ Fade", Command = ToggleFadeCommand,
-                    ToolTip = "Fade the checked cuts up at the start and down at the end, picture and sound together. With nothing checked it fades the highlighted row. Length is set under Settings ▸ Output; press again to take the fades off." },
+        // The thirteen the toolbar ships with.
+        new() { Key = "set-timestamp", Group = "Bookmarks", Label = "📍 Set timestamp", Command = SetTimestampCommand,
+                ToolTip = "Set a timestamp at the current MPC-HC position" },
+        new() { Key = "save-frame", Group = "Actions", Label = "📷", Command = SaveCurrentFrameCommand, Width = 36,
+                ToolTip = "Save the frame MPC-HC is showing as a PNG, full size, next to the other output" },
+        new() { Key = "delete", Group = "Bookmarks", Label = "🗑", Command = DeleteSelectedCommand, Width = 36,
+                ToolTip = "Remove the checked timestamps from the list and the bookmark file. With nothing checked it removes the highlighted row." },
+        new() { Key = "flip", Group = "Actions", Label = "↕ Flip", Command = ToggleFlipCommand,
+                ToolTip = "Flip the checked cuts upside down. With nothing checked it flips the highlighted row." },
+        new() { Key = "rotate", Group = "Actions", Label = "⟳ Rotate", Command = RotateSelectedCommand,
+                ToolTip = "Turn the checked cuts a quarter further round. With nothing checked it turns the highlighted row." },
+        new() { Key = "mute", Group = "Actions", Label = "🔇 Mute", Command = ToggleMuteCommand,
+                ToolTip = "Write the checked cuts without sound. With nothing checked it mutes the highlighted row." },
+        new() { Key = "fade", Group = "Actions", Label = "◐ Fade", Command = ToggleFadeCommand,
+                ToolTip = "Fade the checked cuts up at the start and down at the end. With nothing checked it fades the highlighted row." },
+        new() { Key = "select-all", Group = "Bookmarks", Label = "Select All", Command = ToggleSelectAllCommand,
+                MinWidth = 104, ToolTip = "Check every cut, or clear them all." },
+        new() { Key = "merge", Group = "Actions", Label = "🎬 Merge", Command = MergeSelectedCommand, StyleKey = "MergeButton" },
+        new() { Key = "split", Group = "Actions", Label = "✂ Split", Command = SplitSelectedCommand, StyleKey = "SplitButton" },
+        new() { Key = "convert", Group = "Actions", Label = "🔄 Convert video", Command = ConvertFilesCommand, StyleKey = "ConvertButton" },
+        new() { Key = "strip-audio", Group = "Actions", Label = "🔊 Strip audio", Command = StripAudioCommand, StyleKey = "AudioButton",
+                ToolTip = "Pulls the sound out of files you pick: an MP3 of the audio, a silent copy of the video, or both." },
 
-            new() { Key = "gap-1", IsSpacer = true },
+        // Everything else worth a button.
+        new() { Key = "open-file", Group = "File", Label = "📂 Open video", Command = OpenFileCommand,
+                ToolTip = "Open a video in MPC-HC" },
+        new() { Key = "reveal-video", Group = "File", Label = "📁 Show video", Command = RevealVideoCommand,
+                ToolTip = "Show the current video in Explorer" },
+        new() { Key = "reveal-output", Group = "File", Label = "📁 Show output", Command = RevealOutputCommand,
+                ToolTip = "Show the output folder in Explorer" },
+        new() { Key = "settings", Group = "File", Label = "⚙ Settings", Command = OpenSettingsCommand,
+                ToolTip = "Open Settings" },
+        new() { Key = "undo-edit", Group = "Edit", Label = "↶ Undo", Command = UndoEditCommand,
+                ToolTip = "Undo the last change to the cut list" },
+        new() { Key = "redo-edit", Group = "Edit", Label = "↷ Redo", Command = RedoEditCommand,
+                ToolTip = "Redo the change that was undone" },
+        new() { Key = "undo-bookmark", Group = "Bookmarks", Label = "⎌ Undo timestamp", Command = UndoLastBookmarkCommand,
+                ToolTip = "Remove the last single timestamp" },
+        new() { Key = "enter-time", Group = "Bookmarks", Label = "⌨ Enter time", Command = EnterTimeManualCommand,
+                ToolTip = "Type a time or a range instead of using the hotkey" },
+        new() { Key = "detect", Group = "Bookmarks", Label = "🔍 Detect cuts", Command = DetectBookmarksCommand,
+                ToolTip = "Propose cuts from silence, black frames or scene changes" },
+        new() { Key = "edit-bookmarks", Group = "Bookmarks", Label = "✎ Edit bookmarks", Command = EditBookmarksCommand,
+                ToolTip = "Open the bookmark CSV in a text editor" },
+        new() { Key = "play-all", Group = "Bookmarks", Label = "▶ Play all", Command = PlayAllCommand,
+                ToolTip = "Play every cut in turn" },
+        new() { Key = "play-selected", Group = "Bookmarks", Label = "▶ Play checked", Command = PlaySelectedCommand,
+                ToolTip = "Play the checked cuts in turn" },
+        new() { Key = "export-animation", Group = "Actions", Label = "🎞 GIF / WebP", Command = ExportAnimationCommand,
+                ToolTip = "Export the checked cuts as an animation" },
+        new() { Key = "convert-images", Group = "Actions", Label = "🖼 Convert images", Command = ConvertImagesCommand,
+                ToolTip = "Convert image files between formats" },
+        new() { Key = "export-chapters", Group = "Actions", Label = "🔖 Chapters", Command = ExportChaptersCommand,
+                ToolTip = "Write the cuts out as a chapter file" },
+        new() { Key = "add-to-playlist", Group = "Playlist", Label = "➕ To playlist", Command = AddCurrentToPlaylistCommand,
+                ToolTip = "Add the current video to a playlist" },
+        new() { Key = "mpc-front", Group = "View", Label = "🖥 Show player", Command = BringMpcToFrontCommand,
+                ToolTip = "Bring MPC-HC to the front" },
 
-            new() { Key = "select-all", Label = SelectAllButtonLabel, Command = ToggleSelectAllCommand,
-                    MinWidth = 104,
-                    ToolTip = "Check every cut, or clear them all. Follows the list: it offers to clear once everything is checked, and to select once nothing is." },
+        // The fillers. Each is a real entry in the layout; only their drawing is
+        // particular to the Customize dialog.
+        new() { Key = "spacer", Group = "Layout", Kind = ToolbarItemKind.Spacer, Label = "Spacer",
+                ToolTip = "A fixed gap between two groups of buttons" },
+        new() { Key = "expander", Group = "Layout", Kind = ToolbarItemKind.Expander, Label = "Expander",
+                ToolTip = "Takes up whatever width is left, pushing what follows it to the right" },
+        new() { Key = "row-break", Group = "Layout", Kind = ToolbarItemKind.RowBreak, Label = "New row",
+                ToolTip = "Everything after this is drawn on the next line of the toolbar" },
+    };
 
-            new() { Key = "gap-2", IsSpacer = true },
+    /// <summary>The layout the program ships with.</summary>
+    private static readonly string[] _defaultToolbar =
+    {
+        "set-timestamp", "save-frame", "delete", "flip", "rotate", "mute", "fade",
+        "spacer", "select-all", "spacer",
+        "merge", "split", "convert", "strip-audio"
+    };
 
-            new() { Key = "merge", Label = "🎬 Merge", Command = MergeSelectedCommand, StyleKey = "MergeButton" },
-            new() { Key = "split", Label = "✂ Split", Command = SplitSelectedCommand, StyleKey = "SplitButton" },
-            new() { Key = "convert", Label = "🔄 Convert video", Command = ConvertFilesCommand, StyleKey = "ConvertButton" },
-            new() { Key = "strip-audio", Label = "🔊 Strip audio", Command = StripAudioCommand, StyleKey = "AudioButton",
-                    ToolTip = "Pulls the sound out of files you pick: an MP3 of the audio, a silent copy of the video, or both. The file you pick is not changed." },
-        };
+    /// <summary>
+    /// Builds the toolbar from the saved layout, or from the default when there
+    /// is none.
+    /// </summary>
+    /// <remarks>
+    /// The catalogue owns what a button <em>is</em> — label, command, colour —
+    /// and the saved list only says which ones and in what order. So a button
+    /// whose tooltip or style changes in a later release picks that up even for
+    /// someone who rearranged the row.
+    ///
+    /// A key that no longer matches anything is dropped. A button the saved
+    /// layout does not mention is <em>not</em> added: once the toolbar has been
+    /// customized it belongs to the user, and a later release's button waits in
+    /// the Customize dialog rather than turning up at the end of their row.
+    /// <see cref="AppSettings.ToolbarCustomized"/> is what tells "never touched"
+    /// from "emptied on purpose".
+    /// </remarks>
+    public void BuildToolbar()
+    {
+        var catalogue = ToolbarCatalogue();
+        var layout = _settings.Current.ToolbarCustomized
+            ? _settings.Current.ToolbarOrder
+            : _defaultToolbar.ToList();
 
         ToolbarItems.Clear();
 
-        // Saved order first, skipping anything that no longer exists, then
-        // whatever the saved order has not mentioned — which is how a button
-        // added since the order was written still turns up.
-        foreach (var key in _settings.Current.ToolbarOrder)
-            if (defaults.FirstOrDefault(d => d.Key == key) is { } known)
-                ToolbarItems.Add(known);
+        foreach (var key in layout)
+            if (catalogue.FirstOrDefault(c => c.Key == key) is { } known)
+                ToolbarItems.Add(known.Clone());
 
-        foreach (var item in defaults)
-            if (!ToolbarItems.Contains(item))
-                ToolbarItems.Add(item);
+        RefreshToolbarRows();
     }
 
-    /// <summary>Writes the current toolbar order to settings.</summary>
+    /// <summary>
+    /// The toolbar split into rows on its break markers.
+    /// </summary>
+    /// <remarks>
+    /// A row is a collection of its own because each is laid out separately —
+    /// an expander shares out the width of its own line, not of the whole
+    /// toolbar. The breaks are the boundaries and are not carried into the
+    /// rows; drawing one would put a gap in a row that asked for none.
+    /// </remarks>
+    public ObservableCollection<ObservableCollection<ToolbarItem>> ToolbarRows { get; } = new();
+
+    private void RefreshToolbarRows()
+    {
+        ToolbarRows.Clear();
+
+        var row = new ObservableCollection<ToolbarItem>();
+
+        foreach (var item in ToolbarItems)
+        {
+            if (item.Kind == ToolbarItemKind.RowBreak)
+            {
+                ToolbarRows.Add(row);
+                row = new ObservableCollection<ToolbarItem>();
+                continue;
+            }
+
+            row.Add(item);
+        }
+
+        ToolbarRows.Add(row);
+    }
+
+    /// <summary>Writes the current toolbar layout to settings.</summary>
     public void SaveToolbarOrder()
     {
         _settings.Current.ToolbarOrder = ToolbarItems.Select(i => i.Key).ToList();
+        _settings.Current.ToolbarCustomized = true;
+        _settings.Save();
+        RefreshToolbarRows();
+    }
+
+    /// <summary>
+    /// Rebuilds the saved layout from the rows, putting a break back between
+    /// each one.
+    /// </summary>
+    /// <remarks>
+    /// Dragging works on the rows, because that is what is on screen and what
+    /// has to rearrange under the pointer. The flat list is the thing that gets
+    /// written down, so it is derived from them afterwards rather than kept in
+    /// step during the drag — one direction, at one moment, instead of two
+    /// collections trying to mirror each other mid-gesture.
+    /// </remarks>
+    public void RebuildOrderFromRows()
+    {
+        var flat = new List<ToolbarItem>();
+
+        foreach (var row in ToolbarRows)
+        {
+            if (flat.Count > 0)
+                flat.Add(new ToolbarItem { Key = "row-break", Kind = ToolbarItemKind.RowBreak, Label = "New row" });
+
+            flat.AddRange(row);
+        }
+
+        ToolbarItems.Clear();
+        foreach (var item in flat) ToolbarItems.Add(item);
+
+        _settings.Current.ToolbarOrder = ToolbarItems.Select(i => i.Key).ToList();
+        _settings.Current.ToolbarCustomized = true;
         _settings.Save();
     }
+
+    /// <summary>The row a toolbar item is currently in, or null.</summary>
+    public ObservableCollection<ToolbarItem>? RowContaining(ToolbarItem item) =>
+        ToolbarRows.FirstOrDefault(r => r.Contains(item));
+
+    /// <summary>Replaces the toolbar with a layout built in the Customize dialog.</summary>
+    public void ApplyToolbarLayout(IEnumerable<ToolbarItem> layout)
+    {
+        ToolbarItems.Clear();
+        foreach (var item in layout) ToolbarItems.Add(item);
+        SaveToolbarOrder();
+    }
+
+    /// <summary>Opens the toolbar editor.</summary>
+    [RelayCommand]
+    private void CustomizeToolbar()
+    {
+        var dlg = new CustomizeToolbarDialog(ToolbarCatalogue(), ToolbarItems, ToolbarMinimumWidth)
+        {
+            Owner = DialogOwner
+        };
+
+        if (dlg.ShowDialog() != true || dlg.Layout is null) return;
+
+        ApplyToolbarLayout(dlg.Layout);
+        StatusText = "Toolbar updated";
+    }
+
+    /// <summary>
+    /// How wide the toolbar can count on being: the width of the narrowest the
+    /// window is allowed to get.
+    /// </summary>
+    /// <remarks>
+    /// Set by the view once it has measured the menu bar, which is what holds
+    /// the window's minimum width. The Customize dialog draws its preview at
+    /// this width so that a row built there fits at any size the window can
+    /// take — anything wider is slack, and slack is what an expander is for.
+    /// </remarks>
+    public double ToolbarMinimumWidth { get; set; } = 900;
 
     /// <summary>Puts the toolbar back the way the program ships it.</summary>
     [RelayCommand]
     private void ResetToolbarOrder()
     {
         _settings.Current.ToolbarOrder = new List<string>();
+        _settings.Current.ToolbarCustomized = false;
         _settings.Save();
         BuildToolbar();
         StatusText = "Toolbar back in its original order";

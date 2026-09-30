@@ -375,6 +375,17 @@ public class AppSettings
     /// versions ago instead of silently going missing.
     /// </remarks>
     public List<string> ToolbarOrder { get; set; } = new();
+
+    /// <summary>
+    /// Whether the toolbar has ever been changed by hand.
+    /// </summary>
+    /// <remarks>
+    /// Tells an empty layout from an untouched one, which the list alone
+    /// cannot. It is also what stops a later release appending its new button
+    /// to a row somebody arranged deliberately: with this set, the saved layout
+    /// is the whole truth and anything new waits in the Customize dialog.
+    /// </remarks>
+    public bool ToolbarCustomized { get; set; }
     public string? KeyboardHotkey { get; set; } // e.g. "F8"
     public bool MiddleMouseHotkeyEnabled { get; set; } = true;
     /// <summary>

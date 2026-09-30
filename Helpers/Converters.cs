@@ -56,6 +56,26 @@ public class BoolToFlipScaleConverter : IValueConverter
 }
 
 /// <summary>
+/// Shows an element only for one kind of toolbar entry.
+/// </summary>
+/// <remarks>
+/// One converter with a Kind rather than one class per kind: the template needs
+/// the same test three times over, and three near-identical classes would be
+/// three places to change the day a fourth kind appears.
+/// </remarks>
+public class ToolbarKindToVisibilityConverter : IValueConverter
+{
+    /// <summary>The kind this instance shows, named in the resource that creates it.</summary>
+    public Models.ToolbarItemKind Kind { get; set; }
+
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is Models.ToolbarItemKind k && k == Kind ? Visibility.Visible : Visibility.Collapsed;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
 /// Dims the button being dragged, so it can be told from the ones moving out of
 /// its way.
 /// </summary>

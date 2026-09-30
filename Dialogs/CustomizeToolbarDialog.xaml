@@ -1,0 +1,213 @@
+<Window x:Class="MpcHcVideoEditor.Dialogs.CustomizeToolbarDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:helpers="clr-namespace:MpcHcVideoEditor.Helpers"
+        Title="Customize toolbar" Height="640" Width="980"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource WindowBackground}"
+        ShowInTaskbar="False">
+    <Window.Resources>
+        <helpers:ToolbarKindToVisibilityConverter x:Key="IsSpacer" Kind="Spacer"/>
+        <helpers:ToolbarKindToVisibilityConverter x:Key="IsExpander" Kind="Expander"/>
+        <helpers:ToolbarKindToVisibilityConverter x:Key="IsRowBreak" Kind="RowBreak"/>
+        <helpers:ToolbarKindToVisibilityConverter x:Key="IsAction" Kind="Button"/>
+        <!-- Declared here, not borrowed: a Window does not inherit the
+             main window's resources, and a template that reaches for one
+             throws the moment it is applied. -->
+        <helpers:DragOpacityConverter x:Key="DragOpacity"/>
+        <helpers:ResourceKeyToStyleConverter x:Key="StyleByKey"/>
+
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Margin" Value="4"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <Style x:Key="Heading" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+
+        <Style x:Key="Hint" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+
+        <!-- One chip. The same template serves both lists and the preview, so a
+             button looks the same wherever it is being dragged from or to. -->
+        <DataTemplate x:Key="Chip">
+            <!-- An action draws as the button it is, with no frame around it:
+                 the preview is meant to be the toolbar, and a chip border
+                 around every button would be a second rectangle nothing on the
+                 toolbar has. The fillers get the frame instead, because they
+                 have nothing of their own to show. -->
+            <Grid Margin="3" Opacity="{Binding IsDragging, Converter={StaticResource DragOpacity}}">
+                <Button Content="{Binding Label}" IsHitTestVisible="False" Focusable="False"
+                        Margin="0" MinWidth="{Binding MinWidth}"
+                        Style="{Binding StyleKey, Converter={StaticResource StyleByKey}}"
+                        Visibility="{Binding Kind, Converter={StaticResource IsAction}}"/>
+
+                <Border Background="{DynamicResource InsetBackground}"
+                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                        CornerRadius="3" Padding="8,6"
+                        Visibility="{Binding Kind, Converter={StaticResource IsSpacer}}"
+                        ToolTip="A fixed gap between two groups of buttons">
+                    <TextBlock Text="|      |" Foreground="{DynamicResource TextMuted}" FontFamily="Consolas"/>
+                </Border>
+
+                <Border Background="{DynamicResource InsetBackground}"
+                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                        CornerRadius="3" Padding="8,6"
+                        Visibility="{Binding Kind, Converter={StaticResource IsExpander}}"
+                        ToolTip="Takes up whatever width is left over">
+                    <TextBlock Text="&lt; --- &gt;" Foreground="{DynamicResource TextMuted}"
+                               FontFamily="Consolas" HorizontalAlignment="Center"/>
+                </Border>
+
+                <Border Background="{DynamicResource InsetBackground}"
+                        BorderBrush="{DynamicResource ValueYellow}" BorderThickness="1"
+                        CornerRadius="3" Padding="8,6"
+                        Visibility="{Binding Kind, Converter={StaticResource IsRowBreak}}"
+                        ToolTip="Drop this on the toolbar to start another line">
+                    <TextBlock Text="⏎ New row" Foreground="{DynamicResource ValueYellow}"/>
+                </Border>
+            </Grid>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Style="{StaticResource Heading}" Text="YOUR TOOLBAR"/>
+
+        <!-- The preview is the width the window is allowed to shrink to, so a
+             row that fits here fits at any size. A row too wide for it wraps,
+             which is exactly what the real toolbar does. -->
+        <Border Grid.Row="1" x:Name="PreviewFrame"
+                Background="{DynamicResource PanelBackground}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                CornerRadius="4" Padding="6" Margin="0,0,0,4"
+                HorizontalAlignment="Left">
+            <ItemsControl x:Name="PreviewRows" AllowDrop="True">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <!-- A row. The border is what lights up while something
+                             is being dragged over it, so it is obvious which
+                             line will take the drop once there is more than
+                             one. -->
+                        <Border x:Name="RowFrame" BorderThickness="1" BorderBrush="Transparent"
+                                CornerRadius="3" Padding="2" MinHeight="40" Margin="0,1"
+                                Background="Transparent"
+                                AllowDrop="True"
+                                DragEnter="Row_DragEnter" DragLeave="Row_DragLeave" Drop="Row_Drop"
+                                DragOver="Row_DragOver">
+                            <ItemsControl ItemsSource="{Binding}" ItemTemplate="{StaticResource Chip}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <helpers:ToolbarRowPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Border>
+
+        <TextBlock Grid.Row="1" VerticalAlignment="Bottom" HorizontalAlignment="Right"
+                   x:Name="WidthNote" Style="{StaticResource Hint}" Margin="0,0,0,-14"/>
+
+        <Grid Grid.Row="2" Margin="0,18,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="16"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource Heading}" Text="AVAILABLE"/>
+            <TextBox Grid.Row="1" Grid.Column="0" x:Name="SearchBox" Margin="0,0,0,6" Padding="4,3"
+                     TextChanged="Search_TextChanged"
+                     Background="{DynamicResource InsetBackground}"
+                     Foreground="{DynamicResource TextPrimary}"
+                     BorderBrush="{DynamicResource BorderBrush}"
+                     ToolTip="Filter the list"/>
+            <Border Grid.Row="2" Grid.Column="0" Background="{DynamicResource PanelBackground}"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ItemsControl x:Name="AvailableList" Margin="6">
+                        <ItemsControl.GroupStyle>
+                            <GroupStyle>
+                                <GroupStyle.HeaderTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextSecondary}"
+                                                   Margin="2,8,0,2"/>
+                                    </DataTemplate>
+                                </GroupStyle.HeaderTemplate>
+                            </GroupStyle>
+                        </ItemsControl.GroupStyle>
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <StaticResource ResourceKey="Chip"/>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Border>
+
+            <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource Heading}" Text="HOW"/>
+            <Border Grid.Row="1" Grid.Column="2" Grid.RowSpan="2"
+                    Background="{DynamicResource PanelBackground}"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                    CornerRadius="4" Padding="12" VerticalAlignment="Top">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource Hint}">
+                        <Run Text="Drag a button from Available onto your toolbar, or drag one out of the toolbar to remove it. Double-clicking does the same thing in either direction."/>
+                    </TextBlock>
+                    <TextBlock Style="{StaticResource Hint}">
+                        <Run Text="| |" FontFamily="Consolas"/>
+                        <Run Text=" is a fixed gap. "/>
+                        <Run Text="&lt; --- &gt;" FontFamily="Consolas"/>
+                        <Run Text=" takes whatever width is left over, so anything after it is pushed to the right. Two of them put what is between them in the middle. Use as many as you like."/>
+                    </TextBlock>
+                    <TextBlock Style="{StaticResource Hint}">
+                        <Run Text="⏎ New row" FontWeight="SemiBold"/>
+                        <Run Text=" starts another line of the same toolbar. It stays in the list — drop it as often as you need. Drag the line's last button away to remove the row."/>
+                    </TextBlock>
+                    <TextBlock Style="{StaticResource Hint}"
+                               Text="The box above is as wide as the window is allowed to get narrow. A row that fits there fits at any size; a longer one wraps by itself, exactly as it will in the program."/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button Content="Reset to default" Click="Reset_Click" Margin="4,4,24,4"/>
+            <Button Content="Cancel" Width="90" IsCancel="True" Click="Cancel_Click"/>
+            <Button Content="Save" Width="90" IsDefault="True" Click="Save_Click"
+                    Background="{DynamicResource PrimaryButton}"
+                    BorderBrush="{DynamicResource PrimaryButtonBorder}"
+                    Foreground="{DynamicResource OnAccent}"/>
+        </StackPanel>
+    </Grid>
+</Window>

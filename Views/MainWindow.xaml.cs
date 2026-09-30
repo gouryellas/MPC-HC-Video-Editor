@@ -82,11 +82,17 @@ public partial class MainWindow : Window
         var over = ItemUnder(ActionToolbar.InputHitTest(e.GetPosition(ActionToolbar)) as DependencyObject);
         if (over is null || ReferenceEquals(over, _toolbarDragging)) return;
 
-        var from = _vm.ToolbarItems.IndexOf(_toolbarDragging);
-        var to = _vm.ToolbarItems.IndexOf(over);
+        // Within the row that holds it: a row lays itself out, so moving an
+        // item between rows here would mean deciding which line the pointer is
+        // over, which is the Customize dialog's job rather than a quick drag's.
+        var row = _vm.RowContaining(_toolbarDragging);
+        if (row is null || !row.Contains(over)) return;
+
+        var from = row.IndexOf(_toolbarDragging);
+        var to = row.IndexOf(over);
         if (from < 0 || to < 0) return;
 
-        _vm.ToolbarItems.Move(from, to);
+        row.Move(from, to);
     }
 
     /// <summary>
@@ -107,7 +113,7 @@ public partial class MainWindow : Window
             _toolbarDragging.IsDragging = false;
             _toolbarDragging = null;
             ActionToolbar.ReleaseMouseCapture();
-            _vm?.SaveToolbarOrder();
+            _vm?.RebuildOrderFromRows();
             e.Handled = true;
         }
 
@@ -200,20 +206,26 @@ public partial class MainWindow : Window
 
         var work = SystemParameters.WorkArea;
 
-        if (ActionToolbar is { ActualWidth: > 0 })
+        // The menu bar sets the floor, not the toolbar. The toolbar wraps when
+        // it runs out of width — that is what ToolbarRowPanel is for — so
+        // holding the window open wide enough for every button would be holding
+        // it open for something that can look after itself. The menu cannot: its
+        // words are the one row here with nowhere to go.
+        if (HeaderMenu is { ActualWidth: > 0 })
         {
-            // The buttons are generated now, so they are reached through the
-            // container the ItemsControl made for each one rather than off a
-            // panel written in the markup.
-            double row = 0;
-            for (var i = 0; i < ActionToolbar.Items.Count; i++)
-                if (ActionToolbar.ItemContainerGenerator.ContainerFromIndex(i) is UIElement child)
-                    row += child.DesiredSize.Width;
+            double menu = 0;
+            foreach (UIElement child in HeaderMenu.Items.OfType<UIElement>())
+            {
+                child.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                menu += child.DesiredSize.Width;
+            }
 
-            // Everything horizontal that is not the toolbar itself: the window
-            // border, and the padding of everything it sits inside.
-            var chrome = ActualWidth - ActionToolbar.ActualWidth;
-            MinWidth = Math.Min(row + chrome, work.Width);
+            var chrome = ActualWidth - HeaderMenu.ActualWidth;
+            MinWidth = Math.Min(menu + chrome, work.Width);
+
+            // What the Customize dialog draws its preview at: build a row that
+            // fits the narrowest the window can be, and it fits at every size.
+            if (_vm is not null) _vm.ToolbarMinimumWidth = Math.Max(320, menu);
         }
 
         if (SidePanel is { ActualHeight: > 0, Child: Panel stack })

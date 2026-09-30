@@ -4,9 +4,35 @@ using System.Windows.Input;
 
 namespace MpcHcVideoEditor.Models;
 
+/// <summary>What a toolbar entry is.</summary>
+public enum ToolbarItemKind
+{
+    /// <summary>An action.</summary>
+    Button,
+
+    /// <summary>A fixed gap, for separating one group of buttons from the next.</summary>
+    Spacer,
+
+    /// <summary>
+    /// A gap that takes whatever width is going, pushing what follows it to the
+    /// right — or splitting the leftover evenly when there is more than one.
+    /// </summary>
+    Expander,
+
+    /// <summary>
+    /// Ends the row. Everything after it is drawn on the next line of the same
+    /// toolbar.
+    /// </summary>
+    /// <remarks>
+    /// Stored like anything else, because a break that is not in the list is a
+    /// break that cannot be saved or drawn. It is the one kind with nothing to
+    /// show at runtime: the row simply ends.
+    /// </remarks>
+    RowBreak
+}
+
 /// <summary>
-/// One entry in the action toolbar: a button, or the gap between two groups of
-/// them.
+/// One entry in the action toolbar.
 /// </summary>
 /// <remarks>
 /// The toolbar used to be thirteen buttons written out in the markup. They are
@@ -28,10 +54,17 @@ public sealed class ToolbarItem : INotifyPropertyChanged
     /// Stable identifier, written to settings. Never shown, and never changed
     /// once shipped — it is what a saved order is a list of.
     /// </summary>
+    /// <remarks>
+    /// Unique among the buttons, and deliberately not among the rest: a layout
+    /// can hold any number of spacers, expanders and row breaks, so those share
+    /// one key each and are told apart by position alone.
+    /// </remarks>
     public required string Key { get; init; }
 
-    /// <summary>True for the gaps that separate one group of buttons from the next.</summary>
-    public bool IsSpacer { get; init; }
+    public ToolbarItemKind Kind { get; init; } = ToolbarItemKind.Button;
+
+    /// <summary>True for everything that is not an action.</summary>
+    public bool IsButton => Kind == ToolbarItemKind.Button;
 
     /// <summary>
     /// The caption. Settable, because one button renames itself — Select all
@@ -46,6 +79,12 @@ public sealed class ToolbarItem : INotifyPropertyChanged
     }
 
     private string _label = string.Empty;
+
+    /// <summary>
+    /// Which menu this action lives in, for grouping the Customize dialog's
+    /// list. Empty for the spacers and breaks, which belong to no menu.
+    /// </summary>
+    public string Group { get; init; } = string.Empty;
 
     public ICommand? Command { get; init; }
     public string? ToolTip { get; init; }
@@ -75,6 +114,26 @@ public sealed class ToolbarItem : INotifyPropertyChanged
     }
 
     private bool _isDragging;
+
+    /// <summary>A copy of this entry, for the Customize dialog's working list.</summary>
+    /// <remarks>
+    /// The dialog edits copies so Cancel can mean it. Spacers and expanders are
+    /// copied rather than shared for a second reason: a layout may hold several,
+    /// and two list entries that are the same object cannot be reordered
+    /// independently.
+    /// </remarks>
+    public ToolbarItem Clone() => new()
+    {
+        Key = Key,
+        Kind = Kind,
+        Label = Label,
+        Group = Group,
+        Command = Command,
+        ToolTip = ToolTip,
+        Width = Width,
+        MinWidth = MinWidth,
+        StyleKey = StyleKey
+    };
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

@@ -129,7 +129,21 @@ video, and an empty one is never created.
 **The toolbar can be rearranged.** Drag a button onto another and the row
 reorders under the pointer; let go and the order is saved. A press that does not
 move is still a click, so the buttons work as they always did, and a drag never
-fires the command it lands on. **Options ▸ Reset toolbar order** puts it back.
+fires the command it lands on.
+
+**Right-click the toolbar ▸ Customize toolbar** (also under Options) opens the
+editor: a preview of your toolbar above, every available action below, drag
+between the two. Double-clicking adds or removes instead, for anyone who would
+rather not drag. Three special blocks sit with the actions — a fixed **spacer**,
+an **expander** that takes up whatever width is left so anything after it is
+pushed right, and **new row**, which starts another line of the same toolbar.
+The preview is as wide as the window is allowed to get narrow, so a row that
+fits there fits at any size; a longer one wraps by itself, exactly as it will in
+the program. **Options ▸ Reset toolbar order** puts everything back.
+
+A button added in a later release does not appear on a toolbar you have
+customized — it waits in the Customize dialog, so your layout is never
+rearranged by an update.
 
 Output filenames use the active **naming tag** (see Options), e.g.
 `vacation.mp4` → `vacation[done].mp4`. Choosing **None** under Options writes

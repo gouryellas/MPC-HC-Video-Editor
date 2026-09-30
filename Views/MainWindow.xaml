@@ -38,6 +38,8 @@
         <helpers:ResourceKeyToStyleConverter x:Key="StyleByKey"/>
         <helpers:PositiveToWidthConverter x:Key="WidthOrAuto"/>
         <helpers:DragOpacityConverter x:Key="DragOpacity"/>
+        <helpers:ToolbarKindToVisibilityConverter x:Key="SpacerVis" Kind="Spacer"/>
+        <helpers:ToolbarKindToVisibilityConverter x:Key="ExpanderVis" Kind="Expander"/>
         <helpers:BoolToFlipScaleConverter x:Key="FlipScale"/>
         <helpers:PositiveToVisibilityConverter x:Key="PositiveToVis"/>
         <helpers:SpeedToBadgeConverter x:Key="SpeedBadge"/>
@@ -623,6 +625,8 @@
                 <!-- The way back from a rearranged toolbar. Dragging is
                      discoverable by accident; undoing it is not, so it needs a
                      line somewhere that can be found on purpose. -->
+                <MenuItem Header="Customize toolbar…" Command="{Binding CustomizeToolbarCommand}"
+                          ToolTip="Choose which buttons are on the toolbar and how they are arranged. Right-clicking the toolbar opens this too."/>
                 <MenuItem Header="Reset toolbar order" Command="{Binding ResetToolbarOrderCommand}"
                           ToolTip="Put the buttons across the top back in the order the program ships with. Drag a button onto another to rearrange them."/>
             </MenuItem>
@@ -744,42 +748,58 @@
                  row actually measures. The wrap is still the safety net — for a
                  display too narrow to hold the row at all, and for the moment
                  during startup before the first measurement. -->
-            <!-- Built from MainViewModel.ToolbarItems rather than written out
-                 here, so the row can be reordered by dragging and the order
-                 saved. WrapPanel as the items panel, for the same reason it was
-                 one before: a horizontal StackPanel lays out past the right
-                 edge and cuts off the last buttons instead of wrapping.
+            <!-- Built from MainViewModel.ToolbarRows rather than written out
+                 here, so the row can be rearranged by dragging and by the
+                 Customize dialog, and the layout saved.
 
-                 Named so the window can still take its minimum width from what
-                 this row measures. -->
+                 Two levels: the outer control draws one line per row break the
+                 user has put in, and each row lays itself out with
+                 ToolbarRowPanel — which is what gives an expander its width and
+                 wraps a row the window is too narrow to hold. -->
             <ItemsControl x:Name="ActionToolbar" Grid.Row="0" Margin="0,0,0,10"
-                          ItemsSource="{Binding ToolbarItems}"
+                          ItemsSource="{Binding ToolbarRows}"
                           PreviewMouseLeftButtonDown="Toolbar_MouseDown"
                           PreviewMouseMove="Toolbar_MouseMove">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <WrapPanel Orientation="Horizontal"/>
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
+                <ItemsControl.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Customize toolbar…" Command="{Binding CustomizeToolbarCommand}"/>
+                        <MenuItem Header="Reset toolbar order" Command="{Binding ResetToolbarOrderCommand}"/>
+                    </ContextMenu>
+                </ItemsControl.ContextMenu>
+
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Grid>
-                            <!-- The gaps between groups. Draggable like
-                                 everything else: they are what makes the groups
-                                 visible, so they have to be able to follow the
-                                 buttons they separate. -->
-                            <Rectangle Width="12" Height="4"
-                                       Visibility="{Binding IsSpacer, Converter={StaticResource BoolToVis}}"/>
+                        <ItemsControl ItemsSource="{Binding}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <helpers:ToolbarRowPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <!-- A spacer is a fixed gap; an expander is
+                                             a gap the row panel widens. Neither
+                                             draws anything at runtime — what they
+                                             look like belongs to the Customize
+                                             dialog, where they are being placed. -->
+                                        <Rectangle Width="18" Height="4"
+                                                   Visibility="{Binding Kind, Converter={StaticResource SpacerVis}}"/>
+                                        <Rectangle Height="4"
+                                                   Visibility="{Binding Kind, Converter={StaticResource ExpanderVis}}"/>
 
-                            <Button Visibility="{Binding IsSpacer, Converter={StaticResource NotBoolToVis}}"
-                                    Content="{Binding Label}"
-                                    Command="{Binding Command}"
-                                    ToolTip="{Binding ToolTip}"
-                                    Width="{Binding Width, Converter={StaticResource WidthOrAuto}}"
-                                    MinWidth="{Binding MinWidth}"
-                                    Style="{Binding StyleKey, Converter={StaticResource StyleByKey}}"
-                                    Opacity="{Binding IsDragging, Converter={StaticResource DragOpacity}}"/>
-                        </Grid>
+                                        <Button Visibility="{Binding IsButton, Converter={StaticResource BoolToVis}}"
+                                                Content="{Binding Label}"
+                                                Command="{Binding Command}"
+                                                ToolTip="{Binding ToolTip}"
+                                                Width="{Binding Width, Converter={StaticResource WidthOrAuto}}"
+                                                MinWidth="{Binding MinWidth}"
+                                                Style="{Binding StyleKey, Converter={StaticResource StyleByKey}}"
+                                                Opacity="{Binding IsDragging, Converter={StaticResource DragOpacity}}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
