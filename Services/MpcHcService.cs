@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -1046,6 +1046,31 @@ public class MpcHcService
     /// Returns false when the player is not running at all, which is the
     /// answer the caller wants anyway.
     /// </remarks>
+    /// <summary>
+    /// True when the window with the focus belongs to this application — or
+    /// when nothing has the focus at all.
+    /// </summary>
+    /// <remarks>
+    /// Asked when the player loses focus, to decide whether this program may
+    /// raise its own window. If something else took the focus, the user went
+    /// there on purpose and taking it back is stealing it.
+    ///
+    /// "Nothing has it" counts as ours: a window closing can leave the
+    /// foreground briefly empty, and that is a moment to come forward rather
+    /// than one to stand back.
+    /// </remarks>
+    public static bool ForegroundIsOurs()
+    {
+        var foreground = GetForegroundWindow();
+        if (foreground == IntPtr.Zero) return true;
+
+        _ = GetWindowThreadProcessId(foreground, out var pid);
+        return pid == (uint)Environment.ProcessId;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
     public bool IsForeground()
     {
         var mpc = FindMpcWindow();

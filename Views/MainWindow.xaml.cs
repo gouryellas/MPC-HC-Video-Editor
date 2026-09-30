@@ -448,10 +448,11 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="activate">
     /// Whether the restored window should also be brought to the front. True
-    /// for the restores the user asked for, which includes leaving the player:
-    /// a window that comes back behind whatever they clicked has not visibly
-    /// come back at all. False only where nothing was asked for — the bookmark
-    /// list emptying underneath the overlay, say.
+    /// for the restores the user asked for — pressing X, a second launch, or
+    /// leaving the player for this program. False when something else has the
+    /// focus: the window still comes back, because the overlay is topmost and
+    /// cannot be left floating over another application, but it comes back
+    /// behind whatever the user moved to rather than over it.
     /// </param>
     private void SetMinimalView(bool minimal, bool activate)
     {
@@ -463,8 +464,21 @@ public partial class MainWindow : Window
         }
 
         _minimal?.Hide();
+
+        // Show() takes the focus on its own — ShowActivated is true by default
+        // and applies to every Show, not only the first — so a restore that is
+        // not meant to steal focus has to say so before showing, and put the
+        // property back afterwards for the restores that are.
+        ShowActivated = activate;
         Show();
-        WindowState = WindowState.Normal;
+        ShowActivated = true;
+
+        // Un-minimizing is itself a focus grab — Windows hands the foreground
+        // to a window coming back from the taskbar — so a restore that must not
+        // steal focus leaves a minimized window minimized. Nothing is lost by
+        // that: it was put there on purpose, and the overlay has already come
+        // down.
+        if (activate) WindowState = WindowState.Normal;
 
         if (activate) RaiseToFront();
     }

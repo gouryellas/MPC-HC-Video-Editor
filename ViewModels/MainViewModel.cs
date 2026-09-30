@@ -660,14 +660,20 @@ public partial class MainViewModel : ObservableObject, IDisposable
             // losing it is always a real departure and the restore needs no
             // further guard.
             //
-            // Brought to the front, not merely un-hidden. Leaving the player is
-            // the gesture that asks for this window back — the overlay says so
-            // in as many words while the player is windowed — and a window that
-            // reappears behind whatever the user clicked has not come back in
-            // any sense they can see. It is a one-off raise, not topmost: this
-            // window has no more claim on the foreground afterwards than any
-            // other, and clicking back to the player hands it straight over.
-            if (_minimalViewActive) RestoreFullView(activate: true);
+            // Whether to come to the front is a different question, and the
+            // answer is whatever took the focus. Leaving the player for this
+            // program — its taskbar button, Alt+Tab to it — is a request for
+            // this window, and it is already being activated by Windows anyway.
+            // Leaving the player for a browser is not: raising this window over
+            // the thing the user just chose is taking back a decision they made
+            // half a second ago.
+            //
+            // The window still comes back either way. The overlay is topmost
+            // and would otherwise float over whatever they moved to, so it has
+            // to come down whatever the focus is doing — it just comes down
+            // quietly, behind the new window, ready for when they return.
+            if (_minimalViewActive)
+                RestoreFullView(activate: MpcHcService.ForegroundIsOurs());
 
             return;
         }
