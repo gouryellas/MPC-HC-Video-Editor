@@ -48,14 +48,34 @@ public sealed class DragGhostAdorner : Adorner
         InvalidateVisual();
     }
 
+    /// <summary>
+    /// The outline drawn round the ghost, so a translucent copy over a busy
+    /// panel still reads as a separate thing being carried.
+    /// </summary>
+    /// <remarks>
+    /// Built once, and built from a brush of its own. The first version asked
+    /// for <c>Brushes.White</c> and then set its opacity — and the shared
+    /// brushes are frozen, so that threw from inside a render pass, which takes
+    /// the whole application down rather than failing the drag. It did so on
+    /// any press that moved a pixel, which is to say on an ordinary click.
+    /// </remarks>
+    private static readonly Pen Edge = BuildEdge();
+
+    private static Pen BuildEdge()
+    {
+        var brush = new SolidColorBrush(Colors.White) { Opacity = 0.35 };
+        brush.Freeze();
+
+        var pen = new Pen(brush, 1);
+        pen.Freeze();
+        return pen;
+    }
+
     protected override void OnRender(DrawingContext dc)
     {
         var rect = new Rect(_at, _bounds.Size);
 
         dc.DrawRectangle(_face, null, rect);
-
-        // A thin edge, because a translucent copy over a busy panel loses its
-        // outline and stops reading as a separate thing being carried.
-        dc.DrawRectangle(null, new Pen(Brushes.White, 1) { Brush = { Opacity = 0.35 } }, rect);
+        dc.DrawRectangle(null, Edge, rect);
     }
 }
