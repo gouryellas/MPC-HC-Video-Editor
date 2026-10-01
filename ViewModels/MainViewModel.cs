@@ -1606,6 +1606,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
         SplitSelectedCommand.NotifyCanExecuteChanged();
         AddCurrentToPlaylistCommand.NotifyCanExecuteChanged();
         RevealVideoCommand.NotifyCanExecuteChanged();
+
+        // Both gate on facts this key already tracks, and neither was being
+        // told. It went unnoticed while they were menu entries, which are
+        // opened rarely enough that the stale answer was usually the right one
+        // by the time anybody looked. On the toolbar they are in view the whole
+        // time, so each sat in the state it was evaluated in at startup — with
+        // no video open, which is to say disabled for the rest of the session.
+        DetectBookmarksCommand.NotifyCanExecuteChanged();
+        ExportChaptersCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>

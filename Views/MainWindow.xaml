@@ -787,10 +787,18 @@
                                         <Rectangle Height="4"
                                                    Visibility="{Binding Kind, Converter={StaticResource ExpanderVis}}"/>
 
+                                        <!-- ShowOnDisabled, because a disabled
+                                             control gives no tooltip by
+                                             default: with the labels off, a
+                                             greyed button that will not say
+                                             what it is is only a grey square.
+                                             Whether it is greyed at all is the
+                                             bound command's own answer. -->
                                         <Button Visibility="{Binding IsButton, Converter={StaticResource BoolToVis}}"
                                                 Content="{Binding Caption}"
                                                 Command="{Binding Command}"
                                                 ToolTip="{Binding Hint}"
+                                                ToolTipService.ShowOnDisabled="True"
                                                 Width="{Binding ButtonWidth, Converter={StaticResource WidthOrAuto}}"
                                                 MinWidth="{Binding ButtonMinWidth}"
                                                 Style="{Binding StyleKey, Converter={StaticResource StyleByKey}}"
