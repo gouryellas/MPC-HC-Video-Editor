@@ -322,6 +322,60 @@ public partial class CustomizeToolbarDialog : Window
             }
     }
 
+    /// <summary>
+    /// Where a point falls: which row, which position in it, or the Available
+    /// list.
+    /// </summary>
+    /// <remarks>
+    /// Measured rather than hit-tested. A hit test answers "what is on top
+    /// here", and while a drag is running what is on top is the adorner layer
+    /// carrying the ghost — so the answers came back from the wrong tree.
+    /// Rectangles do not have that problem: a row is where it is whatever is
+    /// drawn over it.
+    /// </remarks>
+    private (ObservableCollection<ToolbarItem>? Row, int Index, bool OverAvailable) ResolveDrop(Point at)
+    {
+        foreach (var frame in RowFrames())
+        {
+            if (frame.DataContext is not ObservableCollection<ToolbarItem> items) continue;
+            if (!Bounds(frame).Contains(at)) continue;
+
+            // Where every button in this row actually is. A row is one row, but
+            // it can be drawn on several lines: it wraps when it outgrows the
+            // width, which is the whole point of the preview being as narrow as
+            // the window may get.
+            var boxes = new List<(int Index, Rect Box)>();
+
+            for (var i = 0; i < items.Count; i++)
+                if (ChipFor(frame, items[i]) is { } chip)
+                    boxes.Add((i, Bounds(chip)));
+
+            if (boxes.Count == 0) return (items, 0, false);
+
+            // The line the pointer is on, settled before anything is compared
+            // sideways. Comparing X alone across a wrapped row is what sent
+            // every drop on the second line into the first: the second line
+            // starts back at the left margin, so its buttons all sit left of
+            // the first line's and the earliest match was always up there.
+            var top = boxes.Where(b => b.Box.Top <= at.Y)
+                           .Select(b => b.Box.Top)
+                           .DefaultIfEmpty(boxes[0].Box.Top)
+                           .Max();
+
+            var line = boxes.Where(b => Math.Abs(b.Box.Top - top) < 1).ToList();
+
+            foreach (var (index, box) in line)
+                if (at.X < box.Left + box.Width / 2)
+                    return (items, index, false);
+
+            // Past the last button on this line — which is not the end of the
+            // row unless this happens to be the last line.
+            return (items, line[^1].Index + 1, false);
+        }
+
+        return Bounds(AvailableList).Contains(at) ? (null, 0, true) : (null, 0, false);
+    }
+
     private void ClearRowHighlights()
     {
         foreach (var frame in RowFrames()) frame.BorderBrush = Brushes.Transparent;
@@ -335,45 +389,6 @@ public partial class CustomizeToolbarDialog : Window
             yield return child;
             foreach (var d in Descendants(child)) yield return d;
         }
-    }
-
-    /// <summary>
-    /// Where a point falls: which row, which position in it, or the Available
-    /// list.
-    /// </summary>
-    /// <remarks>
-    /// Measured rather than hit-tested. A hit test answers "what is on top
-    /// here", and while a drag is running what is on top is the adorner layer
-    /// carrying the ghost — so the answers came back from the wrong tree and
-    /// drops landed at the end of the row, or read as the Available list and
-    /// deleted the button. Rectangles do not have that problem: a row is where
-    /// it is whatever is drawn over it.
-    ///
-    /// Bounds come through TransformToAncestor, so a row inside a border inside
-    /// a panel is still measured in this window's own coordinates — the same
-    /// ones the pointer is reported in.
-    /// </remarks>
-    private (ObservableCollection<ToolbarItem>? Row, int Index, bool OverAvailable) ResolveDrop(Point at)
-    {
-        foreach (var frame in RowFrames())
-        {
-            if (frame.DataContext is not ObservableCollection<ToolbarItem> items) continue;
-            if (!Bounds(frame).Contains(at)) continue;
-
-            // The first chip whose middle is past the pointer is the one it
-            // goes in front of. None of them means the empty space at the end.
-            for (var i = 0; i < items.Count; i++)
-            {
-                if (ChipFor(frame, items[i]) is not { } chip) continue;
-
-                var box = Bounds(chip);
-                if (at.X < box.Left + box.Width / 2) return (items, i, false);
-            }
-
-            return (items, items.Count, false);
-        }
-
-        return Bounds(AvailableList).Contains(at) ? (null, 0, true) : (null, 0, false);
     }
 
     /// <summary>
