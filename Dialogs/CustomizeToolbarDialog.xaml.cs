@@ -64,7 +64,6 @@ public partial class CustomizeToolbarDialog : Window
         // The preview is bounded by the width the toolbar can always count on.
         // Padding and the border are not toolbar, so they come off it.
         PreviewFrame.Width = Math.Max(320, minimumWidth) + 14;
-        WidthNote.Text = $"the window's narrowest width — {Math.Max(320, minimumWidth):0} px";
 
         LoadRows(current);
         RefreshAvailable();

@@ -34,13 +34,6 @@
             <Setter Property="Margin" Value="0,0,0,6"/>
         </Style>
 
-        <Style x:Key="Hint" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="TextWrapping" Value="Wrap"/>
-            <Setter Property="Margin" Value="0,0,0,8"/>
-        </Style>
-
         <!-- One chip. The same template serves both lists and the preview, so a
              button looks the same wherever it is being dragged from or to. -->
         <DataTemplate x:Key="Chip">
@@ -130,23 +123,8 @@
             </ItemsControl>
         </Border>
 
-        <TextBlock Grid.Row="1" VerticalAlignment="Bottom" HorizontalAlignment="Right"
-                   x:Name="WidthNote" Style="{StaticResource Hint}" Margin="0,0,0,-14"/>
-
-        <Grid Grid.Row="2" Margin="0,18,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="16"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
-
-            <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="0"
-                    Background="{DynamicResource PanelBackground}"
+        <Grid Grid.Row="2" Margin="0,14,0,0">
+            <Border Background="{DynamicResource PanelBackground}"
                     BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
                 <DockPanel>
                     <!-- The heading and the filter belong to this box rather
@@ -163,8 +141,7 @@
                                      TextChanged="Search_TextChanged"
                                      Background="{DynamicResource InsetBackground}"
                                      Foreground="{DynamicResource TextPrimary}"
-                                     BorderBrush="{DynamicResource BorderBrush}"
-                                     ToolTip="Show only the actions whose name or menu contains this"/>
+                                     BorderBrush="{DynamicResource BorderBrush}"/>
                         </StackPanel>
                     </Grid>
 
@@ -192,30 +169,6 @@
                         </ItemsControl>
                     </ScrollViewer>
                 </DockPanel>
-            </Border>
-
-            <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource Heading}" Text="HOW"/>
-            <Border Grid.Row="1" Grid.Column="2" Grid.RowSpan="2"
-                    Background="{DynamicResource PanelBackground}"
-                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                    CornerRadius="4" Padding="12" VerticalAlignment="Top">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource Hint}">
-                        <Run Text="Drag a button from Available onto your toolbar, or drag one out of the toolbar to remove it. Double-clicking does the same thing in either direction."/>
-                    </TextBlock>
-                    <TextBlock Style="{StaticResource Hint}">
-                        <Run Text="| |" FontFamily="Consolas"/>
-                        <Run Text=" is a fixed gap. "/>
-                        <Run Text="&lt; --- &gt;" FontFamily="Consolas"/>
-                        <Run Text=" takes whatever width is left over, so anything after it is pushed to the right. Two of them put what is between them in the middle. Use as many as you like."/>
-                    </TextBlock>
-                    <TextBlock Style="{StaticResource Hint}">
-                        <Run Text="⏎ New row" FontWeight="SemiBold"/>
-                        <Run Text=" starts another line of the same toolbar. It stays in the list — drop it as often as you need. Drag the line's last button away to remove the row."/>
-                    </TextBlock>
-                    <TextBlock Style="{StaticResource Hint}"
-                               Text="The box above is as wide as the window is allowed to get narrow. A row that fits there fits at any size; a longer one wraps by itself, exactly as it will in the program."/>
-                </StackPanel>
             </Border>
         </Grid>
 
