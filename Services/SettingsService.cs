@@ -386,6 +386,21 @@ public class AppSettings
     /// is the whole truth and anything new waits in the Customize dialog.
     /// </remarks>
     public bool ToolbarCustomized { get; set; }
+
+    /// <summary>
+    /// Draw the toolbar as icons alone, with no words.
+    /// </summary>
+    /// <remarks>
+    /// Off by default: the labels are what make the row readable to someone who
+    /// has not used it before. It is worth having for the opposite case — a
+    /// toolbar someone has loaded up with buttons, where the names are the only
+    /// reason it needs two lines. The tooltips carry the meaning either way.
+    ///
+    /// Only the buttons with a picture of their own shrink. The naming tags
+    /// keep their text, since every one of them would otherwise be the same
+    /// icon as the rest.
+    /// </remarks>
+    public bool SmallButtonIcons { get; set; }
     public string? KeyboardHotkey { get; set; } // e.g. "F8"
     public bool MiddleMouseHotkeyEnabled { get; set; } = true;
     /// <summary>

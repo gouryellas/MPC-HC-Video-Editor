@@ -48,6 +48,9 @@ public partial class SettingsDialog : Window
     /// <summary>Whether a finished operation makes a sound.</summary>
     public bool CompletionSound { get; private set; }
 
+    /// <summary>Whether the toolbar is drawn as icons with no labels.</summary>
+    public bool SmallButtonIcons { get; private set; }
+
     /// <summary>Whether the startup update check runs.</summary>
     public bool CheckForUpdates { get; private set; }
 
@@ -143,6 +146,7 @@ public partial class SettingsDialog : Window
         FfmpegFolder = current.FfmpegFolder ?? "";
         ToastsEnabled = current.ToastsEnabled;
         CompletionSound = current.CompletionSound;
+        SmallButtonIcons = current.SmallButtonIcons;
         ToastSeconds = current.ToastSeconds;
         CheckForUpdates = current.CheckForUpdates;
         UseChapterNames = current.UseChapterNames;
@@ -172,6 +176,7 @@ public partial class SettingsDialog : Window
         AutoSwitchCheck.IsChecked = autoSwitchViews;
         ToastsCheck.IsChecked = current.ToastsEnabled;
         CompletionSoundCheck.IsChecked = current.CompletionSound;
+        SmallIconsCheck.IsChecked = current.SmallButtonIcons;
         CheckForUpdatesCheck.IsChecked = current.CheckForUpdates;
         UseChapterNamesCheck.IsChecked = current.UseChapterNames;
         RememberSaveToCheck.IsChecked = current.RememberSaveToFolder;
@@ -345,6 +350,7 @@ public partial class SettingsDialog : Window
         AutoSwitchViews = AutoSwitchCheck.IsChecked == true;
         ToastsEnabled = ToastsCheck.IsChecked == true;
         CompletionSound = CompletionSoundCheck.IsChecked == true;
+        SmallButtonIcons = SmallIconsCheck.IsChecked == true;
         CheckForUpdates = CheckForUpdatesCheck.IsChecked == true;
         UseChapterNames = UseChapterNamesCheck.IsChecked == true;
         RememberSaveToFolder = RememberSaveToCheck.IsChecked == true;

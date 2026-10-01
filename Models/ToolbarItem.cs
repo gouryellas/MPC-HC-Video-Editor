@@ -75,10 +75,71 @@ public sealed class ToolbarItem : INotifyPropertyChanged
     public string Label
     {
         get => _label;
-        set { _label = value; OnPropertyChanged(); }
+        set { _label = value; OnPropertyChanged(); OnPropertyChanged(nameof(Caption)); OnPropertyChanged(nameof(Hint)); }
     }
 
     private string _label = string.Empty;
+
+    /// <summary>
+    /// The glyph alone, for the icons-only toolbar. Null for a button that has
+    /// no sensible picture — the naming tags, which are each other's twin in
+    /// every way but their text.
+    /// </summary>
+    /// <remarks>
+    /// Settable for the same reason the label is: the select button turns into
+    /// its own opposite, and a ☑ that stays put while the name underneath it
+    /// changes would be telling the user the wrong thing.
+    /// </remarks>
+    public string? Icon
+    {
+        get => _icon;
+        set { _icon = value; OnPropertyChanged(); OnPropertyChanged(nameof(Caption)); }
+    }
+
+    private string? _icon;
+
+    /// <summary>
+    /// True when the toolbar is drawing icons only. Set on every item as the
+    /// toolbar is built, from the one setting.
+    /// </summary>
+    /// <remarks>
+    /// Carried per item rather than read from the settings by the template,
+    /// because a binding needs something to listen to: flipping the setting has
+    /// to redraw a row that is already on screen.
+    /// </remarks>
+    public bool IsCompact
+    {
+        get => _isCompact;
+        set
+        {
+            _isCompact = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(Caption));
+            OnPropertyChanged(nameof(ButtonWidth));
+            OnPropertyChanged(nameof(ButtonMinWidth));
+        }
+    }
+
+    private bool _isCompact;
+
+    /// <summary>What the toolbar button actually shows.</summary>
+    public string Caption => _isCompact && Icon is { Length: > 0 } ? Icon : Label;
+
+    /// <summary>Square while compact, and whatever it asked for otherwise.</summary>
+    public double ButtonWidth => _isCompact && Icon is { Length: > 0 } ? 36 : Width;
+
+    /// <summary>
+    /// The minimum width, dropped while compact — one button reserves room for
+    /// its longer name, which an icon does not need.
+    /// </summary>
+    public double ButtonMinWidth => _isCompact && Icon is { Length: > 0 } ? 0 : MinWidth;
+
+    /// <summary>
+    /// The tooltip, falling back to the button's own name. With the labels off
+    /// the tooltip is the only thing that says what a button does, so every
+    /// button has to have one.
+    /// </summary>
+    public string Hint => string.IsNullOrWhiteSpace(ToolTip) ? Label : ToolTip!;
 
     /// <summary>
     /// Which menu this action lives in, for grouping the Customize dialog's
@@ -151,6 +212,7 @@ public sealed class ToolbarItem : INotifyPropertyChanged
         Key = Key,
         Kind = Kind,
         Label = Label,
+        Icon = Icon,
         Group = Group,
         Command = Command,
         ToolTip = ToolTip,

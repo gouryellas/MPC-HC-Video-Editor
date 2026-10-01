@@ -788,11 +788,11 @@
                                                    Visibility="{Binding Kind, Converter={StaticResource ExpanderVis}}"/>
 
                                         <Button Visibility="{Binding IsButton, Converter={StaticResource BoolToVis}}"
-                                                Content="{Binding Label}"
+                                                Content="{Binding Caption}"
                                                 Command="{Binding Command}"
-                                                ToolTip="{Binding ToolTip}"
-                                                Width="{Binding Width, Converter={StaticResource WidthOrAuto}}"
-                                                MinWidth="{Binding MinWidth}"
+                                                ToolTip="{Binding Hint}"
+                                                Width="{Binding ButtonWidth, Converter={StaticResource WidthOrAuto}}"
+                                                MinWidth="{Binding ButtonMinWidth}"
                                                 Style="{Binding StyleKey, Converter={StaticResource StyleByKey}}"
                                                 Opacity="{Binding IsDragging, Converter={StaticResource DragOpacity}}"/>
                                     </Grid>

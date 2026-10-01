@@ -238,58 +238,61 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public List<ToolbarItem> ToolbarCatalogue() => new List<ToolbarItem>
     {
         // The thirteen the toolbar ships with.
-        new() { Key = "set-timestamp", Group = "Bookmarks", Label = "📍 Set timestamp", Command = SetTimestampCommand,
+        new() { Key = "set-timestamp", Group = "Bookmarks", Label = "📍 Set timestamp", Icon = "📍", Command = SetTimestampCommand,
                 ToolTip = "Set a timestamp at the current MPC-HC position" },
-        new() { Key = "save-frame", Group = "Actions", Label = "📷", Command = SaveCurrentFrameCommand, Width = 36,
+        new() { Key = "save-frame", Group = "Actions", Label = "📷", Icon = "📷", Command = SaveCurrentFrameCommand, Width = 36,
                 ToolTip = "Save the frame MPC-HC is showing as a PNG, full size, next to the other output" },
-        new() { Key = "delete", Group = "Bookmarks", Label = "🗑", Command = DeleteSelectedCommand, Width = 36,
+        new() { Key = "delete", Group = "Bookmarks", Label = "🗑", Icon = "🗑", Command = DeleteSelectedCommand, Width = 36,
                 ToolTip = "Remove the checked timestamps from the list and the bookmark file. With nothing checked it removes the highlighted row." },
-        new() { Key = "flip", Group = "Actions", Label = "↕ Flip", Command = ToggleFlipCommand,
+        new() { Key = "flip", Group = "Actions", Label = "↕ Flip", Icon = "↕", Command = ToggleFlipCommand,
                 ToolTip = "Flip the checked cuts upside down. With nothing checked it flips the highlighted row." },
-        new() { Key = "rotate", Group = "Actions", Label = "⟳ Rotate", Command = RotateSelectedCommand,
+        new() { Key = "rotate", Group = "Actions", Label = "⟳ Rotate", Icon = "⟳", Command = RotateSelectedCommand,
                 ToolTip = "Turn the checked cuts a quarter further round. With nothing checked it turns the highlighted row." },
-        new() { Key = "mute", Group = "Actions", Label = "🔇 Mute", Command = ToggleMuteCommand,
+        new() { Key = "mute", Group = "Actions", Label = "🔇 Mute", Icon = "🔇", Command = ToggleMuteCommand,
                 ToolTip = "Write the checked cuts without sound. With nothing checked it mutes the highlighted row." },
-        new() { Key = "fade", Group = "Actions", Label = "◐ Fade", Command = ToggleFadeCommand,
+        new() { Key = "fade", Group = "Actions", Label = "◐ Fade", Icon = "◐", Command = ToggleFadeCommand,
                 ToolTip = "Fade the checked cuts up at the start and down at the end. With nothing checked it fades the highlighted row." },
-        new() { Key = "select-all", Group = "Bookmarks", Label = "Select All", Command = ToggleSelectAllCommand,
+        new() { Key = "select-all", Group = "Bookmarks", Label = "Select All", Icon = "☑", Command = ToggleSelectAllCommand,
                 MinWidth = 104, ToolTip = "Check every cut, or clear them all." },
-        new() { Key = "merge", Group = "Actions", Label = "🎬 Merge", Command = MergeSelectedCommand, StyleKey = "MergeButton" },
-        new() { Key = "split", Group = "Actions", Label = "✂ Split", Command = SplitSelectedCommand, StyleKey = "SplitButton" },
-        new() { Key = "convert", Group = "Actions", Label = "🔄 Convert video", Command = ConvertFilesCommand, StyleKey = "ConvertButton" },
-        new() { Key = "strip-audio", Group = "Actions", Label = "🔊 Strip audio", Command = StripAudioCommand, StyleKey = "AudioButton",
+        new() { Key = "merge", Group = "Actions", Label = "🎬 Merge", Icon = "🎬", Command = MergeSelectedCommand, StyleKey = "MergeButton",
+                ToolTip = "Join the checked cuts into one video" },
+        new() { Key = "split", Group = "Actions", Label = "✂ Split", Icon = "✂", Command = SplitSelectedCommand, StyleKey = "SplitButton",
+                ToolTip = "Write each checked cut out as its own video" },
+        new() { Key = "convert", Group = "Actions", Label = "🔄 Convert video", Icon = "🔄", Command = ConvertFilesCommand, StyleKey = "ConvertButton",
+                ToolTip = "Convert video files to another format" },
+        new() { Key = "strip-audio", Group = "Actions", Label = "🔊 Strip audio", Icon = "🔊", Command = StripAudioCommand, StyleKey = "AudioButton",
                 ToolTip = "Pulls the sound out of files you pick: an MP3 of the audio, a silent copy of the video, or both." },
 
         // Everything else worth a button.
-        new() { Key = "open-file", Group = "File", Label = "📂 Open video", Command = OpenFileCommand,
+        new() { Key = "open-file", Group = "File", Label = "📂 Open video", Icon = "📂", Command = OpenFileCommand,
                 ToolTip = "Open a video in MPC-HC" },
-        new() { Key = "reveal-video", Group = "File", Label = "📁 Show video", Command = RevealVideoCommand,
+        new() { Key = "reveal-video", Group = "File", Label = "📁 Show video", Icon = "🎥", Command = RevealVideoCommand,
                 ToolTip = "Show the current video in Explorer" },
-        new() { Key = "reveal-output", Group = "File", Label = "📁 Show output", Command = RevealOutputCommand,
+        new() { Key = "reveal-output", Group = "File", Label = "📁 Show output", Icon = "📁", Command = RevealOutputCommand,
                 ToolTip = "Show the output folder in Explorer" },
-        new() { Key = "settings", Group = "File", Label = "⚙ Settings", Command = OpenSettingsCommand,
+        new() { Key = "settings", Group = "File", Label = "⚙ Settings", Icon = "⚙", Command = OpenSettingsCommand,
                 ToolTip = "Open Settings" },
-        new() { Key = "undo-edit", Group = "Edit", Label = "↶ Undo", Command = UndoEditCommand,
+        new() { Key = "undo-edit", Group = "Edit", Label = "↶ Undo", Icon = "↶", Command = UndoEditCommand,
                 ToolTip = "Undo the last change to the cut list" },
-        new() { Key = "redo-edit", Group = "Edit", Label = "↷ Redo", Command = RedoEditCommand,
+        new() { Key = "redo-edit", Group = "Edit", Label = "↷ Redo", Icon = "↷", Command = RedoEditCommand,
                 ToolTip = "Redo the change that was undone" },
-        new() { Key = "undo-bookmark", Group = "Bookmarks", Label = "⎌ Undo timestamp", Command = UndoLastBookmarkCommand,
+        new() { Key = "undo-bookmark", Group = "Bookmarks", Label = "⎌ Undo timestamp", Icon = "⎌", Command = UndoLastBookmarkCommand,
                 ToolTip = "Remove the last single timestamp" },
-        new() { Key = "enter-time", Group = "Bookmarks", Label = "⌨ Enter time", Command = EnterTimeManualCommand,
+        new() { Key = "enter-time", Group = "Bookmarks", Label = "⌨ Enter time", Icon = "⌨", Command = EnterTimeManualCommand,
                 ToolTip = "Type a time or a range instead of using the hotkey" },
-        new() { Key = "detect", Group = "Bookmarks", Label = "🔍 Detect cuts", Command = DetectBookmarksCommand,
+        new() { Key = "detect", Group = "Bookmarks", Label = "🔍 Detect cuts", Icon = "🔍", Command = DetectBookmarksCommand,
                 ToolTip = "Propose cuts from silence, black frames or scene changes" },
-        new() { Key = "edit-bookmarks", Group = "Bookmarks", Label = "✎ Edit bookmarks", Command = EditBookmarksCommand,
+        new() { Key = "edit-bookmarks", Group = "Bookmarks", Label = "✎ Edit bookmarks", Icon = "✎", Command = EditBookmarksCommand,
                 ToolTip = "Open the bookmark CSV in a text editor" },
-        new() { Key = "play", Group = "Bookmarks", Label = "▶ Play", Command = PlayCutsCommand,
+        new() { Key = "play", Group = "Bookmarks", Label = "▶ Play", Icon = "▶", Command = PlayCutsCommand,
                 ToolTip = "Play the checked cuts in turn, or every cut when none are checked" },
-        new() { Key = "export-animation", Group = "Actions", Label = "🎞 GIF / WebP", Command = ExportAnimationCommand,
+        new() { Key = "export-animation", Group = "Actions", Label = "🎞 GIF / WebP", Icon = "🎞", Command = ExportAnimationCommand,
                 ToolTip = "Export the checked cuts as an animation" },
-        new() { Key = "convert-images", Group = "Actions", Label = "🖼 Convert images", Command = ConvertImagesCommand,
+        new() { Key = "convert-images", Group = "Actions", Label = "🖼 Convert images", Icon = "🖼", Command = ConvertImagesCommand,
                 ToolTip = "Convert image files between formats" },
-        new() { Key = "export-chapters", Group = "Actions", Label = "🔖 Chapters", Command = ExportChaptersCommand,
+        new() { Key = "export-chapters", Group = "Actions", Label = "🔖 Chapters", Icon = "🔖", Command = ExportChaptersCommand,
                 ToolTip = "Write the cuts out as a chapter file" },
-        new() { Key = "add-to-playlist", Group = "Playlist", Label = "➕ To playlist", Command = AddCurrentToPlaylistCommand,
+        new() { Key = "add-to-playlist", Group = "Playlist", Label = "➕ To playlist", Icon = "➕", Command = AddCurrentToPlaylistCommand,
                 ToolTip = "Add the current video to a playlist" },
 
         // The fillers. Each is a real entry in the layout; only their drawing is
@@ -396,9 +399,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         ToolbarItems.Clear();
 
+        var compact = _settings.Current.SmallButtonIcons;
+
         foreach (var key in layout)
             if (catalogue.FirstOrDefault(c => c.Key == key) is { } known)
-                ToolbarItems.Add(known.Clone());
+            {
+                var item = known.Clone();
+                item.IsCompact = compact;
+                ToolbarItems.Add(item);
+            }
 
         RefreshToolbarRows();
     }
@@ -483,7 +492,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public void ApplyToolbarLayout(IEnumerable<ToolbarItem> layout)
     {
         ToolbarItems.Clear();
-        foreach (var item in layout) ToolbarItems.Add(item);
+
+        foreach (var item in layout)
+        {
+            // The dialog draws its chips full-size whatever the setting says —
+            // a row of unlabelled icons is no way to choose between them — so
+            // the items come back needing to be told.
+            item.IsCompact = _settings.Current.SmallButtonIcons;
+            ToolbarItems.Add(item);
+        }
+
         SaveToolbarOrder();
     }
 
@@ -2719,7 +2737,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // rather than picked up from a binding on a button that no longer
         // exists in the markup.
         if (ToolbarItems.FirstOrDefault(i => i.Key == "select-all") is { } button)
+        {
             button.Label = SelectAllButtonLabel;
+            button.Icon = _selectionButtonClears ? "☐" : "☑";
+        }
     }
 
     /// <summary>
@@ -6073,6 +6094,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         s.FfmpegFolder = dlg.FfmpegFolder;
         s.ToastsEnabled = dlg.ToastsEnabled;
         s.CompletionSound = dlg.CompletionSound;
+
+        // The items carry this, so changing it means rebuilding the row.
+        var iconsChanged = s.SmallButtonIcons != dlg.SmallButtonIcons;
+        s.SmallButtonIcons = dlg.SmallButtonIcons;
         s.ToastSeconds = dlg.ToastSeconds;
         s.CheckForUpdates = dlg.CheckForUpdates;
 
@@ -6123,6 +6148,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(RunMode));
             RunModeChanged?.Invoke();
         }
+
+        // Flipped on the items that are already there rather than rebuilt from
+        // the saved layout: a rebuild would reset the select button's caption,
+        // which tracks the current selection and not the stored toolbar.
+        if (iconsChanged)
+            foreach (var item in ToolbarItems)
+                item.IsCompact = s.SmallButtonIcons;
 
         TrimRecentVideosToLimit();
 

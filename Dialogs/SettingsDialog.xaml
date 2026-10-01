@@ -116,6 +116,11 @@
                                            Text="Changes the whole interface immediately, along with the window and notification-area icons. Cancel restores the previous theme."/>
                                 <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
                                            Text="The icon on the program file itself is fixed when the app is built and cannot follow the theme — only the icons shown while it is running."/>
+
+                                <CheckBox x:Name="SmallIconsCheck" Margin="0,12,0,0"
+                                          Content="Small button icons"/>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Draws the toolbar as icons alone, the way the camera and bin buttons already are. Hover any of them for its name. Naming tag buttons keep their text."/>
                             </StackPanel>
                         </Border>
 
