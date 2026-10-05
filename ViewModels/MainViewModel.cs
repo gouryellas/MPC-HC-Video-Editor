@@ -292,7 +292,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 ToolTip = "Convert image files between formats" },
         new() { Key = "resize-images", Group = "Actions", Label = "📐 Resize images", Icon = "📐", Command = ResizeImagesCommand,
                 ToolTip = "Write image files out at a standard size — one of them or a whole folderful" },
-        new() { Key = "thumbnails", Group = "Actions", Label = "▦ Thumbnails", Icon = "▦", Command = SaveThumbnailsCommand,
+        new() { Key = "thumbnails", Group = "Actions", Label = "▦ Save thumbnails", Icon = "▦", Command = SaveThumbnailsCommand,
                 ToolTip = "Take a frame every few seconds through the whole video, as numbered pictures or tiled onto a sheet" },
         new() { Key = "export-chapters", Group = "Actions", Label = "🔖 Chapters", Icon = "🔖", Command = ExportChaptersCommand,
                 ToolTip = "Write the cuts out as a chapter file" },
