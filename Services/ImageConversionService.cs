@@ -40,6 +40,152 @@ public class ImageConversionService
         Formats.FirstOrDefault(f => string.Equals(f.Key, key, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
+    /// The format to write a file of this extension back as, or PNG when
+    /// nothing here can write that extension.
+    /// </summary>
+    /// <remarks>
+    /// Resizing keeps the format it was given — a resized JPG should still be a
+    /// JPG. WebP is the one readable format with no encoder, so a resized WebP
+    /// comes back as a PNG rather than failing; it is the only lossless thing
+    /// to do with it, and the summary says so.
+    /// </remarks>
+    public static Format FormatForFile(string path)
+    {
+        var ext = Path.GetExtension(path);
+
+        // .tif and .tiff are the same format under two spellings; the entry is
+        // keyed on the longer one.
+        if (string.Equals(ext, ".tif", StringComparison.OrdinalIgnoreCase))
+            return Formats.First(f => f.Key == "tiff");
+
+        return Formats.FirstOrDefault(f =>
+                   string.Equals(f.Extension, ext, StringComparison.OrdinalIgnoreCase))
+               ?? Formats.First(f => f.Key == "png");
+    }
+
+    /// <summary>A size the user can pick, or one they typed.</summary>
+    /// <param name="Note">What it is normally called, for the list.</param>
+    public sealed record Resolution(int Width, int Height, string Note)
+    {
+        public string Display => $"{Width} × {Height}" + (Note.Length > 0 ? $"  ({Note})" : "");
+    }
+
+    /// <summary>
+    /// The sizes offered, smallest first.
+    /// </summary>
+    /// <remarks>
+    /// The common display and video sizes, plus the two square ones that get
+    /// asked for by anything wanting an avatar or an icon. Anything else is
+    /// typed in.
+    /// </remarks>
+    public static readonly Resolution[] Resolutions =
+    {
+        new(640, 480, "VGA"),
+        new(800, 600, "SVGA"),
+        new(1024, 768, "XGA"),
+        new(1280, 720, "720p"),
+        new(1366, 768, "laptop"),
+        new(1600, 900, "HD+"),
+        new(1920, 1080, "1080p"),
+        new(2560, 1440, "1440p"),
+        new(3840, 2160, "4K UHD"),
+        new(512, 512, "square"),
+        new(1024, 1024, "square"),
+    };
+
+    /// <summary>What to do when the image is not the shape of the target.</summary>
+    public enum ResizeFit
+    {
+        /// <summary>
+        /// Scale until it fits inside, keeping its shape. One side lands on the
+        /// target and the other comes up short.
+        /// </summary>
+        Inside,
+
+        /// <summary>
+        /// Scale until it covers the target, keeping its shape, then trim the
+        /// overflow evenly from both sides. The result is exactly the size
+        /// asked for.
+        /// </summary>
+        Crop,
+
+        /// <summary>
+        /// Exactly the size asked for, by squashing. Distorts anything that was
+        /// not already the right shape.
+        /// </summary>
+        Stretch
+    }
+
+    /// <summary>
+    /// Writes <paramref name="inputPath"/> to <paramref name="outputPath"/> at
+    /// the requested size, in the format the output extension names.
+    /// </summary>
+    /// <returns>The size actually written, which differs from the request under
+    /// <see cref="ResizeFit.Inside"/>.</returns>
+    public (int Width, int Height) Resize(string inputPath, string outputPath,
+                                          int width, int height, ResizeFit fit)
+    {
+        if (width < 1 || height < 1)
+            throw new ArgumentOutOfRangeException(nameof(width), "A size must be at least 1 × 1.");
+
+        var frame = LoadFirstFrame(inputPath);
+
+        var scale = fit switch
+        {
+            // The smaller ratio is the one that fits; the larger is the one
+            // that covers.
+            ResizeFit.Inside => Math.Min((double)width / frame.PixelWidth, (double)height / frame.PixelHeight),
+            ResizeFit.Crop => Math.Max((double)width / frame.PixelWidth, (double)height / frame.PixelHeight),
+            _ => 0
+        };
+
+        BitmapSource source;
+
+        if (fit == ResizeFit.Stretch)
+        {
+            source = Scale(frame, (double)width / frame.PixelWidth, (double)height / frame.PixelHeight);
+        }
+        else
+        {
+            source = Scale(frame, scale, scale);
+
+            if (fit == ResizeFit.Crop)
+            {
+                // Rounding can leave the covering scale a pixel short of the
+                // target, and a crop rectangle that runs past the edge throws.
+                var x = Math.Max(0, (source.PixelWidth - width) / 2);
+                var y = Math.Max(0, (source.PixelHeight - height) / 2);
+                var w = Math.Min(width, source.PixelWidth - x);
+                var h = Math.Min(height, source.PixelHeight - y);
+
+                var cropped = new CroppedBitmap(source, new System.Windows.Int32Rect(x, y, w, h));
+                cropped.Freeze();
+                source = cropped;
+            }
+        }
+
+        var written = BitmapFrame.Create(source);
+        written.Freeze();
+
+        var format = FormatForFile(outputPath);
+
+        if (string.Equals(format.Key, "ico", StringComparison.OrdinalIgnoreCase))
+            WriteIcon(written, outputPath);
+        else
+            Encode(written, outputPath, format);
+
+        return (source.PixelWidth, source.PixelHeight);
+    }
+
+    /// <summary>Scales a frame, rounded to whole pixels by WPF.</summary>
+    private static BitmapSource Scale(BitmapSource source, double x, double y)
+    {
+        var scaled = new TransformedBitmap(source, new System.Windows.Media.ScaleTransform(x, y));
+        scaled.Freeze();
+        return scaled;
+    }
+
+    /// <summary>
     /// Reads <paramref name="inputPath"/> and writes it to
     /// <paramref name="outputPath"/> in <paramref name="format"/>.
     /// </summary>
@@ -53,6 +199,12 @@ public class ImageConversionService
             return;
         }
 
+        Encode(frame, outputPath, format);
+    }
+
+    /// <summary>Writes one frame out in the given format.</summary>
+    private static void Encode(BitmapFrame frame, string outputPath, Format format)
+    {
         BitmapEncoder encoder = format.Key switch
         {
             "png" => new PngBitmapEncoder(),

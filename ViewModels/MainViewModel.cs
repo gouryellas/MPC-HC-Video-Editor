@@ -290,6 +290,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 ToolTip = "Export the checked cuts as an animation" },
         new() { Key = "convert-images", Group = "Actions", Label = "🖼 Convert images", Icon = "🖼", Command = ConvertImagesCommand,
                 ToolTip = "Convert image files between formats" },
+        new() { Key = "resize-images", Group = "Actions", Label = "📐 Resize images", Icon = "📐", Command = ResizeImagesCommand,
+                ToolTip = "Write image files out at a standard size — one of them or a whole folderful" },
         new() { Key = "export-chapters", Group = "Actions", Label = "🔖 Chapters", Icon = "🔖", Command = ExportChaptersCommand,
                 ToolTip = "Write the cuts out as a chapter file" },
         new() { Key = "add-to-playlist", Group = "Playlist", Label = "➕ To playlist", Icon = "➕", Command = AddCurrentToPlaylistCommand,
@@ -4371,6 +4373,118 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 MessageBoxButton.OK, MessageBoxImage.Warning);
 
         OfferToDeleteSources(convertedSources);
+    }
+
+    /// <summary>
+    /// The size and shape rule the last resize ran with, so a second run is one
+    /// click. Per session, like the Strip audio choice — a size remembered
+    /// across launches would quietly decide the next batch.
+    /// </summary>
+    private int _resizeWidth = 1920;
+    private int _resizeHeight = 1080;
+    private ImageConversionService.ResizeFit _resizeFit = ImageConversionService.ResizeFit.Inside;
+
+    /// <summary>
+    /// Writes picked images out at a chosen size, following the same naming
+    /// tag, filename policy and collision handling as every other action.
+    /// </summary>
+    /// <remarks>
+    /// One file or forty: the picker is the same, and the size is asked once
+    /// for the batch rather than once per file.
+    ///
+    /// Each picture keeps its own format, so a folder of mixed JPGs and PNGs
+    /// comes back as the same mixture. WebP is the exception — it can be read
+    /// and not written — and those come back as PNG, which the summary says.
+    /// </remarks>
+    [RelayCommand]
+    private async Task ResizeImages()
+    {
+        var pattern = string.Join(";", ImageConversionService.ReadableExtensions.Select(e => "*" + e));
+        var ofd = new OpenFileDialog
+        {
+            Filter = $"Image Files|{pattern}|All Files|*.*",
+            Multiselect = true,
+            Title = "Select images to resize"
+        };
+        if (ofd.ShowDialog() != true) return;
+
+        var dlg = new ResizeImagesDialog(_resizeWidth, _resizeHeight, _resizeFit)
+        {
+            Owner = DialogOwner
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        _resizeWidth = dlg.PixelWidth;
+        _resizeHeight = dlg.PixelHeight;
+        _resizeFit = dlg.Fit;
+
+        var size = $"{_resizeWidth} × {_resizeHeight}";
+
+        IsBusy = true;
+        int done = 0;
+        var errors = new List<string>();
+
+        // Only the files that came through cleanly, so a failure can never cost
+        // the original.
+        var resizedSources = new List<string>();
+
+        // Files that could be read but not written back in their own format.
+        var reformatted = 0;
+
+        Job.Begin($"Resizing images to {size}", ofd.FileNames.Length);
+        BeginNameBatch(ofd.FileNames.Length);
+
+        foreach (var file in ofd.FileNames)
+        {
+            _batchRemaining = ofd.FileNames.Length - done;
+            Job.SetFile(done, Path.GetFileName(file));
+            Job.Report("Writing", (double)done / ofd.FileNames.Length * 100);
+            StatusText = $"Resizing {Path.GetFileName(file)}…";
+
+            var format = ImageConversionService.FormatForFile(file);
+            if (!string.Equals(format.Extension, Path.GetExtension(file), StringComparison.OrdinalIgnoreCase))
+                reformatted++;
+
+            var outPath = await ResolveOutputPathAsync(
+                GetSuffixedOutputPath(file, format.Extension, ResolveSaveToDirectory()));
+            if (outPath == null) { done++; continue; }
+
+            try
+            {
+                // Off the UI thread: decoding and scaling a large batch would
+                // otherwise freeze the window for the length of the run.
+                await Task.Run(() => _images.Resize(file, outPath!, _resizeWidth, _resizeHeight, _resizeFit));
+
+                if (!string.Equals(file, outPath, StringComparison.OrdinalIgnoreCase))
+                    resizedSources.Add(file);
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"{Path.GetFileName(file)}: {ex.Message}");
+            }
+
+            done++;
+            ProgressPercent = (double)done / ofd.FileNames.Length * 100;
+            Job.Report("Writing", ProgressPercent);
+        }
+
+        IsBusy = false; ProgressPercent = 0;
+
+        Job.Complete(errors.Count == 0
+            ? $"Resized {done} image(s) to {size} in"
+            : $"Resized with {errors.Count} error(s) — output in",
+            ResolveSaveToDirectory());
+
+        StatusText = errors.Count == 0
+            ? $"Resized {done} image(s) to {size}"
+              + (reformatted > 0 ? $" — {reformatted} written as PNG" : "")
+            : $"Finished with {errors.Count} error(s)";
+
+        if (errors.Count > 0)
+            MessageBox.Show(string.Join("\n", errors), "Resize images",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+
+        OfferToDeleteSources(resizedSources);
     }
 
     // ------------------------------------------------------------------

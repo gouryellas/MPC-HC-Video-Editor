@@ -497,6 +497,15 @@
                     <MenuItem Header="To ICO…"  Command="{Binding ConvertImagesCommand}" CommandParameter="ico"
                               ToolTip="Scaled to 256px if larger — the ICO format cannot express more"/>
                 </MenuItem>
+                <!-- Size rather than format, so it asks instead of carrying the
+                     answer in the menu: a size needs a shape rule beside it,
+                     which is not something a submenu of sizes could say. -->
+                <MenuItem Header="Resize images…" Command="{Binding ResizeImagesCommand}"
+                          ToolTip="Write image files out at a standard size — one of them or a whole folderful. Each picture keeps its own format.">
+                    <MenuItem.Icon>
+                        <Rectangle Width="12" Height="12" Fill="{DynamicResource ConvertBorder}" RadiusX="2" RadiusY="2"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <Separator/>
                 <MenuItem Header="Find clips automatically…" Command="{Binding DetectBookmarksCommand}"
                           ToolTip="Scans the video for silence, black frames or scene cuts and proposes bookmarks you can review before accepting"/>
