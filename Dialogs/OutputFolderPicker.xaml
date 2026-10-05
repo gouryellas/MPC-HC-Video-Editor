@@ -32,8 +32,8 @@
 
         <RadioButton x:Name="BesideSource" GroupName="Where" IsChecked="True" Checked="Choice_Changed">
             <StackPanel>
-                <TextBlock Text="Beside each picture"/>
-                <TextBlock Style="{StaticResource OptionNote}"
+                <TextBlock x:Name="BesideTitleText" Text="Beside each picture"/>
+                <TextBlock x:Name="BesideNoteText" Style="{StaticResource OptionNote}"
                            Text="Each file lands in the folder its original came from, so a selection spanning several folders stays where it was."/>
             </StackPanel>
         </RadioButton>

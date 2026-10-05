@@ -292,6 +292,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 ToolTip = "Convert image files between formats" },
         new() { Key = "resize-images", Group = "Actions", Label = "📐 Resize images", Icon = "📐", Command = ResizeImagesCommand,
                 ToolTip = "Write image files out at a standard size — one of them or a whole folderful" },
+        new() { Key = "thumbnails", Group = "Actions", Label = "▦ Thumbnails", Icon = "▦", Command = SaveThumbnailsCommand,
+                ToolTip = "Take a frame every few seconds through the whole video, as numbered pictures or tiled onto a sheet" },
         new() { Key = "export-chapters", Group = "Actions", Label = "🔖 Chapters", Icon = "🔖", Command = ExportChaptersCommand,
                 ToolTip = "Write the cuts out as a chapter file" },
         new() { Key = "add-to-playlist", Group = "Playlist", Label = "➕ To playlist", Icon = "➕", Command = AddCurrentToPlaylistCommand,
@@ -1617,6 +1619,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // no video open, which is to say disabled for the rest of the session.
         DetectBookmarksCommand.NotifyCanExecuteChanged();
         ExportChaptersCommand.NotifyCanExecuteChanged();
+
+        OnPropertyChanged(nameof(CanSaveThumbnails));
+        SaveThumbnailsCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>
@@ -7196,6 +7201,146 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // the video, so deleting the original after one would be wrong whatever
         // the Cleanup setting says.
         if (written > 0) Job.Complete($"Exported {written} {label} file(s) to", outDir);
+    }
+
+    // ------------------------------------------------------------------
+    // Thumbnails through the whole video
+    // ------------------------------------------------------------------
+
+    /// <summary>The last thumbnail choice, preselected on the next run.</summary>
+    private double _thumbEverySeconds = 10;
+    private int _thumbWidth = 320;
+
+    /// <summary>Columns on a sheet, or zero for a picture per frame.</summary>
+    private int _thumbColumns;
+
+    /// <summary>Whether there is a video on disk to take thumbnails from.</summary>
+    /// <remarks>
+    /// Deliberately not <see cref="HasActiveVideo"/>. ffmpeg reads the file
+    /// itself, so whether MPC-HC happens to be running has nothing to do with
+    /// it — the same reasoning as <see cref="CanRevealVideo"/>.
+    /// </remarks>
+    public bool CanSaveThumbnails => Session.HasVideo;
+
+    /// <summary>
+    /// Takes a frame every so many seconds through the whole video and writes
+    /// them out, either as numbered pictures or tiled onto sheets.
+    /// </summary>
+    /// <remarks>
+    /// The interval is what is asked for, not a number of thumbnails: "one
+    /// every ten seconds" means the same thing on a two-minute clip and a
+    /// two-hour film.
+    ///
+    /// One ffmpeg pass writes the lot — the file is decoded once and the
+    /// <c>fps</c> filter picks the frames out of it, rather than seeking to
+    /// each in turn.
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(CanSaveThumbnails))]
+    private async Task SaveThumbnails()
+    {
+        var video = Session.VideoPath;
+        if (string.IsNullOrWhiteSpace(video) || !File.Exists(video))
+        {
+            Notify("The video is no longer on disk.");
+            return;
+        }
+
+        var dlg = new ThumbnailsDialog(Session.VideoDurationSeconds, _thumbEverySeconds,
+                                       _thumbWidth, _thumbColumns,
+                                       ResolveSaveToDirectory(), _lastImageFolder)
+        {
+            Owner = DialogOwner
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        _thumbEverySeconds = dlg.EverySeconds;
+        _thumbWidth = dlg.ThumbnailWidth;
+        _thumbColumns = dlg.Columns;
+        _lastImageFolder = dlg.OutputDirectory;
+
+        // "Beside each picture" means beside the video here — there is only one
+        // source, and it is the one thing these came out of.
+        var outDir = string.IsNullOrWhiteSpace(_lastImageFolder)
+            ? Path.GetDirectoryName(video) ?? string.Empty
+            : _lastImageFolder;
+
+        if (string.IsNullOrWhiteSpace(outDir))
+        {
+            Notify("Could not work out where to write the thumbnails.", "Save thumbnails",
+                   MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        Directory.CreateDirectory(outDir);
+
+        var tiling = _thumbColumns > 0;
+        var stem = Path.GetFileNameWithoutExtension(video) + SuffixBracket()
+                   + (tiling ? "-sheet-" : "-thumb-");
+
+        // ffmpeg fills the counter in, so the number of files does not have to
+        // be known in advance — which it is not: the frame count comes out of
+        // the decode, not out of the duration metadata.
+        var pattern = Path.Combine(outDir, stem + "%03d.png");
+
+        // A second run with the same settings would overwrite the first without
+        // a word, and ffmpeg's -y is not a question. So it is asked here.
+        var existing = Directory.GetFiles(outDir, stem + "*.png");
+        if (existing.Length > 0)
+        {
+            var answer = MessageBox.Show(
+                $"{existing.Length} file(s) from a previous run are already there and will be replaced.\n\nGo ahead?",
+                "Save thumbnails", MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+            if (answer != MessageBoxResult.Yes) return;
+        }
+
+        // Enough rows for everything, up to the cap; past that ffmpeg starts
+        // another sheet, which is why the counter is in the pattern either way.
+        var frames = Session.VideoDurationSeconds > 0
+            ? Math.Max(1, (int)(Session.VideoDurationSeconds / _thumbEverySeconds))
+            : ThumbnailsDialog.MaxRows * Math.Max(1, _thumbColumns);
+
+        var rows = tiling ? ThumbnailsDialog.RowsPerSheet(frames, _thumbColumns) : 0;
+
+        IsBusy = true; ProgressPercent = 0;
+        Job.Begin(tiling ? "Building thumbnail sheets" : "Saving thumbnails", 1);
+        Job.SetFile(0, Path.GetFileName(video));
+
+        var written = 0;
+
+        try
+        {
+            var progress = new Progress<FFmpegProgressEventArgs>(p =>
+            {
+                Job.Report(p.Message, p.Percent);
+                ProgressPercent = p.Percent;
+            });
+
+            await _ffmpeg.SaveThumbnailsAsync(video, pattern, _thumbEverySeconds,
+                                              _thumbWidth, _thumbColumns, rows, progress);
+
+            written = Directory.GetFiles(outDir, stem + "*.png").Length;
+
+            StatusText = written == 0
+                ? "No thumbnails were produced — try a shorter interval."
+                : $"Wrote {written} {(tiling ? "sheet(s)" : "thumbnail(s)")} to {outDir}";
+        }
+        catch (Exception ex)
+        {
+            StatusText = "Thumbnails failed";
+            MessageBox.Show(ex.Message, "Save thumbnails",
+                            MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            IsBusy = false; ProgressPercent = 0;
+            if (written == 0) Job.End();
+        }
+
+        // No cleanup call: thumbnails are a derivative, and the video they came
+        // from is still the only copy of the footage.
+        if (written > 0)
+            Job.Complete($"Wrote {written} {(tiling ? "sheet(s)" : "thumbnail(s)")} to", outDir);
     }
 
     // ------------------------------------------------------------------

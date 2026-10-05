@@ -1410,6 +1410,58 @@ public class FFmpegService
     }
 
     /// <summary>
+    /// Takes a frame every <paramref name="everySeconds"/> through a video and
+    /// writes them out — one picture each, or laid out on sheets.
+    /// </summary>
+    /// <param name="pattern">
+    /// The output path with a printf counter in it, e.g.
+    /// <c>C:\clips\holiday-thumb-%03d.png</c>. ffmpeg fills the counter in, so
+    /// the number of files does not have to be known in advance.
+    /// </param>
+    /// <param name="everySeconds">How far apart the frames are taken.</param>
+    /// <param name="width">
+    /// Pixels wide per thumbnail; the height follows the aspect ratio.
+    /// </param>
+    /// <param name="columns">
+    /// Thumbnails across a sheet, or zero for one picture per frame.
+    /// </param>
+    /// <param name="rows">Thumbnails down a sheet. Ignored when not tiling.</param>
+    /// <remarks>
+    /// <c>fps=1/N</c> rather than a seek per frame: one decode pass produces
+    /// every thumbnail, where N separate seeks would re-open the file N times
+    /// and take far longer on a long video.
+    ///
+    /// The sheet is <c>tile</c>, which fills a grid and starts another picture
+    /// when it runs out of cells — so a video long enough to overflow one sheet
+    /// writes a second rather than losing the rest. That is also why the
+    /// counter belongs in the pattern either way.
+    ///
+    /// <c>-fps_mode passthrough</c> because the <c>fps</c> filter has already
+    /// decided which frames there are; letting the encoder resample them again
+    /// is how a run ends up with duplicates of the same picture.
+    /// </remarks>
+    public async Task SaveThumbnailsAsync(string inputPath, string pattern,
+        double everySeconds, int width, int columns, int rows,
+        IProgress<FFmpegProgressEventArgs>? progress = null, CancellationToken ct = default)
+    {
+        if (everySeconds <= 0) throw new ArgumentOutOfRangeException(nameof(everySeconds));
+
+        // The reciprocal as a fraction, not a decimal: "every 7 seconds" is
+        // 1/7, and 0.142857 is the same thing rounded.
+        var rate = $"1/{everySeconds.ToString("0.###", CultureInfo.InvariantCulture)}";
+
+        var vf = new List<string> { $"fps={rate}" };
+        if (width > 0) vf.Add($"scale={width}:-2:flags=lanczos");
+        if (columns > 0 && rows > 0) vf.Add($"tile={columns}x{rows}");
+
+        var args = $"-hide_banner -y -fflags +igndts -i \"{inputPath}\" " +
+                   $"-an -vf \"{string.Join(",", vf)}\" -fps_mode passthrough " +
+                   $"\"{pattern}\"";
+
+        await RunAsync(args, progress, ct, await GetDurationAsync(inputPath));
+    }
+
+    /// <summary>
     /// Draws the whole audio track as a single waveform image, as PNG bytes.
     /// </summary>
     /// <param name="videoPath">The video to read the audio from.</param>

@@ -500,6 +500,14 @@
                 <!-- Size rather than format, so it asks instead of carrying the
                      answer in the menu: a size needs a shape rule beside it,
                      which is not something a submenu of sizes could say. -->
+                <!-- Works off the file on disk, so it is available whenever a
+                     video is loaded rather than only while MPC-HC is up. -->
+                <MenuItem Header="Save thumbnails…" Command="{Binding SaveThumbnailsCommand}"
+                          ToolTip="Take a frame every few seconds through the whole video — numbered pictures, or tiled onto one sheet">
+                    <MenuItem.Icon>
+                        <Rectangle Width="12" Height="12" Fill="{DynamicResource SplitBackground}" RadiusX="2" RadiusY="2"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <MenuItem Header="Resize images…" Command="{Binding ResizeImagesCommand}"
                           ToolTip="Write image files out at a standard size — one of them or a whole folderful. Each picture keeps its own format.">
                     <MenuItem.Icon>

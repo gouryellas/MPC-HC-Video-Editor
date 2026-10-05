@@ -30,6 +30,17 @@ public partial class OutputFolderPicker : UserControl
     }
 
     /// <summary>
+    /// Renames the first option for a host whose sources are not a selection of
+    /// pictures — thumbnails come out of one video, so "beside each picture"
+    /// would be describing something that is not there.
+    /// </summary>
+    public void DescribeBeside(string title, string note)
+    {
+        BesideTitleText.Text = title;
+        BesideNoteText.Text = note;
+    }
+
+    /// <summary>
     /// The program's current Save to folder. Empty disables that option — an
     /// offer to write somewhere unset is an offer to write nowhere.
     /// </summary>
