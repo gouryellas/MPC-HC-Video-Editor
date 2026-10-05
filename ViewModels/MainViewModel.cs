@@ -4290,17 +4290,34 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     /// <param name="formatKey">
     /// One of <see cref="ImageConversionService.Formats"/>, supplied as the
-    /// CommandParameter of the menu item that was clicked.
+    /// CommandParameter of the menu item that was clicked — or null from the
+    /// toolbar button, which has no parameter to carry and asks instead.
     /// </param>
     [RelayCommand]
     private async Task ConvertImages(string? formatKey)
     {
-        var format = ImageConversionService.FindFormat(formatKey);
-        if (format == null)
+        ImageConversionService.Format? format;
+
+        if (string.IsNullOrWhiteSpace(formatKey))
         {
-            StatusText = $"Unknown image format '{formatKey}'.";
-            return;
+            var picker = new ChooseImageFormatDialog(_lastImageFormatKey) { Owner = DialogOwner };
+            if (picker.ShowDialog() != true) return;
+
+            format = picker.Format;
         }
+        else
+        {
+            // A key that was supplied and is not one of ours is a slip in the
+            // markup, not something to ask the user about.
+            format = ImageConversionService.FindFormat(formatKey);
+            if (format == null)
+            {
+                StatusText = $"Unknown image format '{formatKey}'.";
+                return;
+            }
+        }
+
+        _lastImageFormatKey = format.Key;
 
         var pattern = string.Join(";", ImageConversionService.ReadableExtensions.Select(e => "*" + e));
         var ofd = new OpenFileDialog
@@ -4374,6 +4391,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         OfferToDeleteSources(convertedSources);
     }
+
+    /// <summary>
+    /// The format the last conversion produced, so the picker comes up on it.
+    /// Set by the menu entries too — picking JPG there and then reaching for
+    /// the toolbar button should not land on PNG.
+    /// </summary>
+    private string? _lastImageFormatKey;
 
     /// <summary>
     /// The size and shape rule the last resize ran with, so a second run is one
