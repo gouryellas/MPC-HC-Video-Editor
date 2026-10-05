@@ -1439,6 +1439,16 @@ public class FFmpegService
     /// <c>-fps_mode passthrough</c> because the <c>fps</c> filter has already
     /// decided which frames there are; letting the encoder resample them again
     /// is how a run ends up with duplicates of the same picture.
+    ///
+    /// The second output goes nowhere, and exists so the run has progress to
+    /// report. ffmpeg's <c>time=</c> is the position of the last packet it
+    /// wrote, and this writes one picture per interval — or per sheet, which on
+    /// a tiled run is once at the very end. So a quarter of an hour of video
+    /// reported <c>time=N/A</c> throughout and the panel sat at 0% until it was
+    /// finished. The null muxer takes the decoded frames at their own rate, so
+    /// <c>time=</c> tracks how far through the file the decoder is, which is
+    /// what the bar is meant to be showing. It encodes nothing and costs
+    /// nothing measurable.
     /// </remarks>
     public async Task SaveThumbnailsAsync(string inputPath, string pattern,
         double everySeconds, int width, int columns, int rows,
@@ -1456,7 +1466,8 @@ public class FFmpegService
 
         var args = $"-hide_banner -y -fflags +igndts -i \"{inputPath}\" " +
                    $"-an -vf \"{string.Join(",", vf)}\" -fps_mode passthrough " +
-                   $"\"{pattern}\"";
+                   $"\"{pattern}\" " +
+                   $"-map 0:v:0 -c:v wrapped_avframe -f null -";
 
         await RunAsync(args, progress, ct, await GetDurationAsync(inputPath));
     }
