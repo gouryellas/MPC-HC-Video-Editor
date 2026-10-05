@@ -129,6 +129,13 @@
             <Setter Property="Padding" Value="10,5"/>
             <Setter Property="Margin" Value="3"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <!-- Three seconds, as the menus wait. A tooltip that appears the
+                 moment the pointer crosses a button pops up while you are on
+                 your way to a different one; at three seconds only resting on
+                 one asks for its explanation. Set here rather than on each
+                 button, so every button in the window shares it — and
+                 inherited by the four coloured ones, which are BasedOn this. -->
+            <Setter Property="ToolTipService.InitialShowDelay" Value="3000"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -250,6 +257,10 @@
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <!-- As the toolbar waits. These are bare glyphs, so the tooltip is
+                 the only thing that names them — all the more reason it should
+                 appear when asked for rather than in passing. -->
+            <Setter Property="ToolTipService.InitialShowDelay" Value="3000"/>
             <Setter Property="Focusable" Value="False"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="Template">
@@ -314,6 +325,7 @@
             <Setter Property="Focusable" Value="False"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="Visibility" Value="Hidden"/>
+            <Setter Property="ToolTipService.InitialShowDelay" Value="3000"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
