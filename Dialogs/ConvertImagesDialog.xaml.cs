@@ -5,24 +5,34 @@ using MpcHcVideoEditor.Services;
 namespace MpcHcVideoEditor.Dialogs;
 
 /// <summary>
-/// Asks which format a conversion should produce.
+/// Asks what a conversion should produce, and where it should land.
 /// </summary>
 /// <remarks>
-/// The menu does not need this — each of its entries names a format and carries
-/// it as the command's parameter, which is one gesture rather than two. A
-/// toolbar button has no parameter to carry, so the button that used to run the
-/// command with nothing to convert to asks here instead.
+/// Shown for every conversion, including the menu entries that name a format:
+/// the format they carry preselects the list, and the destination question is
+/// one nothing in the menu can answer. The toolbar button, which carries no
+/// format at all, is the reason the list is here rather than implied.
 /// </remarks>
-public partial class ChooseImageFormatDialog : Window
+public partial class ConvertImagesDialog : Window
 {
     /// <summary>The format chosen, valid once the dialog returns true.</summary>
     public ImageConversionService.Format Format { get; private set; } =
         ImageConversionService.Formats[0];
 
-    /// <param name="initial">
-    /// The key to preselect — the last one converted to this session.
+    /// <summary>
+    /// Where to write, or an empty string for "beside each picture".
+    /// </summary>
+    public string OutputDirectory { get; private set; } = string.Empty;
+
+    /// <param name="initialFormat">
+    /// The format key to preselect — the one the menu entry named, or the last
+    /// one converted to.
     /// </param>
-    public ChooseImageFormatDialog(string? initial)
+    /// <param name="saveToFolder">The program's current Save to folder.</param>
+    /// <param name="initialDirectory">
+    /// The destination last used, so a second run is one click.
+    /// </param>
+    public ConvertImagesDialog(string? initialFormat, string saveToFolder, string? initialDirectory)
     {
         InitializeComponent();
 
@@ -30,9 +40,13 @@ public partial class ChooseImageFormatDialog : Window
             FormatCombo.Items.Add(f.Display);
 
         var known = Array.FindIndex(ImageConversionService.Formats,
-                                    f => string.Equals(f.Key, initial, StringComparison.OrdinalIgnoreCase));
+                                    f => string.Equals(f.Key, initialFormat, StringComparison.OrdinalIgnoreCase));
 
         FormatCombo.SelectedIndex = known >= 0 ? known : 0;
+
+        Where.SaveTo = saveToFolder;
+        Where.Preselect(initialDirectory);
+        Where.ChoiceChanged += () => OkButton.IsEnabled = Where.IsReady;
     }
 
     private void Format_Changed(object sender, SelectionChangedEventArgs e)
@@ -56,9 +70,10 @@ public partial class ChooseImageFormatDialog : Window
 
     private void Ok_Click(object sender, RoutedEventArgs e)
     {
-        if (FormatCombo.SelectedIndex < 0) return;
+        if (FormatCombo.SelectedIndex < 0 || !Where.IsReady) return;
 
         Format = ImageConversionService.Formats[FormatCombo.SelectedIndex];
+        OutputDirectory = Where.Directory;
         DialogResult = true;
     }
 

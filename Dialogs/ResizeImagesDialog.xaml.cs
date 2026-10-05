@@ -24,11 +24,23 @@ public partial class ResizeImagesDialog : Window
     public int PixelHeight { get; private set; }
     public ImageConversionService.ResizeFit Fit { get; private set; }
 
+    /// <summary>
+    /// Where to write, or an empty string for "beside each picture".
+    /// </summary>
+    public string OutputDirectory { get; private set; } = string.Empty;
+
     /// <param name="width">The size to preselect — the last one used this
     /// session, so a second run is one click.</param>
-    public ResizeImagesDialog(int width, int height, ImageConversionService.ResizeFit fit)
+    /// <param name="saveToFolder">The program's current Save to folder.</param>
+    /// <param name="initialDirectory">The destination last used.</param>
+    public ResizeImagesDialog(int width, int height, ImageConversionService.ResizeFit fit,
+                              string saveToFolder, string? initialDirectory)
     {
         InitializeComponent();
+
+        Where.SaveTo = saveToFolder;
+        Where.Preselect(initialDirectory);
+        Where.ChoiceChanged += RefreshOk;
 
         foreach (var r in ImageConversionService.Resolutions)
             SizeCombo.Items.Add(r.Display);
@@ -82,11 +94,14 @@ public partial class ResizeImagesDialog : Window
 
     private void Custom_Changed(object sender, TextChangedEventArgs e) => RefreshOk();
 
-    /// <summary>Continue stays out of reach until the boxes hold a real size.</summary>
+    /// <summary>
+    /// Continue stays out of reach until the boxes hold a real size and the
+    /// destination is settled.
+    /// </summary>
     private void RefreshOk()
     {
         if (OkButton is null) return;
-        OkButton.IsEnabled = TryReadSize(out _, out _);
+        OkButton.IsEnabled = TryReadSize(out _, out _) && Where.IsReady;
     }
 
     private bool TryReadSize(out int width, out int height)
@@ -101,10 +116,11 @@ public partial class ResizeImagesDialog : Window
 
     private void Ok_Click(object sender, RoutedEventArgs e)
     {
-        if (!TryReadSize(out var width, out var height)) return;
+        if (!TryReadSize(out var width, out var height) || !Where.IsReady) return;
 
         PixelWidth = width;
         PixelHeight = height;
+        OutputDirectory = Where.Directory;
 
         Fit = FillCrop.IsChecked == true ? ImageConversionService.ResizeFit.Crop
             : StretchExact.IsChecked == true ? ImageConversionService.ResizeFit.Stretch

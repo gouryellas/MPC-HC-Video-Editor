@@ -4296,28 +4296,25 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task ConvertImages(string? formatKey)
     {
-        ImageConversionService.Format? format;
-
-        if (string.IsNullOrWhiteSpace(formatKey))
+        // A key that was supplied and is not one of ours is a slip in the
+        // markup, not something to ask the user about.
+        if (!string.IsNullOrWhiteSpace(formatKey)
+            && ImageConversionService.FindFormat(formatKey) is null)
         {
-            var picker = new ChooseImageFormatDialog(_lastImageFormatKey) { Owner = DialogOwner };
-            if (picker.ShowDialog() != true) return;
-
-            format = picker.Format;
-        }
-        else
-        {
-            // A key that was supplied and is not one of ours is a slip in the
-            // markup, not something to ask the user about.
-            format = ImageConversionService.FindFormat(formatKey);
-            if (format == null)
-            {
-                StatusText = $"Unknown image format '{formatKey}'.";
-                return;
-            }
+            StatusText = $"Unknown image format '{formatKey}'.";
+            return;
         }
 
+        var dlg = new ConvertImagesDialog(formatKey ?? _lastImageFormatKey,
+                                          ResolveSaveToDirectory(), _lastImageFolder)
+        {
+            Owner = DialogOwner
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        var format = dlg.Format;
         _lastImageFormatKey = format.Key;
+        _lastImageFolder = dlg.OutputDirectory;
 
         var pattern = string.Join(";", ImageConversionService.ReadableExtensions.Select(e => "*" + e));
         var ofd = new OpenFileDialog
@@ -4337,6 +4334,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // it in, so a failure can never cost the original.
         var convertedSources = new List<string>();
 
+        // What was written, so the summary can name the folder even when the
+        // destination was "beside each picture" and there is no one folder
+        // decided in advance.
+        var written = new List<string>();
+
         Job.Begin($"Converting images to {format.Display}", ofd.FileNames.Length);
         BeginNameBatch(ofd.FileNames.Length);
 
@@ -4350,7 +4352,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             StatusText = $"Converting {Path.GetFileName(file)}…";
 
             var outPath = await ResolveOutputPathAsync(
-                GetSuffixedOutputPath(file, format.Extension, ResolveSaveToDirectory()));
+                GetSuffixedOutputPath(file, format.Extension, _lastImageFolder));
             if (outPath == null) { done++; continue; }
 
             try
@@ -4358,6 +4360,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 // Quick, but pushed off the UI thread so a large batch cannot
                 // freeze the window mid-run.
                 await Task.Run(() => _images.Convert(file, outPath, format));
+                written.Add(outPath);
 
                 // Overwriting in place means the "original" is the file we just
                 // wrote — deleting it would throw away the conversion.
@@ -4379,7 +4382,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Job.Complete(errors.Count == 0
             ? $"Converted {done} image(s) to {format.Display} in"
             : $"Converted with {errors.Count} error(s) — output in",
-            ResolveSaveToDirectory());
+            OutputFolderPicker.Describe(_lastImageFolder, written));
 
         StatusText = errors.Count == 0
             ? $"Converted {done} image(s) to {format.Display}"
@@ -4398,6 +4401,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// the toolbar button should not land on PNG.
     /// </summary>
     private string? _lastImageFormatKey;
+
+    /// <summary>
+    /// Where the last image operation wrote: a folder, or an empty string for
+    /// beside each picture. Shared by Convert and Resize, because it is one
+    /// habit rather than two, and per session like the rest of these.
+    /// </summary>
+    private string _lastImageFolder = string.Empty;
 
     /// <summary>
     /// The size and shape rule the last resize ran with, so a second run is one
@@ -4432,7 +4442,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         };
         if (ofd.ShowDialog() != true) return;
 
-        var dlg = new ResizeImagesDialog(_resizeWidth, _resizeHeight, _resizeFit)
+        var dlg = new ResizeImagesDialog(_resizeWidth, _resizeHeight, _resizeFit,
+                                         ResolveSaveToDirectory(), _lastImageFolder)
         {
             Owner = DialogOwner
         };
@@ -4441,6 +4452,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _resizeWidth = dlg.PixelWidth;
         _resizeHeight = dlg.PixelHeight;
         _resizeFit = dlg.Fit;
+        _lastImageFolder = dlg.OutputDirectory;
 
         var size = $"{_resizeWidth} × {_resizeHeight}";
 
@@ -4451,6 +4463,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // Only the files that came through cleanly, so a failure can never cost
         // the original.
         var resizedSources = new List<string>();
+
+        // What was written, so the summary can name the folder even when the
+        // destination was "beside each picture".
+        var written = new List<string>();
 
         // Files that could be read but not written back in their own format.
         var reformatted = 0;
@@ -4470,7 +4486,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 reformatted++;
 
             var outPath = await ResolveOutputPathAsync(
-                GetSuffixedOutputPath(file, format.Extension, ResolveSaveToDirectory()));
+                GetSuffixedOutputPath(file, format.Extension, _lastImageFolder));
             if (outPath == null) { done++; continue; }
 
             try
@@ -4478,6 +4494,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 // Off the UI thread: decoding and scaling a large batch would
                 // otherwise freeze the window for the length of the run.
                 await Task.Run(() => _images.Resize(file, outPath!, _resizeWidth, _resizeHeight, _resizeFit));
+                written.Add(outPath);
 
                 if (!string.Equals(file, outPath, StringComparison.OrdinalIgnoreCase))
                     resizedSources.Add(file);
@@ -4497,7 +4514,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Job.Complete(errors.Count == 0
             ? $"Resized {done} image(s) to {size} in"
             : $"Resized with {errors.Count} error(s) — output in",
-            ResolveSaveToDirectory());
+            OutputFolderPicker.Describe(_lastImageFolder, written));
 
         StatusText = errors.Count == 0
             ? $"Resized {done} image(s) to {size}"
