@@ -4316,10 +4316,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _lastImageFormatKey = format.Key;
         _lastImageFolder = dlg.OutputDirectory;
 
-        var pattern = string.Join(";", ImageConversionService.ReadableExtensions.Select(e => "*" + e));
         var ofd = new OpenFileDialog
         {
-            Filter = $"Image Files|{pattern}|All Files|*.*",
+            Filter = $"Image Files|{ImageFilePattern()}|All Files|*.*",
             Multiselect = true,
             Title = $"Select images to convert to {format.Display}"
         };
@@ -4396,6 +4395,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// The file-dialog filter for pictures: every extension that can be read.
+    /// </summary>
+    private static string ImageFilePattern() =>
+        string.Join(";", ImageConversionService.ReadableExtensions.Select(e => "*" + e));
+
+    /// <summary>
     /// The format the last conversion produced, so the picker comes up on it.
     /// Set by the menu entries too — picking JPG there and then reaching for
     /// the toolbar button should not land on PNG.
@@ -4426,6 +4431,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// One file or forty: the picker is the same, and the size is asked once
     /// for the batch rather than once per file.
     ///
+    /// Options first, then the files — the order Convert images uses, so the
+    /// two image operations are the same three steps in the same sequence.
+    ///
     /// Each picture keeps its own format, so a folder of mixed JPGs and PNGs
     /// comes back as the same mixture. WebP is the exception — it can be read
     /// and not written — and those come back as PNG, which the summary says.
@@ -4433,15 +4441,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task ResizeImages()
     {
-        var pattern = string.Join(";", ImageConversionService.ReadableExtensions.Select(e => "*" + e));
-        var ofd = new OpenFileDialog
-        {
-            Filter = $"Image Files|{pattern}|All Files|*.*",
-            Multiselect = true,
-            Title = "Select images to resize"
-        };
-        if (ofd.ShowDialog() != true) return;
-
         var dlg = new ResizeImagesDialog(_resizeWidth, _resizeHeight, _resizeFit,
                                          ResolveSaveToDirectory(), _lastImageFolder)
         {
@@ -4455,6 +4454,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _lastImageFolder = dlg.OutputDirectory;
 
         var size = $"{_resizeWidth} × {_resizeHeight}";
+
+        var ofd = new OpenFileDialog
+        {
+            Filter = $"Image Files|{ImageFilePattern()}|All Files|*.*",
+            Multiselect = true,
+            Title = $"Select images to resize to {size}"
+        };
+        if (ofd.ShowDialog() != true) return;
 
         IsBusy = true;
         int done = 0;
