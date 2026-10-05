@@ -293,7 +293,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         new() { Key = "resize-images", Group = "Actions", Label = "📐 Resize images", Icon = "📐", Command = ResizeImagesCommand,
                 ToolTip = "Resize images" },
         new() { Key = "thumbnails", Group = "Actions", Label = "▦ Save thumbnails", Icon = "▦", Command = SaveThumbnailsCommand,
-                ToolTip = "Take a frame every few seconds through the whole video, as numbered pictures or tiled onto a sheet" },
+                ToolTip = "Save thumbnails" },
         new() { Key = "export-chapters", Group = "Actions", Label = "🔖 Chapters", Icon = "🔖", Command = ExportChaptersCommand,
                 ToolTip = "Write the cuts out as a chapter file" },
         new() { Key = "add-to-playlist", Group = "Playlist", Label = "➕ To playlist", Icon = "➕", Command = AddCurrentToPlaylistCommand,
@@ -1619,9 +1619,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // no video open, which is to say disabled for the rest of the session.
         DetectBookmarksCommand.NotifyCanExecuteChanged();
         ExportChaptersCommand.NotifyCanExecuteChanged();
-
-        OnPropertyChanged(nameof(CanSaveThumbnails));
-        SaveThumbnailsCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>
@@ -7207,6 +7204,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // Thumbnails through the whole video
     // ------------------------------------------------------------------
 
+    /// <summary>
+    /// A video's length, or zero when it cannot be read. Only the count shown
+    /// in the dialog depends on it, so a file ffprobe chokes on is worth
+    /// carrying on with rather than refusing.
+    /// </summary>
+    private async Task<double> SafeDurationAsync(string path)
+    {
+        try { return await _ffmpeg.GetDurationAsync(path); }
+        catch { return 0; }
+    }
+
     /// <summary>The last thumbnail choice, preselected on the next run.</summary>
     private double _thumbEverySeconds = 10;
     private int _thumbWidth = 320;
@@ -7214,38 +7222,51 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Columns on a sheet, or zero for a picture per frame.</summary>
     private int _thumbColumns;
 
-    /// <summary>Whether there is a video on disk to take thumbnails from.</summary>
-    /// <remarks>
-    /// Deliberately not <see cref="HasActiveVideo"/>. ffmpeg reads the file
-    /// itself, so whether MPC-HC happens to be running has nothing to do with
-    /// it — the same reasoning as <see cref="CanRevealVideo"/>.
-    /// </remarks>
-    public bool CanSaveThumbnails => Session.HasVideo;
-
     /// <summary>
-    /// Takes a frame every so many seconds through the whole video and writes
-    /// them out, either as numbered pictures or tiled onto sheets.
+    /// Takes a frame every so many seconds through a video and writes them out,
+    /// either as numbered pictures or tiled onto sheets.
     /// </summary>
     /// <remarks>
     /// The interval is what is asked for, not a number of thumbnails: "one
     /// every ten seconds" means the same thing on a two-minute clip and a
     /// two-hour film.
     ///
+    /// Never disabled. It works off a file rather than off the session, so with
+    /// a video loaded it acts on that one and with nothing loaded it asks for
+    /// one — a button greyed out because no video is open would be refusing to
+    /// do something it is perfectly able to do.
+    ///
     /// One ffmpeg pass writes the lot — the file is decoded once and the
     /// <c>fps</c> filter picks the frames out of it, rather than seeking to
     /// each in turn.
     /// </remarks>
-    [RelayCommand(CanExecute = nameof(CanSaveThumbnails))]
+    [RelayCommand]
     private async Task SaveThumbnails()
     {
         var video = Session.VideoPath;
-        if (string.IsNullOrWhiteSpace(video) || !File.Exists(video))
+        var loaded = !string.IsNullOrWhiteSpace(video) && File.Exists(video);
+
+        if (!loaded)
         {
-            Notify("The video is no longer on disk.");
-            return;
+            var pick = new OpenFileDialog
+            {
+                Filter = "Video Files|*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.webm;*.mpeg;*.mpg;*.ts;*.m4v|All Files|*.*",
+                Title = "Select a video to take thumbnails from"
+            };
+            if (pick.ShowDialog() != true) return;
+
+            video = pick.FileName;
         }
 
-        var dlg = new ThumbnailsDialog(Session.VideoDurationSeconds, _thumbEverySeconds,
+        // The session's duration belongs to the session's video. For one picked
+        // here it has to be read, and it is only wanted for the count the
+        // dialog shows — so a file ffprobe cannot read still opens the dialog,
+        // without the count.
+        var duration = loaded
+            ? Session.VideoDurationSeconds
+            : await SafeDurationAsync(video);
+
+        var dlg = new ThumbnailsDialog(duration, _thumbEverySeconds,
                                        _thumbWidth, _thumbColumns,
                                        ResolveSaveToDirectory(), _lastImageFolder)
         {
@@ -7296,8 +7317,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         // Enough rows for everything, up to the cap; past that ffmpeg starts
         // another sheet, which is why the counter is in the pattern either way.
-        var frames = Session.VideoDurationSeconds > 0
-            ? Math.Max(1, (int)(Session.VideoDurationSeconds / _thumbEverySeconds))
+        var frames = duration > 0
+            ? Math.Max(1, (int)(duration / _thumbEverySeconds))
             : ThumbnailsDialog.MaxRows * Math.Max(1, _thumbColumns);
 
         var rows = tiling ? ThumbnailsDialog.RowsPerSheet(frames, _thumbColumns) : 0;
