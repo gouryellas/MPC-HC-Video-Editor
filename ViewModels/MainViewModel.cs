@@ -291,7 +291,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         new() { Key = "convert-images", Group = "Actions", Label = "🖼 Convert images", Icon = "🖼", Command = ConvertImagesCommand,
                 ToolTip = "Convert image files between formats" },
         new() { Key = "resize-images", Group = "Actions", Label = "📐 Resize images", Icon = "📐", Command = ResizeImagesCommand,
-                ToolTip = "Write image files out at a standard size — one of them or a whole folderful" },
+                ToolTip = "Resize images" },
         new() { Key = "thumbnails", Group = "Actions", Label = "▦ Save thumbnails", Icon = "▦", Command = SaveThumbnailsCommand,
                 ToolTip = "Take a frame every few seconds through the whole video, as numbered pictures or tiled onto a sheet" },
         new() { Key = "export-chapters", Group = "Actions", Label = "🔖 Chapters", Icon = "🔖", Command = ExportChaptersCommand,
