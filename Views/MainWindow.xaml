@@ -147,9 +147,6 @@
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="{DynamicResource ControlHover}"/>
-                            </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.4"/>
                             </Trigger>
@@ -292,9 +289,6 @@
                 <Trigger Property="IsEnabled" Value="False">
                     <Setter Property="Visibility" Value="Collapsed"/>
                 </Trigger>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Foreground" Value="{DynamicResource AccentBright}"/>
-                </Trigger>
             </Style.Triggers>
         </Style>
 
@@ -351,11 +345,6 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Foreground" Value="{DynamicResource AccentBright}"/>
-                </Trigger>
-            </Style.Triggers>
         </Style>
 
         <!-- One style per arrow, because each asks a different question before
