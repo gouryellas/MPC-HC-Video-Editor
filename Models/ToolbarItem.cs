@@ -160,7 +160,18 @@ public sealed class ToolbarItem : INotifyPropertyChanged
     /// Resource key of the style that paints this button, or null for the
     /// ordinary ones.
     /// </summary>
-    public string? StyleKey { get; init; }
+    /// <remarks>
+    /// Settable, because one group of buttons changes how it is painted while
+    /// the program runs: the naming tags, of which exactly one is the active
+    /// one and says so by being lit.
+    /// </remarks>
+    public string? StyleKey
+    {
+        get => _styleKey;
+        set { _styleKey = value; OnPropertyChanged(); }
+    }
+
+    private string? _styleKey;
 
     /// <summary>
     /// True while this item is being dragged, so the view can show which one is

@@ -413,6 +413,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 ToolbarItems.Add(item);
             }
 
+        // The row is new, so whichever tag is active has to be lit again.
+        RefreshNamingTagButtons();
         RefreshToolbarRows();
     }
 
@@ -506,6 +508,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ToolbarItems.Add(item);
         }
 
+        RefreshNamingTagButtons();
         SaveToolbarOrder();
     }
 
@@ -1707,9 +1710,32 @@ public partial class MainViewModel : ObservableObject, IDisposable
             : new List<Bookmark>();
     }
 
+    /// <summary>
+    /// Flip, Rotate, Mute and Fade: enabled whenever there is a cut to act on.
+    /// </summary>
+    /// <remarks>
+    /// A complete cut existing, rather than one being checked or highlighted.
+    /// Requiring the choice as well left four buttons greyed out in a list full
+    /// of cuts — the thing you reach for them with is right there, and a button
+    /// that goes grey until you click the row beside it reads as broken rather
+    /// than as waiting.
+    ///
+    /// Pressed with nothing chosen they say so, the way Delete already does.
+    /// That is the same bargain: the gate asks whether the action is possible,
+    /// and the command says what is missing.
+    /// </remarks>
     private bool CanToggleFlip() =>
-        HasActiveVideo && IsBookmarkFileLoaded &&
-        (SelectedPairCount >= 1 || SelectedBookmark is { IsValid: true });
+        HasActiveVideo && IsBookmarkFileLoaded && CompletePairCount >= 1;
+
+    /// <summary>
+    /// Says what to do when one of the four is pressed with nothing checked and
+    /// no row highlighted.
+    /// </summary>
+    private bool NothingToModify()
+    {
+        StatusText = "Nothing chosen — check the cuts you want, or click a row first.";
+        return true;
+    }
 
     // Both of these act on the bookmark file rather than on the cuts in it, so
     // both need only the file.
@@ -1785,6 +1811,40 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ? "Current rename tag: none"
             : $"Current rename tag: {text}";
         SuffixExampleDisplay = BuildSuffixExample(text);
+
+        RefreshNamingTagButtons();
+    }
+
+    /// <summary>
+    /// Lights the toolbar's naming-tag button that matches the active tag, and
+    /// puts the rest back to ordinary.
+    /// </summary>
+    /// <remarks>
+    /// The tag buttons are a set of which exactly one is true, and nothing on
+    /// the toolbar said which: pressing [done] looked the same as not pressing
+    /// it, and a tag set from the Options menu was invisible out here. Lit by
+    /// swapping the style the item names rather than by a trigger, because the
+    /// style is already chosen that way and the binding re-reads it.
+    ///
+    /// "no tag" is one of the set, not the absence of one — with no tag active
+    /// it is the button that is true.
+    /// </remarks>
+    private void RefreshNamingTagButtons()
+    {
+        const string prefix = "tag:";
+        var active = _settings.GetActiveSuffixText();
+
+        foreach (var item in ToolbarItems)
+        {
+            if (!item.Key.StartsWith(prefix, StringComparison.Ordinal)) continue;
+
+            var tag = item.Key[prefix.Length..];
+            var lit = tag == "none"
+                ? active.Length == 0
+                : string.Equals(tag, active, StringComparison.Ordinal);
+
+            item.StyleKey = lit ? "ActiveTagButton" : null;
+        }
     }
 
     /// <summary>
@@ -2638,7 +2698,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void ToggleFlip()
     {
         var selected = ModifierTargets();
-        if (selected.Count == 0) return;
+        if (selected.Count == 0 && NothingToModify()) return;
 
         // Clear only when every selected cut is already flipped, so a mixed
         // selection turns them all on rather than toggling them out of sync.
@@ -7011,7 +7071,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void RotateSelected()
     {
         var selected = ModifierTargets();
-        if (selected.Count == 0) return;
+        if (selected.Count == 0 && NothingToModify()) return;
 
         var next = Bookmark.NextRotation(selected[0].Rotation);
         foreach (var b in selected) b.Rotation = next;
@@ -7034,7 +7094,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void ToggleMute()
     {
         var selected = ModifierTargets();
-        if (selected.Count == 0) return;
+        if (selected.Count == 0 && NothingToModify()) return;
 
         var turningOn = !selected.All(b => b.IsMuted);
         foreach (var b in selected) b.IsMuted = turningOn;
@@ -7067,7 +7127,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void ToggleFade()
     {
         var selected = ModifierTargets();
-        if (selected.Count == 0) return;
+        if (selected.Count == 0 && NothingToModify()) return;
 
         var length = _settings.Current.FadeSeconds;
         var turningOn = !selected.All(b => b.HasFade);

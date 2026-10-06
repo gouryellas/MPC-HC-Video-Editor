@@ -189,6 +189,19 @@
             <Setter Property="Foreground" Value="{DynamicResource OnOperation}"/>
         </Style>
 
+        <!-- The naming tag currently in use. One of the tag buttons is always
+             the true one — including "no tag" — and nothing on the toolbar said
+             which, so pressing [done] looked exactly like not pressing it.
+             Follows the theme, unlike the four operation buttons: this is a
+             state rather than an identity, and the accent is what the rest of
+             the window already uses to mean "this one". -->
+        <Style x:Key="ActiveTagButton" TargetType="Button" BasedOn="{StaticResource DarkButton}">
+            <Setter Property="Background" Value="{DynamicResource Accent}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBright}"/>
+            <Setter Property="Foreground" Value="{DynamicResource OnAccent}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
         <!-- The menu strip keeps system-like chrome rather than following the
              app's canvas, so its two colors are their own palette roles. -->
         <Style TargetType="Menu">
@@ -460,6 +473,17 @@
                           InputGestureText="Ctrl+Y"/>
             </MenuItem>
             <MenuItem Header="&#9889; Actions">
+                <!-- How the cuts are written, as against what is written from
+                     them. They act on the checked cuts, or on the highlighted
+                     row when nothing is checked — the same rule as the toolbar
+                     buttons, which is said here once rather than four times. -->
+                <MenuItem Header="Flip upside down" Command="{Binding ToggleFlipCommand}"
+                          ToolTip="Acts on the checked cuts, or the highlighted row when nothing is checked"/>
+                <MenuItem Header="Rotate a quarter turn" Command="{Binding RotateSelectedCommand}"/>
+                <MenuItem Header="Mute" Command="{Binding ToggleMuteCommand}"/>
+                <MenuItem Header="Fade in and out" Command="{Binding ToggleFadeCommand}"
+                          ToolTip="Fades over the length set in Settings ▸ Output"/>
+                <Separator/>
                 <MenuItem Header="Merge selected / all / any" Command="{Binding MergeSelectedCommand}"
                           ToolTip="Merges the checked cuts, or every cut, or — with no video loaded — files you pick. A single cut is written out on its own as a trim.">
                     <MenuItem.Icon>
