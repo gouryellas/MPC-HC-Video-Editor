@@ -47,6 +47,20 @@ public partial class JobProgress : ObservableObject
     [ObservableProperty] private string _remainingDisplay = "—";
 
     /// <summary>
+    /// Whether this job has a measurable percentage to show. False hides the
+    /// bar, the percentage and the elapsed/remaining line, leaving the headline
+    /// and the file.
+    /// </summary>
+    /// <remarks>
+    /// For work whose progress cannot honestly be reported. Building a
+    /// thumbnail sheet is one picture, written at the very end: a bar for it
+    /// can only sit at nothing and then jump to everything, and an estimate of
+    /// the time remaining is a number made up out of nowhere. A plain "this
+    /// will take a moment" says exactly as much and does not pretend.
+    /// </remarks>
+    [ObservableProperty] private bool _showsProgress = true;
+
+    /// <summary>
     /// Action and current step on one line, e.g. "Merging files · Preparing".
     /// Joined rather than shown on separate rows because the step alone is
     /// rarely a sentence and the two together read as one.
@@ -81,11 +95,16 @@ public partial class JobProgress : ObservableObject
     }
 
     /// <summary>Starts a job and shows the panel.</summary>
-    public void Begin(string action, int fileCount = 1)
+    /// <param name="showsProgress">
+    /// False for work with no honest percentage; see
+    /// <see cref="ShowsProgress"/>.
+    /// </param>
+    public void Begin(string action, int fileCount = 1, bool showsProgress = true)
     {
         _generation++;
         Action = action;
         FileCount = fileCount;
+        ShowsProgress = showsProgress;
 
         // Nothing is finished yet. This used to open at 1, which read as "one
         // done" before any work had started and left every counter in the app

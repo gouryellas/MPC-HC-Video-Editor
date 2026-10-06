@@ -7324,14 +7324,24 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var rows = tiling ? ThumbnailsDialog.RowsPerSheet(frames, _thumbColumns) : 0;
 
         IsBusy = true; ProgressPercent = 0;
-        Job.Begin(tiling ? "Building thumbnail sheets" : "Saving thumbnails", 1);
+
+        // A sheet is one picture, written at the end, so there is no honest
+        // percentage to show and no remaining time to estimate — the panel says
+        // so in words instead. A run writing a picture per interval has real
+        // progress and keeps the bar.
+        Job.Begin(tiling ? "Building thumbnail sheets" : "Saving thumbnails", 1,
+                  showsProgress: !tiling);
         Job.SetFile(0, Path.GetFileName(video));
+
+        if (tiling) Job.Report("This will take a moment. Please wait.", 0);
 
         var written = 0;
 
         try
         {
-            var progress = new Progress<FFmpegProgressEventArgs>(p =>
+            // Nothing to report for a sheet: the step is the sentence above, and
+            // a percentage arriving behind a hidden bar would only overwrite it.
+            var progress = tiling ? null : new Progress<FFmpegProgressEventArgs>(p =>
             {
                 Job.Report(p.Message, p.Percent);
                 ProgressPercent = p.Percent;
@@ -7360,8 +7370,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         // No cleanup call: thumbnails are a derivative, and the video they came
         // from is still the only copy of the footage.
+        //
+        // Held longer than the usual three seconds. A run with no progress bar
+        // gives nothing away while it works, so the summary at the end is the
+        // only thing that says what happened and where it went.
         if (written > 0)
-            Job.Complete($"Wrote {written} {(tiling ? "sheet(s)" : "thumbnail(s)")} to", outDir);
+            Job.Complete($"Wrote {written} {(tiling ? "sheet(s)" : "thumbnail(s)")} to",
+                         outDir, holdMs: 5000);
     }
 
     // ------------------------------------------------------------------

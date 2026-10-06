@@ -729,7 +729,8 @@
                     <TextBlock Grid.Column="1" Text="{Binding Job.FileProgressDisplay}" Foreground="{DynamicResource ValueYellow}"
                                FontWeight="SemiBold" Margin="12,0" VerticalAlignment="Center"/>
                     <TextBlock Grid.Column="2" Text="{Binding Job.PercentDisplay}" Foreground="{DynamicResource TextPrimary}"
-                               FontWeight="SemiBold" VerticalAlignment="Center"/>
+                               FontWeight="SemiBold" VerticalAlignment="Center"
+                               Visibility="{Binding Job.ShowsProgress, Converter={StaticResource BoolToVis}}"/>
                 </Grid>
 
                 <TextBlock Text="{Binding Job.CurrentFile}" Foreground="{DynamicResource Accent}"
@@ -737,8 +738,13 @@
 
                 <!-- Black track. Fill colour comes from the percentage: red
                      under 25, orange to 50, yellow to 75, blue under 100, solid
-                     green at 100 (held for a few seconds by JobProgress). -->
-                <Border Background="#FF000000" CornerRadius="3" Height="14" Padding="2">
+                     green at 100 (held for a few seconds by JobProgress).
+
+                     Gone entirely for a job with no honest percentage — an
+                     empty bar that fills in one jump at the end tells you less
+                     than the sentence above it. -->
+                <Border Background="#FF000000" CornerRadius="3" Height="14" Padding="2"
+                        Visibility="{Binding Job.ShowsProgress, Converter={StaticResource BoolToVis}}">
                     <Grid>
                         <Rectangle HorizontalAlignment="Left" RadiusX="2" RadiusY="2"
                                    Fill="{Binding Job.Percent, Converter={StaticResource ProgressBrush}}"
@@ -750,7 +756,8 @@
                     </Grid>
                 </Border>
 
-                <Grid Margin="0,6,0,0">
+                <Grid Margin="0,6,0,0"
+                      Visibility="{Binding Job.ShowsProgress, Converter={StaticResource BoolToVis}}">
                     <TextBlock Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Left">
                         <Run Text="Elapsed"/><Run Text="  "/><Run Text="{Binding Job.ElapsedDisplay, Mode=OneWay}"/>
                     </TextBlock>
