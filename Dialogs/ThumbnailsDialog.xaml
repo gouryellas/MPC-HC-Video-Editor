@@ -70,18 +70,14 @@
         <TextBlock Text="WHAT TO WRITE" Style="{StaticResource Heading}" Margin="0,18,0,8"/>
 
         <RadioButton x:Name="SeparateFiles" GroupName="Layout" IsChecked="True" Checked="Layout_Changed">
-            <StackPanel>
-                <TextBlock Text="A picture for each frame"/>
-                <TextBlock Style="{StaticResource OptionNote}"
-                           Text="Numbered PNGs in order, so you can keep the ones you want and throw the rest away."/>
-            </StackPanel>
+            <TextBlock Text="An image per frame"/>
         </RadioButton>
 
         <RadioButton x:Name="ContactSheet" GroupName="Layout" Checked="Layout_Changed">
             <StackPanel>
-                <TextBlock Text="One sheet of them all"/>
+                <TextBlock Text="One tiled image of images"/>
                 <TextBlock Style="{StaticResource OptionNote}"
-                           Text="Every frame tiled into a single picture, the way MPC-HC's own thumbnails look. A video with more frames than fit starts another sheet."/>
+                           Text="Every frame tiled into a single image"/>
                 <StackPanel x:Name="ColumnsPanel" Orientation="Horizontal" Margin="0,6,0,0" IsEnabled="False">
                     <TextBox x:Name="ColumnsBox" Width="48" TextChanged="Input_Changed"/>
                     <TextBlock Text="across" Style="{StaticResource Label}" Margin="8,0,0,0"/>
