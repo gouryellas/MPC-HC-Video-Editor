@@ -5,7 +5,15 @@ using System.Windows.Media.Imaging;
 namespace MpcHcVideoEditor.Services;
 
 /// <summary>One fact about an image.</summary>
-public sealed record MetaRow(string Name, string Value);
+/// <param name="Full">
+/// The whole of a long value, when <paramref name="Value"/> is only a summary
+/// of it. Null for the ordinary rows that say everything they have.
+/// </param>
+public sealed record MetaRow(string Name, string Value, string? Full = null)
+{
+    /// <summary>Whether this row has more to show than it is showing.</summary>
+    public bool HasFull => !string.IsNullOrEmpty(Full);
+}
 
 /// <summary>A heading and the facts under it.</summary>
 public sealed record MetaGroup(string Name, IReadOnlyList<MetaRow> Rows);
@@ -35,7 +43,10 @@ public sealed record ImageFacts(
         {
             lines.Add(string.Empty);
             lines.Add(group.Name);
-            lines.AddRange(group.Rows.Select(r => $"  {r.Name}: {r.Value}"));
+
+            // The whole of a summarised row, not its summary: copying exists
+            // to get the text out, and "48,213 characters" is not the text.
+            lines.AddRange(group.Rows.Select(r => $"  {r.Name}: {r.Full ?? r.Value}"));
         }
 
         return string.Join(Environment.NewLine, lines);
@@ -107,6 +118,10 @@ public class ImageMetadataService
 
         groups.Add(new MetaGroup("Picture", Picture(frame, decoder)));
 
+        // Before the camera and the rest: on a generated picture this is the
+        // answer to the question the window was opened to ask.
+        AddTextChunks(path, groups);
+
         var metadata = frame.Metadata as BitmapMetadata;
         if (metadata is not null)
         {
@@ -122,6 +137,42 @@ public class ImageMetadataService
             groups.Add(new MetaGroup("Location", new List<MetaRow> { new("Coordinates", location) }));
 
         return new ImageFacts(path, name, groups, location, null);
+    }
+
+    /// <summary>
+    /// What a PNG carries in its text chunks: what made the picture, when that
+    /// can be read, and the chunks themselves either way.
+    /// </summary>
+    /// <remarks>
+    /// Nothing here is EXIF, which is why it is read by walking the file rather
+    /// than through the decoder. A JPEG simply has no such chunks and falls
+    /// straight through.
+    /// </remarks>
+    private static void AddTextChunks(string path, List<MetaGroup> groups)
+    {
+        var chunks = PngText.Read(path);
+        if (chunks.Count == 0) return;
+
+        if (GenerationMetadata.Describe(chunks) is { } generated)
+            groups.Add(generated);
+
+        var rows = new List<MetaRow>();
+
+        foreach (var chunk in chunks)
+        {
+            var text = chunk.Text.Trim();
+            if (text.Length == 0) continue;
+
+            // A whole ComfyUI graph is tens of thousands of characters, and
+            // printing it would bury every other group under it. Its length is
+            // the useful thing on screen; the text itself is a click away and
+            // goes to the clipboard whole.
+            rows.Add(text.Length <= 160
+                ? new MetaRow(chunk.Key, text)
+                : new MetaRow(chunk.Key, $"{text.Length:N0} characters — click to show", text));
+        }
+
+        if (rows.Count > 0) groups.Add(new MetaGroup("Text in the file", rows));
     }
 
     private static List<MetaRow> Picture(BitmapFrame frame, BitmapDecoder decoder)
