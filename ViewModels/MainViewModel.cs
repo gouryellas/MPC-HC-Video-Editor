@@ -6878,6 +6878,23 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 RecordChange("the mute");
                 return;
 
+            case nameof(Bookmark.FadeInSeconds):
+            case nameof(Bookmark.FadeOutSeconds):
+                RecordChange("the fade");
+                return;
+
+            // All four arrive together from SetCrop, and the coalescing window
+            // joins them into the one step a single rectangle deserves.
+            case nameof(Bookmark.CropX):
+            case nameof(Bookmark.CropY):
+            case nameof(Bookmark.CropWidth):
+            case nameof(Bookmark.CropHeight):
+                RecordChange("the crop");
+                return;
+
+            // Everything else is derived — Prefix, RowMarkers, the display
+            // strings — and recording those would push a step for every one of
+            // the several notifications a single change raises.
             default:
                 return;
         }
