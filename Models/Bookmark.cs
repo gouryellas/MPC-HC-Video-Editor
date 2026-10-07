@@ -257,6 +257,113 @@ public class Bookmark : INotifyPropertyChanged
     /// <summary>Whether either end of this clip fades.</summary>
     public bool HasFade => FadeInSeconds > 0 || FadeOutSeconds > 0;
 
+    // ------------------------------------------------------------------
+    // Crop
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// The part of the frame this clip keeps, as fractions of the whole: left
+    /// edge, top edge, width and height. The default is the whole frame.
+    /// </summary>
+    /// <remarks>
+    /// Fractions rather than pixels, for two reasons. A cut list outlives the
+    /// file it was made against — the same marks are used on a re-encode at a
+    /// different size — and fractions survive that where 1920-wide pixel
+    /// numbers would silently mean something else. And the crop is drawn on a
+    /// preview a few hundred pixels across, so the number the user produces is
+    /// a proportion no matter what is behind it.
+    ///
+    /// Measured on the frame <em>after</em> any flip and rotation, because that
+    /// is the picture the box was drawn on. The filter chain puts crop after
+    /// those two for the same reason.
+    /// </remarks>
+    public double CropX
+    {
+        get => _cropX;
+        set => SetCropPart(ref _cropX, value);
+    }
+
+    /// <inheritdoc cref="CropX"/>
+    public double CropY
+    {
+        get => _cropY;
+        set => SetCropPart(ref _cropY, value);
+    }
+
+    /// <inheritdoc cref="CropX"/>
+    public double CropWidth
+    {
+        get => _cropWidth;
+        set => SetCropPart(ref _cropWidth, value);
+    }
+
+    /// <inheritdoc cref="CropX"/>
+    public double CropHeight
+    {
+        get => _cropHeight;
+        set => SetCropPart(ref _cropHeight, value);
+    }
+
+    private double _cropX;
+    private double _cropY;
+    private double _cropWidth = 1;
+    private double _cropHeight = 1;
+
+    private void SetCropPart(ref double field, double value, [CallerMemberName] string? name = null)
+    {
+        var clamped = Math.Clamp(value, 0, 1);
+        if (Math.Abs(field - clamped) < 1e-6) return;
+
+        field = clamped;
+        OnPropertyChanged(name);
+        OnPropertyChanged(nameof(HasCrop));
+        OnPropertyChanged(nameof(CropDisplay));
+        OnPropertyChanged(nameof(Prefix));
+        OnPropertyChanged(nameof(RowMarkers));
+    }
+
+    /// <summary>Sets the whole rectangle at once.</summary>
+    /// <remarks>
+    /// One call rather than four assignments, so a rectangle never passes
+    /// through a half-applied state — four separate sets would raise four
+    /// rounds of notifications, and anything redrawing from them would see
+    /// a box that was briefly the new width at the old position.
+    /// </remarks>
+    public void SetCrop(double x, double y, double width, double height)
+    {
+        _cropX = Math.Clamp(x, 0, 1);
+        _cropY = Math.Clamp(y, 0, 1);
+        _cropWidth = Math.Clamp(width, 0, 1 - _cropX);
+        _cropHeight = Math.Clamp(height, 0, 1 - _cropY);
+
+        OnPropertyChanged(nameof(CropX));
+        OnPropertyChanged(nameof(CropY));
+        OnPropertyChanged(nameof(CropWidth));
+        OnPropertyChanged(nameof(CropHeight));
+        OnPropertyChanged(nameof(HasCrop));
+        OnPropertyChanged(nameof(CropDisplay));
+        OnPropertyChanged(nameof(Prefix));
+        OnPropertyChanged(nameof(RowMarkers));
+    }
+
+    /// <summary>Puts the whole frame back.</summary>
+    public void ClearCrop() => SetCrop(0, 0, 1, 1);
+
+    /// <summary>
+    /// Whether anything is actually trimmed off.
+    /// </summary>
+    /// <remarks>
+    /// A tolerance rather than an equality test: the rectangle comes from a
+    /// pointer dragged over a preview, so "the whole frame" arrives as
+    /// 0.9998 as often as it arrives as 1. Half a percent of a 1920-wide frame
+    /// is nine pixels, which is below what anyone is aiming at.
+    /// </remarks>
+    public bool HasCrop =>
+        CropX > 0.005 || CropY > 0.005 || CropWidth < 0.995 || CropHeight < 0.995;
+
+    /// <summary>How much of the frame is kept, in the row's voice.</summary>
+    public string CropDisplay => HasCrop ? "cropped" : string.Empty;
+
     /// <summary>
     /// This clip's name — a chapter title, and something to tell twenty cuts
     /// apart by. Null or empty when the range is unnamed, which is the state
@@ -374,9 +481,10 @@ public class Bookmark : INotifyPropertyChanged
     {
         get
         {
-            var parts = new List<string>(4);
+            var parts = new List<string>(5);
             if (IsFlipped) parts.Add("flipped");
             if (Rotation != Rotation.None) parts.Add(DescribeRotation(Rotation));
+            if (HasCrop) parts.Add("cropped");
             if (IsMuted) parts.Add("muted");
             if (HasFade) parts.Add(FadeDisplay);
             return string.Join(" · ", parts);
@@ -470,10 +578,11 @@ public class Bookmark : INotifyPropertyChanged
     {
         get
         {
-            var parts = new List<string>(5);
+            var parts = new List<string>(6);
 
             if (IsFlipped) parts.Add("flipped");
             if (Rotation != Rotation.None) parts.Add(DescribeRotation(Rotation));
+            if (HasCrop) parts.Add("cropped");
             if (IsMuted) parts.Add("muted");
             if (!Is(Speed, 1.0)) parts.Add(DescribeSpeed(Speed));
             if (HasFade) parts.Add(FadeDisplay);

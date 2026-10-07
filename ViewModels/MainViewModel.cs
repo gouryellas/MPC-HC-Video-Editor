@@ -252,6 +252,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 ToolTip = "Write the checked cuts without sound. With nothing checked it mutes the highlighted row." },
         new() { Key = "fade", Group = "Actions", Label = "◐ Fade", Icon = "◐", Command = ToggleFadeCommand,
                 ToolTip = "Fade the checked cuts up at the start and down at the end. With nothing checked it fades the highlighted row." },
+        new() { Key = "crop", Group = "Actions", Label = "⬚ Crop", Icon = "⬚", Command = CropSelectedCommand,
+                ToolTip = "Draw the part of the frame to keep" },
         new() { Key = "select-all", Group = "Bookmarks", Label = "Select All", Icon = "☑", Command = ToggleSelectAllCommand,
                 MinWidth = 104, ToolTip = "Check every cut, or clear them all." },
         new() { Key = "merge", Group = "Actions", Label = "🎬 Merge", Icon = "🎬", Command = MergeSelectedCommand, StyleKey = "MergeButton",
@@ -1594,6 +1596,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         RotateSelectedCommand.NotifyCanExecuteChanged();
         ToggleMuteCommand.NotifyCanExecuteChanged();
         ToggleFadeCommand.NotifyCanExecuteChanged();
+        CropSelectedCommand.NotifyCanExecuteChanged();
         SaveCurrentFrameCommand.NotifyCanExecuteChanged();
         ExportAnimationCommand.NotifyCanExecuteChanged();
         PlayAllCommand.NotifyCanExecuteChanged();
@@ -7149,6 +7152,106 @@ public partial class MainViewModel : ObservableObject, IDisposable
         StatusText = turningOn
             ? $"{selected.Count} cut(s) will fade in and out over {length:0.##}s"
             : $"{selected.Count} cut(s) will start and end hard";
+    }
+
+    /// <summary>
+    /// Opens a still from the first chosen cut and lets a box be drawn on it,
+    /// then gives that rectangle to every chosen cut.
+    /// </summary>
+    /// <remarks>
+    /// One rectangle for the selection rather than one each. Cropping a set of
+    /// cuts is nearly always the same decision applied to all of them — black
+    /// bars, or a shape to publish in — and asking per cut would turn a batch
+    /// into a queue of near-identical dialogs. A single cut is still a
+    /// selection of one, so cropping just one works the same way.
+    ///
+    /// The still comes from the cut's own start, carrying its flip and
+    /// rotation, so the box is drawn on the picture that cut will produce.
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(CanToggleFlip))]
+    private async Task CropSelected()
+    {
+        var selected = ModifierTargets();
+        if (selected.Count == 0 && NothingToModify()) return;
+
+        var video = Session.VideoPath;
+        if (string.IsNullOrWhiteSpace(video) || !File.Exists(video))
+        {
+            Notify("The video is no longer on disk.");
+            return;
+        }
+
+        var first = selected[0];
+
+        StatusText = "Fetching a frame to crop…";
+
+        // Full height: the still is drawn several hundred pixels across and a
+        // 76-pixel thumbnail would be too coarse to aim at.
+        var png = await _ffmpeg.ExtractFrameAsync(video, first.StartSeconds, height: 0,
+                                                  orientLike: first);
+        if (png is null)
+        {
+            StatusText = "Could not read a frame from the video.";
+            return;
+        }
+
+        var frame = LoadImage(png);
+        if (frame is null)
+        {
+            StatusText = "Could not read a frame from the video.";
+            return;
+        }
+
+        // The still already carries the cut's rotation, so its own size is the
+        // one the rectangle is measured against — no need to ask the file and
+        // swap the sides by hand.
+        var dlg = new CropDialog(frame, (int)frame.Width, (int)frame.Height,
+                                 first.CropX, first.CropY, first.CropWidth, first.CropHeight)
+        {
+            Owner = DialogOwner
+        };
+
+        if (dlg.ShowDialog() != true)
+        {
+            StatusText = string.Empty;
+            return;
+        }
+
+        foreach (var b in selected)
+            b.SetCrop(dlg.CropX, dlg.CropY, dlg.CropWidth, dlg.CropHeight);
+
+        if (IsBookmarkFileLoaded) SaveBookmarks();
+
+        var kept = $"{dlg.CropWidth * 100:0}% × {dlg.CropHeight * 100:0}%";
+
+        StatusText = first.HasCrop
+            ? $"{selected.Count} cut(s) cropped to {kept} of the frame"
+            : $"{selected.Count} cut(s) back to the whole frame";
+    }
+
+    /// <summary>A PNG in memory as something the view can draw.</summary>
+    private static BitmapImage? LoadImage(byte[] png)
+    {
+        try
+        {
+            using var stream = new MemoryStream(png);
+
+            var image = new BitmapImage();
+            image.BeginInit();
+            image.StreamSource = stream;
+
+            // Loaded outright rather than kept against the stream, which is
+            // disposed on the way out of this method.
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.EndInit();
+            image.Freeze();
+
+            return image;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     // ------------------------------------------------------------------

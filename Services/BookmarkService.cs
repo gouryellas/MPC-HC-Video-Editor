@@ -90,6 +90,17 @@ public class BookmarkService
                     double.TryParse(fields[8], NumberStyles.Float, CultureInfo.InvariantCulture, out var fadeOut))
                     bookmark.FadeOutSeconds = fadeOut;
 
+                // The crop rectangle, as four fractions of the frame. All four
+                // or none: three of them describe no rectangle, and a file
+                // truncated mid-row should load as uncropped rather than as
+                // some rectangle nobody drew.
+                if (fields.Count > 12 &&
+                    double.TryParse(fields[9], NumberStyles.Float, CultureInfo.InvariantCulture, out var cropX) &&
+                    double.TryParse(fields[10], NumberStyles.Float, CultureInfo.InvariantCulture, out var cropY) &&
+                    double.TryParse(fields[11], NumberStyles.Float, CultureInfo.InvariantCulture, out var cropW) &&
+                    double.TryParse(fields[12], NumberStyles.Float, CultureInfo.InvariantCulture, out var cropH))
+                    bookmark.SetCrop(cropX, cropY, cropW, cropH);
+
                 result.Add(bookmark);
                 continue;
             }
@@ -166,6 +177,10 @@ public class BookmarkService
             .ToString(CultureInfo.InvariantCulture);
     }
 
+    /// <summary>A fraction of the frame, at the precision the crop is kept to.</summary>
+    private static string Fraction(double value) =>
+        value.ToString("0.#####", CultureInfo.InvariantCulture);
+
     /// <summary>Quotes a field only when it would otherwise split or mislead.</summary>
     private static string WriteField(string? value)
     {
@@ -195,7 +210,19 @@ public class BookmarkService
             sb.Append(b.IsMuted ? ",1," : ",0,");
             sb.Append(b.FadeInSeconds.ToString("0.###", CultureInfo.InvariantCulture));
             sb.Append(',');
-            sb.AppendLine(b.FadeOutSeconds.ToString("0.###", CultureInfo.InvariantCulture));
+            sb.Append(b.FadeOutSeconds.ToString("0.###", CultureInfo.InvariantCulture));
+
+            // The crop, always written — an uncropped clip writes 0,0,1,1
+            // rather than nothing, so the row has a fixed number of fields and
+            // a later one can be added the same way these were.
+            sb.Append(',');
+            sb.Append(Fraction(b.CropX));
+            sb.Append(',');
+            sb.Append(Fraction(b.CropY));
+            sb.Append(',');
+            sb.Append(Fraction(b.CropWidth));
+            sb.Append(',');
+            sb.AppendLine(Fraction(b.CropHeight));
         }
 
         var dir = Path.GetDirectoryName(csvPath);

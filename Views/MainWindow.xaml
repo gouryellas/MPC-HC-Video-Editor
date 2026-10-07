@@ -472,6 +472,8 @@
                 <MenuItem Header="Mute" Command="{Binding ToggleMuteCommand}"/>
                 <MenuItem Header="Fade in and out" Command="{Binding ToggleFadeCommand}"
                           ToolTip="Fades over the length set in Settings ▸ Output"/>
+                <MenuItem Header="Crop…" Command="{Binding CropSelectedCommand}"
+                          ToolTip="Draw the part of the frame to keep, on a still from the cut"/>
                 <Separator/>
                 <MenuItem Header="Merge selected / all / any" Command="{Binding MergeSelectedCommand}"
                           ToolTip="Merges the checked cuts, or every cut, or — with no video loaded — files you pick. A single cut is written out on its own as a trim.">

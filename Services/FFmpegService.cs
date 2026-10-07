@@ -674,6 +674,21 @@ public class FFmpegService
                 _ => "transpose=1,transpose=1"
             });
 
+        // After the turn, because the rectangle was drawn on a preview that had
+        // already been turned — the fractions mean what they meant on screen.
+        //
+        // Expressed against in_w / in_h rather than in pixels: crop's input is
+        // whatever the filter before it produced, so the fractions survive a
+        // transpose swapping the frame's sides, and the same cut list works on
+        // a re-encode at another size.
+        //
+        // Every number is forced even. H.264 in 4:2:0 cannot encode an odd
+        // width or height — chroma is sampled in 2×2 blocks — and a crop an odd
+        // number of pixels wide fails the whole segment.
+        if (b.HasCrop)
+            vf.Add($"crop=trunc(in_w*{Frac(b.CropWidth)}/2)*2:trunc(in_h*{Frac(b.CropHeight)}/2)*2:" +
+                   $"trunc(in_w*{Frac(b.CropX)}/2)*2:trunc(in_h*{Frac(b.CropY)}/2)*2");
+
         if (Math.Abs(b.Speed - 1.0) > 0.01)
             vf.Add($"setpts=PTS/{b.Speed.ToString(CultureInfo.InvariantCulture)}");
 
@@ -1175,6 +1190,12 @@ public class FFmpegService
     private static string Fmt(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
 
     /// <summary>
+    /// A fraction of a frame, at five decimals — a tenth of a pixel on a 4K
+    /// width, where <see cref="Fmt"/>'s three would round to two whole pixels.
+    /// </summary>
+    private static string Frac(double value) => value.ToString("0.#####", CultureInfo.InvariantCulture);
+
+    /// <summary>
     /// Runs ffmpeg purely to read its log, returning everything it wrote to
     /// stderr. Unlike <see cref="RunAsync"/> a non-zero exit is not fatal —
     /// a detection pass that ends early still yields usable findings.
@@ -1395,16 +1416,38 @@ public class FFmpegService
     /// the exact timestamp, unlike a stream copy.
     /// </para>
     /// </remarks>
+    /// <param name="orientLike">
+    /// A cut whose flip and rotation the frame should be given, so the picture
+    /// is the one that cut will produce rather than the one in the file. Null
+    /// for the frame as it sits.
+    /// </param>
     public async Task<byte[]?> ExtractFrameAsync(
-        string videoPath, double seconds, int height = 76, CancellationToken ct = default)
+        string videoPath, double seconds, int height = 76,
+        Bookmark? orientLike = null, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(videoPath) || !File.Exists(videoPath)) return null;
         if (seconds < 0) seconds = 0;
 
+        // Only the two that move the picture about. Speed, fades and crop are
+        // deliberately left off: this frame is what a crop is drawn on, and a
+        // frame that arrived already cropped could not be uncropped by drawing
+        // a bigger box on it.
+        var filters = new List<string>();
+        if (orientLike is { IsFlipped: true }) filters.Add("vflip");
+        if (orientLike is { Rotation: not Rotation.None })
+            filters.Add(orientLike.Rotation switch
+            {
+                Rotation.Clockwise => "transpose=1",
+                Rotation.Counterclockwise => "transpose=2",
+                _ => "transpose=1,transpose=1"
+            });
+
+        if (height > 0) filters.Add($"scale=-2:{height}");
+
         var timestamp = seconds.ToString("0.###", CultureInfo.InvariantCulture);
-        var scale = height > 0 ? $"-vf scale=-2:{height} " : string.Empty;
+        var vf = filters.Count > 0 ? $"-vf \"{string.Join(",", filters)}\" " : string.Empty;
         var args = $"-hide_banner -loglevel error -ss {timestamp} -i \"{videoPath}\" " +
-                   $"-frames:v 1 {scale}-f image2pipe -c:v png -";
+                   $"-frames:v 1 {vf}-f image2pipe -c:v png -";
 
         return await PipePngAsync(args, ct).ConfigureAwait(false);
     }
