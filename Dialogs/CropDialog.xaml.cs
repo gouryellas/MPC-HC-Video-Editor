@@ -48,13 +48,41 @@ public partial class CropDialog : Window
     public double CropWidth { get; private set; } = 1;
     public double CropHeight { get; private set; } = 1;
 
+    /// <summary>
+    /// True when Apply should crop the whole video into a new file rather than
+    /// mark the cuts.
+    /// </summary>
+    public bool CropsWholeVideo { get; private set; } = true;
+
     /// <param name="frame">A still from the cut, already flipped and turned.</param>
     /// <param name="sourceWidth">The frame's real width, for the readout.</param>
-    /// <param name="start">The rectangle to open with, as fractions.</param>
+    /// <param name="cutsOption">
+    /// What applying to cuts would do here — "Apply to the 3 checked cuts", or
+    /// "Apply to all 5 cuts". Null when there are no cuts to put a rectangle
+    /// on, which leaves the whole video as the only thing Apply can mean.
+    /// </param>
+    /// <param name="cutsByDefault">
+    /// Whether the cuts option is the one already chosen. True when cuts were
+    /// deliberately picked out; false when the offer is only "all of them",
+    /// which is a bigger claim than the user has made.
+    /// </param>
     public CropDialog(ImageSource frame, int sourceWidth, int sourceHeight,
-                      double x, double y, double width, double height)
+                      double x, double y, double width, double height,
+                      string? cutsOption = null, bool cutsByDefault = false)
     {
         InitializeComponent();
+
+        if (cutsOption is not null)
+        {
+            ModeCutsText.Text = cutsOption;
+            ModePanel.Visibility = Visibility.Visible;
+            ModeCuts.IsChecked = cutsByDefault;
+            ModeWhole.IsChecked = !cutsByDefault;
+        }
+        else
+        {
+            ModeWhole.IsChecked = true;
+        }
 
         _sourceWidth = sourceWidth > 0 ? sourceWidth : (int)frame.Width;
         _sourceHeight = sourceHeight > 0 ? sourceHeight : (int)frame.Height;
@@ -77,7 +105,23 @@ public partial class CropDialog : Window
                         width * _stageWidth, height * _stageHeight);
 
         Redraw();
+        RefreshApply();
     }
+
+    /// <summary>
+    /// Names the button after what pressing it will do. "Apply" is fine when
+    /// there is one possible meaning; with two, the button is the last thing
+    /// read before a five-minute encode starts and may as well say which it is.
+    /// </summary>
+    private void RefreshApply()
+    {
+        if (ApplyButton is null) return;
+
+        CropsWholeVideo = ModeWhole.IsChecked == true;
+        ApplyButton.Content = CropsWholeVideo ? "Crop video" : "Apply to cuts";
+    }
+
+    private void Mode_Changed(object sender, RoutedEventArgs e) => RefreshApply();
 
     // ------------------------------------------------------------------
     // Pointer
@@ -346,6 +390,8 @@ public partial class CropDialog : Window
 
     private void Ok_Click(object sender, RoutedEventArgs e)
     {
+        CropsWholeVideo = ModeWhole.IsChecked == true;
+
         CropX = _box.X / _stageWidth;
         CropY = _box.Y / _stageHeight;
         CropWidth = _box.Width / _stageWidth;

@@ -253,7 +253,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         new() { Key = "fade", Group = "Actions", Label = "◐ Fade", Icon = "◐", Command = ToggleFadeCommand,
                 ToolTip = "Fade the checked cuts up at the start and down at the end. With nothing checked it fades the highlighted row." },
         new() { Key = "crop", Group = "Actions", Label = "⬚ Crop", Icon = "⬚", Command = CropSelectedCommand,
-                ToolTip = "Draw the part of the frame to keep" },
+                ToolTip = "Draw the part of the frame to keep — on the chosen cuts, or on a whole video" },
         new() { Key = "select-all", Group = "Bookmarks", Label = "Select All", Icon = "☑", Command = ToggleSelectAllCommand,
                 MinWidth = 104, ToolTip = "Check every cut, or clear them all." },
         new() { Key = "merge", Group = "Actions", Label = "🎬 Merge", Icon = "🎬", Command = MergeSelectedCommand, StyleKey = "MergeButton",
@@ -1596,7 +1596,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         RotateSelectedCommand.NotifyCanExecuteChanged();
         ToggleMuteCommand.NotifyCanExecuteChanged();
         ToggleFadeCommand.NotifyCanExecuteChanged();
-        CropSelectedCommand.NotifyCanExecuteChanged();
         SaveCurrentFrameCommand.NotifyCanExecuteChanged();
         ExportAnimationCommand.NotifyCanExecuteChanged();
         PlayAllCommand.NotifyCanExecuteChanged();
@@ -7168,34 +7167,57 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// The still comes from the cut's own start, carrying its flip and
     /// rotation, so the box is drawn on the picture that cut will produce.
     /// </remarks>
-    [RelayCommand(CanExecute = nameof(CanToggleFlip))]
+    [RelayCommand]
     private async Task CropSelected()
     {
-        var selected = ModifierTargets();
-        if (selected.Count == 0 && NothingToModify()) return;
-
+        // The loaded video if there is one, otherwise whichever is picked. A
+        // crop needs a picture and nothing else, so having no session is a
+        // reason to ask rather than a reason to refuse.
         var video = Session.VideoPath;
-        if (string.IsNullOrWhiteSpace(video) || !File.Exists(video))
+        var loaded = !string.IsNullOrWhiteSpace(video) && File.Exists(video);
+
+        if (!loaded)
         {
-            Notify("The video is no longer on disk.");
-            return;
+            var pick = new OpenFileDialog
+            {
+                Filter = "Video Files|*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.webm;*.mpeg;*.mpg;*.ts;*.m4v|All Files|*.*",
+                Title = "Select a video to crop"
+            };
+            if (pick.ShowDialog() != true) return;
+
+            video = pick.FileName;
         }
 
-        var first = selected[0];
+        // Cuts belong to the loaded video, so a file picked just now has none
+        // whatever the list happens to be holding.
+        var chosen = loaded ? ModifierTargets() : new List<Bookmark>();
+        var everyCut = loaded ? Session.Bookmarks.Where(b => b.IsValid).ToList() : new List<Bookmark>();
+
+        // What the cuts option would do, or nothing when there are no cuts to
+        // put a rectangle on. Deliberately picked cuts are the default; "all of
+        // them" is offered but not assumed, being a bigger claim than the user
+        // has made.
+        var targets = chosen.Count > 0 ? chosen : everyCut;
+        var cutsOption = targets.Count == 0 ? null
+            : chosen.Count > 0
+                ? $"Apply to the {Cuts(chosen.Count)} chosen"
+                : $"Apply to all {Cuts(everyCut.Count)}";
+
+        // The frame to draw on: the first cut's start when there are cuts,
+        // otherwise a tenth of the way in. Not the very first frame, which on
+        // a great many videos is black and tells you nothing about where to
+        // put the box.
+        var first = targets.FirstOrDefault();
+        var duration = loaded ? Session.VideoDurationSeconds : await SafeDurationAsync(video);
+        var at = first?.StartSeconds ?? (duration > 0 ? duration * 0.1 : 0);
 
         StatusText = "Fetching a frame to crop…";
 
         // Full height: the still is drawn several hundred pixels across and a
         // 76-pixel thumbnail would be too coarse to aim at.
-        var png = await _ffmpeg.ExtractFrameAsync(video, first.StartSeconds, height: 0,
-                                                  orientLike: first);
-        if (png is null)
-        {
-            StatusText = "Could not read a frame from the video.";
-            return;
-        }
+        var png = await _ffmpeg.ExtractFrameAsync(video, at, height: 0, orientLike: first);
+        var frame = png is null ? null : LoadImage(png);
 
-        var frame = LoadImage(png);
         if (frame is null)
         {
             StatusText = "Could not read a frame from the video.";
@@ -7206,7 +7228,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // one the rectangle is measured against — no need to ask the file and
         // swap the sides by hand.
         var dlg = new CropDialog(frame, (int)frame.Width, (int)frame.Height,
-                                 first.CropX, first.CropY, first.CropWidth, first.CropHeight)
+                                 first?.CropX ?? 0, first?.CropY ?? 0,
+                                 first?.CropWidth ?? 1, first?.CropHeight ?? 1,
+                                 cutsOption, cutsByDefault: chosen.Count > 0)
         {
             Owner = DialogOwner
         };
@@ -7217,16 +7241,88 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        foreach (var b in selected)
+        if (dlg.CropsWholeVideo)
+        {
+            await CropWholeVideoAsync(video, dlg.CropX, dlg.CropY, dlg.CropWidth, dlg.CropHeight);
+            return;
+        }
+
+        foreach (var b in targets)
             b.SetCrop(dlg.CropX, dlg.CropY, dlg.CropWidth, dlg.CropHeight);
 
         if (IsBookmarkFileLoaded) SaveBookmarks();
 
         var kept = $"{dlg.CropWidth * 100:0}% × {dlg.CropHeight * 100:0}%";
 
-        StatusText = first.HasCrop
-            ? $"{selected.Count} cut(s) cropped to {kept} of the frame"
-            : $"{selected.Count} cut(s) back to the whole frame";
+        StatusText = targets[0].HasCrop
+            ? $"{Cuts(targets.Count)} cropped to {kept} of the frame"
+            : $"{Cuts(targets.Count)} back to the whole frame";
+    }
+
+    /// <summary>"1 cut" or "3 cuts".</summary>
+    private static string Cuts(int count) => count == 1 ? "1 cut" : $"{count} cuts";
+
+    /// <summary>
+    /// Writes a cropped copy of a whole video, with the naming, collision
+    /// handling and progress panel every other write goes through.
+    /// </summary>
+    /// <remarks>
+    /// No cleanup prompt. A cropped copy looks like a replacement but is not
+    /// one — the part trimmed off exists nowhere else — so the original is left
+    /// alone whatever the Cleanup setting says, as it is for the animations and
+    /// the thumbnails.
+    /// </remarks>
+    private async Task CropWholeVideoAsync(string video, double x, double y, double w, double h)
+    {
+        var outDir = ResolveSaveToDirectory();
+        if (string.IsNullOrWhiteSpace(outDir)) outDir = Path.GetDirectoryName(video) ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(outDir))
+        {
+            Notify("Could not work out where to write the cropped video.", "Crop",
+                   MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        Directory.CreateDirectory(outDir);
+
+        var outPath = await ResolveOutputPathAsync(
+            GetSuffixedOutputPath(video, OutputFormat.Extension, outDir));
+        if (outPath == null) return;
+
+        IsBusy = true; ProgressPercent = 0;
+        Job.Begin("Cropping video", 1);
+        Job.SetFile(0, Path.GetFileName(video));
+        BeginNameBatch(1);
+
+        var written = false;
+
+        try
+        {
+            var progress = new Progress<FFmpegProgressEventArgs>(p =>
+            {
+                Job.Report(p.Message, p.Percent);
+                ProgressPercent = p.Percent;
+            });
+
+            await _ffmpeg.CropVideoAsync(video, outPath, x, y, w, h, progress);
+            written = true;
+
+            NoteOutput(outPath);
+            StatusText = $"Cropped to {w * 100:0}% × {h * 100:0}% — wrote {Path.GetFileName(outPath)}";
+        }
+        catch (Exception ex)
+        {
+            StatusText = "Crop failed";
+            MessageBox.Show(ex.Message, "Crop", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            IsBusy = false; ProgressPercent = 0;
+            if (!written) Job.End();
+        }
+
+        if (written) Job.Complete("Cropped video written to", outDir);
     }
 
     /// <summary>A PNG in memory as something the view can draw.</summary>

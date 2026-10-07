@@ -84,10 +84,37 @@
                        Foreground="{DynamicResource TextSecondary}" FontFamily="Consolas"/>
         </Grid>
 
+        <!-- Shown only when there is a choice to make. With no cuts to put the
+             rectangle on, the whole video is the only thing it can mean, and a
+             pair of options one of which is dead would be asking a question
+             with one answer. -->
+        <Border x:Name="ModePanel" Background="{DynamicResource PanelBackground}" CornerRadius="4"
+                Padding="10,8" Margin="0,12,0,0" Visibility="Collapsed">
+            <StackPanel>
+                <RadioButton x:Name="ModeCuts" GroupName="Mode" Checked="Mode_Changed"
+                             Foreground="{DynamicResource TextPrimary}" Cursor="Hand">
+                    <StackPanel>
+                        <TextBlock x:Name="ModeCutsText"/>
+                        <TextBlock Text="Nothing is written until you merge or split."
+                                   Foreground="{DynamicResource TextSecondary}" FontSize="11" Margin="0,2,0,0"/>
+                    </StackPanel>
+                </RadioButton>
+
+                <RadioButton x:Name="ModeWhole" GroupName="Mode" Checked="Mode_Changed" Margin="0,8,0,0"
+                             Foreground="{DynamicResource TextPrimary}" Cursor="Hand">
+                    <StackPanel>
+                        <TextBlock Text="Crop the whole video"/>
+                        <TextBlock Text="Writes a new file now, re-encoding the picture."
+                                   Foreground="{DynamicResource TextSecondary}" FontSize="11" Margin="0,2,0,0"/>
+                    </StackPanel>
+                </RadioButton>
+            </StackPanel>
+        </Border>
+
         <Grid Margin="0,14,0,0">
             <Button Content="Whole frame" Click="Reset_Click" HorizontalAlignment="Left" Margin="0,4,4,4"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="Apply" Width="90" IsDefault="True" Click="Ok_Click"
+                <Button x:Name="ApplyButton" Content="Apply" MinWidth="90" IsDefault="True" Click="Ok_Click"
                         Background="{DynamicResource PrimaryButton}" BorderBrush="{DynamicResource PrimaryButtonBorder}"
                         Foreground="{DynamicResource OnAccent}"/>
                 <Button Content="Cancel" Width="80" IsCancel="True" Click="Cancel_Click"/>

@@ -445,6 +445,33 @@ public class FFmpegService
         IProgress<FFmpegProgressEventArgs>? progress = null, CancellationToken ct = default) =>
         ConvertVideoAsync(inputPath, outputPath, VideoFormats.Default, progress, ct);
 
+    /// <summary>
+    /// Writes a whole video with the picture cropped to the given fractions of
+    /// the frame.
+    /// </summary>
+    /// <remarks>
+    /// The whole-file counterpart to the crop a cut carries. Same rectangle,
+    /// same even-pixel rule — see <see cref="PictureFilters"/> — but written
+    /// here and now rather than recorded against a cut for a later merge.
+    ///
+    /// The sound is copied rather than re-encoded. Nothing asked for it to
+    /// change, and a copy is both quicker and lossless; the picture has to be
+    /// re-encoded because a crop is a change to every frame.
+    /// </remarks>
+    public async Task CropVideoAsync(string inputPath, string outputPath,
+        double x, double y, double width, double height,
+        IProgress<FFmpegProgressEventArgs>? progress = null, CancellationToken ct = default)
+    {
+        var crop = $"crop=trunc(in_w*{Frac(width)}/2)*2:trunc(in_h*{Frac(height)}/2)*2:" +
+                   $"trunc(in_w*{Frac(x)}/2)*2:trunc(in_h*{Frac(y)}/2)*2";
+
+        var args = $"-hide_banner -y -fflags +igndts -i \"{inputPath}\" " +
+                   $"-vf \"{crop}\" -c:v {VideoCodec} {QualityArgs} -pix_fmt yuv420p " +
+                   $"-c:a copy \"{outputPath}\"";
+
+        await RunAsync(args, progress, ct, await GetDurationAsync(inputPath));
+    }
+
     // ------------------------------------------------------------------
     // Export a cut as an animation
     // ------------------------------------------------------------------
