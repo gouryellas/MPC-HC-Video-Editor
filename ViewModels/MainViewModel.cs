@@ -27,6 +27,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly SettingsService _settings;
     private readonly PlaylistService _playlists;
     private readonly ImageConversionService _images;
+
+    /// <summary>
+    /// Reads image metadata. Built here rather than taken in the constructor:
+    /// it holds nothing, reads from disk on demand, and nothing else needs to
+    /// share the instance.
+    /// </summary>
+    private readonly ImageMetadataService _imageInfo = new();
     private readonly HotkeyService _hotkeys;
     private readonly ToastService _toast;
     private readonly StallMonitor _stalls;
@@ -294,6 +301,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 ToolTip = "Convert image files between formats" },
         new() { Key = "resize-images", Group = "Actions", Label = "📐 Resize images", Icon = "📐", Command = ResizeImagesCommand,
                 ToolTip = "Resize images" },
+        new() { Key = "image-info", Group = "Actions", Label = "ℹ Image info", Icon = "ℹ", Command = ShowImageInfoCommand,
+                ToolTip = "Image info" },
         new() { Key = "thumbnails", Group = "Actions", Label = "▦ Save thumbnails", Icon = "▦", Command = SaveThumbnailsCommand,
                 ToolTip = "Save thumbnails" },
         new() { Key = "export-chapters", Group = "Actions", Label = "🔖 Chapters", Icon = "🔖", Command = ExportChaptersCommand,
@@ -4453,6 +4462,43 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 MessageBoxButton.OK, MessageBoxImage.Warning);
 
         OfferToDeleteSources(convertedSources);
+    }
+
+    /// <summary>
+    /// Shows what picked image files say about themselves.
+    /// </summary>
+    /// <remarks>
+    /// Reads nothing and writes nothing — the one operation here that only
+    /// looks. Several files at once because the question is usually asked of a
+    /// folder rather than a file: which of these came off the camera, which
+    /// have been through something else, which carry where they were taken.
+    /// </remarks>
+    [RelayCommand]
+    private async Task ShowImageInfo()
+    {
+        var ofd = new OpenFileDialog
+        {
+            Filter = $"Image Files|{ImageFilePattern()}|All Files|*.*",
+            Multiselect = true,
+            Title = "Select images to inspect"
+        };
+        if (ofd.ShowDialog() != true) return;
+
+        StatusText = ofd.FileNames.Length == 1
+            ? "Reading the image…"
+            : $"Reading {ofd.FileNames.Length} images…";
+
+        // Off the UI thread: decoding is per file, and a folderful of large
+        // photographs would otherwise hold the window while it worked.
+        var facts = await Task.Run(() => ofd.FileNames.Select(_imageInfo.Read).ToList());
+
+        var located = facts.Count(f => f.Location is not null);
+
+        new ImageInfoDialog(facts) { Owner = DialogOwner }.ShowDialog();
+
+        StatusText = located == 0
+            ? $"Read {facts.Count} image(s)"
+            : $"Read {facts.Count} image(s) — {located} say where they were taken";
     }
 
     /// <summary>

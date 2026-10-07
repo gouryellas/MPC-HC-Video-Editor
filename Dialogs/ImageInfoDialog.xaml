@@ -1,0 +1,110 @@
+<Window x:Class="MpcHcVideoEditor.Dialogs.ImageInfoDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Image info" Height="560" Width="640"
+        MinHeight="400" MinWidth="520"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource WindowBackground}"
+        ShowInTaskbar="False">
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Margin" Value="4"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <!-- One fact: its name, then its value. The names share a column so
+             the values line up down the page and can be read as a list. -->
+        <DataTemplate x:Key="Row">
+            <Grid Margin="0,2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="120"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Text="{Binding Name}" Foreground="{DynamicResource TextSecondary}"
+                           TextWrapping="Wrap"/>
+                <TextBlock Grid.Column="1" Text="{Binding Value}" Foreground="{DynamicResource TextPrimary}"
+                           TextWrapping="Wrap"/>
+            </Grid>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid Margin="14">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Only when more than one file was picked: a list of one is a list
+             nobody needs. -->
+        <ListBox x:Name="Files" Grid.Row="0" Grid.Column="0" Width="170" Margin="0,0,12,0"
+                 Visibility="Collapsed" SelectionChanged="Files_Changed"
+                 Background="{DynamicResource PanelBackground}"
+                 Foreground="{DynamicResource TextPrimary}"
+                 BorderBrush="{DynamicResource BorderBrush}"/>
+
+        <ScrollViewer Grid.Row="0" Grid.Column="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock x:Name="FileName" Foreground="{DynamicResource Accent}"
+                           FontWeight="SemiBold" FontSize="14" TextWrapping="Wrap"
+                           Margin="0,0,0,10"/>
+
+                <!-- Said once, loudly, rather than left as a row among thirty:
+                     whether a picture carries where it was taken is the one
+                     thing worth knowing before sending it anywhere. -->
+                <Border x:Name="LocationNote" CornerRadius="4" Padding="10,8" Margin="0,0,0,12"
+                        Background="{DynamicResource PanelBackground}"
+                        BorderBrush="{DynamicResource ValueYellow}" BorderThickness="1"
+                        Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock Text="This picture says where it was taken"
+                                   Foreground="{DynamicResource ValueYellow}" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="LocationText" Foreground="{DynamicResource TextPrimary}"
+                                   Margin="0,4,0,0" TextWrapping="Wrap"/>
+                        <TextBlock Text="Converting or resizing it writes a new file without this."
+                                   Foreground="{DynamicResource TextSecondary}" FontSize="11"
+                                   Margin="0,4,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="ProblemNote" CornerRadius="4" Padding="10,8" Margin="0,0,0,12"
+                        Background="{DynamicResource PanelBackground}"
+                        BorderBrush="{DynamicResource StatusWarn}" BorderThickness="1"
+                        Visibility="Collapsed">
+                    <TextBlock x:Name="ProblemText" Foreground="{DynamicResource TextPrimary}"
+                               TextWrapping="Wrap"/>
+                </Border>
+
+                <ItemsControl x:Name="Groups">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="0,0,0,14">
+                                <TextBlock Text="{Binding Name}" Foreground="{DynamicResource Accent}"
+                                           FontWeight="SemiBold" FontSize="12" Margin="0,0,0,4"/>
+                                <ItemsControl ItemsSource="{Binding Rows}"
+                                              ItemTemplate="{StaticResource Row}"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Grid Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,12,0,0">
+            <Button x:Name="CopyButton" Content="Copy" Click="Copy_Click" HorizontalAlignment="Left" Width="110"/>
+            <Button Content="Close" Width="90" IsCancel="True" IsDefault="True" Click="Close_Click"
+                    HorizontalAlignment="Right"
+                    Background="{DynamicResource PrimaryButton}" BorderBrush="{DynamicResource PrimaryButtonBorder}"
+                    Foreground="{DynamicResource OnAccent}"/>
+        </Grid>
+    </Grid>
+</Window>

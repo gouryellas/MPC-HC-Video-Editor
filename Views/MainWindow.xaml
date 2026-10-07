@@ -538,6 +538,12 @@
                         <Rectangle Width="12" Height="12" Fill="{DynamicResource SplitBackground}" RadiusX="2" RadiusY="2"/>
                     </MenuItem.Icon>
                 </MenuItem>
+                <MenuItem Header="Image info…" Command="{Binding ShowImageInfoCommand}"
+                          ToolTip="What a picture says about itself: size, camera, and whether it carries where it was taken">
+                    <MenuItem.Icon>
+                        <Rectangle Width="12" Height="12" Fill="{DynamicResource Accent}" RadiusX="2" RadiusY="2"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <!-- No tooltip: the header is the explanation, and the dialog
                      that opens says the rest. -->
                 <MenuItem Header="Resize images…" Command="{Binding ResizeImagesCommand}">
