@@ -248,7 +248,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         new() { Key = "set-timestamp", Group = "Bookmarks", Label = "📍 Set timestamp", Icon = "📍", Command = SetTimestampCommand,
                 ToolTip = "Set a timestamp at the current MPC-HC position" },
         new() { Key = "save-frame", Group = "Actions", Label = "📷", Icon = "📷", Command = SaveCurrentFrameCommand, Width = 36,
-                ToolTip = "Save the frame MPC-HC is showing as a PNG, full size, next to the other output" , StyleKey = "ImageButton"},
+                ToolTip = "Save the frame MPC-HC is showing as a PNG, full size, next to the other output" },
         new() { Key = "delete", Group = "Bookmarks", Label = "🗑", Icon = "🗑", Command = DeleteSelectedCommand, Width = 36,
                 ToolTip = "Remove the checked timestamps from the list and the bookmark file. With nothing checked it removes the highlighted row." },
         new() { Key = "flip", Group = "Actions", Label = "↕ Flip", Icon = "↕", Command = ToggleFlipCommand,
@@ -260,16 +260,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
         new() { Key = "fade", Group = "Actions", Label = "◐ Fade", Icon = "◐", Command = ToggleFadeCommand,
                 ToolTip = "Fade the checked cuts up at the start and down at the end. With nothing checked it fades the highlighted row." },
         new() { Key = "crop", Group = "Actions", Label = "⬚ Crop", Icon = "⬚", Command = CropSelectedCommand,
-                ToolTip = "Draw the part of the frame to keep — on the chosen cuts, or on a whole video" , StyleKey = "VideoButton"},
+                ToolTip = "Draw the part of the frame to keep — on the chosen cuts, or on a whole video" },
         new() { Key = "select-all", Group = "Bookmarks", Label = "Select All", Icon = "☑", Command = ToggleSelectAllCommand,
                 MinWidth = 104, ToolTip = "Check every cut, or clear them all." },
-        new() { Key = "merge", Group = "Actions", Label = "🎬 Merge", Icon = "🎬", Command = MergeSelectedCommand, StyleKey = "VideoButton",
+        new() { Key = "merge", Group = "Actions", Label = "🎬 Merge", Icon = "🎬", Command = MergeSelectedCommand,
                 ToolTip = "Join the checked cuts into one video" },
-        new() { Key = "split", Group = "Actions", Label = "✂ Split", Icon = "✂", Command = SplitSelectedCommand, StyleKey = "VideoButton",
+        new() { Key = "split", Group = "Actions", Label = "✂ Split", Icon = "✂", Command = SplitSelectedCommand,
                 ToolTip = "Write each checked cut out as its own video" },
-        new() { Key = "convert", Group = "Actions", Label = "🔄 Convert video", Icon = "🔄", Command = ConvertFilesCommand, StyleKey = "VideoButton",
+        new() { Key = "convert", Group = "Actions", Label = "🔄 Convert video", Icon = "🔄", Command = ConvertFilesCommand,
                 ToolTip = "Convert video files to another format" },
-        new() { Key = "strip-audio", Group = "Actions", Label = "🔊 Strip audio", Icon = "🔊", Command = StripAudioCommand, StyleKey = "AudioButton",
+        new() { Key = "strip-audio", Group = "Actions", Label = "🔊 Strip audio", Icon = "🔊", Command = StripAudioCommand,
                 ToolTip = "Pulls the sound out of files you pick: an MP3 of the audio, a silent copy of the video, or both." },
 
         // Everything else worth a button.
@@ -290,23 +290,23 @@ public partial class MainViewModel : ObservableObject, IDisposable
         new() { Key = "enter-time", Group = "Bookmarks", Label = "⌨ Enter time", Icon = "⌨", Command = EnterTimeManualCommand,
                 ToolTip = "Type a time or a range instead of using the hotkey" },
         new() { Key = "detect", Group = "Bookmarks", Label = "🔍 Detect cuts", Icon = "🔍", Command = DetectBookmarksCommand,
-                ToolTip = "Propose cuts from silence, black frames or scene changes" , StyleKey = "OtherButton"},
+                ToolTip = "Propose cuts from silence, black frames or scene changes" },
         new() { Key = "edit-bookmarks", Group = "Bookmarks", Label = "✎ Edit bookmarks", Icon = "✎", Command = EditBookmarksCommand,
                 ToolTip = "Open the bookmark CSV in a text editor" },
         new() { Key = "play", Group = "Bookmarks", Label = "▶ Play", Icon = "▶", Command = PlayCutsCommand,
                 ToolTip = "Play the checked cuts in turn, or every cut when none are checked" },
         new() { Key = "export-animation", Group = "Actions", Label = "🎞 GIF / WebP", Icon = "🎞", Command = ExportAnimationCommand,
-                ToolTip = "Export the checked cuts as an animation" , StyleKey = "ImageButton"},
+                ToolTip = "Export the checked cuts as an animation" },
         new() { Key = "convert-images", Group = "Actions", Label = "🖼 Convert images", Icon = "🖼", Command = ConvertImagesCommand,
-                ToolTip = "Convert image files between formats" , StyleKey = "ImageButton"},
+                ToolTip = "Convert image files between formats" },
         new() { Key = "resize-images", Group = "Actions", Label = "📐 Resize images", Icon = "📐", Command = ResizeImagesCommand,
-                ToolTip = "Resize images" , StyleKey = "ImageButton"},
+                ToolTip = "Resize images" },
         new() { Key = "image-info", Group = "Actions", Label = "ℹ Image info", Icon = "ℹ", Command = ShowImageInfoCommand,
-                ToolTip = "Image info" , StyleKey = "OtherButton"},
+                ToolTip = "Image info" },
         new() { Key = "thumbnails", Group = "Actions", Label = "▦ Save thumbnails", Icon = "▦", Command = SaveThumbnailsCommand,
-                ToolTip = "Save thumbnails" , StyleKey = "ImageButton"},
+                ToolTip = "Save thumbnails" },
         new() { Key = "export-chapters", Group = "Actions", Label = "🔖 Chapters", Icon = "🔖", Command = ExportChaptersCommand,
-                ToolTip = "Write the cuts out as a chapter file" , StyleKey = "VideoButton"},
+                ToolTip = "Write the cuts out as a chapter file" },
         new() { Key = "add-to-playlist", Group = "Playlist", Label = "➕ To playlist", Icon = "➕", Command = AddCurrentToPlaylistCommand,
                 ToolTip = "Add the current video to a playlist" },
 
@@ -318,7 +318,27 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 ToolTip = "Takes up whatever width is left, pushing what follows it to the right" },
         new() { Key = "row-break", Group = "Layout", Kind = ToolbarItemKind.RowBreak, Label = "New row",
                 ToolTip = "Everything after this is drawn on the next line of the toolbar" },
-    }.Concat(SuffixButtons()).ToList();
+    }.Concat(SuffixButtons()).Select(InFamily).ToList();
+
+    /// <summary>
+    /// Gives a catalogue entry the style of the family it belongs to.
+    /// </summary>
+    /// <remarks>
+    /// Assigned here rather than written on each entry, because the catch-all
+    /// family is every button that is not one of the named operations — which
+    /// is most of them, and a list that would have to be kept in step by hand
+    /// every time a button was added.
+    ///
+    /// The fillers are left alone. A spacer draws nothing at runtime, so a
+    /// style would be a colour nobody can see attached to a gap.
+    /// </remarks>
+    private static ToolbarItem InFamily(ToolbarItem item)
+    {
+        if (item.Kind != ToolbarItemKind.Button) return item;
+
+        item.StyleKey = ButtonColors.StyleKeyOf(ButtonColors.FamilyOf(item.Key));
+        return item;
+    }
 
     /// <summary>
     /// A button for each naming tag, which makes that tag the active one.

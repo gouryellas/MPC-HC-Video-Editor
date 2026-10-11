@@ -15,10 +15,10 @@ public enum ButtonFamily
     /// <summary>Strip audio.</summary>
     Audio,
 
-    /// <summary>Writes pictures: frames, thumbnails, animations, conversions, resizes.</summary>
+    /// <summary>Writes or reads pictures: frames, thumbnails, conversions, resizes, info.</summary>
     Image,
 
-    /// <summary>Looks rather than writes: image info, find clips.</summary>
+    /// <summary>Every other button on the toolbar.</summary>
     Other
 }
 
@@ -68,12 +68,13 @@ public static class ButtonColors
         _ => "Plain"
     };
 
-    /// <summary>The operations in each family, by toolbar key.</summary>
+    /// <summary>The three named families, by toolbar key.</summary>
     /// <remarks>
-    /// Only the operations. The cut-list controls — timestamps, the modifiers,
-    /// select all, the naming tags — stay plain: colour is for telling the
-    /// handful of things that write files apart, and colouring all twenty-seven
-    /// buttons would tell you nothing at all.
+    /// Everything not listed here is <see cref="ButtonFamily.Other"/>, which is
+    /// every other button on the toolbar rather than a fourth kind of
+    /// operation — the timestamps, the modifiers, select all, the naming tags.
+    /// That family defaults to no colour at all, so the row looks as it always
+    /// did until somebody decides otherwise.
     /// </remarks>
     private static readonly Dictionary<string, ButtonFamily> Membership = new()
     {
@@ -91,8 +92,7 @@ public static class ButtonColors
         ["convert-images"] = ButtonFamily.Image,
         ["resize-images"] = ButtonFamily.Image,
 
-        ["image-info"] = ButtonFamily.Other,
-        ["detect"] = ButtonFamily.Other,
+        ["image-info"] = ButtonFamily.Image,
     };
 
     /// <summary>
@@ -110,14 +110,30 @@ public static class ButtonColors
     {
         ButtonFamily.Video => "Merge · Split · Convert video · Crop · Chapters",
         ButtonFamily.Audio => "Strip audio",
-        ButtonFamily.Image => "GIF / WebP · Save frame · Thumbnails · Convert images · Resize images",
-        ButtonFamily.Other => "Image info · Find clips automatically",
+        ButtonFamily.Image => "GIF / WebP · Save frame · Thumbnails · Convert images · Resize images · Image info",
+        ButtonFamily.Other => "Every other button on the toolbar — timestamps, the modifiers, select all, the naming tags",
         _ => string.Empty
     };
 
-    /// <summary>Which family a toolbar entry belongs to.</summary>
+    /// <summary>
+    /// Which family a toolbar entry belongs to: one of the three named ones, or
+    /// <see cref="ButtonFamily.Other"/>, which is everything else.
+    /// </summary>
     public static ButtonFamily FamilyOf(string? key) =>
-        key is not null && Membership.TryGetValue(key, out var family) ? family : ButtonFamily.Plain;
+        key is not null && Membership.TryGetValue(key, out var family) ? family : ButtonFamily.Other;
+
+    /// <summary>
+    /// What a family is set to before anybody chooses: the theme's colour,
+    /// except for the catch-all, which starts with none.
+    /// </summary>
+    /// <remarks>
+    /// "Everything else" is most of the toolbar. Colouring it by default would
+    /// paint twenty buttons one shade and say nothing at all — the colours are
+    /// there to tell a handful of operations apart from the rest, which only
+    /// works while the rest are plain.
+    /// </remarks>
+    public static string DefaultFor(ButtonFamily family) =>
+        family == ButtonFamily.Other ? NoColour : FollowTheme;
 
     /// <summary>The resource key of the style that paints a family's buttons.</summary>
     public static string? StyleKeyOf(ButtonFamily family) =>
@@ -170,7 +186,7 @@ public static class ButtonColors
     {
         var setting = chosen is not null && chosen.TryGetValue(KeyOf(family), out var value)
             ? value
-            : FollowTheme;
+            : DefaultFor(family);
 
         if (string.Equals(setting, NoColour, StringComparison.OrdinalIgnoreCase))
             return new Look(theme.ControlBackground, theme.TextPrimary, theme.BorderBrush);

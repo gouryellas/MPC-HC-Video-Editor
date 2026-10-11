@@ -596,10 +596,10 @@
                           ToolTip="What a picture says about itself: size, camera, and whether it carries where it was taken">
                     <MenuItem.Icon>
                         <Border Style="{StaticResource MenuChip}"
-                                Background="{DynamicResource OtherFill}"
-                                BorderBrush="{DynamicResource OtherEdge}">
+                                Background="{DynamicResource ImageFill}"
+                                BorderBrush="{DynamicResource ImageEdge}">
                             <TextBlock Text="ℹ" Style="{StaticResource MenuChipGlyph}"
-                                       Foreground="{DynamicResource OtherInk}"/>
+                                       Foreground="{DynamicResource ImageInk}"/>
                         </Border>
                     </MenuItem.Icon>
                 </MenuItem>

@@ -46,7 +46,7 @@ public partial class ButtonColorsDialog : Window
             _chosen[family] = current is not null
                               && current.TryGetValue(ButtonColors.KeyOf(family), out var value)
                 ? value
-                : ButtonColors.FollowTheme;
+                : ButtonColors.DefaultFor(family);
 
             Rows.Items.Add(Row(family));
         }
@@ -276,7 +276,7 @@ public partial class ButtonColorsDialog : Window
         ButtonFamily.Video => "Merge",
         ButtonFamily.Audio => "Strip audio",
         ButtonFamily.Image => "Resize images",
-        _ => "Image info"
+        _ => "Set timestamp"
     };
 
     private void Set(ButtonFamily family, string value)
@@ -295,7 +295,7 @@ public partial class ButtonColorsDialog : Window
         ButtonFamily.Video => "🎬",
         ButtonFamily.Audio => "🔊",
         ButtonFamily.Image => "🖼",
-        _ => "ℹ"
+        _ => "📍"
     };
 
     private static SolidColorBrush Fill(string hex)
@@ -310,7 +310,7 @@ public partial class ButtonColorsDialog : Window
 
     private void Reset_Click(object sender, RoutedEventArgs e)
     {
-        foreach (var family in ButtonColors.Families) Set(family, ButtonColors.FollowTheme);
+        foreach (var family in ButtonColors.Families) Set(family, ButtonColors.DefaultFor(family));
     }
 
     private void Ok_Click(object sender, RoutedEventArgs e)
@@ -319,9 +319,11 @@ public partial class ButtonColorsDialog : Window
 
         foreach (var (family, value) in _chosen)
         {
-            // A family following the theme is stored as nothing at all, so a
-            // settings file only ever holds the choices actually made.
-            if (value == ButtonColors.FollowTheme) continue;
+            // A family left at its default is stored as nothing at all, so a
+            // settings file only ever holds the choices actually made — and a
+            // later change to what the default is reaches everybody who never
+            // chose.
+            if (value == ButtonColors.DefaultFor(family)) continue;
             Result[ButtonColors.KeyOf(family)] = value;
         }
 
