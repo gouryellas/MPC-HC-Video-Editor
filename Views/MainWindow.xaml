@@ -191,18 +191,28 @@
             <Setter Property="FontWeight" Value="SemiBold"/>
         </Style>
 
-        <!-- The square beside a menu entry: the family's colour, carrying the
-             same glyph the toolbar button shows with Small button icons on. -->
-        <Style x:Key="MenuChip" TargetType="Border">
-            <Setter Property="Width" Value="18"/>
-            <Setter Property="Height" Value="18"/>
-            <Setter Property="CornerRadius" Value="3"/>
-            <Setter Property="BorderThickness" Value="1"/>
-        </Style>
-        <Style x:Key="MenuChipGlyph" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="10"/>
+        <!-- The glyph beside a menu entry. The same picture the toolbar button
+             shows with Small button icons on, and nothing else: it was a filled
+             square in the operation's family colour, which made the four
+             coloured squares in the Actions menu louder than the words they
+             belonged to, and gave every other menu nothing at all.
+
+             The ink is MenuBarForeground — the colour the entry's own words are
+             in, which is near-black in every theme including the dark ones:
+             the menu bar and its dropdowns are light in all five palettes.
+             TextPrimary would have been the wrong answer and a silent one, as
+             it is near-white on a dark theme and the menu underneath it is not
+             dark. -->
+        <Style x:Key="MenuGlyph" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="{DynamicResource MenuBarForeground}"/>
             <Setter Property="HorizontalAlignment" Value="Center"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
+            <!-- Several of these are emoji, which Segoe UI Emoji draws in
+                 colour whatever the Foreground says. Monochrome where the font
+                 offers it: the text presentation selector asks for the glyph
+                 rather than the picture. -->
+            <Setter Property="FontFamily" Value="Segoe UI Symbol, Segoe UI"/>
         </Style>
 
         <!-- The naming tag currently in use. One of the tag buttons is always
@@ -437,15 +447,27 @@
                  icon — silently emptied them. -->
             <MenuItem x:Name="FileMenu" Header="&#128193; File">
                 <MenuItem Header="Open…" Command="{Binding OpenFileCommand}"
-                          ToolTip="Open a video file, bookmark CSV, or .pls playlist (auto-detected by extension)"/>
+                          ToolTip="Open a video file, bookmark CSV, or .pls playlist (auto-detected by extension)">
+                    <MenuItem.Icon>
+                        <TextBlock Text="📂" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <!-- Where every action except the one-click row button writes.
                      Defaults to the loaded video's own folder and stays that
                      way until the user picks a folder, after which it is
                      pinned for the rest of the session. -->
                 <MenuItem Header="{Binding SaveToFolderDisplay}" Command="{Binding SetSaveToFolderCommand}"
-                          ToolTip="Destination for merge, split, convert, strip audio and bulk merge"/>
+                          ToolTip="Destination for merge, split, convert, strip audio and bulk merge">
+                    <MenuItem.Icon>
+                        <TextBlock Text="💾" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <MenuItem Header="{Binding QuickSaveFolderDisplay}" Command="{Binding SetQuickSaveFolderCommand}"
-                          ToolTip="Destination for the one-click save button on each bookmark row"/>
+                          ToolTip="Destination for the one-click save button on each bookmark row">
+                    <MenuItem.Icon>
+                        <TextBlock Text="⚡" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <Separator x:Name="ShortcutsStartSeparator"/>
                 <!-- Dynamic quick save shortcuts inserted here at runtime from
                      the ViewModel's QuickSaveShortcuts collection. Each has a
@@ -455,19 +477,39 @@
                      never end up with two consecutive separators. -->
                 <Separator x:Name="ShortcutsEndSeparator"/>
                 <MenuItem Header="Add quick save shortcut…" Command="{Binding AddQuickSaveShortcutCommand}"
-                          ToolTip="Pick a folder to add to the quick save shortcut list above"/>
+                          ToolTip="Pick a folder to add to the quick save shortcut list above">
+                    <MenuItem.Icon>
+                        <TextBlock Text="➕" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <Separator/>
                 <!-- An action, not a setting: there is nothing about it to
                      configure, and it is only useful just after something has
                      been written. Disabled until there is a file to show. -->
                 <MenuItem Header="Reveal last output in Explorer" Command="{Binding RevealOutputCommand}"
-                          ToolTip="Open Explorer with the file this program last wrote selected"/>
+                          ToolTip="Open Explorer with the file this program last wrote selected">
+                    <MenuItem.Icon>
+                        <TextBlock Text="📁" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <Separator/>
                 <MenuItem Header="Settings…" Command="{Binding OpenSettingsCommand}"
-                          ToolTip="Output format, view switching, and what happens to source files after an operation"/>
+                          ToolTip="Output format, view switching, and what happens to source files after an operation">
+                    <MenuItem.Icon>
+                        <TextBlock Text="⚙" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <MenuItem Header="Reset everything…" Command="{Binding ResetEverythingCommand}"
-                          ToolTip="Restart the application (settings, history, naming tags, and shortcuts are preserved)"/>
-                <MenuItem Header="Exit" Click="Exit_Click"/>
+                          ToolTip="Restart the application (settings, history, naming tags, and shortcuts are preserved)">
+                    <MenuItem.Icon>
+                        <TextBlock Text="♻" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Exit" Click="Exit_Click">
+                    <MenuItem.Icon>
+                        <TextBlock Text="✕" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
             </MenuItem>
 
             <MenuItem Header="&#9998; Edit">
@@ -476,154 +518,196 @@
                      about to do before it does it. -->
                 <MenuItem Header="{Binding UndoEditHeader}" Command="{Binding UndoEditCommand}"
                           InputGestureText="Ctrl+Z"
-                          ToolTip="Step back through changes to the cuts. Operations that have already written a file are not included — see the note in the manual."/>
+                          ToolTip="Step back through changes to the cuts. Operations that have already written a file are not included — see the note in the manual.">
+                    <MenuItem.Icon>
+                        <TextBlock Text="↶" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <MenuItem Header="{Binding RedoEditHeader}" Command="{Binding RedoEditCommand}"
-                          InputGestureText="Ctrl+Y"/>
+                          InputGestureText="Ctrl+Y">
+                    <MenuItem.Icon>
+                        <TextBlock Text="↷" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
             </MenuItem>
+            <!-- Grouped by what each operation acts on, in the same four
+                 families the toolbar is coloured by — video, then audio, then
+                 images, then everything else — with a separator between the
+                 groups. The order used to follow how the operations were added
+                 over time, which put Convert video between two image
+                 operations and the frame grab on its own between them.
+
+                 Every item carries the chip its family is painted, which is
+                 also the icon the toolbar shows that operation as under Small
+                 button icons. The family a chip is painted from is
+                 ButtonColors.Membership, not a judgement made here: Mute reads
+                 as an audio operation but it is a property of a cut rather than
+                 something written out of a sound track, and it is in the
+                 catch-all on the toolbar for the same reason. A pink chip here
+                 beside a plain button there would be the menu and the toolbar
+                 disagreeing. -->
             <MenuItem Header="&#9889; Actions">
-                <!-- How the cuts are written, as against what is written from
-                     them. They act on the checked cuts, or on the highlighted
-                     row when nothing is checked — the same rule as the toolbar
-                     buttons, which is said here once rather than four times. -->
-                <MenuItem Header="Flip upside down" Command="{Binding ToggleFlipCommand}"
-                          ToolTip="Acts on the checked cuts, or the highlighted row when nothing is checked"/>
-                <MenuItem Header="Rotate a quarter turn" Command="{Binding RotateSelectedCommand}"/>
-                <MenuItem Header="Mute" Command="{Binding ToggleMuteCommand}"/>
-                <MenuItem Header="Fade in and out" Command="{Binding ToggleFadeCommand}"
-                          ToolTip="Fades over the length set in Settings ▸ Output"/>
-                <!-- Not gated like the three above it: a crop needs a picture
-                     and nothing else, so with no video loaded it asks for one
-                     and with no cuts it offers the whole video. -->
-                <MenuItem Header="Crop…" Command="{Binding CropSelectedCommand}"
-                          ToolTip="Draw the part of the frame to keep — on the chosen cuts, or on a whole video"/>
-                <Separator/>
                 <MenuItem Header="Merge selected / all / any" Command="{Binding MergeSelectedCommand}"
                           ToolTip="Merges the checked cuts, or every cut, or — with no video loaded — files you pick. A single cut is written out on its own as a trim.">
                     <MenuItem.Icon>
-                        <Border Style="{StaticResource MenuChip}"
-                                Background="{DynamicResource VideoFill}"
-                                BorderBrush="{DynamicResource VideoEdge}">
-                            <TextBlock Text="🎬" Style="{StaticResource MenuChipGlyph}"
-                                       Foreground="{DynamicResource VideoInk}"/>
-                        </Border>
+                        <TextBlock Text="🎬" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Split selected / all" Command="{Binding SplitSelectedCommand}">
                     <MenuItem.Icon>
-                        <Border Style="{StaticResource MenuChip}"
-                                Background="{DynamicResource VideoFill}"
-                                BorderBrush="{DynamicResource VideoEdge}">
-                            <TextBlock Text="✂" Style="{StaticResource MenuChipGlyph}"
-                                       Foreground="{DynamicResource VideoInk}"/>
-                        </Border>
+                        <TextBlock Text="✂" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <Separator/>
+                <!-- Not gated like the modifiers further down: a crop needs a
+                     picture and nothing else, so with no video loaded it asks
+                     for one and with no cuts it offers the whole video. -->
+                <MenuItem Header="Crop…" Command="{Binding CropSelectedCommand}"
+                          ToolTip="Draw the part of the frame to keep — on the chosen cuts, or on a whole video">
+                    <MenuItem.Icon>
+                        <TextBlock Text="⬚" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <MenuItem Header="Convert files to MP4…" Command="{Binding ConvertFilesCommand}">
                     <MenuItem.Icon>
-                        <Border Style="{StaticResource MenuChip}"
-                                Background="{DynamicResource VideoFill}"
-                                BorderBrush="{DynamicResource VideoEdge}">
-                            <TextBlock Text="🔄" Style="{StaticResource MenuChipGlyph}"
-                                       Foreground="{DynamicResource VideoInk}"/>
-                        </Border>
+                        <TextBlock Text="🔄" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Export cuts as GIF / WebP…" Command="{Binding ExportAnimationCommand}"
-                          ToolTip="Write each checked cut as an animated GIF or WebP, with no sound. Asks for the frame rate and width, which are what decide the size.">
+                <!-- The alternative to cutting: keep the file whole and make
+                     the bookmarks navigable inside it. Streams are copied, so
+                     it is lossless regardless of the cut-accuracy setting. -->
+                <MenuItem Header="Export as chapters…" Command="{Binding ExportChaptersCommand}"
+                          ToolTip="Writes the video out once with the bookmarks as chapter marks, instead of cutting it into separate clips">
                     <MenuItem.Icon>
-                        <Border Style="{StaticResource MenuChip}"
-                                Background="{DynamicResource ImageFill}"
-                                BorderBrush="{DynamicResource ImageEdge}">
-                            <TextBlock Text="🎞" Style="{StaticResource MenuChipGlyph}"
-                                       Foreground="{DynamicResource ImageInk}"/>
-                        </Border>
+                        <TextBlock Text="🔖" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
+
                 <Separator/>
-                <MenuItem Header="Save the frame on screen…" Command="{Binding SaveCurrentFrameCommand}"
-                          ToolTip="Write the frame MPC-HC is showing to a PNG at its own size. The time is part of the filename, so a run of them does not collide."/>
-                <Separator/>
+
                 <MenuItem Header="Strip audio…" Command="{Binding StripAudioCommand}"
                           ToolTip="Pulls the sound out of files you pick: an MP3 of the audio, a silent copy of the video, or both. The file you pick is not changed.">
                     <MenuItem.Icon>
-                        <Border Style="{StaticResource MenuChip}"
-                                Background="{DynamicResource AudioFill}"
-                                BorderBrush="{DynamicResource AudioEdge}">
-                            <TextBlock Text="🔊" Style="{StaticResource MenuChipGlyph}"
-                                       Foreground="{DynamicResource AudioInk}"/>
-                        </Border>
+                        <TextBlock Text="🔊" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
+
                 <Separator/>
-                <!-- Target format is the CommandParameter, so picking one is a
-                     single gesture rather than a menu click then a dialog. -->
-                <MenuItem Header="Image conversion" ToolTip="Convert image files to another format">
+
+                <MenuItem Header="Save the frame on screen…" Command="{Binding SaveCurrentFrameCommand}"
+                          ToolTip="Write the frame MPC-HC is showing to a PNG at its own size. The time is part of the filename, so a run of them does not collide.">
                     <MenuItem.Icon>
-                        <Border Style="{StaticResource MenuChip}"
-                                Background="{DynamicResource ImageFill}"
-                                BorderBrush="{DynamicResource ImageEdge}">
-                            <TextBlock Text="🖼" Style="{StaticResource MenuChipGlyph}"
-                                       Foreground="{DynamicResource ImageInk}"/>
-                        </Border>
+                        <TextBlock Text="📷" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
-                    <MenuItem Header="To PNG…"  Command="{Binding ConvertImagesCommand}" CommandParameter="png"/>
-                    <MenuItem Header="To JPG…"  Command="{Binding ConvertImagesCommand}" CommandParameter="jpg"/>
-                    <MenuItem Header="To JPEG…" Command="{Binding ConvertImagesCommand}" CommandParameter="jpeg"/>
-                    <MenuItem Header="To BMP…"  Command="{Binding ConvertImagesCommand}" CommandParameter="bmp"/>
-                    <MenuItem Header="To GIF…"  Command="{Binding ConvertImagesCommand}" CommandParameter="gif"/>
-                    <MenuItem Header="To TIFF…" Command="{Binding ConvertImagesCommand}" CommandParameter="tiff"/>
-                    <MenuItem Header="To ICO…"  Command="{Binding ConvertImagesCommand}" CommandParameter="ico"
-                              ToolTip="Scaled to 256px if larger — the ICO format cannot express more"/>
                 </MenuItem>
-                <!-- Size rather than format, so it asks instead of carrying the
-                     answer in the menu: a size needs a shape rule beside it,
-                     which is not something a submenu of sizes could say. -->
                 <!-- Works off a file rather than off the session, so it is
                      never disabled: with a video loaded it acts on that one,
                      and with nothing loaded it asks for one. -->
                 <MenuItem Header="Save thumbnails…" Command="{Binding SaveThumbnailsCommand}">
                     <MenuItem.Icon>
-                        <Border Style="{StaticResource MenuChip}"
-                                Background="{DynamicResource ImageFill}"
-                                BorderBrush="{DynamicResource ImageEdge}">
-                            <TextBlock Text="▦" Style="{StaticResource MenuChipGlyph}"
-                                       Foreground="{DynamicResource ImageInk}"/>
-                        </Border>
+                        <TextBlock Text="▦" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Export cuts as GIF / WebP…" Command="{Binding ExportAnimationCommand}"
+                          ToolTip="Write each checked cut as an animated GIF or WebP, with no sound. Asks for the frame rate and width, which are what decide the size.">
+                    <MenuItem.Icon>
+                        <TextBlock Text="🎞" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <!-- Target format is the CommandParameter, so picking one is a
+                     single gesture rather than a menu click then a dialog. -->
+                <MenuItem Header="Image conversion" ToolTip="Convert image files to another format">
+                    <MenuItem.Icon>
+                        <TextBlock Text="🖼" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                    <MenuItem Header="To PNG…" Command="{Binding ConvertImagesCommand}" CommandParameter="png">
+                        <MenuItem.Icon>
+                            <TextBlock Text="🖼" Style="{StaticResource MenuGlyph}"/>
+                        </MenuItem.Icon>
+                    </MenuItem>
+                    <MenuItem Header="To JPG…" Command="{Binding ConvertImagesCommand}" CommandParameter="jpg">
+                        <MenuItem.Icon>
+                            <TextBlock Text="🖼" Style="{StaticResource MenuGlyph}"/>
+                        </MenuItem.Icon>
+                    </MenuItem>
+                    <MenuItem Header="To JPEG…" Command="{Binding ConvertImagesCommand}" CommandParameter="jpeg">
+                        <MenuItem.Icon>
+                            <TextBlock Text="🖼" Style="{StaticResource MenuGlyph}"/>
+                        </MenuItem.Icon>
+                    </MenuItem>
+                    <MenuItem Header="To BMP…" Command="{Binding ConvertImagesCommand}" CommandParameter="bmp">
+                        <MenuItem.Icon>
+                            <TextBlock Text="🖼" Style="{StaticResource MenuGlyph}"/>
+                        </MenuItem.Icon>
+                    </MenuItem>
+                    <MenuItem Header="To GIF…" Command="{Binding ConvertImagesCommand}" CommandParameter="gif">
+                        <MenuItem.Icon>
+                            <TextBlock Text="🖼" Style="{StaticResource MenuGlyph}"/>
+                        </MenuItem.Icon>
+                    </MenuItem>
+                    <MenuItem Header="To TIFF…" Command="{Binding ConvertImagesCommand}" CommandParameter="tiff">
+                        <MenuItem.Icon>
+                            <TextBlock Text="🖼" Style="{StaticResource MenuGlyph}"/>
+                        </MenuItem.Icon>
+                    </MenuItem>
+                    <MenuItem Header="To ICO…"  Command="{Binding ConvertImagesCommand}" CommandParameter="ico"
+                              ToolTip="Scaled to 256px if larger — the ICO format cannot express more">
+                        <MenuItem.Icon>
+                            <TextBlock Text="🖼" Style="{StaticResource MenuGlyph}"/>
+                        </MenuItem.Icon>
+                    </MenuItem>
+                </MenuItem>
+                <!-- Size rather than format, so it asks instead of carrying the
+                     answer in the menu: a size needs a shape rule beside it,
+                     which is not something a submenu of sizes could say.
+
+                     No tooltip: the header is the explanation, and the dialog
+                     that opens says the rest. -->
+                <MenuItem Header="Resize images…" Command="{Binding ResizeImagesCommand}">
+                    <MenuItem.Icon>
+                        <TextBlock Text="📐" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Image info…" Command="{Binding ShowImageInfoCommand}"
                           ToolTip="What a picture says about itself: size, camera, and whether it carries where it was taken">
                     <MenuItem.Icon>
-                        <Border Style="{StaticResource MenuChip}"
-                                Background="{DynamicResource ImageFill}"
-                                BorderBrush="{DynamicResource ImageEdge}">
-                            <TextBlock Text="ℹ" Style="{StaticResource MenuChipGlyph}"
-                                       Foreground="{DynamicResource ImageInk}"/>
-                        </Border>
+                        <TextBlock Text="ℹ" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <!-- No tooltip: the header is the explanation, and the dialog
-                     that opens says the rest. -->
-                <MenuItem Header="Resize images…" Command="{Binding ResizeImagesCommand}">
+
+                <Separator/>
+
+                <!-- How the cuts are written, as against what is written from
+                     them. They act on the checked cuts, or on the highlighted
+                     row when nothing is checked — the same rule as the toolbar
+                     buttons, which is said here once rather than four times. -->
+                <MenuItem Header="Flip upside down" Command="{Binding ToggleFlipCommand}"
+                          ToolTip="Acts on the checked cuts, or the highlighted row when nothing is checked">
                     <MenuItem.Icon>
-                        <Border Style="{StaticResource MenuChip}"
-                                Background="{DynamicResource ImageFill}"
-                                BorderBrush="{DynamicResource ImageEdge}">
-                            <TextBlock Text="📐" Style="{StaticResource MenuChipGlyph}"
-                                       Foreground="{DynamicResource ImageInk}"/>
-                        </Border>
+                        <TextBlock Text="↕" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <Separator/>
+                <MenuItem Header="Rotate a quarter turn" Command="{Binding RotateSelectedCommand}">
+                    <MenuItem.Icon>
+                        <TextBlock Text="⟳" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Mute" Command="{Binding ToggleMuteCommand}">
+                    <MenuItem.Icon>
+                        <TextBlock Text="🔇" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Fade in and out" Command="{Binding ToggleFadeCommand}"
+                          ToolTip="Fades over the length set in Settings ▸ Output">
+                    <MenuItem.Icon>
+                        <TextBlock Text="◐" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <MenuItem Header="Find clips automatically…" Command="{Binding DetectBookmarksCommand}"
-                          ToolTip="Scans the video for silence, black frames or scene cuts and proposes bookmarks you can review before accepting"/>
-                <Separator/>
-                <!-- The alternative to cutting: keep the file whole and make
-                     the bookmarks navigable inside it. Streams are copied, so
-                     it is lossless regardless of the cut-accuracy setting. -->
-                <MenuItem Header="Export as chapters…" Command="{Binding ExportChaptersCommand}"
-                          ToolTip="Writes the video out once with the bookmarks as chapter marks, instead of cutting it into separate clips"/>
+                          ToolTip="Scans the video for silence, black frames or scene cuts and proposes bookmarks you can review before accepting">
+                    <MenuItem.Icon>
+                        <TextBlock Text="🔍" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
             </MenuItem>
             <MenuItem Header="&#9000; Hotkey">
                 <!-- Header shows the current binding live (e.g. "Hotkey: MButton",
@@ -633,45 +717,105 @@
                 <MenuItem Header="{Binding HotkeyMenuLabel}" IsEnabled="False"/>
                 <Separator/>
                 <MenuItem Header="Set timestamp hotkey…" Command="{Binding SetTimestampHotkeyCommand}"
-                          ToolTip="Pick a mouse button or capture a keyboard combination"/>
-                <MenuItem Header="Disable hotkey" Command="{Binding DisableTimestampHotkeyCommand}"/>
+                          ToolTip="Pick a mouse button or capture a keyboard combination">
+                    <MenuItem.Icon>
+                        <TextBlock Text="⌨" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Disable hotkey" Command="{Binding DisableTimestampHotkeyCommand}">
+                    <MenuItem.Icon>
+                        <TextBlock Text="✕" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
             </MenuItem>
             <MenuItem Header="&#128278; Bookmarks">
                 <!-- Header carries the live hotkey binding, e.g.
                      "Set timestamp: MButton". Bound to SetTimestampMenuLabel. -->
                 <MenuItem Header="{Binding SetTimestampMenuLabel}" Command="{Binding SetTimestampCommand}"
-                          ToolTip="Set a timestamp at the current MPC-HC position — toggles open/close automatically"/>
+                          ToolTip="Set a timestamp at the current MPC-HC position — toggles open/close automatically">
+                    <MenuItem.Icon>
+                        <TextBlock Text="📍" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <MenuItem Header="Undo last bookmark" Command="{Binding UndoLastBookmarkCommand}"
-                          ToolTip="Remove the most recently added bookmark from the GUI and CSV"/>
+                          ToolTip="Remove the most recently added bookmark from the GUI and CSV">
+                    <MenuItem.Icon>
+                        <TextBlock Text="⎌" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <Separator/>
                 <MenuItem Header="Edit bookmarks" Command="{Binding EditBookmarksCommand}"
-                          ToolTip="Open the bookmark CSV in a text editor — changes are picked up when this window regains focus"/>
-                <MenuItem Header="Enter time / range…" Command="{Binding EnterTimeManualCommand}"/>
+                          ToolTip="Open the bookmark CSV in a text editor — changes are picked up when this window regains focus">
+                    <MenuItem.Icon>
+                        <TextBlock Text="✎" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Enter time / range…" Command="{Binding EnterTimeManualCommand}">
+                    <MenuItem.Icon>
+                        <TextBlock Text="⌨" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <MenuItem Header="Delete bookmarks" Command="{Binding DeleteBookmarksCommand}"
-                          ToolTip="Delete the bookmark file from disk"/>
+                          ToolTip="Delete the bookmark file from disk">
+                    <MenuItem.Icon>
+                        <TextBlock Text="🗑" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <MenuItem Header="Remove selected timestamps" Command="{Binding DeleteSelectedCommand}"
-                          ToolTip="Remove the checked timestamps from the list and from the bookmark file. With nothing checked it removes the highlighted row."/>
+                          ToolTip="Remove the checked timestamps from the list and from the bookmark file. With nothing checked it removes the highlighted row.">
+                    <MenuItem.Icon>
+                        <TextBlock Text="🗑" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <Separator/>
                 <MenuItem Header="Play all cuts" Command="{Binding PlayAllCommand}"
-                          ToolTip="Seek MPC-HC to each bookmark and play it for its full duration, sequentially"/>
+                          ToolTip="Seek MPC-HC to each bookmark and play it for its full duration, sequentially">
+                    <MenuItem.Icon>
+                        <TextBlock Text="▶" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <MenuItem Header="Play selected cuts" Command="{Binding PlaySelectedCommand}"
-                          ToolTip="Same as Play all, but only the cuts you've checked"/>
+                          ToolTip="Same as Play all, but only the cuts you've checked">
+                    <MenuItem.Icon>
+                        <TextBlock Text="▶" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <Separator/>
-                <MenuItem Header="Select all" Command="{Binding SelectAllCommand}"/>
-                <MenuItem Header="Select none" Command="{Binding SelectNoneCommand}"/>
+                <MenuItem Header="Select all" Command="{Binding SelectAllCommand}">
+                    <MenuItem.Icon>
+                        <TextBlock Text="☑" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Select none" Command="{Binding SelectNoneCommand}">
+                    <MenuItem.Icon>
+                        <TextBlock Text="☐" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <Separator/>
             </MenuItem>
             <MenuItem x:Name="PlaylistMenu" Header="&#127902; Playlist">
                 <MenuItem Header="{Binding PlaylistFolderDisplay}" Command="{Binding SetPlaylistFolderCommand}"
-                          ToolTip="Folder scanned for playlists (.pls, .m3u8)"/>
+                          ToolTip="Folder scanned for playlists (.pls, .m3u8)">
+                    <MenuItem.Icon>
+                        <TextBlock Text="📁" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <!-- These three are Click handlers rather than commands, so
                      they cannot be gated by CanExecute — IsEnabled binds to
                      the equivalent ViewModel predicate instead. -->
                 <MenuItem Header="Refresh list" Click="RefreshPlaylists_Click"
                           IsEnabled="{Binding HasPlaylistFiles}"
-                          ToolTip="Re-read the playlist folder and rebuild this menu"/>
+                          ToolTip="Re-read the playlist folder and rebuild this menu">
+                    <MenuItem.Icon>
+                        <TextBlock Text="⟳" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <MenuItem Header="Load playlist…" Click="LoadPlaylist_Click"
-                          ToolTip="Load a .pls playlist — subsequent Add-to-playlist actions route to it directly"/>
+                          ToolTip="Load a .pls playlist — subsequent Add-to-playlist actions route to it directly">
+                    <MenuItem.Icon>
+                        <TextBlock Text="📂" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <!-- Gated on a playlist simply being loaded. It used to key off
                      the loaded playlist still having entries, which was cached
                      and went stale — leaving this grayed out with a playlist
@@ -679,7 +823,11 @@
                      at all, so the entry count adds nothing here. -->
                 <MenuItem Header="Unload playlist" Click="ClearLoadedPlaylist_Click"
                           IsEnabled="{Binding HasLoadedPlaylist}"
-                          ToolTip="Forget the currently-loaded playlist — Add-to-playlist will prompt again"/>
+                          ToolTip="Forget the currently-loaded playlist — Add-to-playlist will prompt again">
+                    <MenuItem.Icon>
+                        <TextBlock Text="✕" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <Separator x:Name="PlaylistStartSeparator" Visibility="Collapsed"/>
                 <!-- Dynamic per-playlist entries inserted here at runtime
                      by MainWindow.xaml.cs. Each playlist is headed by its
@@ -692,9 +840,17 @@
                 <MenuItem Header="(no playlist folder set)" IsEnabled="False" x:Name="PlaylistEmptyPlaceholder"/>
                 <Separator x:Name="PlaylistEndSeparator" Visibility="Collapsed"/>
                 <MenuItem Header="New playlist…" Click="NewPlaylist_Click"
-                          ToolTip="Create a new empty .pls file in the playlist folder"/>
+                          ToolTip="Create a new empty .pls file in the playlist folder">
+                    <MenuItem.Icon>
+                        <TextBlock Text="➕" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <MenuItem Header="{Binding AddToPlaylistMenuLabel}" Command="{Binding AddCurrentToPlaylistCommand}"
-                          ToolTip="{Binding AddToPlaylistToolTip}"/>
+                          ToolTip="{Binding AddToPlaylistToolTip}">
+                    <MenuItem.Icon>
+                        <TextBlock Text="➕" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
             </MenuItem>
 
             <!-- History — the recently-played videos, promoted out of the File
@@ -705,13 +861,25 @@
                 <Separator x:Name="RecentStartSeparator" Visibility="Collapsed"/>
                 <!-- Dynamic per-video entries inserted here at runtime -->
                 <Separator x:Name="RecentEndSeparator" Visibility="Collapsed"/>
-                <MenuItem Header="Clear history" Click="ClearRecentList_Click" x:Name="RecentClearItem" IsEnabled="False"/>
+                <MenuItem Header="Clear history" Click="ClearRecentList_Click" x:Name="RecentClearItem" IsEnabled="False">
+                    <MenuItem.Icon>
+                        <TextBlock Text="🗑" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
             </MenuItem>
             <!-- Shortcuts menu — lets the user add folder shortcuts that then
                  appear as clickable items at the bottom of the File menu. -->
             <MenuItem x:Name="ShortcutsMenu" Header="&#128279; Shortcuts">
-                <MenuItem Header="Add shortcut…" Command="{Binding AddShortcutCommand}"/>
-                <MenuItem Header="Manage shortcuts…" Command="{Binding ManageShortcutsCommand}"/>
+                <MenuItem Header="Add shortcut…" Command="{Binding AddShortcutCommand}">
+                    <MenuItem.Icon>
+                        <TextBlock Text="➕" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Manage shortcuts…" Command="{Binding ManageShortcutsCommand}">
+                    <MenuItem.Icon>
+                        <TextBlock Text="✎" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <Separator x:Name="ShortcutsMenuStartSeparator"/>
                 <!-- Dynamic per-shortcut "Open" + "Rename…" + "Remove" entries
                      appended here at runtime by MainWindow.xaml.cs. These open
@@ -728,7 +896,11 @@
                      the one line here that says which tag is actually in use, so
                      it stays at full contrast. It has no Command, so it is still
                      a label — clicking it just closes the menu. -->
-                <MenuItem Header="{Binding ActiveSuffixDisplay}"/>
+                <MenuItem Header="{Binding ActiveSuffixDisplay}">
+                    <MenuItem.Icon>
+                        <TextBlock Text="🏷" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <MenuItem Header="{Binding SuffixExampleDisplay}" IsEnabled="False"/>
                 <Separator x:Name="SuffixListStartSeparator"/>
                 <!-- Dynamic per-suffix entries inserted here at runtime by
@@ -737,18 +909,38 @@
                      doubles as the divider before "Add suffix…" — no extra
                      static separator needed. -->
                 <Separator x:Name="SuffixListEndSeparator"/>
-                <MenuItem Header="Add new naming tag…" Command="{Binding AddSuffixCommand}"/>
-                <MenuItem Header="Manage naming tags…" Command="{Binding ManageSuffixesCommand}"/>
+                <MenuItem Header="Add new naming tag…" Command="{Binding AddSuffixCommand}">
+                    <MenuItem.Icon>
+                        <TextBlock Text="➕" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Manage naming tags…" Command="{Binding ManageSuffixesCommand}">
+                    <MenuItem.Icon>
+                        <TextBlock Text="✎" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <Separator/>
                 <!-- The way back from a rearranged toolbar. Dragging is
                      discoverable by accident; undoing it is not, so it needs a
                      line somewhere that can be found on purpose. -->
                 <MenuItem Header="Customize toolbar…" Command="{Binding CustomizeToolbarCommand}"
-                          ToolTip="Choose which buttons are on the toolbar and how they are arranged. Right-clicking the toolbar opens this too."/>
+                          ToolTip="Choose which buttons are on the toolbar and how they are arranged. Right-clicking the toolbar opens this too.">
+                    <MenuItem.Icon>
+                        <TextBlock Text="🔧" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <MenuItem Header="Change button colors…" Command="{Binding ChangeButtonColorsCommand}"
-                          ToolTip="What each kind of operation is painted: video, audio, images, and the rest"/>
+                          ToolTip="What each kind of operation is painted: video, audio, images, and the rest">
+                    <MenuItem.Icon>
+                        <TextBlock Text="🎨" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <MenuItem Header="Reset toolbar order" Command="{Binding ResetToolbarOrderCommand}"
-                          ToolTip="Put the buttons across the top back in the order the program ships with. Drag a button onto another to rearrange them."/>
+                          ToolTip="Put the buttons across the top back in the order the program ships with. Drag a button onto another to rearrange them.">
+                    <MenuItem.Icon>
+                        <TextBlock Text="↺" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
             </MenuItem>
             <MenuItem Header="&#128421; View">
                 <Separator/>
@@ -768,17 +960,37 @@
 
             <MenuItem Header="&#10067; Help">
                 <MenuItem Header="About…" Command="{Binding ShowAboutCommand}"
-                          ToolTip="Version, licensing and third-party components"/>
+                          ToolTip="Version, licensing and third-party components">
+                    <MenuItem.Icon>
+                        <TextBlock Text="ℹ" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <MenuItem Header="Check for updates" Command="{Binding CheckForUpdatesCommand}"
-                          ToolTip="Ask GitHub whether a newer release has been published. Works whether or not the startup check is turned on."/>
+                          ToolTip="Ask GitHub whether a newer release has been published. Works whether or not the startup check is turned on.">
+                    <MenuItem.Icon>
+                        <TextBlock Text="⟳" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <Separator/>
                 <MenuItem Header="GitHub repository" Command="{Binding OpenRepositoryCommand}"
-                          ToolTip="https://github.com/gouryellas/MPC-HC-Video-Editor"/>
+                          ToolTip="https://github.com/gouryellas/MPC-HC-Video-Editor">
+                    <MenuItem.Icon>
+                        <TextBlock Text="🔗" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <MenuItem Header="Report an issue" Command="{Binding OpenIssuesCommand}"
-                          ToolTip="Open the issue tracker in your browser"/>
+                          ToolTip="Open the issue tracker in your browser">
+                    <MenuItem.Icon>
+                        <TextBlock Text="🐞" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <Separator/>
                 <MenuItem Header="Licenses" Command="{Binding ShowAboutCommand}"
-                          ToolTip="License terms for this app and the components it uses"/>
+                          ToolTip="License terms for this app and the components it uses">
+                    <MenuItem.Icon>
+                        <TextBlock Text="📄" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
             </MenuItem>
         </Menu>
 
@@ -888,9 +1100,21 @@
                           PreviewMouseMove="Toolbar_MouseMove">
                 <ItemsControl.ContextMenu>
                     <ContextMenu>
-                        <MenuItem Header="Customize toolbar…" Command="{Binding CustomizeToolbarCommand}"/>
-                        <MenuItem Header="Change button colors…" Command="{Binding ChangeButtonColorsCommand}"/>
-                        <MenuItem Header="Reset toolbar order" Command="{Binding ResetToolbarOrderCommand}"/>
+                        <MenuItem Header="Customize toolbar…" Command="{Binding CustomizeToolbarCommand}">
+                            <MenuItem.Icon>
+                                <TextBlock Text="🔧" Style="{StaticResource MenuGlyph}"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="Change button colors…" Command="{Binding ChangeButtonColorsCommand}">
+                            <MenuItem.Icon>
+                                <TextBlock Text="🎨" Style="{StaticResource MenuGlyph}"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="Reset toolbar order" Command="{Binding ResetToolbarOrderCommand}">
+                            <MenuItem.Icon>
+                                <TextBlock Text="↺" Style="{StaticResource MenuGlyph}"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
                     </ContextMenu>
                 </ItemsControl.ContextMenu>
 
