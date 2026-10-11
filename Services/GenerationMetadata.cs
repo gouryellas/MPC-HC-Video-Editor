@@ -180,18 +180,30 @@ public static class GenerationMetadata
     {
         string? positive = null, negative = null;
 
-        if (Inputs(sampler) is { } inputs)
+        if (Conditioning(nodes, Inputs(sampler), depth: 0) is { } inputs)
         {
-            positive = Clean(FollowToText(nodes, inputs, "positive", depth: 0));
-            negative = Clean(FollowToText(nodes, inputs, "negative", depth: 0));
+            positive = Clean(FollowToText(nodes, inputs, "positive", "positive", depth: 0));
+            negative = Clean(FollowToText(nodes, inputs, "negative", "negative", depth: 0));
         }
+
+        // One chain reaching the other's text is a real shape, not a bug in the
+        // walk: a negative built by zeroing out the positive conditioning holds
+        // no words of its own, and the only text at the end of that chain is the
+        // positive prompt. Showing it twice would be inventing a negative prompt
+        // the image does not have.
+        if (positive is not null && positive == negative) negative = null;
 
         if (positive is null || negative is null)
         {
-            var (guessedPositive, guessedNegative) = GuessPrompts(nodes);
+            // Whatever is already known is kept out of the guess, so a prompt
+            // cannot be offered as both answers.
+            var (guessedPositive, guessedNegative) = GuessPrompts(nodes, positive ?? negative);
+
             positive ??= guessedPositive;
             negative ??= guessedNegative;
         }
+
+        if (positive is not null && positive == negative) negative = null;
 
         var rows = new List<MetaRow>();
 
@@ -199,6 +211,41 @@ public static class GenerationMetadata
         if (negative is not null) rows.Add(Prompt("Negative prompt", negative));
 
         return rows;
+    }
+
+    /// <summary>
+    /// The inputs that actually name the two prompts, which are not always the
+    /// sampler's own.
+    /// </summary>
+    /// <remarks>
+    /// SamplerCustomAdvanced takes neither a positive nor a negative: it takes
+    /// a guider, and the guider holds both. Starting the walk at the sampler
+    /// found nothing to walk from, so a graph built this way produced no
+    /// prompts at all. A couple of hops is enough — a guider named by a guider
+    /// is not a thing anyone builds, but the depth limit means a graph that
+    /// links back on itself cannot spin here.
+    /// </remarks>
+    private static JsonElement? Conditioning(IReadOnlyDictionary<string, JsonElement> nodes,
+                                             JsonElement? inputs, int depth)
+    {
+        if (inputs is null || depth > 3) return null;
+
+        if (inputs.Value.TryGetProperty("positive", out _) ||
+            inputs.Value.TryGetProperty("negative", out _))
+            return inputs;
+
+        foreach (var hop in new[] { "guider", "sampler", "model" })
+        {
+            if (!inputs.Value.TryGetProperty(hop, out var link)) continue;
+            if (link.ValueKind != JsonValueKind.Array || link.GetArrayLength() == 0) continue;
+
+            var id = link[0].ValueKind == JsonValueKind.String ? link[0].GetString() : link[0].ToString();
+            if (id is null || !nodes.TryGetValue(id, out var node)) continue;
+
+            if (Conditioning(nodes, Inputs(node), depth + 1) is { } found) return found;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -213,9 +260,15 @@ public static class GenerationMetadata
     /// as the positive one. With a single encoder in the graph there is nothing
     /// to weigh it against, so it is the positive prompt — a lone negative with
     /// no positive is not a picture anyone generated.
+    ///
+    /// Two prompts that both score zero used to come back in whatever order the
+    /// graph happened to list its nodes in, which is how a negative prompt came
+    /// to be shown as the positive one. Ties now leave the positive unanswered
+    /// rather than guessing at it: a blank row is a smaller lie than a confident
+    /// wrong one, and the words are still in the raw text below.
     /// </remarks>
     private static (string? Positive, string? Negative) GuessPrompts(
-        IReadOnlyDictionary<string, JsonElement> nodes)
+        IReadOnlyDictionary<string, JsonElement> nodes, string? known)
     {
         var texts = new List<string>();
 
@@ -225,7 +278,8 @@ public static class GenerationMetadata
                 && !Class(node).Contains("CLIPText", StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            if (Inputs(node) is { } inputs && Clean(TextOf(inputs)) is { } text && !texts.Contains(text))
+            if (Inputs(node) is { } inputs && Clean(TextOf(inputs)) is { } text
+                && text != known && !texts.Contains(text))
                 texts.Add(text);
         }
 
@@ -233,7 +287,14 @@ public static class GenerationMetadata
         if (texts.Count == 1) return (texts[0], null);
 
         var ordered = texts.OrderBy(NegativeScore).ToList();
-        return (ordered[0], ordered[^1]);
+
+        var best = NegativeScore(ordered[0]);
+        var worst = NegativeScore(ordered[^1]);
+
+        // Nothing to tell them apart by. Answering anyway is a coin toss, and
+        // the wrong side of it puts the list of things to avoid under the
+        // heading of what was asked for.
+        return best == worst ? (null, null) : (ordered[0], ordered[^1]);
     }
 
     /// <summary>
@@ -261,7 +322,7 @@ public static class GenerationMetadata
     /// back on itself from walking forever.
     /// </remarks>
     private static string? FollowToText(IReadOnlyDictionary<string, JsonElement> nodes,
-                                        JsonElement inputs, string slot, int depth)
+                                        JsonElement inputs, string slot, string polarity, int depth)
     {
         if (depth > 6) return null;
         if (!inputs.TryGetProperty(slot, out var link)) return null;
@@ -282,9 +343,17 @@ public static class GenerationMetadata
         // or its text — from. A prompt reaches the sampler through combine,
         // style, guidance and guider nodes, and through wildcard nodes that
         // take the words from a string node somewhere else again.
+        //
+        // Only ever through its own side. A guider node names both prompts, so
+        // a walk that would step into either took whichever was listed first
+        // and reported the negative prompt as the positive one.
         foreach (var candidate in Carriers)
-            if (FollowToText(nodes, next.Value, candidate, depth + 1) is { } found)
+        {
+            if (candidate is "positive" or "negative" && candidate != polarity) continue;
+
+            if (FollowToText(nodes, next.Value, candidate, polarity, depth + 1) is { } found)
                 return found;
+        }
 
         return null;
     }
