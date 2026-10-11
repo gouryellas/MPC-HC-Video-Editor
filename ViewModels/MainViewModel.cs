@@ -1954,22 +1954,54 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return Path.GetDirectoryName(Session.VideoPath);
     }
 
+    /// <summary>
+    /// The playlist folder as stored, whatever its state. Empty when none is
+    /// set.
+    /// </summary>
+    /// <remarks>
+    /// Here so the view can read the path rather than cutting it back out of
+    /// <see cref="PlaylistFolderDisplay"/>, which is a label and free to say
+    /// more than the path. That parsing is how the menu came to contradict
+    /// itself: the header printed whatever was stored while the list below it
+    /// decided the folder was not set.
+    /// </remarks>
+    public string PlaylistFolderPath => _settings.Current.PlaylistFolder ?? string.Empty;
+
+    /// <summary>Whether the stored playlist folder is actually there.</summary>
+    public bool PlaylistFolderExists =>
+        PlaylistFolderPath.Length > 0 && Directory.Exists(PlaylistFolderPath);
+
     private void RefreshFolderDisplays()
     {
-        var pl = _settings.Current.PlaylistFolder;
-        PlaylistFolderDisplay = string.IsNullOrWhiteSpace(pl)
-            ? "Playlist folder: (not set)"
-            : "Playlist folder: " + pl;
+        PlaylistFolderDisplay = Describe("Playlist folder", _settings.Current.PlaylistFolder);
+        QuickSaveFolderDisplay = Describe("Quick save", _settings.Current.QuickSaveFolder);
+        SaveToFolderDisplay = Describe("Save to", ResolveSaveToDirectory());
 
-        var qs = _settings.Current.QuickSaveFolder;
-        QuickSaveFolderDisplay = string.IsNullOrWhiteSpace(qs)
-            ? "Quick save: (not set)"
-            : "Quick save: " + qs;
+        OnPropertyChanged(nameof(PlaylistFolderPath));
+        OnPropertyChanged(nameof(PlaylistFolderExists));
+    }
 
-        var saveTo = ResolveSaveToDirectory();
-        SaveToFolderDisplay = string.IsNullOrWhiteSpace(saveTo)
-            ? "Save to: (not set)"
-            : "Save to: " + saveTo;
+    /// <summary>
+    /// A stored folder, as a label: the path, or that it is unset, or that it
+    /// is set to somewhere that is no longer there.
+    /// </summary>
+    /// <remarks>
+    /// The third case is the one that was missing, and it is not rare: a drive
+    /// letter moves when an external disk is replugged, and a folder on it
+    /// stops existing without anybody changing a setting. Printing the path
+    /// alone then claims a folder that is gone, which is how the Playlist menu
+    /// came to name a folder in its header and deny having one underneath.
+    ///
+    /// The path is still shown, not replaced — it is the only clue to what was
+    /// meant, and the fix is usually to recognise the old drive letter.
+    /// </remarks>
+    private static string Describe(string label, string? folder)
+    {
+        if (string.IsNullOrWhiteSpace(folder)) return $"{label}: (not set)";
+
+        return Directory.Exists(folder)
+            ? $"{label}: {folder}"
+            : $"{label}: {folder}  — not found";
     }
 
     /// <summary>
@@ -5157,7 +5189,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         // No loaded playlist — prompt the user to pick one.
         var folder = _settings.Current.PlaylistFolder;
-        if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder)) { Notify("Set a playlist folder first, or use Playlist → Load playlist… to load one."); return; }
+        if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
+        {
+            // Said apart, because the two have different fixes: one needs a
+            // folder choosing, the other needs the drive it was on.
+            Notify(string.IsNullOrEmpty(folder)
+                ? "Set a playlist folder first, or use Playlist ▸ Load playlist… to load one."
+                : $"The playlist folder is no longer there:\n{folder}\n\nSet it again, or use Playlist ▸ Load playlist… to load one.");
+            return;
+        }
         var list = _playlists.ListPlaylists(folder).ToList();
         var names = list.Select(Path.GetFileName).ToArray();
         var pick = new InputDialog("Add to playlist", "Enter playlist filename:\n" + string.Join("\n", names.Take(12)), names.FirstOrDefault() ?? "playlist.pls");
@@ -5683,7 +5723,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var folder = _settings.Current.PlaylistFolder;
         if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
         {
-            Notify("Set a playlist folder first (Playlist → Playlist folder…).",
+            Notify(string.IsNullOrEmpty(folder)
+                    ? "Set a playlist folder first (Playlist ▸ Playlist folder…)."
+                    : $"The playlist folder is no longer there:\n{folder}\n\nSet it again under Playlist ▸ Playlist folder….",
                 "New playlist", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }

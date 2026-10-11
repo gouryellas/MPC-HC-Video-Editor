@@ -1140,16 +1140,14 @@ public partial class MainWindow : Window
             playlistMenu.Items.RemoveAt(i);
         }
 
-        // Read the playlist folder and list .pls files.
-        var folder = _vm.PlaylistFolderDisplay;
-        // PlaylistFolderDisplay is "Playlist folder: <path>" or "(not set)";
-        // extract the actual path. If it's "(not set)", treat as empty.
-        string plsFolder = string.Empty;
-        const string prefix = "Playlist folder: ";
-        if (folder.StartsWith(prefix, StringComparison.Ordinal))
-            plsFolder = folder[prefix.Length..];
+        // The path itself, not the label that describes it. This used to cut
+        // the path back out of the header text, which meant the header and the
+        // list below it could disagree about whether a folder was even set —
+        // and did, the moment the header gained anything to say beyond a path.
+        var plsFolder = _vm.PlaylistFolderPath;
 
-        bool hasFolder = !string.IsNullOrEmpty(plsFolder) && System.IO.Directory.Exists(plsFolder);
+        bool isSet = plsFolder.Length > 0;
+        bool hasFolder = _vm.PlaylistFolderExists;
         bool hasAny = false;
 
         if (hasFolder)
@@ -1173,8 +1171,13 @@ public partial class MainWindow : Window
         if (emptyPlaceholder != null)
         {
             emptyPlaceholder.Visibility = hasAny ? Visibility.Collapsed : Visibility.Visible;
-            emptyPlaceholder.Header = hasFolder
-                ? "(no playlists in folder)"
+
+            // Three states, not two. A folder that is set but missing — the
+            // drive letter moved, the disk is out — is neither "none set" nor
+            // "none in it", and saying either of those while the header names
+            // the folder is the contradiction this had.
+            emptyPlaceholder.Header = hasFolder ? "(no playlists in folder)"
+                : isSet ? "(the playlist folder is not there — set it again)"
                 : "(no playlist folder set)";
         }
     }
