@@ -73,8 +73,12 @@ public static class GenerationMetadata
 
             Latent(nodes, rows);
 
+            // Anything with "sampler" in its class, not only KSampler: a graph
+            // built on SamplerCustom or SamplerCustomAdvanced has no node by
+            // that name, and used to come out with no prompts and no settings
+            // at all.
             var samplers = nodes.Values
-                .Where(n => Class(n).Contains("KSampler", StringComparison.OrdinalIgnoreCase))
+                .Where(n => Class(n).Contains("Sampler", StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
             if (samplers.Count > 0)
@@ -83,9 +87,12 @@ public static class GenerationMetadata
 
                 if (samplers.Count > 1)
                     rows.Add(new MetaRow("Samplers", $"{samplers.Count} in the graph — the first is shown"));
-
-                Prompts(nodes, samplers[0], rows);
             }
+
+            // At the top, ahead of the settings: the prompt is what the window
+            // is usually opened to read, and it was last on a list it had to be
+            // scrolled past the end of.
+            rows.InsertRange(0, Prompts(nodes, samplers.FirstOrDefault()));
 
             return rows;
         }
@@ -157,23 +164,92 @@ public static class GenerationMetadata
     }
 
     /// <summary>
-    /// The two prompts, found by following the sampler's own links rather than
-    /// by collecting every text node in the graph — which way round they go is
-    /// something only the sampler knows.
+    /// The two prompts, positive first.
     /// </summary>
-    private static void Prompts(IReadOnlyDictionary<string, JsonElement> nodes,
-                                JsonElement sampler, List<MetaRow> rows)
+    /// <remarks>
+    /// Following the sampler's own links is the reliable way round: which text
+    /// node is the positive one is something only the thing consuming them
+    /// knows. But it is not always possible — a custom sampler takes its
+    /// conditioning through a guider node, a wildcard node may hold the words
+    /// somewhere other than its text input — so when the walk comes back empty
+    /// the text encoders are read directly instead. See
+    /// <see cref="GuessPrompts"/>.
+    /// </remarks>
+    private static List<MetaRow> Prompts(IReadOnlyDictionary<string, JsonElement> nodes,
+                                         JsonElement sampler)
     {
-        var inputs = Inputs(sampler);
-        if (inputs is null) return;
+        string? positive = null, negative = null;
 
-        foreach (var (slot, label) in new[] { ("positive", "Positive prompt"), ("negative", "Negative prompt") })
+        if (Inputs(sampler) is { } inputs)
         {
-            var text = FollowToText(nodes, inputs.Value, slot, depth: 0);
-            if (text is null) continue;
-
-            rows.Add(Prompt(label, text));
+            positive = Clean(FollowToText(nodes, inputs, "positive", depth: 0));
+            negative = Clean(FollowToText(nodes, inputs, "negative", depth: 0));
         }
+
+        if (positive is null || negative is null)
+        {
+            var (guessedPositive, guessedNegative) = GuessPrompts(nodes);
+            positive ??= guessedPositive;
+            negative ??= guessedNegative;
+        }
+
+        var rows = new List<MetaRow>();
+
+        if (positive is not null) rows.Add(Prompt("Positive prompt", positive));
+        if (negative is not null) rows.Add(Prompt("Negative prompt", negative));
+
+        return rows;
+    }
+
+    /// <summary>
+    /// The prompts read from the text encoders themselves, for a graph whose
+    /// links could not be followed.
+    /// </summary>
+    /// <remarks>
+    /// Which is which is then a guess, and it is made on the words rather than
+    /// on the order the nodes happen to appear in: a negative prompt is a list
+    /// of things to avoid, and that vocabulary is both small and consistent
+    /// across everybody's. The one that reads least like such a list is taken
+    /// as the positive one. With a single encoder in the graph there is nothing
+    /// to weigh it against, so it is the positive prompt — a lone negative with
+    /// no positive is not a picture anyone generated.
+    /// </remarks>
+    private static (string? Positive, string? Negative) GuessPrompts(
+        IReadOnlyDictionary<string, JsonElement> nodes)
+    {
+        var texts = new List<string>();
+
+        foreach (var node in nodes.Values)
+        {
+            if (!Class(node).Contains("TextEncode", StringComparison.OrdinalIgnoreCase)
+                && !Class(node).Contains("CLIPText", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (Inputs(node) is { } inputs && Clean(TextOf(inputs)) is { } text && !texts.Contains(text))
+                texts.Add(text);
+        }
+
+        if (texts.Count == 0) return (null, null);
+        if (texts.Count == 1) return (texts[0], null);
+
+        var ordered = texts.OrderBy(NegativeScore).ToList();
+        return (ordered[0], ordered[^1]);
+    }
+
+    /// <summary>
+    /// How much a prompt reads like a list of things to avoid.
+    /// </summary>
+    private static int NegativeScore(string text)
+    {
+        string[] markers =
+        {
+            "worst quality", "low quality", "bad anatomy", "bad hands", "jpeg artifacts",
+            "watermark", "signature", "username", "blurry", "lowres", "deformed",
+            "disfigured", "extra limbs", "missing fingers", "cropped", "out of frame",
+            "mutated", "ugly", "text, ", "error", "poorly drawn"
+        };
+
+        return markers.Count(m => text.Contains(m, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -200,14 +276,85 @@ public static class GenerationMetadata
         var next = Inputs(node);
         if (next is null) return null;
 
-        if (Text(next.Value, "text") is { Length: > 0 } text) return text;
+        if (TextOf(next.Value) is { Length: > 0 } text) return text;
 
-        // Not a text node: try whatever it is taking its own conditioning from.
-        foreach (var candidate in new[] { "conditioning_1", "conditioning", "conditioning_to", "text" })
+        // Not a text node: try whatever it is taking its own conditioning —
+        // or its text — from. A prompt reaches the sampler through combine,
+        // style, guidance and guider nodes, and through wildcard nodes that
+        // take the words from a string node somewhere else again.
+        foreach (var candidate in Carriers)
             if (FollowToText(nodes, next.Value, candidate, depth + 1) is { } found)
                 return found;
 
         return null;
+    }
+
+    /// <summary>Inputs that one node uses to name another holding the text.</summary>
+    private static readonly string[] Carriers =
+    {
+        "conditioning", "conditioning_1", "conditioning_2", "conditioning_to", "conditioning_from",
+        "positive", "negative", "guider", "model", "text", "string", "value", "prompt"
+    };
+
+    /// <summary>
+    /// The words a node holds, whatever it calls the box they are typed into.
+    /// </summary>
+    /// <remarks>
+    /// <c>text</c> covers CLIPTextEncode and most of what is built on it. The
+    /// rest are the names the common custom nodes use: SDXL's two encoders
+    /// split the prompt into <c>text_g</c> and <c>text_l</c>, the wildcard
+    /// nodes expose what they rolled as <c>populated_text</c>, and the string
+    /// primitives call it <c>string</c> or <c>value</c>.
+    /// </remarks>
+    private static string? TextOf(JsonElement inputs)
+    {
+        foreach (var name in new[]
+                 { "text", "populated_text", "wildcard_text", "prompt", "text_g", "text_l", "string", "value" })
+            if (Text(inputs, name) is { Length: > 0 } found)
+                return found;
+
+        return null;
+    }
+
+    /// <summary>
+    /// The prompt, and only the prompt.
+    /// </summary>
+    /// <remarks>
+    /// What is taken out is everything that is not the words: LoRA and
+    /// hypernetwork tags, which name a file and a strength and are already
+    /// listed as rows of their own; the <c>embedding:</c> prefix, which is
+    /// syntax rather than a word; and the line breaks a long prompt is typed
+    /// across, which are not meaningful to read back.
+    ///
+    /// A value that turns out to be a fragment of the graph rather than a
+    /// prompt is dropped entirely. Following a link into a node that holds a
+    /// workflow is how JSON used to end up labelled as somebody's prompt.
+    /// </remarks>
+    private static string? Clean(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+
+        var text = raw.Trim();
+
+        // Code, not prose.
+        if (text.StartsWith('{') || text.StartsWith('[')
+            || text.Contains("class_type", StringComparison.Ordinal)
+            || text.Contains("\"inputs\"", StringComparison.Ordinal))
+            return null;
+
+        // <lora:name:0.8>, <lyco:…>, <hypernet:…> — a tag, not a word.
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"<[^<>]*>", " ");
+
+        text = System.Text.RegularExpressions.Regex.Replace(
+            text, @"\bembedding:\s*", string.Empty, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        // One line, single spaces, and no comma left stranded by a tag that
+        // used to sit between two of them.
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ");
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"(,\s*){2,}", ", ");
+        text = text.Trim().Trim(',').Trim();
+
+        return text.Length > 0 ? text : null;
     }
 
     // ------------------------------------------------------------------
@@ -232,16 +379,16 @@ public static class GenerationMetadata
             : settingsAt >= 0 ? settingsAt
             : lines.Length;
 
-        var positive = string.Join("\n", lines.Take(positiveEnd)).Trim();
-        if (positive.Length > 0) rows.Add(Prompt("Positive prompt", positive));
+        if (Clean(string.Join("\n", lines.Take(positiveEnd))) is { } positive)
+            rows.Add(Prompt("Positive prompt", positive));
 
         if (negativeAt >= 0)
         {
             var end = settingsAt > negativeAt ? settingsAt : lines.Length;
-            var negative = string.Join("\n", lines.Skip(negativeAt).Take(end - negativeAt))
-                                 [negativeMarker.Length..].Trim();
+            var block = string.Join("\n", lines.Skip(negativeAt).Take(end - negativeAt))[negativeMarker.Length..];
 
-            if (negative.Length > 0) rows.Add(Prompt("Negative prompt", negative));
+            if (Clean(block) is { } negative)
+                rows.Add(Prompt("Negative prompt", negative));
         }
 
         if (settingsAt >= 0)
@@ -277,22 +424,16 @@ public static class GenerationMetadata
     // ------------------------------------------------------------------
 
     /// <summary>
-    /// A prompt row: its length, with the words themselves behind a click.
+    /// A prompt row: the words themselves.
     /// </summary>
     /// <remarks>
-    /// Collapsed because a prompt is long, is the one part of this a person
-    /// might not want on screen, and is rarely what the window was opened to
-    /// find out. Short ones are shown outright — hiding six words behind a
-    /// disclosure triangle is ceremony for its own sake.
+    /// Shown rather than counted. A long one used to read "428 characters —
+    /// click to show", on the grounds that a prompt is long and not always what
+    /// the window was opened for — but it is the thing people open this window
+    /// to read, and a row that reports a length instead is a row that looks
+    /// like the prompt is missing.
     /// </remarks>
-    private static MetaRow Prompt(string name, string text)
-    {
-        var tidy = text.Trim();
-
-        return tidy.Length <= 80
-            ? new MetaRow(name, tidy)
-            : new MetaRow(name, $"{tidy.Length} characters — click to show", tidy);
-    }
+    private static MetaRow Prompt(string name, string text) => new(name, text.Trim());
 
     private static string Class(JsonElement node) =>
         node.TryGetProperty("class_type", out var value) && value.ValueKind == JsonValueKind.String
