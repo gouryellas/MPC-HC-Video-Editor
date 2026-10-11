@@ -1582,6 +1582,23 @@
                             <Button Content="📁" Style="{StaticResource HeaderIcon}"
                                     Command="{Binding RevealVideoCommand}"
                                     ToolTip="Show this video in Explorer"/>
+                            <!-- The way in, where the way out already was. With
+                                 nothing loaded this line reads "<none>" and said
+                                 nothing about what to do next; the file menu and
+                                 a drag from Explorer were the only routes, and
+                                 neither is where someone looking at the empty
+                                 line is looking.
+
+                                 Visibility rather than the style's own
+                                 disabled-means-hidden rule: the command works
+                                 whether or not a video is loaded, and what
+                                 decides this is the panel's state, not the
+                                 command's. It is the exact opposite of the
+                                 button above, so the two are never both here. -->
+                            <Button Content="📂" Style="{StaticResource HeaderIcon}"
+                                    Command="{Binding OpenVideoFileCommand}"
+                                    Visibility="{Binding Session.HasVideo, Converter={StaticResource NotBoolToVis}}"
+                                    ToolTip="Open a video"/>
                         </StackPanel>
                         <!-- Red for the placeholder, the same as the two fields
                              below: "<none>" is nothing loaded, and nothing
@@ -1733,6 +1750,10 @@
                             <Button Content="✎" Style="{StaticResource HeaderIcon}"
                                     Command="{Binding EditBookmarksCommand}"
                                     ToolTip="Open the bookmark CSV in a text editor — changes are picked up when this window regains focus"/>
+                            <Button Content="📂" Style="{StaticResource HeaderIcon}"
+                                    Command="{Binding OpenBookmarkFileCommand}"
+                                    Visibility="{Binding HasBookmarksFile, Converter={StaticResource NotBoolToVis}}"
+                                    ToolTip="Open a bookmark file"/>
                         </StackPanel>
                         <!-- Green says "this is loaded and fine". A placeholder
                              is the opposite of that, so both of these fields
@@ -1751,7 +1772,16 @@
                             </TextBlock.Style>
                         </TextBlock>
 
-                        <TextBlock Text="CURRENT PLAYLIST" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="CURRENT PLAYLIST" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center"/>
+                            <!-- Every format the program reads, not only the one
+                                 it writes. -->
+                            <Button Content="📂" Style="{StaticResource HeaderIcon}"
+                                    Command="{Binding LoadPlaylistFileCommand}"
+                                    Visibility="{Binding HasLoadedPlaylist, Converter={StaticResource NotBoolToVis}}"
+                                    ToolTip="Open a playlist"/>
+                        </StackPanel>
                         <TextBlock Text="{Binding PlaylistFileName}" TextWrapping="Wrap" FontSize="14" Margin="0,0,0,18">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">

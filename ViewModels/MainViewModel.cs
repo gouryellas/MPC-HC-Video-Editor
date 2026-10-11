@@ -6119,6 +6119,103 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// Opens a video, and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="OpenFile"/> takes any of the three kinds of file and works
+    /// out which it is from the extension, which is right for a File menu. The
+    /// side panel's empty "Current video" line is a more specific question —
+    /// there is no video and that line is where one would be named — so the
+    /// picker asks for one rather than offering CSVs and playlists beside it.
+    /// </remarks>
+    [RelayCommand]
+    private async Task OpenVideoFile()
+    {
+        var ofd = new OpenFileDialog
+        {
+            Filter = "Video Files|*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.webm;*.mpeg;*.mpg;*.ts;*.m4v|" +
+                     "All Files|*.*",
+            Title = "Open a video"
+        };
+
+        if (ofd.ShowDialog() != true) return;
+
+        var path = ofd.FileName;
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            StatusText = "File not found.";
+            return;
+        }
+
+        _mpc.LaunchVideo(path);
+        await LoadVideoAsync(path);
+    }
+
+    /// <summary>
+    /// Opens a bookmark CSV, and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// The counterpart to <see cref="OpenVideoFile"/>, for the panel's empty
+    /// "Current bookmarks" line. Loading one may bring a video with it: a CSV
+    /// is written beside the video it describes and named after it, which
+    /// <see cref="LoadBookmarksFromCsv"/> takes advantage of.
+    /// </remarks>
+    [RelayCommand]
+    private void OpenBookmarkFile()
+    {
+        var ofd = new OpenFileDialog
+        {
+            Filter = "Bookmark CSV|*.csv|All Files|*.*",
+            Title = "Open a bookmark file"
+        };
+
+        if (ofd.ShowDialog() != true) return;
+
+        var path = ofd.FileName;
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            StatusText = "File not found.";
+            return;
+        }
+
+        LoadBookmarksFromCsv(path);
+    }
+
+    /// <summary>
+    /// Opens a playlist, and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// Every playlist format the program reads, which is more than the one the
+    /// menu's own "Load playlist…" offers: .pls is what it writes, and .m3u and
+    /// .m3u8 are what it will read from elsewhere.
+    ///
+    /// Named for loading rather than opening, because
+    /// <see cref="OpenPlaylistFile"/> already means something else here — it
+    /// hands the file to whatever Windows opens playlists with, which is a
+    /// different thing from making it the one this program adds videos to.
+    /// </remarks>
+    [RelayCommand]
+    private void LoadPlaylistFile()
+    {
+        var ofd = new OpenFileDialog
+        {
+            Filter = "Playlists|*.pls;*.m3u8;*.m3u|All Files|*.*",
+            Title = "Open a playlist"
+        };
+
+        if (ofd.ShowDialog() != true) return;
+
+        var path = ofd.FileName;
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            StatusText = "File not found.";
+            return;
+        }
+
+        LoadPlaylist(path);
+    }
+
+    /// <summary>
     /// Loads bookmarks from a .csv file into the session, replacing any
     /// existing bookmarks. If a video file with the same base name exists
     /// next to the CSV, that video is loaded too — this matches the
