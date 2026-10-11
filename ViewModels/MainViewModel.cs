@@ -978,10 +978,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Filename-only display for the right panel (no "Playlist: " prefix).
-    /// Shows just the PLS filename, or "(not loaded)".
+    /// Shows just the PLS filename, or the same placeholder the video and
+    /// bookmark fields use — three slots reporting nothing should say it the
+    /// same way.
     /// </summary>
     public string PlaylistFileName => string.IsNullOrEmpty(LoadedPlaylistPath) || !File.Exists(LoadedPlaylistPath)
-        ? "(not loaded)"
+        ? "<none>"
         : Path.GetFileName(LoadedPlaylistPath);
 
     /// <summary>
