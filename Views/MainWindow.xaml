@@ -158,32 +158,51 @@
 
         <Style TargetType="Button" BasedOn="{StaticResource DarkButton}"/>
 
-        <!-- The four buttons that write files. Their colours do not follow the
-             theme — you learn where Merge is once — and their labels are white
-             in all five, which the light themes need and the dark ones do not
-             mind. Styles rather than properties on each button, because the
-             toolbar is built from data now and the DynamicResource references
-             have to live somewhere that still tracks a theme change. -->
-        <Style x:Key="MergeButton" TargetType="Button" BasedOn="{StaticResource DarkButton}">
-            <Setter Property="Background" Value="{DynamicResource MergeBackground}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource MergeBorder}"/>
-            <Setter Property="Foreground" Value="{DynamicResource OnOperation}"/>
+        <!-- One style per family of operations, not one per button. The three
+             brushes behind each are pushed by ButtonColors, which is the only
+             thing that decides what a family looks like — the squares beside
+             the menu entries read the same keys, so the two cannot drift apart.
+
+             DynamicResource throughout: the colours move when the theme changes
+             and when the user recolours a family, and both have to reach
+             buttons that are already on screen. -->
+        <Style x:Key="VideoButton" TargetType="Button" BasedOn="{StaticResource DarkButton}">
+            <Setter Property="Background" Value="{DynamicResource VideoFill}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource VideoEdge}"/>
+            <Setter Property="Foreground" Value="{DynamicResource VideoInk}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
         </Style>
-        <Style x:Key="SplitButton" TargetType="Button" BasedOn="{StaticResource DarkButton}">
-            <Setter Property="Background" Value="{DynamicResource SplitBackground}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource SplitBorder}"/>
-            <Setter Property="Foreground" Value="{DynamicResource OnOperation}"/>
-        </Style>
-        <Style x:Key="ConvertButton" TargetType="Button" BasedOn="{StaticResource DarkButton}">
-            <Setter Property="Background" Value="{DynamicResource ConvertBackground}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource ConvertBorder}"/>
-            <Setter Property="Foreground" Value="{DynamicResource OnOperation}"/>
-        </Style>
         <Style x:Key="AudioButton" TargetType="Button" BasedOn="{StaticResource DarkButton}">
-            <Setter Property="Background" Value="{DynamicResource AudioBackground}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource AudioBorder}"/>
-            <Setter Property="Foreground" Value="{DynamicResource OnOperation}"/>
+            <Setter Property="Background" Value="{DynamicResource AudioFill}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AudioEdge}"/>
+            <Setter Property="Foreground" Value="{DynamicResource AudioInk}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style x:Key="ImageButton" TargetType="Button" BasedOn="{StaticResource DarkButton}">
+            <Setter Property="Background" Value="{DynamicResource ImageFill}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ImageEdge}"/>
+            <Setter Property="Foreground" Value="{DynamicResource ImageInk}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style x:Key="OtherButton" TargetType="Button" BasedOn="{StaticResource DarkButton}">
+            <Setter Property="Background" Value="{DynamicResource OtherFill}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource OtherEdge}"/>
+            <Setter Property="Foreground" Value="{DynamicResource OtherInk}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <!-- The square beside a menu entry: the family's colour, carrying the
+             same glyph the toolbar button shows with Small button icons on. -->
+        <Style x:Key="MenuChip" TargetType="Border">
+            <Setter Property="Width" Value="18"/>
+            <Setter Property="Height" Value="18"/>
+            <Setter Property="CornerRadius" Value="3"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style x:Key="MenuChipGlyph" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
 
         <!-- The naming tag currently in use. One of the tag buttons is always
@@ -481,24 +500,44 @@
                 <MenuItem Header="Merge selected / all / any" Command="{Binding MergeSelectedCommand}"
                           ToolTip="Merges the checked cuts, or every cut, or — with no video loaded — files you pick. A single cut is written out on its own as a trim.">
                     <MenuItem.Icon>
-                        <Rectangle Width="12" Height="12" Fill="{DynamicResource MergeBackground}" RadiusX="2" RadiusY="2"/>
+                        <Border Style="{StaticResource MenuChip}"
+                                Background="{DynamicResource VideoFill}"
+                                BorderBrush="{DynamicResource VideoEdge}">
+                            <TextBlock Text="🎬" Style="{StaticResource MenuChipGlyph}"
+                                       Foreground="{DynamicResource VideoInk}"/>
+                        </Border>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Split selected / all" Command="{Binding SplitSelectedCommand}">
                     <MenuItem.Icon>
-                        <Rectangle Width="12" Height="12" Fill="{DynamicResource SplitBackground}" RadiusX="2" RadiusY="2"/>
+                        <Border Style="{StaticResource MenuChip}"
+                                Background="{DynamicResource VideoFill}"
+                                BorderBrush="{DynamicResource VideoEdge}">
+                            <TextBlock Text="✂" Style="{StaticResource MenuChipGlyph}"
+                                       Foreground="{DynamicResource VideoInk}"/>
+                        </Border>
                     </MenuItem.Icon>
                 </MenuItem>
                 <Separator/>
                 <MenuItem Header="Convert files to MP4…" Command="{Binding ConvertFilesCommand}">
                     <MenuItem.Icon>
-                        <Rectangle Width="12" Height="12" Fill="{DynamicResource ConvertBackground}" RadiusX="2" RadiusY="2"/>
+                        <Border Style="{StaticResource MenuChip}"
+                                Background="{DynamicResource VideoFill}"
+                                BorderBrush="{DynamicResource VideoEdge}">
+                            <TextBlock Text="🔄" Style="{StaticResource MenuChipGlyph}"
+                                       Foreground="{DynamicResource VideoInk}"/>
+                        </Border>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Export cuts as GIF / WebP…" Command="{Binding ExportAnimationCommand}"
                           ToolTip="Write each checked cut as an animated GIF or WebP, with no sound. Asks for the frame rate and width, which are what decide the size.">
                     <MenuItem.Icon>
-                        <Rectangle Width="12" Height="12" Fill="{DynamicResource AudioBackground}" RadiusX="2" RadiusY="2"/>
+                        <Border Style="{StaticResource MenuChip}"
+                                Background="{DynamicResource ImageFill}"
+                                BorderBrush="{DynamicResource ImageEdge}">
+                            <TextBlock Text="🎞" Style="{StaticResource MenuChipGlyph}"
+                                       Foreground="{DynamicResource ImageInk}"/>
+                        </Border>
                     </MenuItem.Icon>
                 </MenuItem>
                 <Separator/>
@@ -508,7 +547,12 @@
                 <MenuItem Header="Strip audio…" Command="{Binding StripAudioCommand}"
                           ToolTip="Pulls the sound out of files you pick: an MP3 of the audio, a silent copy of the video, or both. The file you pick is not changed.">
                     <MenuItem.Icon>
-                        <Rectangle Width="12" Height="12" Fill="{DynamicResource AudioBackground}" RadiusX="2" RadiusY="2"/>
+                        <Border Style="{StaticResource MenuChip}"
+                                Background="{DynamicResource AudioFill}"
+                                BorderBrush="{DynamicResource AudioEdge}">
+                            <TextBlock Text="🔊" Style="{StaticResource MenuChipGlyph}"
+                                       Foreground="{DynamicResource AudioInk}"/>
+                        </Border>
                     </MenuItem.Icon>
                 </MenuItem>
                 <Separator/>
@@ -516,7 +560,12 @@
                      single gesture rather than a menu click then a dialog. -->
                 <MenuItem Header="Image conversion" ToolTip="Convert image files to another format">
                     <MenuItem.Icon>
-                        <Rectangle Width="12" Height="12" Fill="{DynamicResource SplitBorder}" RadiusX="2" RadiusY="2"/>
+                        <Border Style="{StaticResource MenuChip}"
+                                Background="{DynamicResource ImageFill}"
+                                BorderBrush="{DynamicResource ImageEdge}">
+                            <TextBlock Text="🖼" Style="{StaticResource MenuChipGlyph}"
+                                       Foreground="{DynamicResource ImageInk}"/>
+                        </Border>
                     </MenuItem.Icon>
                     <MenuItem Header="To PNG…"  Command="{Binding ConvertImagesCommand}" CommandParameter="png"/>
                     <MenuItem Header="To JPG…"  Command="{Binding ConvertImagesCommand}" CommandParameter="jpg"/>
@@ -535,20 +584,35 @@
                      and with nothing loaded it asks for one. -->
                 <MenuItem Header="Save thumbnails…" Command="{Binding SaveThumbnailsCommand}">
                     <MenuItem.Icon>
-                        <Rectangle Width="12" Height="12" Fill="{DynamicResource SplitBackground}" RadiusX="2" RadiusY="2"/>
+                        <Border Style="{StaticResource MenuChip}"
+                                Background="{DynamicResource ImageFill}"
+                                BorderBrush="{DynamicResource ImageEdge}">
+                            <TextBlock Text="▦" Style="{StaticResource MenuChipGlyph}"
+                                       Foreground="{DynamicResource ImageInk}"/>
+                        </Border>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Image info…" Command="{Binding ShowImageInfoCommand}"
                           ToolTip="What a picture says about itself: size, camera, and whether it carries where it was taken">
                     <MenuItem.Icon>
-                        <Rectangle Width="12" Height="12" Fill="{DynamicResource Accent}" RadiusX="2" RadiusY="2"/>
+                        <Border Style="{StaticResource MenuChip}"
+                                Background="{DynamicResource OtherFill}"
+                                BorderBrush="{DynamicResource OtherEdge}">
+                            <TextBlock Text="ℹ" Style="{StaticResource MenuChipGlyph}"
+                                       Foreground="{DynamicResource OtherInk}"/>
+                        </Border>
                     </MenuItem.Icon>
                 </MenuItem>
                 <!-- No tooltip: the header is the explanation, and the dialog
                      that opens says the rest. -->
                 <MenuItem Header="Resize images…" Command="{Binding ResizeImagesCommand}">
                     <MenuItem.Icon>
-                        <Rectangle Width="12" Height="12" Fill="{DynamicResource ConvertBorder}" RadiusX="2" RadiusY="2"/>
+                        <Border Style="{StaticResource MenuChip}"
+                                Background="{DynamicResource ImageFill}"
+                                BorderBrush="{DynamicResource ImageEdge}">
+                            <TextBlock Text="📐" Style="{StaticResource MenuChipGlyph}"
+                                       Foreground="{DynamicResource ImageInk}"/>
+                        </Border>
                     </MenuItem.Icon>
                 </MenuItem>
                 <Separator/>
@@ -681,6 +745,8 @@
                      line somewhere that can be found on purpose. -->
                 <MenuItem Header="Customize toolbar…" Command="{Binding CustomizeToolbarCommand}"
                           ToolTip="Choose which buttons are on the toolbar and how they are arranged. Right-clicking the toolbar opens this too."/>
+                <MenuItem Header="Change button colors…" Command="{Binding ChangeButtonColorsCommand}"
+                          ToolTip="What each kind of operation is painted: video, audio, images, and the rest"/>
                 <MenuItem Header="Reset toolbar order" Command="{Binding ResetToolbarOrderCommand}"
                           ToolTip="Put the buttons across the top back in the order the program ships with. Drag a button onto another to rearrange them."/>
             </MenuItem>
@@ -823,6 +889,7 @@
                 <ItemsControl.ContextMenu>
                     <ContextMenu>
                         <MenuItem Header="Customize toolbar…" Command="{Binding CustomizeToolbarCommand}"/>
+                        <MenuItem Header="Change button colors…" Command="{Binding ChangeButtonColorsCommand}"/>
                         <MenuItem Header="Reset toolbar order" Command="{Binding ResetToolbarOrderCommand}"/>
                     </ContextMenu>
                 </ItemsControl.ContextMenu>

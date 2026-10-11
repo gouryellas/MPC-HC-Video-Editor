@@ -27,15 +27,23 @@ public partial class App : Application
         // theme's brushes have to be in Application.Resources before anything
         // is measured, or the window paints in whatever the defaults were and
         // then visibly repaints.
+        // The operation colours are recomputed whenever the palette moves: two
+        // of the four can follow the theme, and the settings dialog repaints
+        // live while someone is trying themes out.
+        ThemeService.Changed += _ => ButtonColors.Reapply();
+
         try
         {
-            ThemeService.ApplyFromKey(new SettingsService().Current.ThemeKey);
+            var settings = new SettingsService().Current;
+            ThemeService.ApplyFromKey(settings.ThemeKey);
+            ButtonColors.Apply(settings.ButtonColors, ThemeService.Current);
         }
         catch
         {
             // An unreadable settings file must not stop the app starting; the
             // default palette is already in place.
             ThemeService.Apply(ThemePalette.Graphite);
+            ButtonColors.Apply(null, ThemeService.Current);
         }
 
         // Windows sometimes sets "menu drop alignment" so popups open to the left.

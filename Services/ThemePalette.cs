@@ -122,6 +122,41 @@ public sealed record ThemePalette(
     public string AudioBackground => "#3F5A8A";
     public string AudioBorder => "#5A7BB5";
 
+    // ------------------------------------------------------------------
+    // The operation families
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// What each family of operations is painted, before the user has said
+    /// otherwise.
+    /// </summary>
+    /// <remarks>
+    /// Grouped by what an operation acts on, because that is the question
+    /// somebody scanning the row is asking. The colors used to be one per
+    /// button, handed out as buttons were added, and by the end four operations
+    /// were wearing another's color: thumbnails in Split's olive, resize in
+    /// Convert's rust, GIF export in the audio blue.
+    ///
+    /// Three of the four are fixed. A filled button carries its own background
+    /// and its own label, so it has no reason to follow the window — and the
+    /// color is how the button is found on the row, which is not something to
+    /// move when somebody changes theme.
+    ///
+    /// <see cref="OperationOther"/> is the exception, and deliberately: it is
+    /// whichever of black and white the theme is not, so the quiet family is
+    /// the plainest thing on screen either way rather than a fifth color.
+    /// </remarks>
+    public string OperationVideo => "#D9A82E";
+
+    /// <inheritdoc cref="OperationVideo"/>
+    public string OperationAudio => "#E07BA8";
+
+    /// <inheritdoc cref="OperationVideo"/>
+    public string OperationImage => "#255FA8";
+
+    /// <inheritdoc cref="OperationVideo"/>
+    public string OperationOther => IsLight ? "#141414" : "#F2F0EC";
+
     /// <summary>Text on the four buttons above.</summary>
     /// <remarks>
     /// White, and fixed like the buttons it sits on. Those four never inherited

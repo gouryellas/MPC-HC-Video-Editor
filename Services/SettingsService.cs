@@ -388,6 +388,21 @@ public class AppSettings
     public bool ToolbarCustomized { get; set; }
 
     /// <summary>
+    /// What each family of operations is painted: "theme", "none", or a hex
+    /// colour. A family that is absent follows the theme.
+    /// </summary>
+    /// <remarks>
+    /// A dictionary rather than four named fields, because the families are
+    /// already a list everywhere else — the dialog, the resolver and the
+    /// resource keys all walk them — and four fields would be a fifth place to
+    /// update when one is added.
+    ///
+    /// Absent rather than "theme" by default, so a settings file written before
+    /// this existed behaves exactly as one that has never been touched.
+    /// </remarks>
+    public Dictionary<string, string> ButtonColors { get; set; } = new();
+
+    /// <summary>
     /// Draw the toolbar as icons alone, with no words.
     /// </summary>
     /// <remarks>
