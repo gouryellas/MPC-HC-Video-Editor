@@ -247,9 +247,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // The thirteen the toolbar ships with.
         new() { Key = "set-timestamp", Group = "Bookmarks", Label = "📍 Set timestamp", Icon = "📍", Command = SetTimestampCommand,
                 ToolTip = "Set a timestamp at the current MPC-HC position" },
-        new() { Key = "save-frame", Group = "Actions", Label = "📷", Icon = "📷", Command = SaveCurrentFrameCommand, Width = 36,
+        new() { Key = "save-frame", Group = "Actions", Label = "📷 Save frame", Icon = "📷", Command = SaveCurrentFrameCommand,
                 ToolTip = "Save the frame MPC-HC is showing as a PNG, full size, next to the other output" },
-        new() { Key = "delete", Group = "Bookmarks", Label = "🗑", Icon = "🗑", Command = DeleteSelectedCommand, Width = 36,
+        new() { Key = "delete", Group = "Bookmarks", Label = "🗑 Remove", Icon = "🗑", Command = DeleteSelectedCommand,
                 ToolTip = "Remove the checked timestamps from the list and the bookmark file. With nothing checked it removes the highlighted row." },
         new() { Key = "flip", Group = "Actions", Label = "↕ Flip", Icon = "↕", Command = ToggleFlipCommand,
                 ToolTip = "Flip the checked cuts upside down. With nothing checked it flips the highlighted row." },
