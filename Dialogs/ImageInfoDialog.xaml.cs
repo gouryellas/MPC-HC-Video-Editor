@@ -77,5 +77,63 @@ public partial class ImageInfoDialog : Window
         }
     }
 
+    /// <summary>The row a button inside the list belongs to.</summary>
+    private static MetaRow? RowOf(object sender) =>
+        (sender as FrameworkElement)?.Tag as MetaRow;
+
+    /// <summary>Puts a data row's whole value on the clipboard.</summary>
+    private void CopyData_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || RowOf(sender) is not { Full: { } data }) return;
+
+        try
+        {
+            Clipboard.SetText(data);
+            button.Content = "Copied";
+        }
+        catch
+        {
+            button.Content = "Clipboard busy";
+        }
+    }
+
+    /// <summary>
+    /// Writes a data row's value out as a .json file.
+    /// </summary>
+    /// <remarks>
+    /// Named after the picture and the chunk it came from, so a folder of them
+    /// stays sorted alongside the images and a workflow is never confused with
+    /// the one from the file opened before it. Written as UTF-8 without a byte
+    /// order mark, which is what every JSON reader expects.
+    /// </remarks>
+    private void SaveData_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || RowOf(sender) is not { } row || row.Full is not { } data) return;
+
+        var stem = System.IO.Path.GetFileNameWithoutExtension(FileName.Text);
+
+        var save = new Microsoft.Win32.SaveFileDialog
+        {
+            Filter = "JSON|*.json|All Files|*.*",
+            FileName = $"{stem}-{row.Name}.json",
+            Title = $"Save the {row.Name} as JSON",
+            AddExtension = true,
+            DefaultExt = ".json"
+        };
+
+        if (save.ShowDialog(this) != true) return;
+
+        try
+        {
+            System.IO.File.WriteAllText(save.FileName, data, new System.Text.UTF8Encoding(false));
+            button.Content = "Saved";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Could not save",
+                            MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 }

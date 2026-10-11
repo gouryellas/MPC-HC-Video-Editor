@@ -146,18 +146,13 @@ public static class GenerationMetadata
                 .Where(n => Class(n).Contains("Sampler", StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
-            if (samplers.Count > 0)
-            {
-                Sampler(samplers[0], rows);
+            if (samplers.Count > 0) Sampler(samplers[0], rows);
 
-                if (samplers.Count > 1)
-                    rows.Add(new MetaRow("Samplers", $"{samplers.Count} in the graph — the first is shown"));
-            }
-
-            // At the top, ahead of the settings: the prompt is what the window
-            // is usually opened to read, and it was last on a list it had to be
-            // scrolled past the end of.
-            rows.InsertRange(0, Prompts(nodes, samplers.FirstOrDefault(), cached));
+            // Last, under the seed: the settings are a short column of short
+            // values that read as a block, and a prompt is a paragraph. Putting
+            // the paragraph first pushed the block off the bottom of the window;
+            // putting it between them broke the block in half.
+            rows.AddRange(Prompts(nodes, samplers.FirstOrDefault(), cached));
 
             return rows;
         }

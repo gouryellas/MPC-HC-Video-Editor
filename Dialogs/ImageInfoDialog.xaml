@@ -23,6 +23,19 @@
             <Setter Property="Cursor" Value="Hand"/>
         </Style>
 
+        <!-- Smaller than the window's own buttons: these sit inside a row of
+             facts and should not out-weigh the fact they belong to. -->
+        <Style x:Key="RowAction" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8,2"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
         <!-- One fact: its name, then its value. The names share a column so
              the values line up down the page and can be read as a list. -->
         <DataTemplate x:Key="Row">
@@ -53,6 +66,19 @@
                              Foreground="{DynamicResource TextPrimary}"
                              BorderBrush="{DynamicResource BorderBrush}"/>
                 </Expander>
+
+                <!-- Data: taken away, not read here. A node graph is for the
+                     program that wrote it, and the parts of it worth reading
+                     are already rows of their own further up. -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal"
+                            Visibility="{Binding HasData, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{Binding Value}" Foreground="{DynamicResource TextPrimary}"
+                               VerticalAlignment="Center"/>
+                    <Button Content="Copy" Click="CopyData_Click" Tag="{Binding}"
+                            Style="{StaticResource RowAction}"/>
+                    <Button Content="Save as JSON…" Click="SaveData_Click" Tag="{Binding}"
+                            Style="{StaticResource RowAction}"/>
+                </StackPanel>
             </Grid>
         </DataTemplate>
     </Window.Resources>

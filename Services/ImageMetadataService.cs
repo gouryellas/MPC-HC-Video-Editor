@@ -9,10 +9,19 @@ namespace MpcHcVideoEditor.Services;
 /// The whole of a long value, when <paramref name="Value"/> is only a summary
 /// of it. Null for the ordinary rows that say everything they have.
 /// </param>
-public sealed record MetaRow(string Name, string Value, string? Full = null)
+/// <param name="DataOnly">
+/// True for a value that is data rather than something to read: a whole node
+/// graph, which is for another program to open. It is offered to the clipboard
+/// and to a file, and never printed — unfolding sixty thousand characters of
+/// JSON into the window is not reading it, it is losing everything else.
+/// </param>
+public sealed record MetaRow(string Name, string Value, string? Full = null, bool DataOnly = false)
 {
     /// <summary>Whether this row has more to show than it is showing.</summary>
-    public bool HasFull => !string.IsNullOrEmpty(Full);
+    public bool HasFull => !string.IsNullOrEmpty(Full) && !DataOnly;
+
+    /// <summary>Whether this row's value can be taken away but not read here.</summary>
+    public bool HasData => !string.IsNullOrEmpty(Full) && DataOnly;
 }
 
 /// <summary>A heading and the facts under it.</summary>
@@ -163,10 +172,20 @@ public class ImageMetadataService
             var text = chunk.Text.Trim();
             if (text.Length == 0) continue;
 
-            // A whole ComfyUI graph is tens of thousands of characters, and
-            // printing it would bury every other group under it. Its length is
-            // the useful thing on screen; the text itself is a click away and
-            // goes to the clipboard whole.
+            // The graph this chunk holds has already been read: its prompts,
+            // checkpoint, LoRAs and sampler settings are the group above. What
+            // is left is the same thing again as JSON, and a row offering to
+            // unfold it says nothing the reader has not just been told.
+            if (string.Equals(chunk.Key, "prompt", StringComparison.OrdinalIgnoreCase)) continue;
+
+            // Data rather than words: offered to the clipboard and to a file,
+            // for opening in the program that wrote it.
+            if (IsData(text))
+            {
+                rows.Add(new MetaRow(chunk.Key, $"{text.Length:N0} characters", text, DataOnly: true));
+                continue;
+            }
+
             rows.Add(text.Length <= 160
                 ? new MetaRow(chunk.Key, text)
                 : new MetaRow(chunk.Key, $"{text.Length:N0} characters — click to show", text));
@@ -174,6 +193,18 @@ public class ImageMetadataService
 
         if (rows.Count > 0) groups.Add(new MetaGroup("Text in the file", rows));
     }
+
+    /// <summary>
+    /// Whether a chunk is a structure for another program rather than words for
+    /// a person.
+    /// </summary>
+    /// <remarks>
+    /// Judged by what it is, not by which key it arrived under: the workflow a
+    /// generator saves is the usual case, but a custom node pack is free to
+    /// store its own graph under a name nobody here has heard of.
+    /// </remarks>
+    private static bool IsData(string text) =>
+        text.Length > 160 && (text.StartsWith('{') || text.StartsWith('['));
 
     private static List<MetaRow> Picture(BitmapFrame frame, BitmapDecoder decoder)
     {
