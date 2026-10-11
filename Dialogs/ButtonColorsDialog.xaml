@@ -24,18 +24,15 @@
         </Style>
     </Window.Resources>
 
-    <StackPanel Margin="16">
-        <TextBlock Text="THE OPERATIONS, BY WHAT THEY ACT ON" Style="{StaticResource Heading}"/>
-        <TextBlock Text="Each group of buttons takes one colour. The preview on the right of each card shows what that group will look like."
-                   Foreground="{DynamicResource TextSecondary}" FontSize="11" TextWrapping="Wrap"
-                   Margin="0,-4,0,12"/>
-
-        <!-- One row per family, built in code: the preview has to be repainted
-             as the colour changes, which is a thing to do rather than a thing
-             to declare. -->
-        <ItemsControl x:Name="Rows"/>
-
-        <Grid Margin="0,6,0,0">
+    <!-- The cards scroll and the buttons do not. Four families of swatches
+         come to 848 device-independent pixels, which is taller than the usable
+         height of a 1366x768 screen and of a 1080p one scaled to 125% or 150%
+         — and this window cannot be resized, so Save was simply off the bottom
+         edge with no way to reach it. MaxHeight is set from the work area in
+         the constructor; SizeToContent still shrinks the window to the cards
+         when there is room for them. -->
+    <DockPanel Margin="16">
+        <Grid DockPanel.Dock="Bottom" Margin="0,6,0,0">
             <Button Content="Reset to defaults" Click="Reset_Click" HorizontalAlignment="Left" Margin="0,4,4,4"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Content="Save" Width="90" IsDefault="True" Click="Ok_Click"
@@ -44,5 +41,18 @@
                 <Button Content="Cancel" Width="80" IsCancel="True" Click="Cancel_Click"/>
             </StackPanel>
         </Grid>
-    </StackPanel>
+
+        <TextBlock DockPanel.Dock="Top" Text="THE OPERATIONS, BY WHAT THEY ACT ON" Style="{StaticResource Heading}"/>
+        <TextBlock DockPanel.Dock="Top"
+                   Text="Each group of buttons takes one colour. The preview on the right of each card shows what that group will look like."
+                   Foreground="{DynamicResource TextSecondary}" FontSize="12" TextWrapping="Wrap"
+                   Margin="0,-4,0,12"/>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <!-- One row per family, built in code: the preview has to be
+                 repainted as the colour changes, which is a thing to do rather
+                 than a thing to declare. -->
+            <ItemsControl x:Name="Rows"/>
+        </ScrollViewer>
+    </DockPanel>
 </Window>

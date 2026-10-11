@@ -41,6 +41,13 @@ public partial class ButtonColorsDialog : Window
     {
         InitializeComponent();
 
+        // Four families of swatches stack up taller than a 1366x768 screen, or
+        // a 1080p one at 125%. The cards scroll; this is what makes the window
+        // stop growing so that the buttons under them stay on screen. Done once
+        // the window has a handle, so the monitor asked about is the one it is
+        // actually appearing on.
+        SourceInitialized += (_, _) => ScreenFit.Cap(this);
+
         foreach (var family in ButtonColors.Families)
         {
             _chosen[family] = current is not null

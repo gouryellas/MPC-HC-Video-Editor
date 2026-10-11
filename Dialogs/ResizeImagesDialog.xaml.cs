@@ -38,6 +38,8 @@ public partial class ResizeImagesDialog : Window
     {
         InitializeComponent();
 
+        SourceInitialized += (_, _) => ScreenFit.Cap(this);
+
         Where.SaveTo = saveToFolder;
         Where.Preselect(initialDirectory);
         Where.ChoiceChanged += RefreshOk;
