@@ -346,6 +346,7 @@ public static class GenerationMetadata
                 continue;
 
             var words = Inputs(node) is { } inputs ? TextOf(inputs) : null;
+            words ??= Assembled(nodes, id, depth: 0);
             words ??= cached.GetValueOrDefault(id);
 
             if (Clean(words) is { } text && text != known && !texts.Contains(text))
@@ -365,6 +366,181 @@ public static class GenerationMetadata
         // heading of what was asked for.
         return best == worst ? (null, null) : (ordered[0], ordered[^1]);
     }
+
+    // ------------------------------------------------------------------
+    // Prompts the workflow builds as it runs
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Works out what a text-building node produces, by doing what it does.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A prompt is not always typed into a box. It can be assembled: a name
+    /// pulled out of a LoRA's filename by a regular expression, joined to a
+    /// phrase, finished with one of several endings chosen by what the name
+    /// turned out to be. None of that is written down anywhere — the file
+    /// records the recipe, and the only way to the words is to follow it.
+    /// </para>
+    /// <para>
+    /// A handful of node kinds covers the ones that actually appear in prompt
+    /// chains: concatenate, replace, switch, conditional branch, and the string
+    /// primitives at the ends. Anything unrecognised returns null rather than a
+    /// guess, which puts the walk back on its ordinary path.
+    /// </para>
+    /// </remarks>
+    private static string? Assembled(IReadOnlyDictionary<string, JsonElement> nodes,
+                                     string id, int depth)
+    {
+        // Deep enough for a real chain and shallow enough to stop a graph
+        // that links back on itself. Ten was not: a prompt five nodes long
+        // reaches twice that, counting a step for every input in between, and
+        // the walk ran out exactly at the leaf holding the words.
+        if (depth > 32 || !nodes.TryGetValue(id, out var node)) return null;
+        if (Inputs(node) is not { } inputs) return null;
+
+        var kind = Class(node);
+
+        if (kind.Contains("Concatenate", StringComparison.OrdinalIgnoreCase))
+        {
+            var delimiter = Text(inputs, "delimiter") ?? " ";
+
+            // Only when the node says so. Trimming regardless turned a piece
+            // that was deliberately " from " into "from", and a concatenate
+            // joining on an empty delimiter then ran its words together.
+            var tidy = string.Equals(Text(inputs, "clean_whitespace"), "true",
+                                     StringComparison.OrdinalIgnoreCase);
+
+            var parts = inputs.EnumerateObject()
+                .Where(p => p.Name.StartsWith("text_", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(p => p.Name, StringComparer.Ordinal)
+                .Select(p => Value(nodes, p.Value, depth + 1))
+                .Where(v => !string.IsNullOrWhiteSpace(v))
+                .Select(v => tidy ? v!.Trim() : v!);
+
+            var joined = string.Join(delimiter, parts);
+            return joined.Length > 0 ? joined : null;
+        }
+
+        if (kind.Contains("TextReplace", StringComparison.OrdinalIgnoreCase)
+            || kind.Contains("RegexReplace", StringComparison.OrdinalIgnoreCase))
+            return Replaced(nodes, inputs, depth);
+
+        if (kind.Contains("ConditionalBranch", StringComparison.OrdinalIgnoreCase))
+        {
+            var chosen = Truth(nodes, inputs, depth) ? "tt_value" : "ff_value";
+            return inputs.TryGetProperty(chosen, out var branch) ? Value(nodes, branch, depth + 1) : null;
+        }
+
+        // A switch passes through the first of its inputs that has anything in
+        // it; the rest of its branches were not taken.
+        if (kind.Contains("Switch", StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (var input in inputs.EnumerateObject()
+                         .Where(p => p.Name.StartsWith("any", StringComparison.OrdinalIgnoreCase))
+                         .OrderBy(p => p.Name, StringComparer.Ordinal))
+                if (Value(nodes, input.Value, depth + 1) is { } taken && taken.Trim().Length > 0)
+                    return taken;
+
+            return null;
+        }
+
+        // A plain source of words: a string primitive, a LoRA name, an encoder
+        // taking its text from elsewhere.
+        if (TextOf(inputs) is { Length: > 0 } written) return written;
+
+        foreach (var name in new[] { "text", "string", "value", "lora_name" })
+            if (inputs.TryGetProperty(name, out var carried))
+                return Value(nodes, carried, depth + 1);
+
+        return null;
+    }
+
+    /// <summary>A literal, or whatever the node it names produces.</summary>
+    private static string? Value(IReadOnlyDictionary<string, JsonElement> nodes,
+                                 JsonElement value, int depth)
+    {
+        if (depth > 32) return null;
+
+        if (value.ValueKind == JsonValueKind.String) return value.GetString();
+
+        if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() == 0) return null;
+
+        var id = value[0].ValueKind == JsonValueKind.String ? value[0].GetString() : value[0].ToString();
+        return id is null ? null : Assembled(nodes, id, depth + 1);
+    }
+
+    /// <summary>
+    /// A regular-expression replacement, as the node would perform it.
+    /// </summary>
+    /// <remarks>
+    /// These nodes are Python, so a backreference in the replacement is written
+    /// <c>\1</c>; .NET spells it <c>$1</c>. The pattern itself is somebody
+    /// else's and arrives from a file, so it runs under a time limit — a
+    /// pattern that backtracks forever would otherwise hang the window that
+    /// asked what an image was made with.
+    /// </remarks>
+    private static string? Replaced(IReadOnlyDictionary<string, JsonElement> nodes,
+                                    JsonElement inputs, int depth)
+    {
+        if (!inputs.TryGetProperty("text", out var source)) return null;
+        if (Value(nodes, source, depth + 1) is not { } text) return null;
+
+        var pattern = Text(inputs, "search");
+        if (string.IsNullOrEmpty(pattern)) return text;
+
+        var replacement = System.Text.RegularExpressions.Regex.Replace(
+            Text(inputs, "replacement") ?? string.Empty, @"\\(\d)", "$$$1");
+
+        var options = System.Text.RegularExpressions.RegexOptions.None;
+        if (!Flag(inputs, "case_sensitive"))
+            options |= System.Text.RegularExpressions.RegexOptions.IgnoreCase;
+
+        var limit = int.TryParse(Number(inputs, "max_replacements"), out var max) && max > 0 ? max : -1;
+
+        try
+        {
+            var regex = new System.Text.RegularExpressions.Regex(
+                pattern, options, TimeSpan.FromMilliseconds(250));
+
+            var result = regex.Replace(text, replacement, limit);
+
+            // "Keep text" is what these nodes do when the pattern matches
+            // nothing, and it is also the only sensible answer here.
+            return result.Length > 0 ? result : text;
+        }
+        catch
+        {
+            return text;
+        }
+    }
+
+    /// <summary>What a condition node answers.</summary>
+    private static bool Truth(IReadOnlyDictionary<string, JsonElement> nodes,
+                              JsonElement inputs, int depth)
+    {
+        if (!inputs.TryGetProperty("cond", out var cond)) return false;
+
+        if (cond.ValueKind is JsonValueKind.True or JsonValueKind.False) return cond.GetBoolean();
+        if (cond.ValueKind != JsonValueKind.Array || cond.GetArrayLength() == 0) return false;
+
+        var id = cond[0].ValueKind == JsonValueKind.String ? cond[0].GetString() : cond[0].ToString();
+        if (id is null || !nodes.TryGetValue(id, out var node) || Inputs(node) is not { } test) return false;
+
+        if (!Class(node).Contains("Contains", StringComparison.OrdinalIgnoreCase)) return false;
+
+        var haystack = test.TryGetProperty("string", out var s) ? Value(nodes, s, depth + 1) : null;
+        var needle = Text(test, "substring");
+
+        if (haystack is null || string.IsNullOrEmpty(needle)) return false;
+
+        return haystack.Contains(needle, Flag(test, "case_sensitive")
+            ? StringComparison.Ordinal
+            : StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool Flag(JsonElement inputs, string name) =>
+        inputs.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.True;
 
     /// <summary>
     /// How much a prompt reads like a list of things to avoid.
@@ -409,8 +585,15 @@ public static class GenerationMetadata
 
         if (TextOf(next.Value) is { Length: > 0 } text) return text;
 
-        // Nothing written in the node itself. What its box last held is the
-        // only record of a prompt the workflow assembled while it ran.
+        // Nothing written in the node itself, so work out what it produces:
+        // follow the recipe the graph records and see what comes out.
+        if (Assembled(nodes, id, depth) is { Length: > 0 } built) return built;
+
+        // Failing that, what the node's own box last held. Last, because it is
+        // the last value rather than a record of this run — a workflow run
+        // twice with different inputs leaves the first run's words sitting in
+        // the box, and believing them means reporting the wrong prompt with
+        // every appearance of certainty.
         if (cached.GetValueOrDefault(id) is { Length: > 0 } remembered) return remembered;
 
         // Not a text node: try whatever it is taking its own conditioning —
