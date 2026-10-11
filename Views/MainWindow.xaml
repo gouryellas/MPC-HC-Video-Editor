@@ -1323,7 +1323,7 @@
                                              combines all four instead, where there is no room
                                              for columns (see Bookmark.Prefix). -->
                                         <TextBlock Grid.Column="4" Text="{Binding RowMarkers}" Foreground="{DynamicResource StatusWarn}"
-                                                   FontWeight="Bold" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="11"/>
+                                                   FontWeight="Bold" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="12"/>
 
                                         <Slider Grid.Column="5" Minimum="0.25" Maximum="2.0" TickFrequency="0.25"
                                                 IsSnapToTickEnabled="True" Value="{Binding Speed, Mode=TwoWay}"
@@ -1344,9 +1344,16 @@
                      past the point where its last line — whether MPC-HC is
                      running — is cut off. -->
                 <Border x:Name="SidePanel" Grid.Column="1" Background="{DynamicResource PanelBackground}" CornerRadius="6" Padding="14">
+                    <!-- Scrolls, for the case the minimum size cannot fix. The
+                         window's minimum height is measured from this panel's
+                         own content, but capped to the work area — a panel
+                         taller than the screen would otherwise be clipped at
+                         the bottom with no way to see the rest. On any screen
+                         with room for it the scrollbar never appears. -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                            <TextBlock Text="CURRENT VIDEO" FontSize="11" FontWeight="SemiBold"
+                            <TextBlock Text="CURRENT VIDEO" FontSize="12" FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center"/>
                             <Button Content="📁" Style="{StaticResource HeaderIcon}"
                                     Command="{Binding RevealVideoCommand}"
@@ -1384,7 +1391,7 @@
                             </Grid.ColumnDefinitions>
 
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="DURATION" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}"/>
+                                <TextBlock Text="DURATION" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}"/>
                                 <TextBlock Text="{Binding DurationDisplay}" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" Margin="0,2,0,14"/>
                             </StackPanel>
 
@@ -1394,7 +1401,7 @@
                                  checked (see EditSession.SelectedDurationSeconds).
                                  Its column simply stays empty until then. -->
                             <StackPanel Grid.Column="1" Visibility="{Binding HasEditLength, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="EDIT LENGTH" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}"/>
+                                <TextBlock Text="EDIT LENGTH" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}"/>
                                 <TextBlock Text="{Binding Session.SelectedDurationDisplay}" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource ValueYellow}" Margin="0,2,0,14"/>
                             </StackPanel>
                         </Grid>
@@ -1405,7 +1412,7 @@
                              of the state down this side. Wraps because a captured
                              combination can be a good deal longer than "MButton". -->
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="CURRENT HOTKEY" FontSize="11" FontWeight="SemiBold"
+                            <TextBlock Text="CURRENT HOTKEY" FontSize="12" FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center"/>
                             <!-- Same idea as the folder beside CURRENT VIDEO and
                                  the pencil beside CURRENT BOOKMARKS: the thing
@@ -1425,7 +1432,7 @@
                              the placeholders below carry a background. -->
                         <StackPanel Visibility="{Binding HasClipPreview, Converter={StaticResource BoolToVis}}">
                             <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Margin="0,4,0,12"/>
-                            <TextBlock Text="{Binding ClipPreviewHeading}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,6"/>
+                            <TextBlock Text="{Binding ClipPreviewHeading}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,6"/>
                             <Grid Margin="0,0,0,16">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -1497,7 +1504,7 @@
                         <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Margin="0,4,0,12"/>
 
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                            <TextBlock Text="CURRENT BOOKMARKS" FontSize="11" FontWeight="SemiBold"
+                            <TextBlock Text="CURRENT BOOKMARKS" FontSize="12" FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center"/>
                             <Button Content="✎" Style="{StaticResource HeaderIcon}"
                                     Command="{Binding EditBookmarksCommand}"
@@ -1520,7 +1527,7 @@
                             </TextBlock.Style>
                         </TextBlock>
 
-                        <TextBlock Text="CURRENT PLAYLIST" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4"/>
+                        <TextBlock Text="CURRENT PLAYLIST" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4"/>
                         <TextBlock Text="{Binding PlaylistFileName}" TextWrapping="Wrap" FontSize="14" Margin="0,0,0,18">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
@@ -1536,7 +1543,7 @@
 
                         <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Margin="0,4,0,12"/>
 
-                        <TextBlock Text="MPC-HC" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}"/>
+                        <TextBlock Text="MPC-HC" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}"/>
                         <TextBlock Margin="0,4,0,0">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
@@ -1552,6 +1559,7 @@
                             </TextBlock.Style>
                         </TextBlock>
                     </StackPanel>
+                    </ScrollViewer>
                 </Border>
             </Grid>
         </Grid>

@@ -165,6 +165,97 @@ public partial class MainWindow : Window
         // toolbar row grows with the system font, and the side panel grows a
         // clip preview when a row is selected.
         SizeChanged += (_, _) => UpdateMinimumSize();
+
+        // And once on the way in. SizeChanged does fire during the first
+        // layout, but UpdateMinimumSize returns early until the window is
+        // loaded — so with nothing else calling it, the measured minimum did
+        // not take effect until the user resized the window by hand, which is
+        // the one moment it was not needed.
+        //
+        // Then fit, because a minimum measured larger than the restored size
+        // grows the window, and a grown window can reach past the screen edge.
+        Loaded += (_, _) =>
+        {
+            UpdateMinimumSize();
+            ScreenFit.Fit(this);
+        };
+
+        // Before the window is drawn, so it never appears at a size it is about
+        // to be moved out of, and late enough to have a handle — which is what
+        // ScreenFit needs to ask about the right monitor.
+        SourceInitialized += (_, _) => RestorePlacement();
+    }
+
+    // ------------------------------------------------------------------
+    // Placement
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Puts the window back where it was, or fits the starting size to this
+    /// screen on a first run.
+    /// </summary>
+    /// <remarks>
+    /// The size in the XAML is 1100x780, which is taller than the usable height
+    /// of a 1366x768 screen and of a 1080p one at 150% scaling — WPF would
+    /// honour it regardless and hang the bottom of the window, status bar and
+    /// all, below the edge of the screen. Nothing in WPF clamps a declared size
+    /// to the display; <see cref="ScreenFit.Fit"/> is that step.
+    ///
+    /// A stored position is only used while it still lands on a monitor that is
+    /// attached. Otherwise it is dropped and the window is centred as if it had
+    /// never been saved, which is the right answer for a laptop that was docked
+    /// to a second screen yesterday.
+    /// </remarks>
+    private void RestorePlacement()
+    {
+        var saved = _vm?.SavedWindowPlacement ?? (DataContext as MainViewModel)?.SavedWindowPlacement;
+
+        if (saved is not null &&
+            ScreenFit.IsOnScreen(saved.Left, saved.Top, saved.Width, saved.Height))
+        {
+            WindowStartupLocation = WindowStartupLocation.Manual;
+
+            Left = saved.Left;
+            Top = saved.Top;
+            Width = saved.Width;
+            Height = saved.Height;
+
+            // Fit before maximizing, so the size restored by un-maximizing is
+            // one that fits this screen rather than the last one.
+            ScreenFit.Fit(this);
+
+            if (saved.Maximized) WindowState = WindowState.Maximized;
+            return;
+        }
+
+        ScreenFit.Fit(this);
+    }
+
+    /// <summary>
+    /// Writes down where the window is, for the next run.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Window.RestoreBounds"/> rather than the live properties: a
+    /// maximized window reports the whole screen as its size, and restoring
+    /// that would lose the size it had before — so un-maximizing after a
+    /// restart would have nothing to go back to.
+    /// </remarks>
+    private void SavePlacement()
+    {
+        var vm = _vm ?? DataContext as MainViewModel;
+        if (vm is null) return;
+
+        var bounds = WindowState == WindowState.Normal
+            ? new Rect(Left, Top, Width, Height)
+            : RestoreBounds;
+
+        // Minimized to the tray with nothing ever restored: there is no honest
+        // size to record, so the last one stands.
+        if (bounds.IsEmpty || bounds.Width <= 0 || bounds.Height <= 0) return;
+
+        vm.SaveWindowPlacement(new WindowPlacement(bounds.Left, bounds.Top,
+                                                   bounds.Width, bounds.Height,
+                                                   WindowState == WindowState.Maximized));
     }
 
     // ------------------------------------------------------------------
@@ -228,7 +319,18 @@ public partial class MainWindow : Window
             if (_vm is not null) _vm.ToolbarMinimumWidth = Math.Max(320, menu);
         }
 
-        if (SidePanel is { ActualHeight: > 0, Child: Panel stack })
+        // Through the ScrollViewer the panel's content now sits in: the thing
+        // worth measuring is the stack of lines, and a ScrollViewer asked for
+        // its height would answer with whatever it was given, which is the
+        // circular answer this method exists to avoid.
+        var panelContent = SidePanel?.Child switch
+        {
+            ScrollViewer { Content: Panel scrolled } => scrolled,
+            Panel direct => direct,
+            _ => null
+        };
+
+        if (SidePanel is { ActualHeight: > 0 } && panelContent is { } stack)
         {
             double content = SidePanel.Padding.Top + SidePanel.Padding.Bottom;
             foreach (UIElement child in stack.Children)
@@ -379,6 +481,11 @@ public partial class MainWindow : Window
     /// </remarks>
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
+        // Before the tray check below, which returns without closing. Exit from
+        // the tray closes the window again later, so this runs twice there —
+        // the second time with the same numbers, which costs one file write.
+        SavePlacement();
+
         if (InTrayMode && !_exitConfirmed)
         {
             e.Cancel = true;
@@ -525,7 +632,15 @@ public partial class MainWindow : Window
     {
         if (_minimal == null)
         {
-            _minimal = new MinimalWindow { DataContext = DataContext };
+            _minimal = new MinimalWindow
+            {
+                DataContext = DataContext,
+
+                // So the overlay lands in the corner of the monitor the video
+                // is playing on, rather than the corner of the primary one.
+                AnchorWindowProvider = () => _vm?.PlayerWindow ?? IntPtr.Zero
+            };
+
             _minimal.Closed += (_, _) => _minimal = null;
         }
 

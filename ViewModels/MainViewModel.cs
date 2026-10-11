@@ -2001,6 +2001,43 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return Path.GetDirectoryName(Session.VideoPath);
     }
 
+    // ------------------------------------------------------------------
+    // Window placement
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Where the main window was last time, or null on a first run.
+    /// </summary>
+    /// <remarks>
+    /// Read through the ViewModel so the window never touches the settings file
+    /// itself. Whether the stored position is usable is the window's business —
+    /// it is the one that knows what monitors are attached.
+    /// </remarks>
+    public WindowPlacement? SavedWindowPlacement => _settings.Current.MainWindowPlacement;
+
+    /// <summary>
+    /// The player's window, or zero when it is not running — for putting the
+    /// overlay and the toasts on the monitor the video is on.
+    /// </summary>
+    /// <remarks>
+    /// Looked up on each call rather than cached: the player is closed and
+    /// reopened freely while this program runs, and a stale handle would place
+    /// the overlay against a monitor chosen by a window that no longer exists.
+    /// </remarks>
+    public IntPtr PlayerWindow => _mpc.FindMpcWindow();
+
+    /// <summary>Remembers where the main window finished up.</summary>
+    /// <remarks>
+    /// Saved on close rather than on every move: a settings file rewritten on
+    /// each drag of a title bar is a lot of disk for a number nobody reads
+    /// until the next launch.
+    /// </remarks>
+    public void SaveWindowPlacement(WindowPlacement placement)
+    {
+        _settings.Current.MainWindowPlacement = placement;
+        _settings.Save();
+    }
+
     /// <summary>
     /// The playlist folder as stored, whatever its state. Empty when none is
     /// set.

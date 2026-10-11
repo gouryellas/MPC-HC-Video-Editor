@@ -403,6 +403,23 @@ public class AppSettings
     public Dictionary<string, string> ButtonColors { get; set; } = new();
 
     /// <summary>
+    /// Where the main window was, and how big, when it was last closed. Null
+    /// until it has been closed once, which is what makes the first run use the
+    /// size in the XAML.
+    /// </summary>
+    /// <remarks>
+    /// Worth storing because the starting size does not suit every screen: it
+    /// is taller than the usable height of a 1366x768 display, and of a 1080p
+    /// one scaled to 150%. Without this, anyone on such a screen resized the
+    /// window on every launch.
+    ///
+    /// Checked against the monitors that exist before it is used — see
+    /// <see cref="ScreenFit.IsOnScreen"/>. A position remembered on a screen
+    /// that has since been unplugged is a window nobody can see.
+    /// </remarks>
+    public WindowPlacement? MainWindowPlacement { get; set; }
+
+    /// <summary>
     /// Draw the toolbar as icons alone, with no words.
     /// </summary>
     /// <remarks>
