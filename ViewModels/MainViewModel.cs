@@ -3790,6 +3790,67 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// Handles what was dropped on the window.
+    /// </summary>
+    /// <remarks>
+    /// Pictures are the one kind that arrives in handfuls and the one kind
+    /// there is nothing to open: they are not something the editor loads, so a
+    /// drop asks the only question anybody has about a picture — what is in it
+    /// — and the whole selection goes into one window rather than the first
+    /// file going into one and the rest being dropped on the floor.
+    ///
+    /// Everything else keeps to one file, because loading a video or a
+    /// bookmark set is a thing the program can only be doing once.
+    /// </remarks>
+    [RelayCommand]
+    private async Task OpenDroppedFiles(string[]? paths)
+    {
+        var real = paths?.Where(File.Exists).ToList() ?? new List<string>();
+
+        switch (Classify(real))
+        {
+            case DropKind.Nothing:
+                StatusText = "Dropped file not found.";
+                return;
+
+            case DropKind.Pictures:
+                await ShowImageFacts(real);
+                return;
+
+            default:
+                await OpenDroppedFile(real[0]);
+                return;
+        }
+    }
+
+    /// <summary>What a drop turned out to be.</summary>
+    internal enum DropKind
+    {
+        /// <summary>Nothing that exists.</summary>
+        Nothing,
+
+        /// <summary>Pictures, all of them.</summary>
+        Pictures,
+
+        /// <summary>Something the editor loads: a video, a cut list, a playlist.</summary>
+        Something
+    }
+
+    /// <summary>
+    /// What to do with what was dropped.
+    /// </summary>
+    /// <remarks>
+    /// All of them, not any of them. A video dropped alongside a picture is a
+    /// request to open the video; the picture came along for the ride, and
+    /// asking what is inside it instead would be answering a question nobody
+    /// asked while ignoring the one they did.
+    /// </remarks>
+    internal static DropKind Classify(IReadOnlyList<string> existing) =>
+        existing.Count == 0 ? DropKind.Nothing
+        : existing.All(IsImageFile) ? DropKind.Pictures
+        : DropKind.Something;
+
+    /// <summary>
     /// Handles a file dropped on the window. Dispatches by extension the same
     /// way File ▸ Open… does: a video plays and loads its sibling CSV, a CSV
     /// loads as the bookmark set, a .pls loads and starts playing.
@@ -3817,6 +3878,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 break;
 
             default:
+                // A picture never goes to the player. MPC-HC will display one,
+                // which is not what anybody dropping a PNG on a video editor
+                // wants, and it would replace whatever was loaded to do it.
+                // Reachable when a picture arrives among other files, since
+                // this is the one path that takes a single one of them.
+                if (IsImageFile(path))
+                {
+                    await ShowImageFacts(new[] { path });
+                    break;
+                }
+
                 await OpenRecentVideo(path);
                 break;
         }
@@ -4600,13 +4672,28 @@ public partial class MainViewModel : ObservableObject, IDisposable
         };
         if (ofd.ShowDialog() != true) return;
 
-        StatusText = ofd.FileNames.Length == 1
+        await ShowImageFacts(ofd.FileNames);
+    }
+
+    /// <summary>
+    /// Reads the given pictures and shows what they say about themselves.
+    /// </summary>
+    /// <remarks>
+    /// Separate from the command because the files do not always come from a
+    /// picker: dropping a picture on the window asks the same question, and
+    /// answering it twice in two places is how the two answers start to differ.
+    /// </remarks>
+    private async Task ShowImageFacts(IReadOnlyList<string> paths)
+    {
+        if (paths.Count == 0) return;
+
+        StatusText = paths.Count == 1
             ? "Reading the image…"
-            : $"Reading {ofd.FileNames.Length} images…";
+            : $"Reading {paths.Count} images…";
 
         // Off the UI thread: decoding is per file, and a folderful of large
         // photographs would otherwise hold the window while it worked.
-        var facts = await Task.Run(() => ofd.FileNames.Select(_imageInfo.Read).ToList());
+        var facts = await Task.Run(() => paths.Select(_imageInfo.Read).ToList());
 
         var located = facts.Count(f => f.Location is not null);
 
@@ -4616,6 +4703,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ? $"Read {facts.Count} image(s)"
             : $"Read {facts.Count} image(s) — {located} say where they were taken";
     }
+
+    /// <summary>Whether this is a picture the program can read.</summary>
+    private static bool IsImageFile(string path) =>
+        ImageConversionService.ReadableExtensions.Contains(
+            Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// The file-dialog filter for pictures: every extension that can be read.

@@ -698,16 +698,21 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Accepts a dropped video, bookmark CSV or .pls playlist. Dispatch is by
-    /// extension, matching File ▸ Open…; only the first file is used.
+    /// Accepts a dropped video, bookmark CSV, playlist or picture. Dispatch is
+    /// by extension, matching File ▸ Open…
     /// </summary>
+    /// <remarks>
+    /// Every path is handed over, not just the first. A handful of pictures
+    /// dropped together is one question about all of them; for everything else
+    /// the ViewModel still takes the first and ignores the rest.
+    /// </remarks>
     private void Window_Drop(object sender, DragEventArgs e)
     {
         if (_vm == null) return;
         if (e.Data.GetData(DataFormats.FileDrop) is not string[] { Length: > 0 } paths) return;
 
         e.Handled = true;
-        _vm.OpenDroppedFileCommand.Execute(paths[0]);
+        _vm.OpenDroppedFilesCommand.Execute(paths);
     }
 
     /// <summary>Guards <see cref="MainWindow_Loaded"/> against running twice.</summary>
