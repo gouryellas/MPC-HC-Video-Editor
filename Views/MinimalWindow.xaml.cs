@@ -77,8 +77,10 @@ public partial class MinimalWindow : Window
         InitializeComponent();
 
         // Before the first Show, so the pane is never briefly the 300 px the
-        // XAML declares. PositionInCorner re-applies it on every show.
-        ApplyPaneHeight(SystemParameters.PrimaryScreenHeight);
+        // XAML declares. PositionInCorner re-applies it on every show, from the
+        // monitor the player is actually on — which cannot be known here, since
+        // there is no handle to ask about yet.
+        ApplyPaneHeight(SystemParameters.WorkArea.Height);
 
         _topmostTimer.Tick += (_, _) => AssertTopmost();
         IsVisibleChanged += (_, _) =>
@@ -217,15 +219,26 @@ public partial class MinimalWindow : Window
     {
         const double margin = 16;
 
-        var screenWidth = SystemParameters.PrimaryScreenWidth;
-        var screenHeight = SystemParameters.PrimaryScreenHeight;
+        // The monitor the player is on, not the primary one. The overlay exists
+        // to sit in the corner of the video, and on a second screen it was
+        // appearing in the corner of a different display entirely.
+        //
+        // The work area rather than the whole monitor, so a bottom corner is
+        // above the taskbar instead of behind it. During fullscreen playback
+        // that costs the overlay the taskbar's height of travel towards the
+        // edge, which is a corner either way.
+        var anchor = IntPtr.Zero;
+        try { anchor = AnchorWindowProvider?.Invoke() ?? IntPtr.Zero; }
+        catch { /* provider failure just means "use the primary monitor" */ }
+
+        var screen = ScreenFit.WorkAreaBeside(anchor, this);
 
         // Re-applied on every show rather than only at construction, so moving
-        // the app to a differently-sized monitor is picked up.
-        var paneHeight = ApplyPaneHeight(screenHeight);
+        // the player to a differently-sized monitor is picked up.
+        var paneHeight = ApplyPaneHeight(screen.Height);
 
         var left = corner is OverlayCorner.TopLeft or OverlayCorner.BottomLeft;
-        Left = left ? margin : screenWidth - Width - margin;
+        Left = left ? screen.Left + margin : screen.Right - Width - margin;
 
         var top = corner is OverlayCorner.TopLeft or OverlayCorner.TopRight;
 
@@ -234,8 +247,15 @@ public partial class MinimalWindow : Window
         // would fill the whole pane instead of hugging the list.
         Panel.VerticalAlignment = top ? VerticalAlignment.Top : VerticalAlignment.Bottom;
 
-        Top = top ? margin : screenHeight - paneHeight - margin;
+        Top = top ? screen.Top + margin : screen.Bottom - paneHeight - margin;
     }
+
+    /// <summary>
+    /// The window to follow — the player's, so the overlay appears on the same
+    /// monitor as the video. Null, or a provider that cannot answer, puts it on
+    /// the primary monitor as before.
+    /// </summary>
+    public Func<IntPtr>? AnchorWindowProvider { get; set; }
 
     /// <summary>
     /// Sizes the pane so the card inside it can reach the screen height less
