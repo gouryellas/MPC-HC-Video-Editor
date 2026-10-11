@@ -56,72 +56,135 @@ public partial class ButtonColorsDialog : Window
     // One family
     // ------------------------------------------------------------------
 
+    /// <summary>
+    /// One family: what it covers, what it currently looks like, and the three
+    /// things it can be set to.
+    /// </summary>
+    /// <remarks>
+    /// Laid out as a card with the question on the left and the answer on the
+    /// right. The sample used to sit at the start of the row, where it read as
+    /// a button to press rather than as a picture of one — so it is now on its
+    /// own, under the word Preview, and refuses the mouse.
+    /// </remarks>
     private UIElement Row(ButtonFamily family)
     {
-        var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 14) };
+        var card = new Border
+        {
+            Background = ThemeService.Brush(nameof(ThemePalette.PanelBackground)),
+            BorderBrush = ThemeService.Brush(nameof(ThemePalette.BorderBrush)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(5),
+            Padding = new Thickness(12),
+            Margin = new Thickness(0, 0, 0, 10)
+        };
 
-        var top = new StackPanel { Orientation = Orientation.Horizontal };
+        var panel = new StackPanel();
+        card.Child = panel;
 
-        var preview = new Border
+        // ---- the name, and what is in the family ----
+        var header = new Grid();
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var titles = new StackPanel();
+
+        titles.Children.Add(new TextBlock
+        {
+            Text = ButtonColors.NameOf(family),
+            Foreground = ThemeService.Brush(nameof(ThemePalette.Accent)),
+            FontWeight = FontWeights.SemiBold,
+            FontSize = 13
+        });
+
+        titles.Children.Add(new TextBlock
+        {
+            Text = ButtonColors.Describe(family),
+            Foreground = ThemeService.Brush(nameof(ThemePalette.TextSecondary)),
+            FontSize = 11,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 2, 12, 0)
+        });
+
+        header.Children.Add(titles);
+
+        // ---- the sample, captioned so it cannot be mistaken for a control ----
+        var sample = new Border
         {
             CornerRadius = new CornerRadius(4),
             BorderThickness = new Thickness(1),
             Padding = new Thickness(12, 6, 12, 6),
-            MinWidth = 150,
-            VerticalAlignment = VerticalAlignment.Center
+            MinWidth = 132,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            IsHitTestVisible = false
         };
 
-        var previewText = new TextBlock { FontWeight = FontWeights.SemiBold };
-        preview.Child = previewText;
-
-        top.Children.Add(preview);
-
-        var name = new TextBlock
+        var sampleText = new TextBlock
         {
-            Text = ButtonColors.NameOf(family),
-            Foreground = ThemeService.Brush(nameof(ThemePalette.TextPrimary)),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(12, 0, 0, 0),
-            FontWeight = FontWeights.SemiBold
+            FontWeight = FontWeights.SemiBold,
+            HorizontalAlignment = HorizontalAlignment.Center
         };
-        top.Children.Add(name);
 
-        var theme = Choice("Theme", () => Set(family, ButtonColors.FollowTheme));
-        var none = Choice("None", () => Set(family, ButtonColors.NoColour));
+        sample.Child = sampleText;
 
-        top.Children.Add(new StackPanel
+        var previewBlock = new StackPanel { HorizontalAlignment = HorizontalAlignment.Right };
+
+        previewBlock.Children.Add(new TextBlock
         {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(12, 0, 0, 0),
-            Children = { theme, none }
+            Text = "PREVIEW",
+            Foreground = ThemeService.Brush(nameof(ThemePalette.TextMuted)),
+            FontSize = 9,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 3)
         });
 
-        panel.Children.Add(top);
+        previewBlock.Children.Add(sample);
 
-        // The swatches. A grid of colours rather than a colour wheel: picking
-        // from twenty is what nearly everybody does anyway, and a wheel is a
-        // great deal of code to let somebody choose a shade of blue the grid
-        // already has.
-        var swatches = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
+        Grid.SetColumn(previewBlock, 1);
+        header.Children.Add(previewBlock);
+
+        panel.Children.Add(header);
+
+        // ---- the three answers ----
+        var choices = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 12, 0, 0)
+        };
+
+        var group = "family" + family;
+
+        var theme = Radio("Follow the theme", group, () => Set(family, ButtonColors.FollowTheme));
+        var none = Radio("No colour", group, () => Set(family, ButtonColors.NoColour));
+        var pick = Radio("Pick one:", group, () => Set(family, FirstPreset(family)));
+
+        choices.Children.Add(theme);
+        choices.Children.Add(none);
+        choices.Children.Add(pick);
+
+        panel.Children.Add(choices);
+
+        // ---- the swatches ----
+        var swatches = new WrapPanel { Margin = new Thickness(22, 6, 0, 0) };
+        var marks = new Dictionary<string, Border>();
 
         foreach (var hex in Presets)
         {
-            var swatch = new Border
+            var mark = new Border
             {
-                Width = 22,
-                Height = 22,
-                CornerRadius = new CornerRadius(3),
+                Width = 24,
+                Height = 24,
+                CornerRadius = new CornerRadius(4),
                 Background = Fill(hex),
-                BorderBrush = ThemeService.Brush(nameof(ThemePalette.BorderBrush)),
-                BorderThickness = new Thickness(1),
-                Margin = new Thickness(0, 0, 4, 4),
+                BorderThickness = new Thickness(2),
+                Margin = new Thickness(0, 0, 5, 5),
                 Cursor = System.Windows.Input.Cursors.Hand,
                 ToolTip = hex
             };
 
-            swatch.MouseLeftButtonUp += (_, _) => Set(family, hex);
-            swatches.Children.Add(swatch);
+            mark.MouseLeftButtonUp += (_, _) => Set(family, hex);
+
+            marks[hex] = mark;
+            swatches.Children.Add(mark);
         }
 
         panel.Children.Add(swatches);
@@ -130,52 +193,91 @@ public partial class ButtonColorsDialog : Window
         {
             Foreground = ThemeService.Brush(nameof(ThemePalette.StatusWarn)),
             FontSize = 11,
-            Margin = new Thickness(0, 2, 0, 0),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(22, 2, 0, 0),
             Visibility = Visibility.Collapsed
         };
 
         panel.Children.Add(warning);
 
-        // Everything the row shows is derived from the one setting, so one
-        // method repaints the lot and the row can never be half updated.
+        // Everything the card shows comes from the one setting, so a single
+        // method repaints the lot and it can never be half updated.
         _repaint[family] = () =>
         {
             var setting = _chosen[family];
+            var custom = ButtonColors.IsColour(setting);
             var look = ButtonColors.Resolve(family, Settings(), ThemeService.Current);
 
-            preview.Background = Fill(look.Fill);
-            preview.BorderBrush = Fill(look.Edge);
-            previewText.Foreground = Fill(look.Ink);
+            sample.Background = Fill(look.Fill);
+            sample.BorderBrush = Fill(look.Edge);
+            sampleText.Foreground = Fill(look.Ink);
+            sampleText.Text = Glyph(family) + "  " + Example(family);
 
-            previewText.Text = setting switch
-            {
-                ButtonColors.FollowTheme => Glyph(family) + "  Theme",
-                ButtonColors.NoColour => Glyph(family) + "  None",
-                _ => Glyph(family) + "  " + setting
-            };
+            theme.IsChecked = setting == ButtonColors.FollowTheme;
+            none.IsChecked = setting == ButtonColors.NoColour;
+            pick.IsChecked = custom;
 
-            theme.FontWeight = setting == ButtonColors.FollowTheme ? FontWeights.Bold : FontWeights.Normal;
-            none.FontWeight = setting == ButtonColors.NoColour ? FontWeights.Bold : FontWeights.Normal;
+            // The swatches are only live once "Pick one" is the answer, and the
+            // chosen one wears a ring. Without it nothing on the card said
+            // which of the twenty-two was in use.
+            swatches.Opacity = custom ? 1.0 : 0.45;
+
+            foreach (var (hex, mark) in marks)
+                mark.BorderBrush = custom && string.Equals(hex, setting, StringComparison.OrdinalIgnoreCase)
+                    ? ThemeService.Brush(nameof(ThemePalette.AccentBright))
+                    : Fill(hex);
 
             // Said, not forbidden. It is their program, and a mid grey is a
             // legitimate thing to want even though nothing reads well on it.
             var best = ButtonColors.BestInkContrast(look.Fill);
             warning.Visibility = best >= 4.5 ? Visibility.Collapsed : Visibility.Visible;
-            warning.Text = $"Hard to read — the best a label can manage on this is {best:0.0}:1. " +
+            warning.Text = $"Hard to read — the best a label can manage on this colour is {best:0.0}:1. " +
                            "Try something darker or lighter.";
         };
 
         _repaint[family]();
-        return panel;
+        return card;
     }
 
-    /// <summary>A small text button for the two non-colour choices.</summary>
-    private Button Choice(string text, Action click)
+    /// <summary>One of the three answers.</summary>
+    private RadioButton Radio(string text, string group, Action chosen)
     {
-        var button = new Button { Content = text, MinWidth = 64 };
-        button.Click += (_, _) => click();
-        return button;
+        var radio = new RadioButton
+        {
+            Content = text,
+            GroupName = group,
+            Foreground = ThemeService.Brush(nameof(ThemePalette.TextPrimary)),
+            Margin = new Thickness(0, 0, 16, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Cursor = System.Windows.Input.Cursors.Hand
+        };
+
+        // Checked rather than Click: setting IsChecked in code must not look
+        // like a choice, and only a real one raises this from the pointer.
+        radio.Click += (_, _) => chosen();
+        return radio;
     }
+
+    /// <summary>
+    /// What "Pick one" starts from: whatever the family is wearing now, so
+    /// choosing it changes nothing until a swatch is clicked.
+    /// </summary>
+    private string FirstPreset(ButtonFamily family)
+    {
+        var current = _chosen[family];
+        if (ButtonColors.IsColour(current)) return current;
+
+        return ButtonColors.Resolve(family, null, ThemeService.Current).Fill;
+    }
+
+    /// <summary>A short label for the sample, so it reads as a real button.</summary>
+    private static string Example(ButtonFamily family) => family switch
+    {
+        ButtonFamily.Video => "Merge",
+        ButtonFamily.Audio => "Strip audio",
+        ButtonFamily.Image => "Resize images",
+        _ => "Image info"
+    };
 
     private void Set(ButtonFamily family, string value)
     {

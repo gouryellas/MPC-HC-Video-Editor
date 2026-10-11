@@ -95,6 +95,26 @@ public static class ButtonColors
         ["detect"] = ButtonFamily.Other,
     };
 
+    /// <summary>
+    /// The operations in a family, named, for a dialog that has to say what it
+    /// is about to recolour.
+    /// </summary>
+    /// <remarks>
+    /// Written out beside <see cref="Membership"/> rather than read from the
+    /// toolbar catalogue: the catalogue lives on the view model, carries
+    /// commands and glyphs, and is rebuilt per call — none of which a list of
+    /// four words needs. They sit next to each other so adding an operation to
+    /// a family puts both lines in view at once.
+    /// </remarks>
+    public static string Describe(ButtonFamily family) => family switch
+    {
+        ButtonFamily.Video => "Merge · Split · Convert video · Crop · Chapters",
+        ButtonFamily.Audio => "Strip audio",
+        ButtonFamily.Image => "GIF / WebP · Save frame · Thumbnails · Convert images · Resize images",
+        ButtonFamily.Other => "Image info · Find clips automatically",
+        _ => string.Empty
+    };
+
     /// <summary>Which family a toolbar entry belongs to.</summary>
     public static ButtonFamily FamilyOf(string? key) =>
         key is not null && Membership.TryGetValue(key, out var family) ? family : ButtonFamily.Plain;
