@@ -35,16 +35,7 @@
              to declare. -->
         <ItemsControl x:Name="Rows"/>
 
-        <Border Background="{DynamicResource PanelBackground}" CornerRadius="4"
-                Padding="10,8" Margin="0,8,0,0">
-            <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextSecondary}" FontSize="11">
-                <Run Text="The label and icon take whichever of black or white reads better on the colour, so they are never chosen wrongly. A colour that neither can sit on comfortably is marked as you pick it."/>
-                <LineBreak/>
-                <Run Text="Theme means the family follows whatever the current theme uses — that is the default. A colour you pick stays put when the theme changes."/>
-            </TextBlock>
-        </Border>
-
-        <Grid Margin="0,14,0,0">
+        <Grid Margin="0,6,0,0">
             <Button Content="Reset to theme" Click="Reset_Click" HorizontalAlignment="Left" Margin="0,4,4,4"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Content="Save" Width="90" IsDefault="True" Click="Ok_Click"
