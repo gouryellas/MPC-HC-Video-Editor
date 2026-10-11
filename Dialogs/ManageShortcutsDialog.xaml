@@ -1,4 +1,4 @@
-<Window x:Class="MpcHcVideoEditor.Dialogs.ManageShortcutsDialog"
+﻿<Window x:Class="MpcHcVideoEditor.Dialogs.ManageShortcutsDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:models="clr-namespace:MpcHcVideoEditor.Models"
@@ -93,7 +93,7 @@
                                 <TextBlock Text="{Binding Name}" Foreground="{DynamicResource TextPrimary}"
                                            FontWeight="SemiBold" FontSize="13"/>
                                 <TextBlock Text="{Binding Path}" Foreground="{DynamicResource TextSecondary}"
-                                           FontSize="11" TextTrimming="CharacterEllipsis"/>
+                                           FontSize="12" TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
                         </Grid>
                     </DataTemplate>

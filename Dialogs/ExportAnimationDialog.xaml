@@ -1,4 +1,4 @@
-<Window x:Class="MpcHcVideoEditor.Dialogs.ExportAnimationDialog"
+﻿<Window x:Class="MpcHcVideoEditor.Dialogs.ExportAnimationDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Export as animation" SizeToContent="Height" MinHeight="340" Width="470"
@@ -33,7 +33,7 @@
 
         <Style x:Key="OptionNote" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
-            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontSize" Value="12"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="Margin" Value="0,2,0,0"/>
         </Style>

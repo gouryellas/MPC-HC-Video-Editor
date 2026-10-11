@@ -1,4 +1,4 @@
-<Window x:Class="MpcHcVideoEditor.Dialogs.ConvertImagesDialog"
+﻿<Window x:Class="MpcHcVideoEditor.Dialogs.ConvertImagesDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:dialogs="clr-namespace:MpcHcVideoEditor.Dialogs"
@@ -33,7 +33,7 @@
         <ComboBox x:Name="FormatCombo" Padding="6,4" SelectionChanged="Format_Changed"/>
 
         <TextBlock x:Name="FormatNote" Margin="0,8,0,14" MinHeight="30" TextWrapping="Wrap"
-                   Foreground="{DynamicResource TextSecondary}" FontSize="11"/>
+                   Foreground="{DynamicResource TextSecondary}" FontSize="12"/>
 
         <dialogs:OutputFolderPicker x:Name="Where"/>
 

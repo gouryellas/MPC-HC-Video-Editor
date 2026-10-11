@@ -1,4 +1,4 @@
-<Window x:Class="MpcHcVideoEditor.Dialogs.CaptureHotkeyDialog"
+﻿<Window x:Class="MpcHcVideoEditor.Dialogs.CaptureHotkeyDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Set Timestamp Hotkey"
@@ -32,7 +32,7 @@
                        HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"/>
         </Border>
 
-        <TextBlock Grid.Row="2" Foreground="{DynamicResource TextMuted}" FontSize="11" TextWrapping="Wrap"
+        <TextBlock Grid.Row="2" Foreground="{DynamicResource TextMuted}" FontSize="12" TextWrapping="Wrap"
                    Margin="0,0,0,14"
                    Text="Middle and side mouse buttons work too. Click OK to set it."/>
 

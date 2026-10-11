@@ -167,7 +167,7 @@
                                      marker column. -->
                                 <TextBlock Style="{StaticResource RowGap}"/>
                                 <TextBlock Text="{Binding Prefix}" Foreground="{DynamicResource StatusWarn}"
-                                           FontWeight="Bold" FontSize="11" VerticalAlignment="Center"/>
+                                           FontWeight="Bold" FontSize="12" VerticalAlignment="Center"/>
                             </StackPanel>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

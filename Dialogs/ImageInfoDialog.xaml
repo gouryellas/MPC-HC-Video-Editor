@@ -1,4 +1,4 @@
-<Window x:Class="MpcHcVideoEditor.Dialogs.ImageInfoDialog"
+﻿<Window x:Class="MpcHcVideoEditor.Dialogs.ImageInfoDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:helpers="clr-namespace:MpcHcVideoEditor.Helpers"
@@ -94,7 +94,7 @@
                         <TextBlock x:Name="LocationText" Foreground="{DynamicResource TextPrimary}"
                                    Margin="0,4,0,0" TextWrapping="Wrap"/>
                         <TextBlock Text="Converting or resizing it writes a new file without this."
-                                   Foreground="{DynamicResource TextSecondary}" FontSize="11"
+                                   Foreground="{DynamicResource TextSecondary}" FontSize="12"
                                    Margin="0,4,0,0" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>

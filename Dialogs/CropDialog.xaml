@@ -1,4 +1,4 @@
-<Window x:Class="MpcHcVideoEditor.Dialogs.CropDialog"
+﻿<Window x:Class="MpcHcVideoEditor.Dialogs.CropDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Crop" SizeToContent="WidthAndHeight"
@@ -96,7 +96,7 @@
                     <StackPanel>
                         <TextBlock x:Name="ModeCutsText"/>
                         <TextBlock Text="Nothing is written until you merge or split."
-                                   Foreground="{DynamicResource TextSecondary}" FontSize="11" Margin="0,2,0,0"/>
+                                   Foreground="{DynamicResource TextSecondary}" FontSize="12" Margin="0,2,0,0"/>
                     </StackPanel>
                 </RadioButton>
 
@@ -105,7 +105,7 @@
                     <StackPanel>
                         <TextBlock Text="Crop the whole video"/>
                         <TextBlock Text="Writes a new file now, re-encoding the picture."
-                                   Foreground="{DynamicResource TextSecondary}" FontSize="11" Margin="0,2,0,0"/>
+                                   Foreground="{DynamicResource TextSecondary}" FontSize="12" Margin="0,2,0,0"/>
                     </StackPanel>
                 </RadioButton>
             </StackPanel>

@@ -1,4 +1,4 @@
-<Window x:Class="MpcHcVideoEditor.Dialogs.StripAudioDialog"
+﻿<Window x:Class="MpcHcVideoEditor.Dialogs.StripAudioDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Strip audio" SizeToContent="Height" MinHeight="300" Width="470"
@@ -28,7 +28,7 @@
 
         <Style x:Key="OptionNote" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
-            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontSize" Value="12"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="Margin" Value="20,2,0,0"/>
         </Style>
@@ -74,7 +74,7 @@
              setting that does delete it lives three tabs into Settings. -->
         <Border Grid.Row="2" Background="{DynamicResource PanelBackground}" CornerRadius="4"
                 Padding="10,8" Margin="0,6,0,0">
-            <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextSecondary}" FontSize="11">
+            <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextSecondary}" FontSize="12">
                 <Run Text="The file you pick is never changed — every option above writes new files beside it."/>
                 <LineBreak/>
                 <Run Text="It is deleted afterwards only if you have asked for that under Settings ▸ Cleanup."/>

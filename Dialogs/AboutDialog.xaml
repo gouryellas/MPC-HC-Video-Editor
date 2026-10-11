@@ -1,4 +1,4 @@
-<Window x:Class="MpcHcVideoEditor.Dialogs.AboutDialog"
+﻿<Window x:Class="MpcHcVideoEditor.Dialogs.AboutDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="About MPC-HC Video Editor"
@@ -58,12 +58,12 @@
                 <StackPanel>
                     <TextBlock Text="License" Foreground="{DynamicResource Accent}" FontWeight="SemiBold"
                                FontSize="13" Margin="0,0,0,6"/>
-                    <TextBlock x:Name="LicenseText" Foreground="{DynamicResource TextDim}" FontSize="11"
+                    <TextBlock x:Name="LicenseText" Foreground="{DynamicResource TextDim}" FontSize="12"
                                TextWrapping="Wrap"/>
 
                     <TextBlock Text="Third-party components" Foreground="{DynamicResource Accent}" FontWeight="SemiBold"
                                FontSize="13" Margin="0,14,0,6"/>
-                    <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap">
+                    <TextBlock Foreground="{DynamicResource TextDim}" FontSize="12" TextWrapping="Wrap">
                         <Run Text="ffmpeg 9.0.1"  Foreground="{DynamicResource ValueYellow}"/><LineBreak/>
                         <Run Text="Does all encoding, cutting and concatenation. Distributed with this application, in a build configured with --enable-gpl and --enable-version3 and therefore licensed under the GNU GPL v3 or later. The corresponding source and the scripts that produced these binaries are at github.com/BtbN/FFmpeg-Builds."/>
                         <LineBreak/><LineBreak/>

@@ -1,4 +1,4 @@
-<Window x:Class="MpcHcVideoEditor.Dialogs.UpdateAvailableDialog"
+﻿<Window x:Class="MpcHcVideoEditor.Dialogs.UpdateAvailableDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Update available"
@@ -59,7 +59,7 @@
                 CornerRadius="6" Padding="12,10" Margin="0,0,0,14">
             <StackPanel>
                 <TextBlock x:Name="ChangesHeading" Foreground="{DynamicResource TextSecondary}"
-                           FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                           FontSize="12" FontWeight="SemiBold" Margin="0,0,0,6"/>
                 <ItemsControl x:Name="ChangesList">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
@@ -100,7 +100,7 @@
              sentence is there so turning it off does not feel permanent. -->
         <Border Grid.Row="3" Background="{DynamicResource PanelBackground}" CornerRadius="6"
                 Padding="12" Margin="0,0,0,14">
-            <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap">
+            <TextBlock Foreground="{DynamicResource TextDim}" FontSize="12" TextWrapping="Wrap">
                 <Run Text="This check runs once each time the program starts."/>
                 <LineBreak/>
                 <Hyperlink x:Name="StopLink" Click="Stop_Click"

@@ -1,4 +1,4 @@
-<Window x:Class="MpcHcVideoEditor.Dialogs.RenameFileDialog"
+﻿<Window x:Class="MpcHcVideoEditor.Dialogs.RenameFileDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Rename output file" SizeToContent="Height" MinHeight="290" Width="520"
@@ -41,7 +41,7 @@
                  three lines and push the buttons off a fixed-width dialog. The
                  whole path is on the tooltip. -->
             <TextBlock x:Name="FolderText" Foreground="{DynamicResource TextSecondary}"
-                       FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,3,0,0"/>
+                       FontSize="12" TextTrimming="CharacterEllipsis" Margin="0,3,0,0"/>
         </StackPanel>
 
         <TextBlock Grid.Row="4" x:Name="MessageText" Foreground="{DynamicResource ValueYellow}"
