@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.Json;
 
 namespace MpcHcVideoEditor.Services;
@@ -25,7 +25,7 @@ public static class GenerationMetadata
     public static MetaGroup? Describe(IReadOnlyList<PngTextChunk> chunks)
     {
         var comfy = Find(chunks, "prompt");
-        if (comfy is not null && Comfy(comfy) is { Count: > 0 } rows)
+        if (comfy is not null && Comfy(comfy, Cached(Find(chunks, "workflow"))) is { Count: > 0 } rows)
             return new MetaGroup("Generated with ComfyUI", rows);
 
         var auto = Find(chunks, "parameters");
@@ -42,7 +42,72 @@ public static class GenerationMetadata
     // ComfyUI
     // ------------------------------------------------------------------
 
-    private static List<MetaRow>? Comfy(string json)
+    /// <summary>
+    /// The text each node's own box last held, taken from the saved workflow.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A prompt is not always written down. A workflow can build one while it
+    /// runs — a switch choosing between branches, a concatenate joining a LoRA
+    /// name to a phrase, a conditional picking one of three endings — and the
+    /// <c>prompt</c> chunk records what fed each node, not what came out. Walk
+    /// that graph and the text encoder has no words in it at all, because its
+    /// text arrived down a wire.
+    /// </para>
+    /// <para>
+    /// The <c>workflow</c> chunk is the other half. It is the editor's own copy
+    /// of the graph, and it keeps each node's widget values — including the box
+    /// that was converted into an input, which holds what that node was last
+    /// given. For an assembled prompt that is the assembled text, which exists
+    /// nowhere else in the file.
+    /// </para>
+    /// <para>
+    /// A fallback, never a first choice: it is the last value the box held
+    /// rather than a record of this run, so anything the graph states outright
+    /// is believed ahead of it.
+    /// </para>
+    /// </remarks>
+    private static Dictionary<string, string> Cached(string? workflow)
+    {
+        var cached = new Dictionary<string, string>();
+        if (workflow is null) return cached;
+
+        try
+        {
+            using var document = JsonDocument.Parse(workflow);
+            if (!document.RootElement.TryGetProperty("nodes", out var nodes)
+                || nodes.ValueKind != JsonValueKind.Array)
+                return cached;
+
+            foreach (var node in nodes.EnumerateArray())
+            {
+                if (!node.TryGetProperty("id", out var id)) continue;
+                if (!node.TryGetProperty("widgets_values", out var values)
+                    || values.ValueKind != JsonValueKind.Array)
+                    continue;
+
+                foreach (var value in values.EnumerateArray())
+                {
+                    if (value.ValueKind != JsonValueKind.String) continue;
+
+                    var text = value.GetString();
+                    if (string.IsNullOrWhiteSpace(text)) continue;
+
+                    var key = id.ValueKind == JsonValueKind.String ? id.GetString() : id.ToString();
+                    if (key is not null) cached.TryAdd(key, text);
+                    break;
+                }
+            }
+        }
+        catch
+        {
+            // Not the JSON this expects; the graph is still read on its own.
+        }
+
+        return cached;
+    }
+
+    private static List<MetaRow>? Comfy(string json, Dictionary<string, string> cached)
     {
         try
         {
@@ -92,7 +157,7 @@ public static class GenerationMetadata
             // At the top, ahead of the settings: the prompt is what the window
             // is usually opened to read, and it was last on a list it had to be
             // scrolled past the end of.
-            rows.InsertRange(0, Prompts(nodes, samplers.FirstOrDefault()));
+            rows.InsertRange(0, Prompts(nodes, samplers.FirstOrDefault(), cached));
 
             return rows;
         }
@@ -176,14 +241,15 @@ public static class GenerationMetadata
     /// <see cref="GuessPrompts"/>.
     /// </remarks>
     private static List<MetaRow> Prompts(IReadOnlyDictionary<string, JsonElement> nodes,
-                                         JsonElement sampler)
+                                         JsonElement sampler,
+                                         IReadOnlyDictionary<string, string> cached)
     {
         string? positive = null, negative = null;
 
         if (Conditioning(nodes, Inputs(sampler), depth: 0) is { } inputs)
         {
-            positive = Clean(FollowToText(nodes, inputs, "positive", "positive", depth: 0));
-            negative = Clean(FollowToText(nodes, inputs, "negative", "negative", depth: 0));
+            positive = Clean(FollowToText(nodes, cached, inputs, "positive", "positive", depth: 0));
+            negative = Clean(FollowToText(nodes, cached, inputs, "negative", "negative", depth: 0));
         }
 
         // One chain reaching the other's text is a real shape, not a bug in the
@@ -197,7 +263,7 @@ public static class GenerationMetadata
         {
             // Whatever is already known is kept out of the guess, so a prompt
             // cannot be offered as both answers.
-            var (guessedPositive, guessedNegative) = GuessPrompts(nodes, positive ?? negative);
+            var (guessedPositive, guessedNegative) = GuessPrompts(nodes, cached, positive ?? negative);
 
             positive ??= guessedPositive;
             negative ??= guessedNegative;
@@ -268,18 +334,21 @@ public static class GenerationMetadata
     /// wrong one, and the words are still in the raw text below.
     /// </remarks>
     private static (string? Positive, string? Negative) GuessPrompts(
-        IReadOnlyDictionary<string, JsonElement> nodes, string? known)
+        IReadOnlyDictionary<string, JsonElement> nodes,
+        IReadOnlyDictionary<string, string> cached, string? known)
     {
         var texts = new List<string>();
 
-        foreach (var node in nodes.Values)
+        foreach (var (id, node) in nodes)
         {
             if (!Class(node).Contains("TextEncode", StringComparison.OrdinalIgnoreCase)
                 && !Class(node).Contains("CLIPText", StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            if (Inputs(node) is { } inputs && Clean(TextOf(inputs)) is { } text
-                && text != known && !texts.Contains(text))
+            var words = Inputs(node) is { } inputs ? TextOf(inputs) : null;
+            words ??= cached.GetValueOrDefault(id);
+
+            if (Clean(words) is { } text && text != known && !texts.Contains(text))
                 texts.Add(text);
         }
 
@@ -322,6 +391,7 @@ public static class GenerationMetadata
     /// back on itself from walking forever.
     /// </remarks>
     private static string? FollowToText(IReadOnlyDictionary<string, JsonElement> nodes,
+                                        IReadOnlyDictionary<string, string> cached,
                                         JsonElement inputs, string slot, string polarity, int depth)
     {
         if (depth > 6) return null;
@@ -339,6 +409,10 @@ public static class GenerationMetadata
 
         if (TextOf(next.Value) is { Length: > 0 } text) return text;
 
+        // Nothing written in the node itself. What its box last held is the
+        // only record of a prompt the workflow assembled while it ran.
+        if (cached.GetValueOrDefault(id) is { Length: > 0 } remembered) return remembered;
+
         // Not a text node: try whatever it is taking its own conditioning —
         // or its text — from. A prompt reaches the sampler through combine,
         // style, guidance and guider nodes, and through wildcard nodes that
@@ -351,7 +425,7 @@ public static class GenerationMetadata
         {
             if (candidate is "positive" or "negative" && candidate != polarity) continue;
 
-            if (FollowToText(nodes, next.Value, candidate, polarity, depth + 1) is { } found)
+            if (FollowToText(nodes, cached, next.Value, candidate, polarity, depth + 1) is { } found)
                 return found;
         }
 
