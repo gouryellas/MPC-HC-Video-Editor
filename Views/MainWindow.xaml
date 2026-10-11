@@ -680,13 +680,13 @@
                      them. They act on the checked cuts, or on the highlighted
                      row when nothing is checked — the same rule as the toolbar
                      buttons, which is said here once rather than four times. -->
-                <MenuItem Header="Flip upside down" Command="{Binding ToggleFlipCommand}"
+                <MenuItem Header="Flip" Command="{Binding ToggleFlipCommand}"
                           ToolTip="Acts on the checked cuts, or the highlighted row when nothing is checked">
                     <MenuItem.Icon>
                         <TextBlock Text="↕" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Rotate a quarter turn" Command="{Binding RotateSelectedCommand}">
+                <MenuItem Header="Rotate" Command="{Binding RotateSelectedCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="⟳" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
@@ -696,7 +696,7 @@
                         <TextBlock Text="🔇" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Fade in and out" Command="{Binding ToggleFadeCommand}"
+                <MenuItem Header="Fade" Command="{Binding ToggleFadeCommand}"
                           ToolTip="Fades over the length set in Settings ▸ Output">
                     <MenuItem.Icon>
                         <TextBlock Text="◐" Style="{StaticResource MenuGlyph}"/>
