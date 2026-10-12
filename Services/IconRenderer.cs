@@ -35,43 +35,56 @@ public static class IconRenderer
     /// </remarks>
     private static DrawingGroup BuildDrawing(ThemePalette palette, bool rounded)
     {
-        var background = ToBrush(palette.IconBackground);
         var body = ToBrush(palette.IconBody);
         var detail = ToBrush(palette.IconDetail);
 
         var group = new DrawingGroup();
 
-        var backdrop = rounded
-            ? (Geometry)new RectangleGeometry(new Rect(0, 0, 64, 64), 13, 13)
-            : new RectangleGeometry(new Rect(0, 0, 64, 64));
-        group.Children.Add(new GeometryDrawing(background, null, backdrop));
+        // No tile behind it. The reel is the mark, and a filled square would
+        // put a dark block on a light taskbar and a light one on a dark title
+        // bar — the shape reads on either when nothing is behind it. `rounded`
+        // is kept because the tray and window callers still pass it, and a
+        // future backdrop would want it.
+        _ = rounded;
 
-        foreach (var cx in new[] { 22.0, 40.0 })
+        // The disc, with its five spoke holes and the hub cut out of it. One
+        // geometry with an even-odd rule rather than holes painted over the
+        // top in the background colour: painted holes are only invisible while
+        // the thing behind them is the colour they were painted, which on a
+        // transparent icon is never.
+        var disc = new GeometryGroup { FillRule = FillRule.EvenOdd };
+        disc.Children.Add(new EllipseGeometry(new Point(32, 32), 29, 29));
+
+        for (var i = 0; i < 5; i++)
         {
-            group.Children.Add(new GeometryDrawing(detail, null,
-                new EllipseGeometry(new Point(cx, 19), 8.5, 8.5)));
-            group.Children.Add(new GeometryDrawing(background, null,
-                new EllipseGeometry(new Point(cx, 19), 3, 3)));
+            var angle = -90 + i * 72;
+            var radians = angle * Math.PI / 180;
+
+            disc.Children.Add(new EllipseGeometry(
+                new Point(32 + 16 * Math.Cos(radians), 32 + 16 * Math.Sin(radians)), 8, 8));
         }
 
-        group.Children.Add(new GeometryDrawing(body, null,
-            new RectangleGeometry(new Rect(9, 30, 34, 20), 4, 4)));
+        disc.Children.Add(new EllipseGeometry(new Point(32, 32), 4.5, 4.5));
+        disc.Freeze();
+        group.Children.Add(new GeometryDrawing(body, null, disc));
 
-        var tail = new StreamGeometry();
-        using (var ctx = tail.Open())
-        {
-            ctx.BeginFigure(new Point(45, 36), true, true);
-            ctx.LineTo(new Point(55, 31), false, false);
-            ctx.LineTo(new Point(55, 45), false, false);
-            ctx.LineTo(new Point(45, 40), false, false);
-        }
-        tail.Freeze();
-        group.Children.Add(new GeometryDrawing(detail, null, tail));
+        // The rim, a shade darker, so the disc has an edge at sizes where the
+        // spokes have closed up into a blur.
+        var rim = new EllipseGeometry(new Point(32, 32), 26.5, 26.5);
+        rim.Freeze();
 
-        var slot = new SolidColorBrush(background.Color) { Opacity = 0.55 };
-        slot.Freeze();
-        group.Children.Add(new GeometryDrawing(slot, null,
-            new RectangleGeometry(new Rect(15, 37, 12, 3), 1.5, 1.5)));
+        var edge = new Pen(detail, 4);
+        edge.Freeze();
+        group.Children.Add(new GeometryDrawing(null, edge, rim));
+
+        // The hub ring, which is what keeps the middle from reading as a hole
+        // in a doughnut.
+        var hub = new EllipseGeometry(new Point(32, 32), 8, 8);
+        hub.Freeze();
+
+        var hubPen = new Pen(detail, 2.5);
+        hubPen.Freeze();
+        group.Children.Add(new GeometryDrawing(null, hubPen, hub));
 
         group.Freeze();
         return group;
@@ -107,6 +120,17 @@ public static class IconRenderer
         target.Freeze();
         return target;
     }
+
+    /// <summary>
+    /// The mark drawn at one size, for generating icon files.
+    /// </summary>
+    /// <remarks>
+    /// Drawn at the size asked for rather than scaled from another one: the
+    /// geometry is resolution-independent, and a 256 enlarged from a 64 is
+    /// four times the pixels and none of the detail.
+    /// </remarks>
+    public static BitmapSource At(ThemePalette palette, int size, bool rounded = false) =>
+        Render(palette, size, rounded);
 
     /// <summary>
     /// The window icon for a theme, at the sizes WPF picks between.
