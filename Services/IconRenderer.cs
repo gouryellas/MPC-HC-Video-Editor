@@ -35,60 +35,122 @@ public static class IconRenderer
     /// </remarks>
     private static DrawingGroup BuildDrawing(ThemePalette palette, bool rounded)
     {
-        var body = ToBrush(palette.IconBody);
-        var detail = ToBrush(palette.IconDetail);
-
         var group = new DrawingGroup();
 
-        // No tile behind it. The reel is the mark, and a filled square would
-        // put a dark block on a light taskbar and a light one on a dark title
-        // bar — the shape reads on either when nothing is behind it. `rounded`
-        // is kept because the tray and window callers still pass it, and a
-        // future backdrop would want it.
+        // No tile behind it. A filled square puts a dark block on a light
+        // taskbar and a light one on a dark title bar; the reel reads on
+        // either. `rounded` is kept for the callers that still pass it.
         _ = rounded;
 
-        // The disc, with its five spoke holes and the hub cut out of it. One
-        // geometry with an even-odd rule rather than holes painted over the
-        // top in the background colour: painted holes are only invisible while
-        // the thing behind them is the colour they were painted, which on a
-        // transparent icon is never.
-        var disc = new GeometryGroup { FillRule = FillRule.EvenOdd };
-        disc.Children.Add(new EllipseGeometry(new Point(32, 32), 29, 29));
+        var centre = new Point(32, 32);
+
+        // The rim: a machined edge, lit from the upper left. The stops run
+        // light, dark, light again rather than fading one way — that second
+        // light band two thirds round is what makes metal look like metal
+        // rather than like a grey gradient.
+        var chrome = new LinearGradientBrush
+        {
+            StartPoint = new Point(0, 0),
+            EndPoint = new Point(0.35, 1),
+            GradientStops =
+            {
+                new GradientStop(Hex("#FDFEFF"), 0.00),
+                new GradientStop(Hex("#C3CAD4"), 0.18),
+                new GradientStop(Hex("#6E7783"), 0.42),
+                new GradientStop(Hex("#9AA4B1"), 0.58),
+                new GradientStop(Hex("#454C57"), 0.78),
+                new GradientStop(Hex("#C9D1DB"), 1.00)
+            }
+        };
+        chrome.Freeze();
+
+        group.Children.Add(new GeometryDrawing(chrome, null, new EllipseGeometry(centre, 26, 26)));
+
+        // The body: dark steel, and only steel. Mixing the accent into it —
+        // even a quarter of it — turns the reel into a bronze casting, because
+        // dark metal is almost neutral and any hue at all reads as the alloy
+        // rather than as a tint. The theme gets the ring below instead.
+        var face = new RadialGradientBrush
+        {
+            GradientOrigin = new Point(0.34, 0.28),
+            Center = new Point(0.34, 0.28),
+            RadiusX = 0.95,
+            RadiusY = 0.95,
+            GradientStops =
+            {
+                new GradientStop(Hex("#5A636F"), 0.00),
+                new GradientStop(Hex("#2A303A"), 0.55),
+                new GradientStop(Hex("#14181F"), 1.00)
+            }
+        };
+        face.Freeze();
+
+        group.Children.Add(new GeometryDrawing(face, null, new EllipseGeometry(centre, 23, 23)));
+
+        // The one coloured part: a band where the body meets the rim. This is
+        // what still answers to the theme, and it is the only place a hue can
+        // sit on a metal object without deciding what the metal is.
+        var band = new Pen(ToBrush(palette.IconBody), 2.2);
+        band.Freeze();
+
+        var bandRing = new EllipseGeometry(centre, 22.2, 22.2);
+        bandRing.Freeze();
+        group.Children.Add(new GeometryDrawing(null, band, bandRing));
+
+        // Five spoke holes, each with a thin lit edge on its upper side: a
+        // hole in a solid thing shows the thickness it was cut through.
+        var well = ToBrush("#0B0E13");
+        var lip = new Pen(new SolidColorBrush(Color.FromArgb(0x8C, 0x9E, 0xA8, 0xB4)), 0.9);
+        lip.Freeze();
 
         for (var i = 0; i < 5; i++)
         {
-            var angle = -90 + i * 72;
-            var radians = angle * Math.PI / 180;
+            var radians = (-90 + i * 72) * Math.PI / 180;
+            var at = new Point(32 + 15.4 * Math.Cos(radians), 32 + 15.4 * Math.Sin(radians));
+            var hole = new EllipseGeometry(at, 5.5, 6.1);
+            hole.Freeze();
 
-            disc.Children.Add(new EllipseGeometry(
-                new Point(32 + 16 * Math.Cos(radians), 32 + 16 * Math.Sin(radians)), 8, 8));
+            group.Children.Add(new GeometryDrawing(well, lip, hole));
         }
 
-        disc.Children.Add(new EllipseGeometry(new Point(32, 32), 4.5, 4.5));
-        disc.Freeze();
-        group.Children.Add(new GeometryDrawing(body, null, disc));
+        // The hub, the same metal as the rim, with the spindle hole through it.
+        group.Children.Add(new GeometryDrawing(chrome, null, new EllipseGeometry(centre, 7, 7)));
+        group.Children.Add(new GeometryDrawing(well, null, new EllipseGeometry(centre, 2.7, 2.7)));
 
-        // The rim, a shade darker, so the disc has an edge at sizes where the
-        // spokes have closed up into a blur.
-        var rim = new EllipseGeometry(new Point(32, 32), 26.5, 26.5);
-        rim.Freeze();
+        // The specular: a short arc of reflected light across the top left,
+        // which is the single thing that reads as "polished" at a glance.
+        var gleam = new StreamGeometry();
+        using (var ctx = gleam.Open())
+        {
+            ctx.BeginFigure(new Point(13.5, 20.5), false, false);
+            ctx.ArcTo(new Point(45, 11), new Size(26, 26), 0, false, SweepDirection.Clockwise, true, false);
+        }
+        gleam.Freeze();
 
-        var edge = new Pen(detail, 4);
-        edge.Freeze();
-        group.Children.Add(new GeometryDrawing(null, edge, rim));
+        var shine = new Pen(new SolidColorBrush(Color.FromArgb(0x7A, 0xFF, 0xFF, 0xFF)), 2.2)
+        {
+            StartLineCap = PenLineCap.Round,
+            EndLineCap = PenLineCap.Round
+        };
+        shine.Freeze();
 
-        // The hub ring, which is what keeps the middle from reading as a hole
-        // in a doughnut.
-        var hub = new EllipseGeometry(new Point(32, 32), 8, 8);
-        hub.Freeze();
-
-        var hubPen = new Pen(detail, 2.5);
-        hubPen.Freeze();
-        group.Children.Add(new GeometryDrawing(null, hubPen, hub));
+        group.Children.Add(new GeometryDrawing(null, shine, gleam));
 
         group.Freeze();
         return group;
     }
+
+    /// <summary>A palette colour as a <see cref="Color"/>.</summary>
+    private static Color Hex(string hex) => (Color)ColorConverter.ConvertFromString(hex);
+
+    /// <summary>
+    /// Two colours mixed, <paramref name="amount"/> of the way from the first
+    /// to the second.
+    /// </summary>
+    private static Color Blend(Color from, Color to, double amount) =>
+        Color.FromRgb((byte)(from.R + (to.R - from.R) * amount),
+                      (byte)(from.G + (to.G - from.G) * amount),
+                      (byte)(from.B + (to.B - from.B) * amount));
 
     /// <summary>
     /// A frozen brush from a palette hex string. Named for what it returns
