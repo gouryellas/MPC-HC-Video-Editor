@@ -27,6 +27,13 @@ public partial class AboutDialog : Window
         VersionText.Text = $"Version {AppVersion.Display}";
 
         LicenseText.Text = ReadLicense();
+
+        // Drawn at 128 and shown at 56: the mark is vector, and asking for it
+        // at the size it will be displayed leaves nothing in hand for a
+        // high-DPI screen, where WPF draws those 56 points across ninety-odd
+        // pixels.
+        try { Logo.Source = IconRenderer.At(ThemeService.Current, 128); }
+        catch { /* a missing picture is not worth failing the dialog over */ }
     }
 
     /// <summary>

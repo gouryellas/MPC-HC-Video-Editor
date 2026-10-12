@@ -43,10 +43,18 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Margin="0,0,0,12">
-            <TextBlock Text="MPC-HC Video Editor" Foreground="{DynamicResource Accent}"
-                       FontSize="20" FontWeight="SemiBold"/>
-            <TextBlock x:Name="VersionText" Foreground="{DynamicResource ValueGreen}" FontSize="12" Margin="0,4,0,0"/>
+        <!-- The mark beside the name. Drawn at run time from the current
+             theme's palette, like the window and tray icons, so the About box
+             shows the icon the program is actually wearing rather than a
+             picture of the one it shipped with. -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
+            <Image x:Name="Logo" Width="56" Height="56" Margin="0,0,14,0"
+                   VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="MPC-HC Video Editor" Foreground="{DynamicResource Accent}"
+                           FontSize="20" FontWeight="SemiBold"/>
+                <TextBlock x:Name="VersionText" Foreground="{DynamicResource ValueGreen}" FontSize="12" Margin="0,4,0,0"/>
+            </StackPanel>
         </StackPanel>
 
         <TextBlock Grid.Row="1" Foreground="{DynamicResource TextDim}" FontSize="12" TextWrapping="Wrap"

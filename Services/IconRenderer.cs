@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Media;
@@ -38,107 +38,149 @@ public static class IconRenderer
         var group = new DrawingGroup();
 
         // No tile behind it. A filled square puts a dark block on a light
-        // taskbar and a light one on a dark title bar; the reel reads on
+        // taskbar and a light one on a dark title bar; the orb reads on
         // either. `rounded` is kept for the callers that still pass it.
         _ = rounded;
 
-        var centre = new Point(32, 32);
+        var hue = Hex(palette.IconBody);
+        var centre = new Point(32, 30);
+        const double radius = 24;
 
-        // The rim: a machined edge, lit from the upper left. The stops run
-        // light, dark, light again rather than fading one way — that second
-        // light band two thirds round is what makes metal look like metal
-        // rather than like a grey gradient.
-        var chrome = new LinearGradientBrush
+        // What the orb is sitting on, faded from the middle outwards. A flat
+        // ellipse read as a second object at the larger sizes, because a
+        // shadow with an edge is not a shadow; this one has no edge to see.
+        var contact = new RadialGradientBrush
         {
-            StartPoint = new Point(0, 0),
-            EndPoint = new Point(0.35, 1),
             GradientStops =
             {
-                new GradientStop(Hex("#FDFEFF"), 0.00),
-                new GradientStop(Hex("#C3CAD4"), 0.18),
-                new GradientStop(Hex("#6E7783"), 0.42),
-                new GradientStop(Hex("#9AA4B1"), 0.58),
-                new GradientStop(Hex("#454C57"), 0.78),
-                new GradientStop(Hex("#C9D1DB"), 1.00)
+                new GradientStop(Color.FromArgb(0x38, 0, 0, 0), 0.00),
+                new GradientStop(Color.FromArgb(0x18, 0, 0, 0), 0.55),
+                new GradientStop(Color.FromArgb(0x00, 0, 0, 0), 1.00)
             }
         };
-        chrome.Freeze();
+        contact.Freeze();
 
-        group.Children.Add(new GeometryDrawing(chrome, null, new EllipseGeometry(centre, 26, 26)));
+        group.Children.Add(new GeometryDrawing(contact, null,
+            new EllipseGeometry(new Point(32, 58), 16, 3.4)));
 
-        // The body: dark steel, and only steel. Mixing the accent into it —
-        // even a quarter of it — turns the reel into a bronze casting, because
-        // dark metal is almost neutral and any hue at all reads as the alloy
-        // rather than as a tint. The theme gets the ring below instead.
-        var face = new RadialGradientBrush
+        // The glass itself: lit from the upper left, deepening to almost black
+        // at the lower right. Glass takes a colour the way metal does not, so
+        // this is the theme's own icon hue rather than a neutral with a tint
+        // added — amber on Graphite, cyan on Midnight, and so on.
+        var glass = new RadialGradientBrush
         {
-            GradientOrigin = new Point(0.34, 0.28),
-            Center = new Point(0.34, 0.28),
+            GradientOrigin = new Point(0.33, 0.26),
+            Center = new Point(0.33, 0.26),
             RadiusX = 0.95,
             RadiusY = 0.95,
             GradientStops =
             {
-                new GradientStop(Hex("#5A636F"), 0.00),
-                new GradientStop(Hex("#2A303A"), 0.55),
-                new GradientStop(Hex("#14181F"), 1.00)
+                new GradientStop(Blend(hue, Colors.White, 0.62), 0.00),
+                new GradientStop(hue, 0.42),
+                new GradientStop(Shade(hue, 0.46), 0.82),
+                new GradientStop(Shade(hue, 0.20), 1.00)
             }
         };
-        face.Freeze();
+        glass.Freeze();
 
-        group.Children.Add(new GeometryDrawing(face, null, new EllipseGeometry(centre, 23, 23)));
+        group.Children.Add(new GeometryDrawing(glass, null, new EllipseGeometry(centre, radius, radius)));
 
-        // The one coloured part: a band where the body meets the rim. This is
-        // what still answers to the theme, and it is the only place a hue can
-        // sit on a metal object without deciding what the metal is.
-        var band = new Pen(ToBrush(palette.IconBody), 2.2);
-        band.Freeze();
+        // A lit edge all the way round, which is what stops a sphere reading
+        // as a flat circle once the gradient is too small to see.
+        var rim = new Pen(new SolidColorBrush(Color.FromArgb(0x7A, 0xFF, 0xFF, 0xFF)), 1.0);
+        rim.Freeze();
+        group.Children.Add(new GeometryDrawing(null, rim, new EllipseGeometry(centre, radius - 0.5, radius - 0.5)));
 
-        var bandRing = new EllipseGeometry(centre, 22.2, 22.2);
-        bandRing.Freeze();
-        group.Children.Add(new GeometryDrawing(null, band, bandRing));
-
-        // Five spoke holes, each with a thin lit edge on its upper side: a
-        // hole in a solid thing shows the thickness it was cut through.
-        var well = ToBrush("#0B0E13");
-        var lip = new Pen(new SolidColorBrush(Color.FromArgb(0x8C, 0x9E, 0xA8, 0xB4)), 0.9);
-        lip.Freeze();
-
-        for (var i = 0; i < 5; i++)
+        // The gloss: the top of the sphere reflecting the sky, cut off by a
+        // flatter curve across the middle. Two arcs, not a blurred ellipse —
+        // this is the shape the reflection actually has.
+        var gloss = new StreamGeometry();
+        using (var ctx = gloss.Open())
         {
-            var radians = (-90 + i * 72) * Math.PI / 180;
-            var at = new Point(32 + 15.4 * Math.Cos(radians), 32 + 15.4 * Math.Sin(radians));
-            var hole = new EllipseGeometry(at, 5.5, 6.1);
-            hole.Freeze();
-
-            group.Children.Add(new GeometryDrawing(well, lip, hole));
+            ctx.BeginFigure(new Point(32 - 22, 28), true, true);
+            ctx.ArcTo(new Point(32 + 22, 28), new Size(22, 22), 0, false, SweepDirection.Clockwise, true, false);
+            ctx.ArcTo(new Point(32 - 22, 28), new Size(27, 27), 0, false, SweepDirection.Counterclockwise, true, false);
         }
+        gloss.Freeze();
 
-        // The hub, the same metal as the rim, with the spindle hole through it.
-        group.Children.Add(new GeometryDrawing(chrome, null, new EllipseGeometry(centre, 7, 7)));
-        group.Children.Add(new GeometryDrawing(well, null, new EllipseGeometry(centre, 2.7, 2.7)));
-
-        // The specular: a short arc of reflected light across the top left,
-        // which is the single thing that reads as "polished" at a glance.
-        var gleam = new StreamGeometry();
-        using (var ctx = gleam.Open())
+        var sheen = new LinearGradientBrush
         {
-            ctx.BeginFigure(new Point(13.5, 20.5), false, false);
-            ctx.ArcTo(new Point(45, 11), new Size(26, 26), 0, false, SweepDirection.Clockwise, true, false);
-        }
-        gleam.Freeze();
+            StartPoint = new Point(0, 0),
+            EndPoint = new Point(0, 1),
+            GradientStops =
+            {
+                new GradientStop(Color.FromArgb(0xC4, 0xFF, 0xFF, 0xFF), 0.00),
+                new GradientStop(Color.FromArgb(0x10, 0xFF, 0xFF, 0xFF), 1.00)
+            }
+        };
+        sheen.Freeze();
 
-        var shine = new Pen(new SolidColorBrush(Color.FromArgb(0x7A, 0xFF, 0xFF, 0xFF)), 2.2)
+        group.Children.Add(new GeometryDrawing(sheen, null, gloss));
+
+        // The specular: the small bright spot where the light source itself is
+        // reflected, up and left of centre.
+        var spot = new EllipseGeometry(new Point(23, 18), 6.4, 3.6)
+        {
+            Transform = new RotateTransform(-28, 23, 18)
+        };
+        spot.Freeze();
+
+        var spotLight = new RadialGradientBrush
+        {
+            GradientStops =
+            {
+                new GradientStop(Color.FromArgb(0xD8, 0xFF, 0xFF, 0xFF), 0.00),
+                new GradientStop(Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 1.00)
+            }
+        };
+        spotLight.Freeze();
+
+        group.Children.Add(new GeometryDrawing(spotLight, null, spot));
+
+        // The play mark, slightly right of centre so it sits optically in the
+        // middle — a triangle centred by its bounding box always looks left.
+        var play = new StreamGeometry();
+        using (var ctx = play.Open())
+        {
+            ctx.BeginFigure(new Point(26, 19), true, true);
+            ctx.LineTo(new Point(45, 30), true, false);
+            ctx.LineTo(new Point(26, 41), true, false);
+        }
+        play.Freeze();
+
+        group.Children.Add(new GeometryDrawing(
+            new SolidColorBrush(Color.FromArgb(0xF2, 0xFF, 0xFF, 0xFF)), null, play));
+
+        // Light bouncing back up into the bottom of the glass. Shorter and
+        // fainter than it first was: struck across the full width at 256 it
+        // stopped being a reflection and became a smile.
+        var bounce = new StreamGeometry();
+        using (var ctx = bounce.Open())
+        {
+            ctx.BeginFigure(new Point(20, 45.5), false, false);
+            ctx.ArcTo(new Point(44, 45.5), new Size(19, 19), 0, false, SweepDirection.Counterclockwise, true, false);
+        }
+        bounce.Freeze();
+
+        var bounced = new Pen(new SolidColorBrush(Color.FromArgb(0x3E, 0xFF, 0xFF, 0xFF)), 1.4)
         {
             StartLineCap = PenLineCap.Round,
             EndLineCap = PenLineCap.Round
         };
-        shine.Freeze();
+        bounced.Freeze();
 
-        group.Children.Add(new GeometryDrawing(null, shine, gleam));
+        group.Children.Add(new GeometryDrawing(null, bounced, bounce));
 
         group.Freeze();
         return group;
     }
+
+    /// <summary>
+    /// The same hue at a fraction of its brightness. Multiplying the channels
+    /// keeps the hue where it was, which darkening towards grey would not.
+    /// </summary>
+    private static Color Shade(Color colour, double amount) =>
+        Color.FromRgb((byte)(colour.R * amount), (byte)(colour.G * amount), (byte)(colour.B * amount));
 
     /// <summary>A palette colour as a <see cref="Color"/>.</summary>
     private static Color Hex(string hex) => (Color)ColorConverter.ConvertFromString(hex);
