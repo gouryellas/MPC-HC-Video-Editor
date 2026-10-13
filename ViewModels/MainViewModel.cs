@@ -4563,24 +4563,39 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        // Images first, format and destination second: the picture is the
+        // part of this decision the user already has in mind, so it should
+        // not wait behind a question that only matters once some are chosen.
+        var ofd = new OpenFileDialog
+        {
+            Filter = $"Image Files|{ImageFilePattern()}|All Files|*.*",
+            Multiselect = true,
+            Title = "Select images to convert"
+        };
+        // A plain return here left the bar reporting whatever the previous
+        // operation finished with — reading like this cancelled run was the
+        // one that produced it. The status bar's whole job is "what just
+        // happened", so a cancel has to say so rather than leave stale text.
+        if (ofd.ShowDialog() != true)
+        {
+            StatusText = "Image conversion cancelled.";
+            return;
+        }
+
         var dlg = new ConvertImagesDialog(formatKey ?? _lastImageFormatKey,
                                           ResolveSaveToDirectory(), _lastImageFolder)
         {
             Owner = DialogOwner
         };
-        if (dlg.ShowDialog() != true) return;
+        if (dlg.ShowDialog() != true)
+        {
+            StatusText = "Image conversion cancelled.";
+            return;
+        }
 
         var format = dlg.Format;
         _lastImageFormatKey = format.Key;
         _lastImageFolder = dlg.OutputDirectory;
-
-        var ofd = new OpenFileDialog
-        {
-            Filter = $"Image Files|{ImageFilePattern()}|All Files|*.*",
-            Multiselect = true,
-            Title = $"Select images to convert to {format.Display}"
-        };
-        if (ofd.ShowDialog() != true) return;
 
         IsBusy = true;
         int done = 0;
@@ -4756,12 +4771,35 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task ResizeImages()
     {
+        // Images first, size and destination second: the picture is the part
+        // of this decision the user already has in mind, so it should not
+        // wait behind a question that only matters once some are chosen.
+        var ofd = new OpenFileDialog
+        {
+            Filter = $"Image Files|{ImageFilePattern()}|All Files|*.*",
+            Multiselect = true,
+            Title = "Select images to resize"
+        };
+        // A plain return here left the bar reporting whatever the previous
+        // operation finished with — reading like this cancelled run was the
+        // one that produced it. The status bar's whole job is "what just
+        // happened", so a cancel has to say so rather than leave stale text.
+        if (ofd.ShowDialog() != true)
+        {
+            StatusText = "Image resize cancelled.";
+            return;
+        }
+
         var dlg = new ResizeImagesDialog(_resizeWidth, _resizeHeight, _resizeFit,
                                          ResolveSaveToDirectory(), _lastImageFolder)
         {
             Owner = DialogOwner
         };
-        if (dlg.ShowDialog() != true) return;
+        if (dlg.ShowDialog() != true)
+        {
+            StatusText = "Image resize cancelled.";
+            return;
+        }
 
         _resizeWidth = dlg.PixelWidth;
         _resizeHeight = dlg.PixelHeight;
@@ -4769,14 +4807,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _lastImageFolder = dlg.OutputDirectory;
 
         var size = $"{_resizeWidth} × {_resizeHeight}";
-
-        var ofd = new OpenFileDialog
-        {
-            Filter = $"Image Files|{ImageFilePattern()}|All Files|*.*",
-            Multiselect = true,
-            Title = $"Select images to resize to {size}"
-        };
-        if (ofd.ShowDialog() != true) return;
 
         IsBusy = true;
         int done = 0;
