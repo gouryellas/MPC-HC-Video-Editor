@@ -42,12 +42,6 @@
             </StackPanel>
         </Grid>
 
-        <TextBlock DockPanel.Dock="Top" Text="THE OPERATIONS, BY WHAT THEY ACT ON" Style="{StaticResource Heading}"/>
-        <TextBlock DockPanel.Dock="Top"
-                   Text="Each group of buttons takes one colour. The preview on the right of each card shows what that group will look like."
-                   Foreground="{DynamicResource TextSecondary}" FontSize="12" TextWrapping="Wrap"
-                   Margin="0,-4,0,12"/>
-
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <!-- One row per family, built in code: the preview has to be
                  repainted as the colour changes, which is a thing to do rather
