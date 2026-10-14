@@ -160,10 +160,12 @@ public class AppSettings
     /// Cut exactly on the requested frame, re-encoding to do it.
     /// </summary>
     /// <remarks>
-    /// Off by default because the fast path is lossless. See
+    /// On by default: the fast path is lossless but can start a clip early —
+    /// a stream-copied cut can only begin at a keyframe — and that is not
+    /// something most people would knowingly trade away. See
     /// <see cref="FFmpegService.PreciseCuts"/> for what the trade actually is.
     /// </remarks>
-    public bool PreciseCuts { get; set; }
+    public bool PreciseCuts { get; set; } = true;
 
     /// <summary>
     /// Even out loudness across written clips. Off by default: it forces a

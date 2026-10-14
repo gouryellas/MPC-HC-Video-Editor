@@ -86,10 +86,17 @@ public class FFmpegService
     /// Setting this decodes and re-encodes the segment so the first frame is
     /// the one asked for. It costs encode time and a generation of quality on
     /// every cut, including the ones that would otherwise have been a lossless
-    /// copy — which is why it is off by default rather than simply better.
+    /// copy — which is the trade a person turns off this setting to avoid, not
+    /// one made for them by default.
+    /// </para>
+    /// <para>
+    /// This only fixes where a segment starts. The audio drift that shows up
+    /// across a merge of several segments is a separate rounding issue at the
+    /// concat step, fixed there regardless of this setting — see the concat
+    /// arguments in <see cref="MergeBookmarksAsync"/>.
     /// </para>
     /// </remarks>
-    public bool PreciseCuts { get; set; }
+    public bool PreciseCuts { get; set; } = true;
 
     /// <summary>
     /// Even out loudness across the clips being written.
@@ -650,8 +657,20 @@ public class FFmpegService
             // those streams therefore needs no second encode; one that does
             // not — WebM, MPEG-2, ASF, AVI — pays for it here, once, rather
             // than per segment.
+            //
+            // Video is copied either way; audio is re-encoded across the
+            // joined timeline even when the container could copy it too, for
+            // the same reason ConcatFilesAsync re-encodes audio: AAC codes
+            // 1024 samples per frame, so a segment's audio track almost never
+            // lands on exactly its video track's duration, and copying both
+            // carries that rounding error into the next segment's start. One
+            // join barely shows it; a dozen joins compound it into audible
+            // drift. Re-encoding the audio once, over the whole file, removes
+            // the per-segment rounding instead of stacking it — and does so
+            // whether or not Precise cutting is on, since precise cutting only
+            // fixes where a segment starts, not this.
             var outputArgs = format.CanCopyH264
-                ? "-c copy"
+                ? "-c:v copy -c:a aac -ar 48000 -ac 2"
                 : VideoFormats.ApplyEncoder(format, VideoCodec, QualityArgs);
 
             var concatArgs = $"-hide_banner -y -f concat -safe 0 -i \"{concatList}\" " +

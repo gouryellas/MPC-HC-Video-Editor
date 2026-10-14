@@ -4316,13 +4316,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
             });
             await _ffmpeg.MergeBookmarksAsync(Session.VideoPath, outPath, toMerge, progress, default, format);
 
+            StatusText = $"Created {Path.GetFileName(outPath)}";
+            NoteOutput(outPath);
+
             // The app now checks what it produced against what was asked for.
             // A keyframe-aligned cut running over a second long used to pass
-            // silently; saying so is the whole point of measuring.
-            StatusText = _ffmpeg.LastOutputWarning is null
-                ? $"Created {Path.GetFileName(outPath)}"
-                : $"Created {Path.GetFileName(outPath)} — {_ffmpeg.LastOutputWarning}";
-            NoteOutput(outPath);
+            // silently; a status line nobody is still looking at by the time
+            // the job finishes is not much better, so this gets the same
+            // held, forced toast a refusal does — something to read, not just
+            // notice.
+            if (_ffmpeg.LastOutputWarning is { } warning)
+                _toast.Show("Output doesn't match the marked range", warning, "⚠", force: true,
+                            hold: TimeSpan.FromSeconds(Math.Max(6, _toast.HoldDuration.TotalSeconds)));
+
             succeeded = true;
         }
         catch (Exception ex) { StatusText = trimming ? "Trim failed" : "Merge failed"; MessageBox.Show(ex.Message); }
@@ -4521,12 +4527,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
             await _ffmpeg.MergeBookmarksAsync(Session.VideoPath, outPath, new[] { bookmark }, null, default, format);
 
             ProgressPercent = 100;
-            StatusText = _ffmpeg.LastOutputWarning is null
-                ? $"Created clip → {outPath}"
-                : $"Created clip → {outPath} — {_ffmpeg.LastOutputWarning}";
-            _toast.Show($"Clip {bookmark.Index} saved",
-                        Path.GetFileName(outPath),
-                        "🎬");
+            StatusText = $"Created clip → {outPath}";
+
+            if (_ffmpeg.LastOutputWarning is { } warning)
+                _toast.Show("Output doesn't match the marked range", warning, "⚠", force: true,
+                            hold: TimeSpan.FromSeconds(Math.Max(6, _toast.HoldDuration.TotalSeconds)));
+            else
+                _toast.Show($"Clip {bookmark.Index} saved",
+                            Path.GetFileName(outPath),
+                            "🎬");
         }
         catch (Exception ex)
         {
