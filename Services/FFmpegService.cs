@@ -1580,17 +1580,17 @@ public class FFmpegService
     /// <c>split_channels=0</c> — one trace for the lot. Two channels stacked in
     /// twenty pixels is a pattern rather than a shape.
     ///
-    /// <c>agate</c> ahead of the picture, rather than any amplitude scale
-    /// applied to the picture itself. The filter's own scale curves — sqrt,
-    /// cbrt — push every sample toward the edges, quiet ones included, which
-    /// made ordinary room tone read as loud as real content and the whole
-    /// track draw as one continuous band with nothing to tell a pause from a
-    /// word. A gate instead silences what is actually quiet before any of it
-    /// reaches the picture, so pauses draw as nothing and the scale stays
-    /// <c>lin</c> — true dynamic range — for what is left, which is what
-    /// gives louder and quieter passages visibly different heights instead
-    /// of flattening everything to the same block. <c>filter=peak</c> keeps
-    /// that content's own jagged detail instead of averaging it smooth.
+    /// <c>agate</c> ahead of the picture, so a scale curve can be applied
+    /// safely afterward. Applying <c>scale=sqrt</c> directly used to push
+    /// ordinary room tone up alongside real content, since sqrt(x) exceeds x
+    /// everywhere between 0 and 1 whether that x was ever meant to be seen or
+    /// not — the whole track drew as one continuous band with nothing to
+    /// tell a pause from a word. Gating first removes what is actually quiet,
+    /// so sqrt(0) is still 0 and pauses stay pauses; what it is now free to
+    /// do is lift ordinary speech off the baseline without that lift also
+    /// reviving the noise floor, so a laugh or a shout is not the only thing
+    /// tall enough to read. <c>filter=peak</c> keeps that content's own
+    /// jagged detail instead of averaging it smooth.
     ///
     /// This decodes the entire audio track, so it is slow on a long file and
     /// belongs off the UI thread and behind a cache. It is also why it went away
@@ -1602,8 +1602,8 @@ public class FFmpegService
         if (string.IsNullOrWhiteSpace(videoPath) || !File.Exists(videoPath)) return null;
 
         var args = $"-hide_banner -loglevel error -nostats -i \"{videoPath}\" " +
-                   $"-filter_complex \"agate=threshold=0.05:ratio=20:range=0.003:attack=5:release=150:detection=peak," +
-                   $"showwavespic=s={width}x{height}:colors=0x8C8C8C:split_channels=0:scale=lin:filter=peak\" " +
+                   $"-filter_complex \"agate=threshold=0.005:ratio=2.5:range=0.1:attack=5:release=300:detection=peak," +
+                   $"showwavespic=s={width}x{height}:colors=0x8C8C8C:split_channels=0:scale=sqrt:filter=peak\" " +
                    $"-frames:v 1 -f image2pipe -c:v png -";
 
         return await PipePngAsync(args, ct).ConfigureAwait(false);
