@@ -1,5 +1,7 @@
 # MPC-HC Video Editor (C# / WPF)
 
+<p align="center"><img src="Assets/logo.png" alt="MVE" width="200"></p>
+
 Modern rewrite of the original AutoHotkey **MPC-HC Video Editor v2.1**.
 
 Bookmark ranges in a video playing in MPC-HC, then cut, join, convert or extract
