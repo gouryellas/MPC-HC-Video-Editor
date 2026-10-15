@@ -437,7 +437,7 @@
                                 <CheckBox x:Name="RememberSaveToCheck"
                                           Content="Remember the &quot;Save to&quot; folder between sessions"/>
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="Off by default: the destination follows whichever video is loaded until you pin one, and the pin lasts for the session only."/>
+                                           Text="Off by default: the destination location is the working directory of the video loaded. If turned on, the location will persist between sessions."/>
                             </StackPanel>
                         </Border>
 
@@ -557,6 +557,10 @@
             <TabItem Header="Overlay">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10,10,16,10">
                     <StackPanel>
+
+                        <TextBlock Foreground="{DynamicResource ValueYellow}" TextWrapping="Wrap"
+                                   Margin="0,0,0,12"
+                                   Text="This overlay is the gui that is shown when MPC-HC is the active window. It shows the bookmark timestamps in a small window."/>
 
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
