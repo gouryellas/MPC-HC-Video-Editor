@@ -935,8 +935,30 @@
                         <TextBlock Text="🎨" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Reset toolbar order" Command="{Binding ResetToolbarOrderCommand}"
+                <MenuItem Header="Reset toolbar" Command="{Binding ResetToolbarOrderCommand}"
                           ToolTip="Put the buttons across the top back in the order the program ships with. Drag a button onto another to rearrange them.">
+                    <MenuItem.Icon>
+                        <TextBlock Text="↺" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <Separator/>
+                <!-- Right-clicking the seekbar reaches the same three
+                     commands — see its own ContextMenu — so this is the way
+                     back for whoever only ever looks in Options. -->
+                <MenuItem Header="Customize seekbar…" Command="{Binding CustomizeSeekbarCommand}"
+                          ToolTip="How a cut's pair of timestamps is marked on the seekbar, its transparency, and whether the filled bar draws at all. Right-clicking the seekbar opens this too.">
+                    <MenuItem.Icon>
+                        <TextBlock Text="🔧" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Change seekbar colors…" Command="{Binding ChangeSeekbarColorsCommand}"
+                          ToolTip="What the seekbar's position bar, border, background, brackets and waveform are painted">
+                    <MenuItem.Icon>
+                        <TextBlock Text="🎨" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Reset seekbar" Command="{Binding ResetSeekbarCommand}"
+                          ToolTip="Put the seekbar's colors, transparency and bracket style back the way the program ships with.">
                     <MenuItem.Icon>
                         <TextBlock Text="↺" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
@@ -1110,7 +1132,7 @@
                                 <TextBlock Text="🎨" Style="{StaticResource MenuGlyph}"/>
                             </MenuItem.Icon>
                         </MenuItem>
-                        <MenuItem Header="Reset toolbar order" Command="{Binding ResetToolbarOrderCommand}">
+                        <MenuItem Header="Reset toolbar" Command="{Binding ResetToolbarOrderCommand}">
                             <MenuItem.Icon>
                                 <TextBlock Text="↺" Style="{StaticResource MenuGlyph}"/>
                             </MenuItem.Icon>
@@ -1186,7 +1208,8 @@
                  file happens on the outside edges and the track keeps its ends.
                  Consolas for the same reason: proportional digits shuffle the
                  label's width every time a 1 ticks over to a 2. -->
-            <Grid Grid.Row="1" Margin="0,0,0,10" Grid.IsSharedSizeScope="True">
+            <Grid Grid.Row="1" Margin="0,0,0,10" Grid.IsSharedSizeScope="True"
+                  Visibility="{Binding ShowSeekbar, Converter={StaticResource BoolToVis}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" SharedSizeGroup="TimelineClock"/>
                     <ColumnDefinition Width="*"/>
@@ -1210,10 +1233,34 @@
                      range painted across the position is what hid the position in
                      the first place. Stacked, each keeps its own room and the
                      handle crosses both to tie them together. -->
-                <Border Grid.Column="1" Background="{DynamicResource TimelineTrack}" CornerRadius="0"
-                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Height="22"
+                <Border Grid.Column="1" Background="{DynamicResource SeekbarTrack}" CornerRadius="0"
+                        BorderBrush="{DynamicResource SeekbarBorder}" BorderThickness="1" Height="22"
                         Cursor="Hand" MouseLeftButtonDown="Timeline_MouseLeftButtonDown"
                         ToolTip="Click anywhere to seek the player there">
+                    <!-- Right-click reaches the same commands Options offers,
+                         the way the toolbar's own context menu does — found by
+                         right-clicking the thing being customized, rather than
+                         only from a menu bar three words away from it. -->
+                    <Border.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Customize seekbar…" Command="{Binding CustomizeSeekbarCommand}">
+                                <MenuItem.Icon>
+                                    <TextBlock Text="🔧" Style="{StaticResource MenuGlyph}"/>
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Change seekbar colors…" Command="{Binding ChangeSeekbarColorsCommand}">
+                                <MenuItem.Icon>
+                                    <TextBlock Text="🎨" Style="{StaticResource MenuGlyph}"/>
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Reset seekbar" Command="{Binding ResetSeekbarCommand}">
+                                <MenuItem.Icon>
+                                    <TextBlock Text="↺" Style="{StaticResource MenuGlyph}"/>
+                                </MenuItem.Icon>
+                            </MenuItem>
+                        </ContextMenu>
+                    </Border.ContextMenu>
+
                     <!-- Named because the click handler measures against it
                          rather than against the Border: the border line is a
                          pixel the bar does not represent any time with. -->
@@ -1234,7 +1281,8 @@
                              that seeks — the handler is on the Border and this
                              covers all of it. -->
                         <Image Source="{Binding Waveform}" Stretch="Fill" Opacity="0.5"
-                               IsHitTestVisible="False"/>
+                               IsHitTestVisible="False"
+                               Visibility="{Binding ShowSeekbarWaveform, Converter={StaticResource BoolToVis}}"/>
 
                         <!-- Templated rather than styled: the stock ProgressBar
                              chrome draws its own track and border inside ours.
@@ -1249,7 +1297,7 @@
                              stands taller than its lane. -->
                         <ProgressBar Value="{Binding TimelineProgress}" Minimum="0" Maximum="1"
                                      Background="Transparent" BorderThickness="0"
-                                     Foreground="{DynamicResource TimelinePosition}"
+                                     Foreground="{DynamicResource SeekbarFill}"
                                      ToolTip="Playback position">
                             <ProgressBar.Template>
                                 <ControlTemplate TargetType="ProgressBar">
@@ -1265,24 +1313,36 @@
                                         <Border x:Name="PART_Indicator" HorizontalAlignment="Left"
                                                 Background="Transparent" CornerRadius="0">
                                             <Grid>
-                                                <Border Background="{TemplateBinding Foreground}" Opacity="0.5"/>
+                                                <!-- The wash itself. Off leaves only the
+                                                     caret below, which is what "seekbar
+                                                     bar" off means — the playhead is
+                                                     still findable, nothing is painted
+                                                     over what has played. -->
+                                                <Border Background="{TemplateBinding Foreground}"
+                                                        Opacity="{Binding SeekbarOpacity}"
+                                                        Visibility="{Binding SeekbarBarEnabled, Converter={StaticResource BoolToVis}}"/>
 
-                                                <!-- Pale with a blue edge rather
-                                                     than a second colour: the
-                                                     handle belongs to the bar it
-                                                     rides, and an amber one on a
-                                                     blue bar read as a different
-                                                     control. Taller than the bar
-                                                     so it stays findable where the
+                                                <!-- Filled in the bracket
+                                                     colour — the handle is a
+                                                     mark, like a bracket is,
+                                                     not a second wash — with
+                                                     its own edge in the border
+                                                     colour, the same as the
+                                                     bar's own edge. The fill
+                                                     used to be a flat pale
+                                                     neutral with the bracket
+                                                     colour buried in a 1px
+                                                     line at 0.55 opacity
+                                                     inside it — technically
+                                                     present, invisibly so.
+                                                     Taller than the bar so it
+                                                     stays findable where the
                                                      wash crosses a bookmark. -->
                                                 <Border Width="7" Height="26" HorizontalAlignment="Right"
                                                         VerticalAlignment="Center" Margin="0,0,-3.5,0"
-                                                        Background="{DynamicResource TextPrimary}"
-                                                        BorderBrush="{DynamicResource TimelinePosition}"
-                                                        BorderThickness="1" CornerRadius="0">
-                                                    <Rectangle Width="1" Margin="0,4"
-                                                               Fill="{DynamicResource TimelinePosition}" Opacity="0.55"/>
-                                                </Border>
+                                                        Background="{DynamicResource SeekbarMark}"
+                                                        BorderBrush="{DynamicResource SeekbarBorder}"
+                                                        BorderThickness="1" CornerRadius="0"/>
                                             </Grid>
                                         </Border>
                                     </Grid>
@@ -1309,6 +1369,8 @@
                              handle rather than being hidden behind it. -->
                         <helpers:TimelineRanges Bookmarks="{Binding Session.Bookmarks}"
                                                 DurationSeconds="{Binding Session.VideoDurationSeconds}"
+                                                BracketStyle="{Binding SeekbarBracketStyle}"
+                                                MarkBrush="{DynamicResource SeekbarMark}"
                                                 ToolTip="Where the cuts fall — a bracket at each end of every range, with the cut's number between them and a tick when it is checked. A bookmark still waiting for its closing timestamp shows an opening bracket on its own."/>
                     </Grid>
                 </Border>

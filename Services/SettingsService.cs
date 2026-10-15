@@ -108,6 +108,22 @@ public enum OverlayCorner
     BottomLeft
 }
 
+/// <summary>How a bookmark's pair of timestamps is marked on the seekbar.</summary>
+public enum SeekbarBracketStyle
+{
+    /// <summary>A bracket at each end, feet pointing into the range: [ 1 ].</summary>
+    Classic,
+
+    /// <summary>A plain upright at each end, no feet: &#124; 1 &#124;.</summary>
+    Lines,
+
+    /// <summary>An angled mark at each end, pointing into the range: &lt; 1 &gt;.</summary>
+    Chevrons,
+
+    /// <summary>Nothing drawn. The cut list is the only place a cut shows.</summary>
+    None
+}
+
 public class AppSettings
 {
     /// <summary>
@@ -403,6 +419,54 @@ public class AppSettings
     /// this existed behaves exactly as one that has never been touched.
     /// </remarks>
     public Dictionary<string, string> ButtonColors { get; set; } = new();
+
+    /// <summary>Whether the seekbar — timeline, position and length — is shown at all.</summary>
+    public bool ShowSeekbar { get; set; } = true;
+
+    /// <summary>
+    /// Whether the waveform is drawn behind the seekbar. Only asked about while
+    /// <see cref="ShowSeekbar"/> is set — with the bar itself hidden there is
+    /// nothing for it to sit behind.
+    /// </summary>
+    public bool ShowSeekbarWaveform { get; set; } = true;
+
+    /// <summary>What the seekbar's filled position bar is painted: "theme" or a hex colour.</summary>
+    public string SeekbarColor { get; set; } = "theme";
+
+    /// <summary>What the seekbar's border is painted: "theme" or a hex colour.</summary>
+    public string SeekbarBorderColor { get; set; } = "theme";
+
+    /// <summary>What the seekbar's track (its background) is painted: "theme" or a hex colour.</summary>
+    public string SeekbarTrackColor { get; set; } = "theme";
+
+    /// <summary>
+    /// What a cut's brackets, its number and its tick are painted: "theme" or
+    /// a hex colour. Never the waiting-bookmark red — that stays fixed, the
+    /// one place colour carries a meaning of its own rather than a choice.
+    /// </summary>
+    public string SeekbarMarkColor { get; set; } = "theme";
+
+    /// <summary>
+    /// What the waveform behind the seekbar is painted: "theme" or a hex
+    /// colour. Baked into the rendered picture rather than read live like the
+    /// other seekbar colours, so changing it costs one fresh render rather
+    /// than nothing — see <see cref="FFmpegService.RenderWaveformAsync"/>.
+    /// </summary>
+    public string SeekbarWaveformColor { get; set; } = "theme";
+
+    /// <summary>Opacity of the seekbar's filled position wash, 0.1–1.0.</summary>
+    public double SeekbarOpacity { get; set; } = 0.5;
+
+    /// <summary>
+    /// Whether the filled position bar draws at all. Off leaves only the caret
+    /// that rides its leading edge, so the playhead is still findable on a bar
+    /// that otherwise shows nothing played.
+    /// </summary>
+    public bool SeekbarBarEnabled { get; set; } = true;
+
+    /// <summary>How a timestamp pair is marked on the seekbar.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public SeekbarBracketStyle SeekbarBracketStyle { get; set; } = SeekbarBracketStyle.Classic;
 
     /// <summary>
     /// Where the main window was, and how big, when it was last closed. Null
@@ -949,6 +1013,12 @@ public class SettingsService
 
         // Fully transparent would be an invisible overlay reported as broken.
         Current.OverlayOpacity = Math.Clamp(Current.OverlayOpacity, 0.3, 1.0);
+
+        // Fully transparent here would be a position wash nobody can see —
+        // indistinguishable from the bar on/off setting doing the same thing
+        // for a different reason, and reported as the bar having stopped
+        // working rather than as the slider someone actually moved.
+        Current.SeekbarOpacity = Math.Clamp(Current.SeekbarOpacity, 0.1, 1.0);
     }
 
     // ------------------------------------------------------------------

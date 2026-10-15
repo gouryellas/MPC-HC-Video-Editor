@@ -584,6 +584,107 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// Opens the colour editor for the seekbar's position bar and border.
+    /// </summary>
+    /// <remarks>
+    /// Mirrors <see cref="ChangeButtonColors"/>: applied before it is saved,
+    /// and reapplied either way, so the bar repaints from the resources the
+    /// dialog's answer pushes rather than from anything rebuilt.
+    /// </remarks>
+    [RelayCommand]
+    private void ChangeSeekbarColors()
+    {
+        var dlg = new SeekbarColorsDialog(_settings.Current)
+        {
+            Owner = DialogOwner
+        };
+
+        if (dlg.ShowDialog() != true) return;
+
+        var s = _settings.Current;
+        s.SeekbarColor = dlg.SeekbarColor;
+        s.SeekbarBorderColor = dlg.SeekbarBorderColor;
+        s.SeekbarTrackColor = dlg.SeekbarTrackColor;
+        s.SeekbarMarkColor = dlg.SeekbarMarkColor;
+
+        // Caught before the assignment: unlike the three colours above, this
+        // one is not a resource an Image repaints from on its own — it is
+        // baked into the picture, so a change here means asking ffmpeg to
+        // decode the file again rather than just pushing a brush.
+        var waveformColorChanged = s.SeekbarWaveformColor != dlg.SeekbarWaveformColor;
+        s.SeekbarWaveformColor = dlg.SeekbarWaveformColor;
+        _settings.Save();
+
+        SeekbarAppearance.Apply(s, ThemeService.Current);
+        if (waveformColorChanged) _ = RefreshWaveformAsync(Session.VideoPath, force: true);
+        StatusText = "Seekbar colors updated";
+    }
+
+    /// <summary>
+    /// Opens the editor for how a timestamp pair is marked on the seekbar,
+    /// its transparency, and whether the filled bar draws at all.
+    /// </summary>
+    [RelayCommand]
+    private void CustomizeSeekbar()
+    {
+        var dlg = new CustomizeSeekbarDialog(_settings.Current)
+        {
+            Owner = DialogOwner
+        };
+
+        if (dlg.ShowDialog() != true) return;
+
+        var s = _settings.Current;
+        s.SeekbarBracketStyle = dlg.BracketStyle;
+        s.SeekbarOpacity = dlg.SeekbarOpacity;
+        s.SeekbarBarEnabled = dlg.SeekbarBarEnabled;
+        _settings.Save();
+
+        OnPropertyChanged(nameof(SeekbarBracketStyle));
+        OnPropertyChanged(nameof(SeekbarOpacity));
+        OnPropertyChanged(nameof(SeekbarBarEnabled));
+        StatusText = "Seekbar updated";
+    }
+
+    /// <summary>
+    /// Puts the seekbar back the way the program ships it: colour, border,
+    /// transparency, the bar on/off, and how a timestamp pair is marked.
+    /// </summary>
+    /// <remarks>
+    /// One command for the lot, unlike <see cref="ResetToolbarOrder"/>, which
+    /// only resets the order and leaves button colours alone. Those are two
+    /// separate dialogs with two separate "reset" buttons of their own; the
+    /// seekbar's colours and its bracket style are small enough, and asked
+    /// for together often enough, that a second scoped command here would be
+    /// a second place to look rather than a second thing worth choosing
+    /// between.
+    /// </remarks>
+    [RelayCommand]
+    private void ResetSeekbar()
+    {
+        var s = _settings.Current;
+        s.SeekbarColor = SeekbarAppearance.FollowTheme;
+        s.SeekbarBorderColor = SeekbarAppearance.FollowTheme;
+        s.SeekbarTrackColor = SeekbarAppearance.FollowTheme;
+        s.SeekbarMarkColor = SeekbarAppearance.FollowTheme;
+
+        var waveformColorChanged = s.SeekbarWaveformColor != SeekbarAppearance.FollowTheme;
+        s.SeekbarWaveformColor = SeekbarAppearance.FollowTheme;
+
+        s.SeekbarOpacity = 0.5;
+        s.SeekbarBarEnabled = true;
+        s.SeekbarBracketStyle = SeekbarBracketStyle.Classic;
+        _settings.Save();
+
+        SeekbarAppearance.Apply(s, ThemeService.Current);
+        if (waveformColorChanged) _ = RefreshWaveformAsync(Session.VideoPath, force: true);
+        OnPropertyChanged(nameof(SeekbarBarEnabled));
+        OnPropertyChanged(nameof(SeekbarOpacity));
+        OnPropertyChanged(nameof(SeekbarBracketStyle));
+        StatusText = "Seekbar back to its defaults";
+    }
+
+    /// <summary>
     /// How wide the toolbar can count on being: the width of the narrowest the
     /// window is allowed to get.
     /// </summary>
@@ -702,6 +803,24 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// when it shows it.
     /// </summary>
     public bool OverlayClickable => _settings.Current.OverlayClickable;
+
+    /// <summary>Whether the seekbar — timeline, position and length — is shown at all.</summary>
+    public bool ShowSeekbar => _settings.Current.ShowSeekbar;
+
+    /// <summary>Whether the waveform is drawn behind the seekbar.</summary>
+    public bool ShowSeekbarWaveform => _settings.Current.ShowSeekbarWaveform;
+
+    /// <summary>
+    /// Whether the seekbar's filled position bar draws at all. Off leaves
+    /// only the caret.
+    /// </summary>
+    public bool SeekbarBarEnabled => _settings.Current.SeekbarBarEnabled;
+
+    /// <summary>Opacity of the seekbar's filled position wash.</summary>
+    public double SeekbarOpacity => _settings.Current.SeekbarOpacity;
+
+    /// <summary>How a timestamp pair is marked on the seekbar.</summary>
+    public SeekbarBracketStyle SeekbarBracketStyle => _settings.Current.SeekbarBracketStyle;
 
     /// <summary>Whether the compact overlay is the view currently showing.</summary>
     private bool _minimalViewActive;
@@ -2263,7 +2382,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// Rendered 1600 pixels wide, well past any window, so widening the window
     /// stretches the picture rather than starting the decode again.
     /// </remarks>
-    private async Task RefreshWaveformAsync(string path)
+    /// <param name="force">
+    /// Redraws even if this is "the same file as last time" — for a change
+    /// that does not touch the file at all, such as a new waveform colour,
+    /// where the cache below would otherwise see no reason to do anything.
+    /// </param>
+    private async Task RefreshWaveformAsync(string path, bool force = false)
     {
         _waveformRender?.Cancel();
         _waveformRender?.Dispose();
@@ -2276,9 +2400,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        // Nothing is showing it, so there is nothing to decode a whole audio
+        // track for. _waveformSource is left alone rather than cleared: the
+        // moment the setting comes back on, this is still "the same file as
+        // last time" and OpenSettings asks for a fresh render itself rather
+        // than relying on this path noticing the setting changed.
+        if (!ShowSeekbarWaveform) return;
+
         // Same file as last time — the picture on screen is still right. Worth
         // checking because the poll can re-report the same video.
-        if (string.Equals(path, _waveformSource, StringComparison.OrdinalIgnoreCase)
+        if (!force
+            && string.Equals(path, _waveformSource, StringComparison.OrdinalIgnoreCase)
             && Waveform is not null)
             return;
 
@@ -2288,7 +2420,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         try
         {
-            var png = await _ffmpeg.RenderWaveformAsync(path, ct: cts.Token);
+            var png = await _ffmpeg.RenderWaveformAsync(
+                path, SeekbarAppearance.ResolveWaveformColor(_settings.Current), ct: cts.Token);
             if (cts.IsCancellationRequested) return;
 
             // Null is the ordinary answer for a file with no audio, not a
@@ -6733,6 +6866,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         s.ToastSeconds = dlg.ToastSeconds;
         s.CheckForUpdates = dlg.CheckForUpdates;
 
+        // Captured before the assignment: turning the waveform back on needs
+        // to know it was off, since nothing was decoded for it while it was.
+        var waveformWasOff = !s.ShowSeekbarWaveform;
+        s.ShowSeekbar = dlg.ShowSeekbar;
+        s.ShowSeekbarWaveform = dlg.ShowSeekbarWaveform;
+
         // Captured before the assignment: applying it needs to know which way
         // it moved, and turning it off throws names away.
         var chapterNamesWereOn = s.UseChapterNames;
@@ -6770,6 +6909,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // The suffix example spells out an extension, and the overlay reads
         // its appearance when it next appears.
         SuffixExampleDisplay = BuildSuffixExample(_settings.GetActiveSuffixText());
+        OnPropertyChanged(nameof(ShowSeekbar));
+        OnPropertyChanged(nameof(ShowSeekbarWaveform));
+
+        // Nothing was decoded while it was off, so turning it back on needs a
+        // fresh render rather than whatever stale picture Waveform still holds.
+        if (waveformWasOff && dlg.ShowSeekbarWaveform)
+            _ = RefreshWaveformAsync(Session.VideoPath);
+
         OnPropertyChanged(nameof(OverlayCorner));
         OnPropertyChanged(nameof(OverlayOpacity));
         OnPropertyChanged(nameof(OverlayClickable));

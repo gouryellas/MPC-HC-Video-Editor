@@ -123,6 +123,24 @@
 
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
+                                <TextBlock Text="Seekbar" Style="{StaticResource Heading}"/>
+                                <CheckBox x:Name="ShowSeekbarCheck" Content="Show seekbar"/>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="The timeline, the playback position, and the time either side of it. Off removes the whole strip; the cut list and the player itself still work exactly as before."/>
+
+                                <CheckBox x:Name="ShowSeekbarWaveformCheck" Margin="22,10,0,0"
+                                          IsEnabled="{Binding IsChecked, ElementName=ShowSeekbarCheck}"
+                                          Content="Show the waveform behind it"/>
+                                <TextBlock Style="{StaticResource Hint}" Margin="22,0,0,0"
+                                           Text="Decoded from the audio track once per video. Only asked about while the seekbar above is shown — with the bar hidden there is nothing for it to sit behind."/>
+
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,10,0,0"
+                                           Text="Right-click the seekbar, or see Options, for its colors and how a cut's timestamps are marked on it."/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
                                 <TextBlock Text="Running" Style="{StaticResource Heading}"/>
                                 <RadioButton x:Name="ModeApplication" GroupName="RunMode"
                                              Content="Run as application"/>

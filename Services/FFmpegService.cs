@@ -1571,11 +1571,12 @@ public class FFmpegService
     /// again.
     /// </param>
     /// <remarks>
-    /// Mid grey rather than a theme color, and one image for all of them. The
-    /// color is baked into the pixels, so taking it from the palette would mean
-    /// decoding the audio again every time the theme changed; a mid grey reads
-    /// against both the near-black track of the dark themes and the pale one of
-    /// the light themes, and the opacity it is drawn at does the rest.
+    /// Mid grey by default rather than a theme color, because the color is
+    /// baked into the pixels — taking it from the palette would mean decoding
+    /// the audio again every time the theme changed. A direct choice is a
+    /// different trade: it only changes when asked to, so paying for one
+    /// re-render then is the whole cost, not a recurring one paid on every
+    /// theme switch.
     ///
     /// <c>split_channels=0</c> — one trace for the lot. Two channels stacked in
     /// twenty pixels is a pattern rather than a shape.
@@ -1597,17 +1598,26 @@ public class FFmpegService
     /// in 5.1: nothing was drawing the result.
     /// </remarks>
     public async Task<byte[]?> RenderWaveformAsync(
-        string videoPath, int width = 1600, int height = 60, CancellationToken ct = default)
+        string videoPath, string color = "#8C8C8C", int width = 1600, int height = 60, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(videoPath) || !File.Exists(videoPath)) return null;
 
         var args = $"-hide_banner -loglevel error -nostats -i \"{videoPath}\" " +
                    $"-filter_complex \"agate=threshold=0.005:ratio=2.5:range=0.1:attack=5:release=300:detection=peak," +
-                   $"showwavespic=s={width}x{height}:colors=0x8C8C8C:split_channels=0:scale=sqrt:filter=peak\" " +
+                   $"showwavespic=s={width}x{height}:colors={ToFfmpegColor(color)}:split_channels=0:scale=sqrt:filter=peak\" " +
                    $"-frames:v 1 -f image2pipe -c:v png -";
 
         return await PipePngAsync(args, ct).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// "#RRGGBB" to the "0xRRGGBB" <c>showwavespic</c>'s <c>colors</c> wants.
+    /// Falls back to the usual mid grey for anything that is not exactly
+    /// that shape — this reaches the command line, so a value that merely
+    /// looks close is not safe to trust.
+    /// </summary>
+    private static string ToFfmpegColor(string hex) =>
+        Regex.IsMatch(hex, "^#[0-9A-Fa-f]{6}$") ? "0x" + hex[1..] : "0x8C8C8C";
 
     /// <summary>
     /// Runs ffmpeg and returns what it wrote to stdout, or null if it wrote

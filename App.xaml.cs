@@ -31,12 +31,14 @@ public partial class App : Application
         // of the four can follow the theme, and the settings dialog repaints
         // live while someone is trying themes out.
         ThemeService.Changed += _ => ButtonColors.Reapply();
+        ThemeService.Changed += _ => SeekbarAppearance.Reapply();
 
         try
         {
             var settings = new SettingsService().Current;
             ThemeService.ApplyFromKey(settings.ThemeKey);
             ButtonColors.Apply(settings.ButtonColors, ThemeService.Current);
+            SeekbarAppearance.Apply(settings, ThemeService.Current);
         }
         catch
         {
@@ -44,6 +46,7 @@ public partial class App : Application
             // default palette is already in place.
             ThemeService.Apply(ThemePalette.Graphite);
             ButtonColors.Apply(null, ThemeService.Current);
+            SeekbarAppearance.Apply(null, ThemeService.Current);
         }
 
         // Windows sometimes sets "menu drop alignment" so popups open to the left.

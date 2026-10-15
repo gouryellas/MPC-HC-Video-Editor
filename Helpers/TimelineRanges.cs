@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
 using MpcHcVideoEditor.Models;
+using MpcHcVideoEditor.Services;
 
 namespace MpcHcVideoEditor.Helpers;
 
@@ -22,13 +23,15 @@ namespace MpcHcVideoEditor.Helpers;
 public class TimelineRanges : FrameworkElement
 {
     /// <summary>
-    /// Every mark, whatever the cut behind it is doing.
+    /// White, the default for <see cref="MarkBrush"/> — every mark, whatever
+    /// the cut behind it is doing.
     /// </summary>
     /// <remarks>
-    /// One colour rather than four. The marks used to be amber, teal, salmon
-    /// and red by state, which turned the bar into a colour key the moment more
-    /// than a couple of cuts existed. White reads at two pixels against every
-    /// theme's track.
+    /// One colour rather than four by default. The marks used to be amber,
+    /// teal, salmon and red by state, which turned the bar into a colour key
+    /// the moment more than a couple of cuts existed. White reads at two
+    /// pixels against every theme's track, which is why it is the default
+    /// rather than simply a choice among others.
     ///
     /// The states still worth carrying here are carried by shape instead, which
     /// needs no key: a checked cut gets a tick, and an open bookmark gets its
@@ -36,7 +39,7 @@ public class TimelineRanges : FrameworkElement
     /// changes what is written, not what will be written, and the row says it
     /// in a word.
     /// </remarks>
-    private static readonly Brush MarkerBrush = Frozen("#FFFFFF");
+    private static readonly Brush DefaultMarkBrush = Frozen("#FFFFFF");
 
     /// <summary>
     /// A bookmark still waiting for its closing timestamp.
@@ -65,6 +68,14 @@ public class TimelineRanges : FrameworkElement
         DependencyProperty.Register(nameof(DurationSeconds), typeof(double), typeof(TimelineRanges),
             new FrameworkPropertyMetadata(0d, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty BracketStyleProperty =
+        DependencyProperty.Register(nameof(BracketStyle), typeof(SeekbarBracketStyle), typeof(TimelineRanges),
+            new FrameworkPropertyMetadata(SeekbarBracketStyle.Classic, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty MarkBrushProperty =
+        DependencyProperty.Register(nameof(MarkBrush), typeof(Brush), typeof(TimelineRanges),
+            new FrameworkPropertyMetadata(DefaultMarkBrush, FrameworkPropertyMetadataOptions.AffectsRender));
+
     public IEnumerable? Bookmarks
     {
         get => (IEnumerable?)GetValue(BookmarksProperty);
@@ -76,6 +87,24 @@ public class TimelineRanges : FrameworkElement
     {
         get => (double)GetValue(DurationSecondsProperty);
         set => SetValue(DurationSecondsProperty, value);
+    }
+
+    /// <summary>How a timestamp pair is marked. <see cref="SeekbarBracketStyle.None"/> draws nothing at all.</summary>
+    public SeekbarBracketStyle BracketStyle
+    {
+        get => (SeekbarBracketStyle)GetValue(BracketStyleProperty);
+        set => SetValue(BracketStyleProperty, value);
+    }
+
+    /// <summary>
+    /// What a bracket, a cut's number and its tick are painted. Not the
+    /// waiting-bookmark red — <see cref="IncompleteBrush"/> stays fixed
+    /// regardless of this.
+    /// </summary>
+    public Brush MarkBrush
+    {
+        get => (Brush)GetValue(MarkBrushProperty);
+        set => SetValue(MarkBrushProperty, value);
     }
 
     private static void OnBookmarksChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -165,19 +194,14 @@ public class TimelineRanges : FrameworkElement
     private const double CheckGap = 3;
 
     /// <summary>
-    /// The tick's stroke, built once. Drawn rather than set as a character.
+    /// A bookmark still waiting for its closing timestamp always strokes with
+    /// this, whatever <see cref="MarkBrush"/> is set to.
     /// </summary>
-    /// <remarks>
-    /// Two strokes of a pen, not "✓" in a font: at eight pixels a glyph is at
-    /// the mercy of hinting and of whether the face has the character at all,
-    /// and this has to match brackets that are already drawn by hand. Round
-    /// caps and join so the corner reads as a tick rather than as a chevron.
-    /// </remarks>
-    private static readonly Pen CheckPen = FrozenPen();
+    private static readonly Pen IncompletePen = FrozenPen(IncompleteBrush, StemWidth);
 
-    private static Pen FrozenPen()
+    private static Pen FrozenPen(Brush brush, double thickness)
     {
-        var pen = new Pen(MarkerBrush, 1.8)
+        var pen = new Pen(brush, thickness)
         {
             StartLineCap = PenLineCap.Round,
             EndLineCap = PenLineCap.Round,
@@ -189,12 +213,26 @@ public class TimelineRanges : FrameworkElement
 
     protected override void OnRender(DrawingContext dc)
     {
+        // Asked for nothing. The cut list is the only place a cut shows, and
+        // that holds for the number and the tick as much as for the bracket
+        // itself — a number with nothing bracketing it reads as a mistake
+        // rather than as the style that was chosen.
+        if (BracketStyle == SeekbarBracketStyle.None) return;
+
         var width = ActualWidth;
         var height = ActualHeight;
         var total = DurationSeconds;
 
         // Without a known duration there is nothing to scale against.
         if (Bookmarks == null || total <= 0 || width <= 0 || height <= 0) return;
+
+        // Built once per pass rather than held as static fields: the brush
+        // comes from a DynamicResource now, which can change under this
+        // control, and a pen built from a brush that has since moved on
+        // would keep painting the colour it had when it was first touched.
+        var markBrush = MarkBrush;
+        var markPen = FrozenPen(markBrush, StemWidth);
+        var checkPen = FrozenPen(markBrush, 1.8);
 
         foreach (var b in Bookmarks.OfType<Bookmark>())
         {
@@ -203,13 +241,14 @@ public class TimelineRanges : FrameworkElement
 
             // Opened and not yet closed: the opening bracket on its own says so,
             // where a second one would claim an end it has not got.
-            DrawBracket(dc, open ? IncompleteBrush : MarkerBrush, startX, width, height, opening: true);
+            var openingPen = open ? IncompletePen : markPen;
+            DrawBracket(dc, open ? IncompleteBrush : markBrush, openingPen, startX, width, height, opening: true);
 
             if (open) continue;
 
             var endX = Math.Clamp(b.EndSeconds / total, 0, 1) * width;
-            DrawBracket(dc, MarkerBrush, endX, width, height, opening: false);
-            DrawLabel(dc, b, startX, endX, height);
+            DrawBracket(dc, markBrush, markPen, endX, width, height, opening: false);
+            DrawLabel(dc, b, markBrush, checkPen, startX, endX, height);
         }
     }
 
@@ -232,12 +271,13 @@ public class TimelineRanges : FrameworkElement
     /// two-pixel space is noise, and the brackets still say where the cut is.
     /// </para>
     /// </remarks>
-    private void DrawLabel(DrawingContext dc, Bookmark b, double startX, double endX, double height)
+    private void DrawLabel(DrawingContext dc, Bookmark b, Brush markBrush, Pen checkPen,
+                           double startX, double endX, double height)
     {
         var label = new FormattedText(
             b.Index.ToString(CultureInfo.InvariantCulture),
             CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-            LabelTypeface, LabelSize, MarkerBrush,
+            LabelTypeface, LabelSize, markBrush,
             VisualTreeHelper.GetDpi(this).PixelsPerDip);
 
         // The brackets own the ends; only what is left between their feet is
@@ -256,12 +296,12 @@ public class TimelineRanges : FrameworkElement
         if (both <= free)
         {
             var left = middle - both / 2;
-            DrawCheck(dc, left, height);
+            DrawCheck(dc, checkPen, left, height);
             dc.DrawText(label, new Point(left + CheckSize + CheckGap, (height - label.Height) / 2));
         }
         else if (CheckSize <= free)
         {
-            DrawCheck(dc, middle - CheckSize / 2, height);
+            DrawCheck(dc, checkPen, middle - CheckSize / 2, height);
         }
     }
 
@@ -269,7 +309,7 @@ public class TimelineRanges : FrameworkElement
     /// Draws a tick whose left edge sits at <paramref name="x"/>, centred in
     /// the height available.
     /// </summary>
-    private static void DrawCheck(DrawingContext dc, double x, double height)
+    private static void DrawCheck(DrawingContext dc, Pen checkPen, double x, double height)
     {
         var top = (height - CheckSize) / 2;
 
@@ -280,36 +320,83 @@ public class TimelineRanges : FrameworkElement
         var corner = new Point(x + CheckSize * 0.36, top + CheckSize * 0.86);
         var end = new Point(x + CheckSize, top + CheckSize * 0.14);
 
-        dc.DrawLine(CheckPen, start, corner);
-        dc.DrawLine(CheckPen, corner, end);
+        dc.DrawLine(checkPen, start, corner);
+        dc.DrawLine(checkPen, corner, end);
     }
 
     /// <summary>
-    /// Draws one end of a range as a bracket — an upright with a foot at the
-    /// top and bottom, both reaching in towards the range it belongs to.
+    /// Draws one end of a range, in whichever of the four styles is chosen.
     /// </summary>
     /// <remarks>
-    /// Two brackets and nothing between them. A band the length of the cut was
-    /// a lot of paint for two numbers: it buried whatever shared the bar with
-    /// it, and on a busy edit the timeline became a row of blocks with the
-    /// gaps — the parts being thrown away — as the only thing left legible. A
-    /// line joining each pair was the same idea at lower volume and had the
-    /// same problem. Facing feet read as "from here to there" on their own.
+    /// Whatever the style, it is drawn at the mark and nothing between a pair
+    /// of them: a band the length of the cut was a lot of paint for two
+    /// numbers, burying whatever shared the bar with it, and on a busy edit
+    /// the timeline became a row of blocks with the gaps — the parts being
+    /// thrown away — as the only thing left legible. A line joining each pair
+    /// was the same idea at lower volume and had the same problem.
     /// </remarks>
-    private static void DrawBracket(DrawingContext dc, Brush brush, double x,
-                                    double width, double height, bool opening)
+    private void DrawBracket(DrawingContext dc, Brush brush, Pen pen, double x,
+                             double width, double height, bool opening)
+    {
+        switch (BracketStyle)
+        {
+            case SeekbarBracketStyle.Lines:
+                DrawStem(dc, brush, x, width, height);
+                break;
+
+            case SeekbarBracketStyle.Chevrons:
+                DrawChevron(dc, pen, x, width, height, opening);
+                break;
+
+            case SeekbarBracketStyle.Classic:
+            default:
+                var stemX = DrawStem(dc, brush, x, width, height);
+                DrawFeet(dc, brush, stemX, width, height, opening);
+                break;
+        }
+    }
+
+    /// <summary>Draws the upright and returns its clamped left edge, for a foot to line up against.</summary>
+    private static double DrawStem(DrawingContext dc, Brush brush, double x, double width, double height)
     {
         // Keep the upright inside the control at either extreme, so a cut that
-        // starts at zero or ends at the duration still shows a full bracket.
+        // starts at zero or ends at the duration still shows a full mark.
         var stemX = Math.Clamp(x - StemWidth / 2, 0, Math.Max(0, width - StemWidth));
         dc.DrawRectangle(brush, null, new Rect(stemX, 0, StemWidth, height));
+        return stemX;
+    }
 
-        // Feet point into the range: right from an opening bracket, left from a
-        // closing one, which is what makes a pair read as enclosing.
+    /// <summary>
+    /// Feet point into the range: right from an opening bracket, left from a
+    /// closing one, which is what makes a pair read as enclosing.
+    /// </summary>
+    private static void DrawFeet(DrawingContext dc, Brush brush, double stemX,
+                                 double width, double height, bool opening)
+    {
         var footX = opening ? stemX + StemWidth : stemX - FootLength;
         footX = Math.Clamp(footX, 0, Math.Max(0, width - FootLength));
 
         dc.DrawRectangle(brush, null, new Rect(footX, 0, FootLength, FootWeight));
         dc.DrawRectangle(brush, null, new Rect(footX, height - FootWeight, FootLength, FootWeight));
+    }
+
+    /// <summary>How far a chevron's arms reach from its vertex.</summary>
+    private const double ChevronReach = 6;
+
+    /// <summary>
+    /// An angled mark whose vertex sits exactly at the mark's time — the same
+    /// thing the stem's upright does for the other two styles — with its two
+    /// arms opening into the range: &lt; for an opening mark, &gt; for a
+    /// closing one.
+    /// </summary>
+    private static void DrawChevron(DrawingContext dc, Pen pen, double x,
+                                    double width, double height, bool opening)
+    {
+        var vertexX = Math.Clamp(x, 0, width);
+        var armX = Math.Clamp(opening ? vertexX + ChevronReach : vertexX - ChevronReach, 0, width);
+        var mid = height / 2;
+
+        dc.DrawLine(pen, new Point(vertexX, mid), new Point(armX, 0));
+        dc.DrawLine(pen, new Point(vertexX, mid), new Point(armX, height));
     }
 }
