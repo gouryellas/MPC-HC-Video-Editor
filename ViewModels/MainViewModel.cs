@@ -2299,8 +2299,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Handler for the configurable timestamp hotkey. Delegates to
     /// <see cref="SetTimestamp"/> — the same command wired to the menu item
-    /// and toolbar button — but only when MPC-HC is actually what the press
-    /// should act on.
+    /// and toolbar button — but only when the press is actually meant for
+    /// this.
     /// </summary>
     /// <remarks>
     /// The hook behind this is global: every press of the configured mouse
@@ -2312,13 +2312,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// it in a new tab would silently set a bookmark against whatever MPC-HC
     /// last had loaded.
     ///
-    /// So it fires only where it means something: the player is the active
-    /// window, and it has a video open. The second half is not covered by the
-    /// first — MPC-HC sits there with no file loaded quite happily, and there
-    /// is no position to timestamp then. It is the same condition the menu item
-    /// and toolbar button are gated on (<see cref="CanSetTimestamp"/>), which a
-    /// direct call to <see cref="SetTimestamp"/> would otherwise walk straight
-    /// past, since only the generated command consults it.
+    /// So it fires only where it means something: MPC-HC is the active
+    /// window, <em>or this editor is</em> — the seekbar's hover preview
+    /// means a cut can now be marked by looking at this window instead of
+    /// the player, and the hotkey ought to work from either — and either way
+    /// there has to be a video open to timestamp. MPC-HC sits there with no
+    /// file loaded quite happily, and there is no position to mark then. It
+    /// is the same condition the menu item and toolbar button are gated on
+    /// (<see cref="CanSetTimestamp"/>), which a direct call to
+    /// <see cref="SetTimestamp"/> would otherwise walk straight past, since
+    /// only the generated command consults it.
+    ///
+    /// Typing into a text box in this editor — a chapter name, a naming tag,
+    /// a setting — does not also plant a bookmark. A keyboard binding with no
+    /// modifiers at all is allowed, and without this a bound letter would
+    /// fire on every matching keystroke typed anywhere in the window.
     ///
     /// A press anywhere else is dropped in silence, with no status message:
     /// there is no reason to think the window that would show one is something
@@ -2332,7 +2340,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </remarks>
     private void OnTimestampHotkey()
     {
-        if (!_mpc.IsForeground() || !HasActiveVideo) return;
+        var ownWindowActive = Application.Current?.MainWindow?.IsActive == true;
+        if (!_mpc.IsForeground() && !ownWindowActive) return;
+        if (!HasActiveVideo) return;
+
+        if (ownWindowActive && System.Windows.Input.Keyboard.FocusedElement is System.Windows.Controls.Primitives.TextBoxBase)
+            return;
+
         SetTimestamp();
     }
 

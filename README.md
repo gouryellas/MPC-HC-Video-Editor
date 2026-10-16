@@ -215,9 +215,11 @@ Reads `.pls`, `.m3u8` and `.m3u` from the playlist folder.
 **Set timestamp hotkey…** captures any key, combination, or the middle and side
 mouse buttons. The binding persists.
 
-It is global, but fires only while **MPC-HC is active with a video open** —
-everywhere else the press is passed along untouched, so the default middle-mouse
-binding still opens links in a browser.
+It is global, but fires only while **MPC-HC or this program is active, with a
+video open** — everywhere else the press is passed along untouched, so the
+default middle-mouse binding still opens links in a browser. With the seekbar's
+hover preview, a cut can be marked from either window without switching focus
+between them.
 
 ---
 
