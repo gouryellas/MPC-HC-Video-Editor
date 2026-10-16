@@ -2470,6 +2470,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// A frame from the loaded video, for the seekbar's hover-scrub preview.
+    /// </summary>
+    /// <remarks>
+    /// Thin wrapper over <see cref="FFmpegService.ExtractFrameAsync"/> rather
+    /// than the View reaching for ffmpeg directly — the View owns the popup
+    /// and its positioning, which has nothing to do with this service, but it
+    /// still has no business holding a reference to it.
+    /// </remarks>
+    public Task<byte[]?> ExtractHoverFrameAsync(double seconds, CancellationToken ct) =>
+        _ffmpeg.ExtractFrameAsync(Session.VideoPath, seconds, height: 90, ct: ct);
+
+    /// <summary>
     /// Drops the loaded video and its bookmarks. Does nothing while a load is
     /// still settling, so a deliberate load is never undone by the poll.
     /// </summary>
@@ -6862,10 +6874,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         s.FadeSeconds = dlg.FadeSeconds;
         s.NameTemplate = dlg.NameTemplate;
 
-        // The dialog already applied this live so it could be seen; this is
-        // what makes it survive a restart.
+        // The dialog already applied one of these live so it could be seen;
+        // this is what makes it survive a restart. ThemeKey is saved either
+        // way — it is what "Follow system theme" reverts to once turned off.
         s.ThemeKey = dlg.ThemeKey;
-        ThemeService.ApplyFromKey(dlg.ThemeKey);
+        s.FollowSystemTheme = dlg.FollowSystemTheme;
+        ThemeService.ApplyFromKey(dlg.FollowSystemTheme ? SystemTheme.ResolveThemeKey() : dlg.ThemeKey);
         s.OnNameCollision = dlg.OnNameCollision;
         s.PollSpeed = dlg.PollSpeed;
         s.MpcWebInterfacePort = dlg.MpcWebInterfacePort;

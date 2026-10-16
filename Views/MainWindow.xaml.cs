@@ -7,6 +7,9 @@ using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using MpcHcVideoEditor.Helpers;
 using MpcHcVideoEditor.Models;
 using MpcHcVideoEditor.Services;
@@ -734,6 +737,7 @@ public partial class MainWindow : Window
         _wired = true;
 
         _vm.MinimalViewRequested += SetMinimalView;
+        _vm.Job.Finished += PulseJobPanel;
 
         // The tray icon belongs to the window, not the ViewModel, so the
         // ViewModel just says when the setting changed.
@@ -1661,6 +1665,20 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Flashes the job panel green once, on <see cref="JobProgress.Finished"/>.
+    /// </summary>
+    /// <remarks>
+    /// <c>Begin(this)</c> rather than a parameterless <c>Begin()</c>: the
+    /// storyboard names <c>JobCompleteGlow</c> rather than carrying a
+    /// reference to it, and the window is what owns that name in its scope.
+    /// </remarks>
+    private void PulseJobPanel()
+    {
+        if (FindResource("JobCompletePulse") is Storyboard pulse)
+            pulse.Begin(this);
+    }
+
+    /// <summary>
     /// Seeks the player to wherever the timeline was clicked.
     /// </summary>
     /// <remarks>
@@ -1685,5 +1703,143 @@ public partial class MainWindow : Window
 
         var fraction = Math.Clamp(e.GetPosition(TimelineArea).X / width, 0, 1);
         _vm.SeekToTimeCommand.Execute(fraction * duration);
+    }
+
+    // ------------------------------------------------------------------
+    // Hover-scrub preview
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Debounces the actual frame fetch. Reset on every mouse move rather
+    /// than left running, so dragging across the bar asks ffmpeg for one
+    /// frame — wherever the pointer stops — rather than one per pixel
+    /// crossed on the way there.
+    /// </summary>
+    private DispatcherTimer? _hoverPreviewTimer;
+
+    /// <summary>Where the pointer was when the timer was last restarted.</summary>
+    private double _hoverPreviewSeconds;
+
+    /// <summary>What the popup is currently showing a frame for, so landing within the same half-second again is a no-op.</summary>
+    private double _hoverPreviewLoadedSeconds = double.NaN;
+
+    /// <summary>Cancels a fetch the pointer has already moved on from.</summary>
+    private CancellationTokenSource? _hoverPreviewCts;
+
+    /// <summary>
+    /// Opens the preview and moves it to follow the pointer; the frame itself
+    /// arrives later, once <see cref="_hoverPreviewTimer"/> fires.
+    /// </summary>
+    /// <remarks>
+    /// The popup's width is fixed, so centring it on the pointer is simple
+    /// arithmetic rather than a measure pass — <c>85</c> is half of it plus
+    /// the border and padding around the image.
+    /// </remarks>
+    private void Timeline_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (_vm is null || string.IsNullOrWhiteSpace(_vm.Session.VideoPath))
+        {
+            HoverPreviewPopup.IsOpen = false;
+            return;
+        }
+
+        var duration = _vm.Session.VideoDurationSeconds;
+        var width = TimelineArea.ActualWidth;
+        if (duration <= 0 || width <= 0)
+        {
+            HoverPreviewPopup.IsOpen = false;
+            return;
+        }
+
+        var x = e.GetPosition(TimelineArea).X;
+        var fraction = Math.Clamp(x / width, 0, 1);
+        _hoverPreviewSeconds = fraction * duration;
+
+        HoverPreviewTime.Text = Bookmark.FormatTime(_hoverPreviewSeconds);
+        HoverPreviewPopup.PlacementTarget = TimelineArea;
+        HoverPreviewPopup.HorizontalOffset = x - 85;
+
+        // A Popup is a real OS window, and IsHitTestVisible="False" only
+        // keeps WPF's own hit-testing from routing clicks to it — it does
+        // not stop Windows from reporting the cursor as having left this
+        // window the moment the popup's actual on-screen rectangle sits
+        // under it. That reads as a MouseLeave here, closes the popup, puts
+        // the cursor back over this window, reopens it, and repeats —
+        // indefinitely, for as long as the overlap holds, which is exactly
+        // the flicker this was. The popup is roughly 114px tall; -105 left
+        // its bottom edge 9px back inside the 22px bar the cursor sits on.
+        // -140 clears it with margin to spare.
+        HoverPreviewPopup.VerticalOffset = -140;
+        HoverPreviewPopup.IsOpen = true;
+
+        _hoverPreviewTimer ??= MakeHoverPreviewTimer();
+        _hoverPreviewTimer.Stop();
+        _hoverPreviewTimer.Start();
+    }
+
+    private DispatcherTimer MakeHoverPreviewTimer()
+    {
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
+        timer.Tick += HoverPreviewTimer_Tick;
+        return timer;
+    }
+
+    private void Timeline_MouseLeave(object sender, MouseEventArgs e)
+    {
+        _hoverPreviewTimer?.Stop();
+        _hoverPreviewCts?.Cancel();
+        HoverPreviewPopup.IsOpen = false;
+    }
+
+    /// <summary>
+    /// Fetches the frame the pointer has settled on, once it has stopped
+    /// moving for a whole interval.
+    /// </summary>
+    private async void HoverPreviewTimer_Tick(object? sender, EventArgs e)
+    {
+        _hoverPreviewTimer!.Stop();
+        if (_vm is null) return;
+
+        var seconds = _hoverPreviewSeconds;
+
+        // Close enough to what is already on screen that a fresh decode
+        // would not show anything different — the common case while the
+        // pointer sits nearly still between two debounced ticks.
+        if (Math.Abs(seconds - _hoverPreviewLoadedSeconds) < 0.4) return;
+
+        _hoverPreviewCts?.Cancel();
+        _hoverPreviewCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _hoverPreviewCts = cts;
+
+        try
+        {
+            var png = await _vm.ExtractHoverFrameAsync(seconds, cts.Token);
+
+            // Not just cancelled — stale, in case a newer request's result
+            // ever arrived first and this slower one landed after it. Two
+            // fetches a seek apart can finish in either order; only the one
+            // still current when it returns gets to draw.
+            if (!ReferenceEquals(cts, _hoverPreviewCts) || cts.IsCancellationRequested || png is null) return;
+
+            var image = new BitmapImage();
+            using (var stream = new MemoryStream(png))
+            {
+                image.BeginInit();
+                image.CacheOption = BitmapCacheOption.OnLoad;
+                image.StreamSource = stream;
+                image.EndInit();
+            }
+            image.Freeze();
+
+            HoverPreviewImage.Source = image;
+            _hoverPreviewLoadedSeconds = seconds;
+        }
+        catch (OperationCanceledException) { }
+        catch
+        {
+            // Decoration. A frame that failed to decode just leaves the
+            // previous one showing rather than interrupting anything.
+        }
     }
 }

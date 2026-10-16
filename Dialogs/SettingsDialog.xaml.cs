@@ -97,10 +97,16 @@ public partial class SettingsDialog : Window
     /// <summary>Chosen color theme.</summary>
     public string ThemeKey { get; private set; } = ThemePalette.Graphite.Key;
 
+    /// <summary>Whether the theme follows Windows' own light/dark setting instead.</summary>
+    public bool FollowSystemTheme { get; private set; }
+
     /// <summary>
     /// The theme in force when the dialog opened, so Cancel can put it back.
     /// </summary>
     private readonly string _originalThemeKey;
+
+    /// <inheritdoc cref="_originalThemeKey"/>
+    private readonly bool _originalFollowSystemTheme;
 
     private readonly string _originalFfmpegFolder;
 
@@ -170,9 +176,13 @@ public partial class SettingsDialog : Window
 
         ThemeKey = ThemePalette.FromKey(current.ThemeKey).Key;
         _originalThemeKey = ThemeKey;
+        FollowSystemTheme = current.FollowSystemTheme;
+        _originalFollowSystemTheme = FollowSystemTheme;
         ThemeCombo.ItemsSource = ThemePalette.All;
         ThemeCombo.DisplayMemberPath = nameof(ThemePalette.Display);
         ThemeCombo.SelectedItem = ThemePalette.FromKey(ThemeKey);
+        ThemeCombo.IsEnabled = !FollowSystemTheme;
+        FollowSystemThemeCheck.IsChecked = FollowSystemTheme;
 
         // Bind the format list by object so the selection round-trips as a
         // Format rather than a display string that would have to be parsed
@@ -416,6 +426,8 @@ public partial class SettingsDialog : Window
         FfmpegFolderChanged = !string.Equals(FfmpegFolder, _originalFfmpegFolder,
                                              StringComparison.OrdinalIgnoreCase);
 
+        FollowSystemTheme = FollowSystemThemeCheck.IsChecked == true;
+
         // Setting DialogResult closes a modal window on its own; no Close()
         // call, which would be a second close.
         DialogResult = true;
@@ -449,14 +461,35 @@ public partial class SettingsDialog : Window
     }
 
     /// <summary>
+    /// Applied the moment it changes, same as the picker itself — switching it
+    /// on previews Windows' current setting immediately, and switching it off
+    /// goes straight back to whatever the picker above is set to rather than
+    /// waiting for Save.
+    /// </summary>
+    private void FollowSystemTheme_Changed(object sender, RoutedEventArgs e)
+    {
+        FollowSystemTheme = FollowSystemThemeCheck.IsChecked == true;
+        ThemeCombo.IsEnabled = !FollowSystemTheme;
+
+        if (FollowSystemTheme)
+            ThemeService.ApplyFromKey(SystemTheme.ResolveThemeKey());
+        else if (ThemeCombo.SelectedItem is ThemePalette palette)
+            ThemeService.Apply(palette);
+    }
+
+    /// <summary>
     /// Puts the previous theme back when the dialog is dismissed without
     /// saving. Covers Escape and the close button as well as Cancel, which is
     /// why it hangs off the window closing rather than a button.
     /// </summary>
     protected override void OnClosed(EventArgs e)
     {
-        if (DialogResult != true && ThemeService.Current.Key != _originalThemeKey)
-            ThemeService.ApplyFromKey(_originalThemeKey);
+        if (DialogResult != true)
+        {
+            var revertKey = _originalFollowSystemTheme ? SystemTheme.ResolveThemeKey() : _originalThemeKey;
+            if (ThemeService.Current.Key != revertKey)
+                ThemeService.ApplyFromKey(revertKey);
+        }
 
         base.OnClosed(e);
     }

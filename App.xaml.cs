@@ -36,7 +36,8 @@ public partial class App : Application
         try
         {
             var settings = new SettingsService().Current;
-            ThemeService.ApplyFromKey(settings.ThemeKey);
+            var themeKey = settings.FollowSystemTheme ? SystemTheme.ResolveThemeKey() : settings.ThemeKey;
+            ThemeService.ApplyFromKey(themeKey);
             ButtonColors.Apply(settings.ButtonColors, ThemeService.Current);
             SeekbarAppearance.Apply(settings, ThemeService.Current);
         }
@@ -48,6 +49,19 @@ public partial class App : Application
             ButtonColors.Apply(null, ThemeService.Current);
             SeekbarAppearance.Apply(null, ThemeService.Current);
         }
+
+        // Re-reads settings rather than closing over the instance above: that
+        // one is a throwaway for startup, while this fires for as long as the
+        // app runs and has to see whatever the Settings dialog last saved —
+        // including "Follow system theme" being turned on or off since.
+        // Dispatched to the UI thread because SystemEvents does not promise
+        // one, and applying a theme touches Application.Resources.
+        SystemTheme.Watch();
+        SystemTheme.Changed += () => Dispatcher.Invoke(() =>
+        {
+            if (new SettingsService().Current.FollowSystemTheme)
+                ThemeService.ApplyFromKey(SystemTheme.ResolveThemeKey());
+        });
 
         // Windows sometimes sets "menu drop alignment" so popups open to the left.
         // Force normal left-to-right menu alignment.

@@ -225,8 +225,19 @@ public class AppSettings
 
     /// <summary>
     /// Which color theme the interface uses — see <see cref="ThemePalette"/>.
+    /// Ignored while <see cref="FollowSystemTheme"/> is set, but kept rather
+    /// than overwritten, so turning that off returns to whichever theme was
+    /// actually chosen rather than to the default.
     /// </summary>
     public string ThemeKey { get; set; } = ThemePalette.Graphite.Key;
+
+    /// <summary>
+    /// Matches Windows' own light/dark app setting instead of
+    /// <see cref="ThemeKey"/>, and follows it live if it changes. Off by
+    /// default — a theme is a deliberate choice here, with five of them to
+    /// pick from, not merely light-or-dark.
+    /// </summary>
+    public bool FollowSystemTheme { get; set; }
 
     /// <summary>
     /// Pattern for output filenames — see <see cref="Helpers.NameTemplate"/>.

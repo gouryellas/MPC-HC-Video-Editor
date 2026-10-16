@@ -45,6 +45,14 @@
         <helpers:SpeedToBadgeConverter x:Key="SpeedBadge"/>
         <helpers:AlteredSpeedToVisibilityConverter x:Key="AlteredSpeedToVis"/>
 
+        <!-- See JobCompleteGlow. A quick rise and fall rather than a flat
+             hold: a held flash reads as a colour change, a rise-and-fall
+             reads as an event, which is what a finished job actually is. -->
+        <Storyboard x:Key="JobCompletePulse">
+            <DoubleAnimation Storyboard.TargetName="JobCompleteGlow" Storyboard.TargetProperty="Opacity"
+                              From="0" To="0.35" Duration="0:0:0.2" AutoReverse="True"/>
+        </Storyboard>
+
         <!-- The preview frames are shown as the clip will be written, not as
              the file holds it: turned the way Rotate is set, mirrored if Flip
              is on. It costs nothing — the picture is already on screen, and
@@ -1034,8 +1042,9 @@
 
         <!-- Job progress. Sits above the status bar and only takes space while
              an operation is running. -->
-        <Border DockPanel.Dock="Bottom" Background="{DynamicResource PanelBackground}" Padding="12,8"
+        <Border x:Name="JobPanel" DockPanel.Dock="Bottom" Background="{DynamicResource PanelBackground}" Padding="12,8"
                 Visibility="{Binding Job.IsRunning, Converter={StaticResource BoolToVis}}">
+            <Grid>
             <StackPanel>
                 <!-- One line for what is happening, the file counter and the
                      percentage; one for the file itself. The step used to carry
@@ -1090,6 +1099,16 @@
                     </TextBlock>
                 </Grid>
             </StackPanel>
+
+            <!-- A brief green flash over the whole panel when a job finishes
+                 successfully, so the outcome registers even with the
+                 completion sound off and the window not being watched.
+                 Hit-test invisible — it is a flourish, not a control — and
+                 begun from code-behind on JobProgress.Finished, the one
+                 place every successful operation already reports through. -->
+            <Border x:Name="JobCompleteGlow" Background="{DynamicResource StatusOk}"
+                    Opacity="0" IsHitTestVisible="False"/>
+            </Grid>
         </Border>
 
         <!-- Main -->
@@ -1236,7 +1255,7 @@
                 <Border Grid.Column="1" Background="{DynamicResource SeekbarTrack}" CornerRadius="0"
                         BorderBrush="{DynamicResource SeekbarBorder}" BorderThickness="1" Height="22"
                         Cursor="Hand" MouseLeftButtonDown="Timeline_MouseLeftButtonDown"
-                        ToolTip="Click anywhere to seek the player there">
+                        MouseMove="Timeline_MouseMove" MouseLeave="Timeline_MouseLeave">
                     <!-- Right-click reaches the same commands Options offers,
                          the way the toolbar's own context menu does — found by
                          right-clicking the thing being customized, rather than
@@ -1374,6 +1393,27 @@
                                                 ToolTip="Where the cuts fall — a bracket at each end of every range, with the cut's number between them and a tick when it is checked. A bookmark still waiting for its closing timestamp shows an opening bracket on its own."/>
                     </Grid>
                 </Border>
+
+                <!-- Hover-scrub preview: a frame at wherever the pointer sits
+                     over the bar, fetched from ffmpeg and debounced in
+                     code-behind so dragging across the whole bar does not
+                     fire a decode per pixel. IsHitTestVisible="False" so the
+                     popup itself is never what a click or a drag lands on —
+                     it floats over the bar, not in front of it as far as the
+                     mouse is concerned. -->
+                <Popup x:Name="HoverPreviewPopup" Placement="RelativePoint" AllowsTransparency="True"
+                       StaysOpen="True" IsHitTestVisible="False" PopupAnimation="None">
+                    <Border Background="{DynamicResource PanelBackground}"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                            CornerRadius="4" Padding="3">
+                        <StackPanel>
+                            <Image x:Name="HoverPreviewImage" Width="160" Height="90" Stretch="Uniform"/>
+                            <TextBlock x:Name="HoverPreviewTime" HorizontalAlignment="Center"
+                                       Margin="0,3,0,0" FontFamily="Consolas" FontSize="11"
+                                       FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                        </StackPanel>
+                    </Border>
+                </Popup>
 
                 <TextBlock Grid.Column="2" Text="{Binding DurationDisplay}" VerticalAlignment="Bottom"
                            HorizontalAlignment="Left" TextAlignment="Left"
