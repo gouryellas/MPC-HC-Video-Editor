@@ -127,6 +127,29 @@ public class FFmpegService
     public string? LastOutputWarning { get; private set; }
 
     /// <summary>
+    /// How far the finished file's audio track runs from its video track, in
+    /// seconds — positive when audio is longer, negative when shorter. Null
+    /// when there is nothing to compare: no audio stream, or the file could
+    /// not be probed.
+    /// </summary>
+    /// <remarks>
+    /// Set after a merge by <see cref="VerifyAudioSyncAsync"/>. The join itself
+    /// re-encodes audio across the whole output precisely to avoid the
+    /// per-segment rounding that used to cause this (see the remarks in
+    /// <see cref="MergeBookmarksAsync"/>) — this is the check that proves it
+    /// actually worked on the file just written, rather than trusting the fix
+    /// silently.
+    /// </remarks>
+    public double? LastAudioDriftSeconds { get; private set; }
+
+    /// <summary>
+    /// Below this, a drift between the audio and video track lengths is
+    /// container/encoder rounding noise, not something a viewer would notice.
+    /// Above it, the gap is worth a line in the finished-job toast.
+    /// </summary>
+    public const double AudioSyncToleranceSeconds = 0.08;
+
+    /// <summary>
     /// Compares the finished file against the length that was asked for.
     /// </summary>
     /// <remarks>
@@ -158,6 +181,80 @@ public class FFmpegService
               $"({Bookmark.FormatTime(actual)} against {Bookmark.FormatTime(expectedSeconds)}). " +
               "Copied cuts can only start at a keyframe, so a clip may begin before its mark. " +
               "Turn on Precise in Settings ▸ Encoding ▸ Cut accuracy to cut exactly.";
+    }
+
+    /// <summary>
+    /// Measures how far the output file's audio and video streams actually
+    /// land from each other and records it in <see cref="LastAudioDriftSeconds"/>.
+    /// </summary>
+    /// <remarks>
+    /// A difference here is the one that matters for lip sync — the overall
+    /// file duration checked by <see cref="VerifyOutputAsync"/> can match
+    /// exactly while the two streams inside it are still offset, since a
+    /// container's reported duration is whichever stream runs longest.
+    /// </remarks>
+    private async Task VerifyAudioSyncAsync(string outputPath)
+    {
+        LastAudioDriftSeconds = null;
+        if (!File.Exists(outputPath)) return;
+
+        var (video, audio) = await GetStreamDurationsAsync(outputPath);
+        if (video <= 0 || audio <= 0) return;
+
+        LastAudioDriftSeconds = audio - video;
+    }
+
+    /// <summary>
+    /// The duration ffprobe reports for the first video and first audio
+    /// stream individually — not the container's overall duration, which
+    /// <see cref="GetDurationAsync"/> already covers and which hides a stream
+    /// offset by reporting whichever stream is longer. Either value is 0 when
+    /// that stream is missing or unreadable.
+    /// </summary>
+    private async Task<(double Video, double Audio)> GetStreamDurationsAsync(string filePath)
+    {
+        try
+        {
+            var args = "-v error -show_entries stream=codec_type,duration -of csv=p=0 " +
+                       $"\"{filePath}\"";
+            var psi = new ProcessStartInfo
+            {
+                FileName = _ffprobePath,
+                Arguments = args,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var p = Process.Start(psi);
+            if (p == null) return (0, 0);
+
+            var outputTask = p.StandardOutput.ReadToEndAsync();
+            var errorTask = p.StandardError.ReadToEndAsync();
+            await Task.WhenAll(outputTask, errorTask);
+            await p.WaitForExitAsync();
+
+            if (p.ExitCode != 0) return (0, 0);
+
+            double video = 0, audio = 0;
+            foreach (var line in outputTask.Result.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var parts = line.Trim().Split(',');
+                if (parts.Length < 2) continue;
+                if (!double.TryParse(parts[1].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var d))
+                    continue;
+
+                if (parts[0].Trim() == "video") video = d;
+                else if (parts[0].Trim() == "audio") audio = d;
+            }
+
+            return (video, audio);
+        }
+        catch
+        {
+            return (0, 0);
+        }
     }
 
     /// <summary>
@@ -683,6 +780,7 @@ public class FFmpegService
                 .Where(b => b.IsValid)
                 .Sum(b => (b.EndSeconds - b.StartSeconds) / (Math.Abs(b.Speed) < 0.01 ? 1.0 : b.Speed));
             await VerifyOutputAsync(outputPath, expected, ct);
+            await VerifyAudioSyncAsync(outputPath);
         }
         finally
         {

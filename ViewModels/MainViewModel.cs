@@ -4478,15 +4478,41 @@ public partial class MainViewModel : ObservableObject, IDisposable
             StatusText = $"Created {Path.GetFileName(outPath)}";
             NoteOutput(outPath);
 
-            // The app now checks what it produced against what was asked for.
-            // A keyframe-aligned cut running over a second long used to pass
-            // silently; a status line nobody is still looking at by the time
-            // the job finishes is not much better, so this gets the same
-            // held, forced toast a refusal does — something to read, not just
-            // notice.
+            // The app now checks what it produced against what was asked for,
+            // and separately whether the audio and video tracks inside it
+            // actually land together — a file can pass the length check while
+            // still carrying a stream offset, since the container's duration
+            // is whichever of the two runs longer.
+            var drift = _ffmpeg.LastAudioDriftSeconds;
+            var driftNoticeable = drift is { } d && Math.Abs(d) > FFmpegService.AudioSyncToleranceSeconds;
+            var driftText = driftNoticeable
+                ? $"audio runs {Math.Abs(drift!.Value) * 1000:0}ms {(drift.Value > 0 ? "longer" : "shorter")} than the video"
+                : null;
+
             if (_ffmpeg.LastOutputWarning is { } warning)
-                _toast.Show("Output doesn't match the marked range", warning, "⚠", force: true,
+            {
+                // A held, forced toast either way — something to read, not
+                // just notice — with the sync finding folded in rather than
+                // fired as a second toast, which would just replace this one.
+                var detail = driftText != null ? $"{warning} Also, {driftText}." : warning;
+                _toast.Show("Output doesn't match the marked range", detail, "⚠", force: true,
                             hold: TimeSpan.FromSeconds(Math.Max(6, _toast.HoldDuration.TotalSeconds)));
+            }
+            else if (driftNoticeable)
+            {
+                _toast.Show("Audio may drift out of sync", char.ToUpperInvariant(driftText![0]) + driftText[1..] +
+                            " — most noticeable near the cut points.", "⚠", force: true,
+                            hold: TimeSpan.FromSeconds(Math.Max(6, _toast.HoldDuration.TotalSeconds)));
+            }
+            else
+            {
+                var finishedDuration = await _ffmpeg.GetDurationAsync(outPath);
+                var sizeMb = new FileInfo(outPath) is { Exists: true } info ? info.Length / 1024.0 / 1024.0 : 0;
+                var recap = trimming
+                    ? $"{Bookmark.FormatTime(finishedDuration)} · {sizeMb:0.#} MB · audio in sync"
+                    : $"{toMerge.Count} cuts · {Bookmark.FormatTime(finishedDuration)} · {sizeMb:0.#} MB · audio in sync";
+                _toast.Show(trimming ? "Trimmed cut" : "Merged cuts", recap, "🎬");
+            }
 
             succeeded = true;
         }
