@@ -162,6 +162,7 @@ public class Bookmark : INotifyPropertyChanged
             _speed = Math.Clamp(value, 0.25, 2.0);
             OnPropertyChanged();
             OnPropertyChanged(nameof(SpeedDisplay));
+            OnPropertyChanged(nameof(SpeedShortDisplay));
             OnPropertyChanged(nameof(Prefix));
             OnPropertyChanged(nameof(EffectiveDurationDisplay));
             OnPropertyChanged(nameof(DurationDisplay)); // in case UI binds to it
@@ -465,6 +466,19 @@ public class Bookmark : INotifyPropertyChanged
     /// "1.25x" alone leaves the reader to work out which way it goes.
     /// </remarks>
     public string SpeedDisplay => DescribeSpeed(Speed);
+
+    /// <summary>
+    /// The same thing in as few characters as it can be said in — "normal",
+    /// "0.75x", "1.5x" — for the reading beside the row's slider.
+    /// </summary>
+    /// <remarks>
+    /// Not <see cref="SpeedDisplay"/>, which spells the direction out for
+    /// places with room for a sentence. Beside the slider there is no such
+    /// room, and none is needed: the slider's own position already says which
+    /// way the number goes, so the number alone is enough.
+    /// </remarks>
+    public string SpeedShortDisplay =>
+        Is(Speed, 1.0) ? "normal" : $"{Speed:0.##}x";
 
     /// <summary>Whether the clip will be inverted, in the same voice.</summary>
     public string FlipDisplay => IsFlipped ? "flipped" : string.Empty;

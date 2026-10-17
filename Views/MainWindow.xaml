@@ -1432,56 +1432,20 @@
                 <!-- List -->
                 <Border Grid.Column="0" Background="{DynamicResource PanelBackground}" CornerRadius="6" Padding="6" Margin="0,0,10,0">
                     <DockPanel>
-                        <!-- Columns mirror the row template below so the captions
-                             sit over the controls they name. The speed slider had
-                             nothing labelling it at all: what it did was only
-                             discoverable by dragging one and watching the clip
-                             length change. -->
-                        <Grid DockPanel.Dock="Top" Margin="4,2,4,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="28"/>
-                                <ColumnDefinition Width="26"/>
-                                <ColumnDefinition Width="34"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="70"/>
-                                <ColumnDefinition Width="90"/>
-                                <ColumnDefinition Width="110"/>
-                            </Grid.ColumnDefinitions>
+                        <!-- The count reads CompletePairCount, not
+                             Bookmarks.Count as the old "n items" did: a lone
+                             opening timestamp still awaiting its close is a row
+                             in the list but not yet a cut, and counting it
+                             promised one more clip than a split would produce.
 
-                            <!-- The count reads CompletePairCount, not
-                                 Bookmarks.Count as the old "n items" did: a lone
-                                 opening timestamp still awaiting its close is a
-                                 row in the list but not yet a cut, and counting
-                                 it promised one more clip than a split would
-                                 produce. Spans column 3 as well, which the count
-                                 used to occupy — "Bookmarks: 12" does not fit
-                                 the 88px the first three columns give it. -->
-                            <TextBlock Grid.Column="0" Grid.ColumnSpan="4"
-                                       Text="{Binding CompletePairCount, StringFormat='Bookmarks: {0}'}"
-                                       FontWeight="SemiBold" Foreground="{DynamicResource TextDim}"/>
-                            <!-- Only once there is something to set a speed on.
-                                 The sliders live on the rows, so with an empty
-                                 list this headed a column of nothing. -->
-                            <!-- Column 5 only, centred, so it sits over the
-                                 sliders rather than over the sliders and the
-                                 speed readings together. It used to span both and
-                                 align left, which put it at the left edge of a
-                                 200px span — a label apparently belonging to
-                                 nothing, well to the left of the control it names.
-
-                                 The header and the rows both end with the same two
-                                 fixed columns, 90 then 110, and the star column
-                                 before them absorbs the difference in width. So
-                                 column 5 begins the same distance from the right
-                                 edge in both, and centring here centres over the
-                                 slider itself. -->
-                            <TextBlock Grid.Column="5" Text="PLAY SPEED"
-                                       HorizontalAlignment="Center" TextAlignment="Center"
-                                       Visibility="{Binding HasNoBookmarks, Converter={StaticResource NotBoolToVis}}"
-                                       FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}"
-                                       TextWrapping="Wrap" LineHeight="11"
-                                       ToolTip="Each clip can be written out slower or faster than it was recorded. Drag a row's slider to change that clip; the length beside it updates to match."/>
-                        </Grid>
+                             The only caption left. This used to be a grid of
+                             columns mirroring the row template, so a "PLAY
+                             SPEED" heading could sit over the sliders — but the
+                             reading beside each slider names what it is doing
+                             in the row itself, which is where it is read. -->
+                        <TextBlock DockPanel.Dock="Top" Margin="4,2,4,8"
+                                   Text="{Binding CompletePairCount, StringFormat='Bookmarks: {0}'}"
+                                   FontWeight="SemiBold" Foreground="{DynamicResource TextDim}"/>
 
                         <ListView ItemsSource="{Binding Session.Bookmarks}"
                                   SelectedItem="{Binding SelectedBookmark}"
@@ -1514,10 +1478,19 @@
                                                  exactly one space, and a fixed column would pad
                                                  "[1]" out to the width of "[10]" instead. -->
                                             <ColumnDefinition Width="Auto"/>
+                                            <!-- Auto, not star: the times and the length are
+                                                 the row, and a star column hands back
+                                                 whatever is left after everything else has
+                                                 taken its share — which on a narrow window
+                                                 was less than the text needed, so the
+                                                 closing "(4m 17s)" was simply cut in half.
+                                                 Sized to its content, it is never clipped,
+                                                 and the markers column below absorbs the
+                                                 slack instead. -->
+                                            <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="120"/>
                                             <ColumnDefinition Width="90"/>
-                                            <ColumnDefinition Width="110"/>
+                                            <ColumnDefinition Width="Auto" MinWidth="52"/>
                                         </Grid.ColumnDefinitions>
 
                                         <!-- One-click split: clicking this radio button
@@ -1567,7 +1540,7 @@
                                                      the whole row taller, and anything in it that
                                                      is not centered then reads as lifted. -->
                                                 <TextBox Text="{Binding Label, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                                         Width="130" Height="20" Padding="4,0"
+                                                         Width="90" Height="20" Padding="4,0"
                                                          Background="{DynamicResource ControlBackground}"
                                                          Foreground="{DynamicResource TextPrimary}"
                                                          BorderBrush="{DynamicResource BorderBrush}"
@@ -1655,10 +1628,16 @@
                                         <Slider Grid.Column="5" Minimum="0.25" Maximum="2.0" TickFrequency="0.25"
                                                 IsSnapToTickEnabled="True" Value="{Binding Speed, Mode=TwoWay}"
                                                 VerticalAlignment="Center" Width="80"
-                                                ToolTip="How fast this clip plays when it is saved. Left is slower, right is faster; the clip's length changes to match."/>
+                                                ToolTip="{Binding SpeedDisplay, StringFormat=Plays at {0} when saved — drag to change}"/>
 
-                                        <TextBlock Grid.Column="6" Text="{Binding SpeedDisplay}" Foreground="{DynamicResource LinkBlue}"
+                                        <!-- The short reading — "normal", "1.5x" — rather
+                                             than the spelled-out one, which needs a column
+                                             half again as wide to say the same thing beside
+                                             a slider that already shows the direction. -->
+                                        <TextBlock Grid.Column="6" Text="{Binding SpeedShortDisplay}"
+                                                   Foreground="{DynamicResource LinkBlue}"
                                                    VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                   Margin="6,0,0,0"
                                                    ToolTip="{Binding DurationDisplay, StringFormat=Marked range is {0} of the source}"/>
                                     </Grid>
                                 </DataTemplate>
