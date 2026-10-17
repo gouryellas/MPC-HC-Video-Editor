@@ -1868,6 +1868,7 @@ public partial class MainWindow : Window
         }
 
         HoverPreviewTime.Text = Bookmark.FormatTime(_hoverPreviewSeconds);
+        ShowHoverChapterName(_hoverPreviewSeconds);
         HoverPreviewPopup.PlacementTarget = TimelineArea;
         HoverPreviewPopup.HorizontalOffset = x - 85;
 
@@ -1887,6 +1888,41 @@ public partial class MainWindow : Window
         _hoverPreviewTimer ??= MakeHoverPreviewTimer();
         _hoverPreviewTimer.Stop();
         _hoverPreviewTimer.Start();
+    }
+
+    /// <summary>
+    /// Names the cut the pointer is inside, on the line under the preview's
+    /// clock — or hides that line when the pointer is between cuts.
+    /// </summary>
+    /// <remarks>
+    /// Only while chapter names are in use. With the setting off a cut has no
+    /// name worth reading, and the generated "Chapter 3" that the list would
+    /// show in its place says nothing the number between the brackets has not
+    /// already said.
+    ///
+    /// The whole span between a pair of brackets answers, not just the
+    /// brackets themselves: the name belongs to the range, and the range is
+    /// what the pointer is in.
+    /// </remarks>
+    private void ShowHoverChapterName(double seconds)
+    {
+        if (_vm is null || !_vm.UseChapterNames)
+        {
+            HoverPreviewChapter.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        foreach (var b in _vm.Session.Bookmarks)
+        {
+            if (!b.IsValid || !b.HasLabel) continue;
+            if (seconds < b.StartSeconds || seconds > b.EndSeconds) continue;
+
+            HoverPreviewChapter.Text = b.Label;
+            HoverPreviewChapter.Visibility = Visibility.Visible;
+            return;
+        }
+
+        HoverPreviewChapter.Visibility = Visibility.Collapsed;
     }
 
     private DispatcherTimer MakeHoverPreviewTimer()

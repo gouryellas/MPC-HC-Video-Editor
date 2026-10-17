@@ -1317,8 +1317,7 @@
                              stands taller than its lane. -->
                         <ProgressBar Value="{Binding TimelineProgress}" Minimum="0" Maximum="1"
                                      Background="Transparent" BorderThickness="0"
-                                     Foreground="{DynamicResource SeekbarFill}"
-                                     ToolTip="Playback position">
+                                     Foreground="{DynamicResource SeekbarFill}">
                             <ProgressBar.Template>
                                 <ControlTemplate TargetType="ProgressBar">
                                     <Grid>
@@ -1412,6 +1411,19 @@
                             <TextBlock x:Name="HoverPreviewTime" HorizontalAlignment="Center"
                                        Margin="0,3,0,0" FontFamily="Consolas" FontSize="11"
                                        FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                            <!-- The name of the cut the pointer is inside, when
+                                 the pointer is inside one and chapter names are
+                                 in use. Collapsed otherwise, so the popup keeps
+                                 its height over the stretches between cuts
+                                 rather than growing and shrinking as the
+                                 pointer crosses a bracket. Trimmed rather than
+                                 wrapped: the frame above sets the width, and a
+                                 long name should not make the popup taller. -->
+                            <TextBlock x:Name="HoverPreviewChapter" HorizontalAlignment="Center"
+                                       Margin="0,1,0,0" FontSize="11" MaxWidth="160"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource ValueYellow}"
+                                       Visibility="Collapsed"/>
                         </StackPanel>
                     </Border>
                 </Popup>
