@@ -43,6 +43,17 @@ public partial class DetectBookmarksDialog : Window
     /// <summary>The ranges the user accepted, in order.</summary>
     public List<DetectedRange> Accepted { get; private set; } = new();
 
+    /// <summary>
+    /// Every range the last scan proposed, whether or not it was accepted.
+    /// </summary>
+    /// <remarks>
+    /// The edges of these are where the video actually changes, which is
+    /// useful to the timeline's bracket snapping regardless of what the user
+    /// did with the proposals — a scan that was reviewed and rejected still
+    /// found the boundaries. Readable after Cancel for the same reason.
+    /// </remarks>
+    public List<DetectedRange> Scanned => _proposals.Select(p => p.Range).ToList();
+
     /// <summary>Whether the accepted ranges replace the current bookmarks.</summary>
     public bool ReplaceExisting { get; private set; }
 

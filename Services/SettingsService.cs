@@ -108,6 +108,36 @@ public enum OverlayCorner
     BottomLeft
 }
 
+/// <summary>
+/// How the storyboard arranges the cuts. All four draw the same cuts and
+/// carry the same checkboxes; they differ in how much of a cut is spelled out
+/// beside its picture, and therefore how many fit on screen.
+/// </summary>
+public enum StoryboardLayout
+{
+    /// <summary>Frame above, everything about the cut below. The balanced one.</summary>
+    Cards,
+
+    /// <summary>
+    /// Frames and nothing else, with the number, length and checkbox laid
+    /// over the corners. Three times as many cuts on screen, for finding one
+    /// rather than reading it.
+    /// </summary>
+    ContactSheet,
+
+    /// <summary>
+    /// One cut to a row, frame on the left and the text beside it. The list
+    /// view's vertical scan, with a picture to identify the shot by.
+    /// </summary>
+    Detail,
+
+    /// <summary>
+    /// First and last frame of each cut, side by side. The only layout that
+    /// says how a cut <em>ends</em>, at the cost of a second frame to fetch.
+    /// </summary>
+    Filmstrip
+}
+
 /// <summary>How a bookmark's pair of timestamps is marked on the seekbar.</summary>
 public enum SeekbarBracketStyle
 {
@@ -430,6 +460,27 @@ public class AppSettings
     /// this existed behaves exactly as one that has never been touched.
     /// </remarks>
     public Dictionary<string, string> ButtonColors { get; set; } = new();
+
+    /// <summary>
+    /// Whether a bracket being dragged along the timeline jumps to a nearby
+    /// edit point rather than landing wherever the pointer stopped.
+    /// </summary>
+    /// <remarks>
+    /// Only ever does anything once a scan has found some — see
+    /// <see cref="ViewModels.MainViewModel.ScanEditPointsCommand"/>. On by
+    /// default because with no edit points found it costs nothing, and once
+    /// there are some, landing on one is almost always what the drag was
+    /// aiming at.
+    /// </remarks>
+    public bool SnapToEditPoints { get; set; } = true;
+
+    /// <summary>
+    /// Whether the cut list is shown as a grid of thumbnails rather than rows.
+    /// </summary>
+    public bool StoryboardView { get; set; }
+
+    /// <summary>Which arrangement the storyboard uses when it is the view shown.</summary>
+    public StoryboardLayout StoryboardLayout { get; set; } = StoryboardLayout.Cards;
 
     /// <summary>Whether the seekbar — timeline, position and length — is shown at all.</summary>
     public bool ShowSeekbar { get; set; } = true;

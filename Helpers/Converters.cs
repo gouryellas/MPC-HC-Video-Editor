@@ -199,6 +199,45 @@ public class PositiveToVisibilityConverter : IValueConverter
         throw new NotSupportedException();
 }
 
+/// <summary>
+/// Shows an element only when a string has something in it.
+/// </summary>
+/// <remarks>
+/// For the contact sheet's badge, which carries whatever is being done to a
+/// cut — a speed, a crop, a mute. Frames and nothing else is the whole point
+/// of that layout, so a cut with nothing to say about it keeps its tile bare
+/// and the ones that have been touched are the only ones wearing a label.
+/// </remarks>
+public class NonEmptyToVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        string.IsNullOrWhiteSpace(value as string) ? Visibility.Collapsed : Visibility.Visible;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
+/// True when a speed equals the one named in the converter parameter — for
+/// ticking the current entry in a menu of fixed speeds.
+/// </summary>
+/// <remarks>
+/// The same hundredth-of-a-unit slack the rest of the app compares speeds
+/// with. A value that has been through a CSV and back is not reliably the
+/// literal that was written, and a menu with nothing ticked on a clip that
+/// plainly has a speed set would be worse than no tick at all.
+/// </remarks>
+public class SpeedIsConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is double speed
+        && double.TryParse(parameter as string, NumberStyles.Float, CultureInfo.InvariantCulture, out var target)
+        && Math.Abs(speed - target) < 0.01;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
 public class InverseBoolToVisibilityConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)

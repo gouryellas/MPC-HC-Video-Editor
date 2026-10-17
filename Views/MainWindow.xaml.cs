@@ -1,4 +1,5 @@
 ﻿using System.Collections.Specialized;
+using System.Globalization;
 using System.ComponentModel;
 using System.IO;
 using System.Windows;
@@ -1767,6 +1768,48 @@ public partial class MainWindow : Window
         return bestBookmark is null ? null : (bestBookmark, bestIsStart);
     }
 
+    /// <summary>How close, in pixels, a dragged bracket has to come to an edit point to land on it.</summary>
+    private const double SnapPixels = 7;
+
+    /// <summary>
+    /// Pulls a dragged bracket onto the nearest edit point when it comes
+    /// within <see cref="SnapPixels"/>, or returns the time unchanged.
+    /// </summary>
+    /// <remarks>
+    /// Measured in pixels rather than seconds on purpose: the pointer is
+    /// being aimed on screen, so what "close" means is a distance on screen.
+    /// The same seven pixels is a fraction of a second on a short video and
+    /// several seconds on a long one, which is exactly right — on the long
+    /// one there is no way to aim finer than that anyway.
+    ///
+    /// Holding Alt passes straight through. A snap that is nearly always
+    /// wanted still has to be refusable, and refusing it per-drag beats a
+    /// setting the one time in fifty it gets in the way.
+    /// </remarks>
+    private double SnapDragSeconds(double seconds, double width, double duration)
+    {
+        if (_vm is null || !_vm.SnapToEditPoints) return seconds;
+        if (_vm.SnapPoints.Count == 0 || width <= 0 || duration <= 0) return seconds;
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Alt)) return seconds;
+
+        var secondsPerPixel = duration / width;
+        var radius = SnapPixels * secondsPerPixel;
+
+        var best = seconds;
+        var bestDistance = radius;
+
+        foreach (var point in _vm.SnapPoints)
+        {
+            var distance = Math.Abs(point - seconds);
+            if (distance > bestDistance) continue;
+
+            best = point;
+            bestDistance = distance;
+        }
+
+        return best;
+    }
+
     private void Timeline_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         if (_draggingBookmark is null) return;
@@ -1790,6 +1833,132 @@ public partial class MainWindow : Window
         _vm?.CommitBracketDrag(_draggingBookmark, _draggingIsStart, RangesControl.DragSeconds);
         _draggingBookmark = null;
         RangesControl.DragBookmark = null;
+    }
+
+    // ------------------------------------------------------------------
+    // Setting a clip's speed where there is no room for a slider
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// The eight stops the row list's slider snaps to, in order.
+    /// </summary>
+    /// <remarks>
+    /// Listed rather than stepped by arithmetic so the wheel lands on exactly
+    /// the same values the slider and the menu offer. A quarter added to 0.75
+    /// is not reliably 1.0 in binary, and a clip left at 0.9999 would read as
+    /// normal while still being re-encoded as though it were not.
+    /// </remarks>
+    private static readonly double[] ClipSpeeds = { 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0 };
+
+    /// <summary>
+    /// Sets the clicked clip's speed from the storyboard's context menu.
+    /// </summary>
+    private void ClipSpeed_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem item) return;
+        if (item.DataContext is not Bookmark bookmark) return;
+        if (!double.TryParse(item.Tag as string, NumberStyles.Float, CultureInfo.InvariantCulture, out var speed)) return;
+
+        bookmark.Speed = speed;
+    }
+
+    /// <summary>
+    /// Ctrl and the wheel steps the speed of whichever card the pointer is
+    /// over, one stop at a time.
+    /// </summary>
+    /// <remarks>
+    /// Ctrl rather than the wheel alone: the wheel's own job here is to scroll
+    /// the list, and taking that away to adjust whatever happened to be under
+    /// the pointer would be a trap. Unhandled without Ctrl, so scrolling is
+    /// untouched.
+    ///
+    /// The card under the pointer, not the selected one — the pointer is
+    /// already doing the pointing, and having to select a card first to adjust
+    /// it would be a step for nothing.
+    /// </remarks>
+    private void Storyboard_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (Keyboard.Modifiers != ModifierKeys.Control) return;
+        if (e.OriginalSource is not DependencyObject source) return;
+
+        var container = ItemsControl.ContainerFromElement((ItemsControl)sender, source) as FrameworkElement;
+        if (container?.DataContext is not Bookmark bookmark) return;
+
+        var index = Array.FindIndex(ClipSpeeds, s => Math.Abs(s - bookmark.Speed) < 0.01);
+        if (index < 0) index = Array.IndexOf(ClipSpeeds, 1.0);
+
+        index = Math.Clamp(index + (e.Delta > 0 ? 1 : -1), 0, ClipSpeeds.Length - 1);
+        bookmark.Speed = ClipSpeeds[index];
+
+        // Otherwise the list scrolls as well as the speed changing.
+        e.Handled = true;
+    }
+
+    // ------------------------------------------------------------------
+    // Committing a chapter name
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Enter accepts what has been typed into a chapter name; Escape puts
+    /// back what was there before. Either way the box gives up focus.
+    /// </summary>
+    private void ChapterName_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox box) return;
+
+        if (e.Key == Key.Enter)
+        {
+            CommitTextBox(box);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            // Re-reads the bookmark, discarding the edit. The binding only
+            // writes on focus leaving, so nothing has been changed yet.
+            box.GetBindingExpression(TextBox.TextProperty)?.UpdateTarget();
+            Keyboard.ClearFocus();
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>
+    /// Makes a click anywhere outside a text box commit what is in it.
+    /// </summary>
+    /// <remarks>
+    /// The chapter name writes back on losing focus, and most of this window
+    /// is panels and borders — none of which are focusable, so clicking them
+    /// left focus sitting in the box. A name could be typed, clicked away
+    /// from, and look accepted while never having been written anywhere.
+    ///
+    /// Preview rather than the bubbling event, so this runs before whatever
+    /// was clicked gets to act on it, and nothing is marked handled — the
+    /// click still does whatever it was going to do.
+    /// </remarks>
+    private void Window_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (Keyboard.FocusedElement is not TextBox box) return;
+
+        // A click inside the box itself is just a click inside the box.
+        if (e.OriginalSource is DependencyObject source && box.IsAncestorOf(source)) return;
+
+        CommitTextBox(box);
+    }
+
+    /// <summary>
+    /// Writes a text box's value back to what it is bound to, and lets go of
+    /// the keyboard.
+    /// </summary>
+    /// <remarks>
+    /// The binding is updated by hand rather than left to the focus change to
+    /// do. Clearing focus does normally raise it, but what is being clicked
+    /// can take focus itself — or take none at all — and relying on the one
+    /// to cause the other is how the edit went missing in the first place.
+    /// Updating twice is harmless; not updating at all is not.
+    /// </remarks>
+    private static void CommitTextBox(TextBox box)
+    {
+        box.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+        Keyboard.ClearFocus();
     }
 
     // ------------------------------------------------------------------
@@ -1849,9 +2018,14 @@ public partial class MainWindow : Window
             // GetBracketDragRange's remarks on why this does not touch the
             // bookmark itself.
             var (floor, ceiling) = _vm.GetBracketDragRange(dragging, _draggingIsStart);
+
+            // Snapped before clamping, so a snap that lands outside what the
+            // drag allows is pulled back to the limit rather than taken.
+            var wanted = SnapDragSeconds(_hoverPreviewSeconds, width, duration);
+
             var clamped = floor > ceiling
                 ? _draggingIsStart ? dragging.StartSeconds : dragging.EndSeconds
-                : Math.Clamp(_hoverPreviewSeconds, Math.Max(0, floor), ceiling);
+                : Math.Clamp(wanted, Math.Max(0, floor), ceiling);
 
             RangesControl.DragBookmark = dragging;
             RangesControl.DragIsStart = _draggingIsStart;

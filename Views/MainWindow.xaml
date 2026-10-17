@@ -1,4 +1,4 @@
-﻿<!-- Title is set in the constructor from the assembly version — see AppVersion.
+<!-- Title is set in the constructor from the assembly version — see AppVersion.
      The literal that used to be on the Title attribute below is why 3.0.1
      shipped with a window still captioned 3.0; what is left there is only what
      the XAML designer shows. -->
@@ -7,6 +7,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:MpcHcVideoEditor.ViewModels"
         xmlns:helpers="clr-namespace:MpcHcVideoEditor.Helpers"
+        xmlns:services="clr-namespace:MpcHcVideoEditor.Services"
         Title="MPC-HC Video Editor"
         Icon="pack://application:,,,/Assets/app.ico"
         Height="780" Width="1100"
@@ -15,7 +16,8 @@
         WindowStartupLocation="CenterScreen"
         AllowDrop="True"
         DragOver="Window_DragOver"
-        Drop="Window_Drop">
+        Drop="Window_Drop"
+        PreviewMouseDown="Window_PreviewMouseDown">
 
     <Window.DataContext>
         <vm:MainViewModel/>
@@ -44,6 +46,8 @@
         <helpers:PositiveToVisibilityConverter x:Key="PositiveToVis"/>
         <helpers:SpeedToBadgeConverter x:Key="SpeedBadge"/>
         <helpers:AlteredSpeedToVisibilityConverter x:Key="AlteredSpeedToVis"/>
+        <helpers:NonEmptyToVisibilityConverter x:Key="NonEmptyToVis"/>
+        <helpers:SpeedIsConverter x:Key="SpeedIs"/>
 
         <!-- See JobCompleteGlow. A quick rise and fall rather than a flat
              hold: a held flash reads as a colour change, a rise-and-fall
@@ -327,6 +331,106 @@
                     <Setter Property="Visibility" Value="Collapsed"/>
                 </Trigger>
             </Style.Triggers>
+        </Style>
+
+        <!-- One effect mark. Each is drawn on its own rather than as one line
+             of text, because mute is red and the rest are not, and a single
+             TextBlock can only be one colour. -->
+        <ItemsPanelTemplate x:Key="EffectMarksPanel">
+            <StackPanel Orientation="Horizontal"/>
+        </ItemsPanelTemplate>
+
+        <DataTemplate x:Key="EffectMarkTemplate">
+            <TextBlock Text="{Binding Glyph}" Margin="0,0,3,0" VerticalAlignment="Center">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{DynamicResource StatusWarn}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Alert}" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource StatusError}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </DataTemplate>
+
+        <!-- The turn a clip is given, drawn as the arc it describes: a quarter
+             circle for a quarter turn, a half for a half, three quarters for
+             the other way round. Direction is clockwise in every case, since a
+             three-quarter turn clockwise is a quarter turn anticlockwise and
+             the arc says which it is by how far it goes.
+
+             Drawn rather than typed because there is no third rotation arrow
+             in any font that reads as "half turn" beside ⟳ and ⟲ — and a
+             number set inside a twelve-pixel circle, which is how the printed
+             icons do it, is not legible at this size. The arc alone carries
+             it, and the tooltip carries the words.
+
+             Geometry is a 12×12 box, centre (6,6), radius 4.5, starting at
+             twelve o'clock. Each ends in two short strokes for an arrowhead
+             rather than a filled triangle, so the whole mark is one stroked
+             path in one colour. -->
+        <Style x:Key="RotationMark" TargetType="Path">
+            <Setter Property="Stroke" Value="{DynamicResource StatusWarn}"/>
+            <Setter Property="StrokeThickness" Value="1.3"/>
+            <Setter Property="StrokeStartLineCap" Value="Round"/>
+            <Setter Property="StrokeEndLineCap" Value="Round"/>
+            <Setter Property="Width" Value="12"/>
+            <Setter Property="Height" Value="12"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Rotation}" Value="Clockwise">
+                    <Setter Property="Data" Value="M 6,1.5 A 4.5,4.5 0 0 1 10.5,6 M 9.35,4.36 L 10.5,6 M 11.65,4.36 L 10.5,6"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Rotation}" Value="UpsideDown">
+                    <Setter Property="Data" Value="M 6,1.5 A 4.5,4.5 0 0 1 6,10.5 M 7.64,9.35 L 6,10.5 M 7.64,11.65 L 6,10.5"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Rotation}" Value="Counterclockwise">
+                    <Setter Property="Data" Value="M 6,1.5 A 4.5,4.5 0 1 1 1.5,6 M 0.35,7.64 L 1.5,6 M 2.65,7.64 L 1.5,6"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- One of the five little view switches above the cut list. Bare
+             glyphs, so the tooltip is the only thing that names them — and,
+             as with HeaderIcon, it is made to wait rather than appear on the
+             way past.
+
+             A ToggleButton rather than a Button because the set says which
+             view is current as well as offering the others; the checked one
+             is lit in the accent colour and the rest sit back in the panel's
+             own quiet grey. -->
+        <Style x:Key="ViewToggle" TargetType="ToggleButton">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="ToolTipService.InitialShowDelay" Value="800"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <!-- Transparent rather than null, for the same reason
+                             HeaderIcon's is: a null background is not a
+                             hit-test target, so only the glyph's own strokes
+                             would answer a click. -->
+                        <Border x:Name="Chip" Background="Transparent" CornerRadius="3" Padding="5,1">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Chip" Property="Background" Value="{DynamicResource ControlHover}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource AccentBright}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <!-- One space. Every gap in a bookmark row is one of these, so the
@@ -789,14 +893,15 @@
                     </MenuItem.Icon>
                 </MenuItem>
                 <Separator/>
-                <MenuItem Header="Select all" Command="{Binding SelectAllCommand}">
+                <!-- One entry that points at whichever of the two is worth
+                     offering, the same way the toolbar's select button does
+                     and by the same rule: a full list offers to clear it, an
+                     empty one offers to fill it, and a partial selection
+                     leaves the last answer standing. -->
+                <MenuItem Header="{Binding SelectAllMenuHeader}" Command="{Binding ToggleSelectAllCommand}"
+                          ToolTip="Check every cut, or clear them all">
                     <MenuItem.Icon>
-                        <TextBlock Text="☑" Style="{StaticResource MenuGlyph}"/>
-                    </MenuItem.Icon>
-                </MenuItem>
-                <MenuItem Header="Select none" Command="{Binding SelectNoneCommand}">
-                    <MenuItem.Icon>
-                        <TextBlock Text="☐" Style="{StaticResource MenuGlyph}"/>
+                        <TextBlock Text="{Binding SelectAllMenuGlyph}" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <Separator/>
@@ -984,8 +1089,29 @@
                      works there — it says what it recorded in a toast, since
                      this window is behind the player at the time. -->
                 <MenuItem Header="Switch views automatically" IsCheckable="True"
-                          IsChecked="{Binding AutoSwitchViews, Mode=TwoWay}"
-                          ToolTip="Drop to the minimal overlay whenever MPC-HC becomes the active window. Either way, this window returns as soon as MPC-HC stops being active. Press X over the overlay to bring this window back."/>
+                          IsChecked="{Binding AutoSwitchViews, Mode=TwoWay}"/>
+                <Separator/>
+                <!-- A pair of alternatives, not two switches — see
+                     MainViewModel.CutsAsList for why each one only acts on
+                     being ticked. -->
+                <MenuItem Header="List" IsCheckable="True"
+                          IsChecked="{Binding CutsAsList, Mode=TwoWay}"/>
+                <!-- A submenu rather than four more entries out here: the four
+                     are one choice — how the storyboard looks — and the View
+                     menu stays four lines long instead of eight. Picking any of
+                     them also switches to the storyboard, since choosing how it
+                     looks while looking at something else would be a setting
+                     rather than a view. -->
+                <MenuItem Header="Storyboard">
+                    <MenuItem Header="Cards" IsCheckable="True"
+                              IsChecked="{Binding LayoutIsCards, Mode=TwoWay}"/>
+                    <MenuItem Header="Contact sheet" IsCheckable="True"
+                              IsChecked="{Binding LayoutIsContactSheet, Mode=TwoWay}"/>
+                    <MenuItem Header="Detail" IsCheckable="True"
+                              IsChecked="{Binding LayoutIsDetail, Mode=TwoWay}"/>
+                    <MenuItem Header="Filmstrip" IsCheckable="True"
+                              IsChecked="{Binding LayoutIsFilmstrip, Mode=TwoWay}"/>
+                </MenuItem>
             </MenuItem>
 
             <MenuItem Header="&#10067; Help">
@@ -1278,6 +1404,16 @@
                                     <TextBlock Text="↺" Style="{StaticResource MenuGlyph}"/>
                                 </MenuItem.Icon>
                             </MenuItem>
+                            <Separator/>
+                            <MenuItem Header="Scan for edit points…" Command="{Binding ScanEditPointsCommand}"
+                                      ToolTip="Look for where the video actually changes — silence, black frames or scene cuts — and mark each with a tick on the bar. Nothing is added to the cut list.">
+                                <MenuItem.Icon>
+                                    <TextBlock Text="🔍" Style="{StaticResource MenuGlyph}"/>
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Snap brackets to edit points" IsCheckable="True"
+                                      IsChecked="{Binding SnapToEditPoints, Mode=TwoWay}"
+                                      ToolTip="A bracket dragged near one of the ticks lands exactly on it. Hold Alt while dragging to place it freely."/>
                         </ContextMenu>
                     </Border.ContextMenu>
 
@@ -1390,6 +1526,7 @@
                                                 DurationSeconds="{Binding Session.VideoDurationSeconds}"
                                                 BracketStyle="{Binding SeekbarBracketStyle}"
                                                 MarkBrush="{DynamicResource SeekbarMark}"
+                                                SnapPoints="{Binding SnapPoints}"
                                                 ToolTip="Where the cuts fall — a bracket at each end of every range, with the cut's number between them and a tick when it is checked. A bookmark still waiting for its closing timestamp shows an opening bracket on its own. Drag a bracket to resize the cut."/>
                     </Grid>
                 </Border>
@@ -1443,6 +1580,367 @@
 
                 <!-- List -->
                 <Border Grid.Column="0" Background="{DynamicResource PanelBackground}" CornerRadius="6" Padding="6" Margin="0,0,10,0">
+                    <!-- The storyboard's four arrangements. Declared here, above
+                         the control that uses them, so they are in scope by the
+                         time its Style asks for them.
+
+                         All four draw the same cuts, carry the same checkbox and
+                         drive the same selection; they differ only in how much
+                         of a cut is spelled out beside its picture. Each shows
+                         Prefix rather than RowMarkers — Prefix carries the speed
+                         as well, which the row list leaves out because a row has
+                         a slider and a reading of its own, and a card has
+                         neither. -->
+                    <Border.Resources>
+                        <!-- The speed slider has no room on a card, a tile or a
+                             strip, and finding one there would mean giving up
+                             the picture it sits on. So the setting moves to a
+                             right-click instead of onto the layout: the same
+                             eight stops the slider snaps to, ticked at the one
+                             in force. Ctrl and the wheel does it without the
+                             menu — see Storyboard_PreviewMouseWheel. -->
+                        <ContextMenu x:Key="ClipSpeedMenu">
+                            <MenuItem Header="Quarter speed" Tag="0.25" Click="ClipSpeed_Click" IsCheckable="True"
+                                      IsChecked="{Binding Speed, Mode=OneWay, Converter={StaticResource SpeedIs}, ConverterParameter=0.25}"/>
+                            <MenuItem Header="Half speed" Tag="0.5" Click="ClipSpeed_Click" IsCheckable="True"
+                                      IsChecked="{Binding Speed, Mode=OneWay, Converter={StaticResource SpeedIs}, ConverterParameter=0.5}"/>
+                            <MenuItem Header="0.75x" Tag="0.75" Click="ClipSpeed_Click" IsCheckable="True"
+                                      IsChecked="{Binding Speed, Mode=OneWay, Converter={StaticResource SpeedIs}, ConverterParameter=0.75}"/>
+                            <MenuItem Header="Normal" Tag="1" Click="ClipSpeed_Click" IsCheckable="True"
+                                      IsChecked="{Binding Speed, Mode=OneWay, Converter={StaticResource SpeedIs}, ConverterParameter=1}"/>
+                            <MenuItem Header="1.25x" Tag="1.25" Click="ClipSpeed_Click" IsCheckable="True"
+                                      IsChecked="{Binding Speed, Mode=OneWay, Converter={StaticResource SpeedIs}, ConverterParameter=1.25}"/>
+                            <MenuItem Header="1.5x" Tag="1.5" Click="ClipSpeed_Click" IsCheckable="True"
+                                      IsChecked="{Binding Speed, Mode=OneWay, Converter={StaticResource SpeedIs}, ConverterParameter=1.5}"/>
+                            <MenuItem Header="1.75x" Tag="1.75" Click="ClipSpeed_Click" IsCheckable="True"
+                                      IsChecked="{Binding Speed, Mode=OneWay, Converter={StaticResource SpeedIs}, ConverterParameter=1.75}"/>
+                            <MenuItem Header="Double speed" Tag="2" Click="ClipSpeed_Click" IsCheckable="True"
+                                      IsChecked="{Binding Speed, Mode=OneWay, Converter={StaticResource SpeedIs}, ConverterParameter=2}"/>
+                        </ContextMenu>
+
+                        <ItemsPanelTemplate x:Key="StoryboardWrap">
+                            <WrapPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+
+                        <!-- Detail is one cut to a row, so it stacks rather than
+                             wraps. IsItemsHost on a StackPanel inside a
+                             ScrollViewer still scrolls; the ListView provides it. -->
+                        <ItemsPanelTemplate x:Key="StoryboardStack">
+                            <StackPanel Orientation="Vertical"/>
+                        </ItemsPanelTemplate>
+
+                        <!-- A — Cards. The check and the number ride on the frame
+                             itself, the name sits along its foot, and the times
+                             are centred underneath. -->
+                        <DataTemplate x:Key="StoryboardCards">
+                            <Border Width="168" Padding="6"
+                                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                    CornerRadius="4">
+                                <StackPanel>
+                                    <!-- Fixed box whether or not a frame has
+                                         arrived, so cards do not jump about as
+                                         the thumbnails fill in one by one. The
+                                         black behind is what an undrawn card
+                                         shows, and what letterboxes a frame
+                                         whose shape does not match the box. -->
+                                    <Border Height="88" Background="#FF000000" CornerRadius="2"
+                                            ClipToBounds="True">
+                                        <Grid>
+                                            <Image Source="{Binding Thumbnail}" Stretch="Uniform"/>
+
+                                            <!-- Both on one plate rather than two:
+                                                 they are read together, and a frame
+                                                 can be any colour at all — white
+                                                 snow behind a white tick is no tick.
+                                                 The plate is what makes either of
+                                                 them legible on every frame instead
+                                                 of on most of them. -->
+                                            <Border HorizontalAlignment="Left" VerticalAlignment="Top"
+                                                    Margin="4" Padding="3,1"
+                                                    Background="#A0000000" CornerRadius="3">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                              VerticalAlignment="Center"
+                                                              ToolTip="Check this cut for the actions that work on a selection"/>
+                                                    <TextBlock Text="{Binding Index}" FontWeight="Bold"
+                                                               Margin="4,0,1,0" VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource LinkBlue}"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- The name and the marks along the
+                                                 foot of the picture. Inside rather
+                                                 than above or below it, so a card
+                                                 is the same height however much it
+                                                 has to say and a row of them lines
+                                                 up regardless.
+
+                                                 One plate holding both, each line
+                                                 appearing only if it has something
+                                                 to say — two plates stacked would
+                                                 show a seam between them on a cut
+                                                 that had both. -->
+                                            <Border VerticalAlignment="Bottom" Background="#A0000000"
+                                                    Padding="4,1">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                        <Style.Triggers>
+                                                            <MultiDataTrigger>
+                                                                <MultiDataTrigger.Conditions>
+                                                                    <Condition Binding="{Binding HasLabel}" Value="False"/>
+                                                                    <Condition Binding="{Binding HasEffects}" Value="False"/>
+                                                                </MultiDataTrigger.Conditions>
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </MultiDataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Label}" FontSize="11"
+                                                               HorizontalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Foreground="{DynamicResource ValueYellow}"
+                                                               ToolTip="{Binding Label}"
+                                                               Visibility="{Binding HasLabel, Converter={StaticResource BoolToVis}}"/>
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                                                                Visibility="{Binding HasEffects, Converter={StaticResource BoolToVis}}">
+                                                        <Path Style="{StaticResource RotationMark}" Margin="0,0,3,0"
+                                                              Visibility="{Binding ShowsRotationMark, Converter={StaticResource BoolToVis}}"/>
+                                                        <ItemsControl ItemsSource="{Binding EffectMarks}" FontSize="11"
+                                                      VerticalAlignment="Center"
+                                                      ItemsPanel="{StaticResource EffectMarksPanel}"
+                                                      ItemTemplate="{StaticResource EffectMarkTemplate}"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Times and length on one centred line. -->
+                                    <TextBlock Margin="0,5,0,0" FontFamily="Consolas" FontSize="11"
+                                               HorizontalAlignment="Center"
+                                               Foreground="{DynamicResource TextSecondary}"
+                                               Visibility="{Binding IsIncomplete, Converter={StaticResource NotBoolToVis}}">
+                                        <Run Text="{Binding StartDisplay, Mode=OneWay}"/><Run Text=" – "/><Run Text="{Binding EndDisplay, Mode=OneWay}"/><Run Text="  "/><Run Text="{Binding EffectiveDurationDisplay, StringFormat=({0}), Mode=OneWay}" Foreground="{DynamicResource ValueGreen}"/>
+                                    </TextBlock>
+
+                                    <TextBlock Text="open" FontStyle="Italic" Margin="0,5,0,0"
+                                               HorizontalAlignment="Center"
+                                               Foreground="{DynamicResource StatusError}"
+                                               Visibility="{Binding IsIncomplete, Converter={StaticResource BoolToVis}}"/>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+
+                        <!-- B — Contact sheet. Everything the tile has to say is
+                             said on the tile: the check and the number at the top
+                             left, the marks opposite them, and the times along the
+                             foot. One plate for the times rather than a badge at
+                             each end — on a tile this size two of them very nearly
+                             touch in the middle, and a single bar reads as one
+                             caption instead of two scraps. -->
+                        <DataTemplate x:Key="StoryboardContactSheet">
+                            <Border Width="116" Height="66" Background="#FF000000" CornerRadius="2"
+                                    ClipToBounds="True">
+                                <Grid>
+                                    <Image Source="{Binding Thumbnail}" Stretch="Uniform"/>
+
+                                    <!-- Dark plates behind every reading: a frame
+                                         can be any colour at all, and white text
+                                         straight onto a pale one is unreadable. -->
+                                    <Border HorizontalAlignment="Left" VerticalAlignment="Top"
+                                            Margin="3" Padding="3,1"
+                                            Background="#A0000000" CornerRadius="3">
+                                        <StackPanel Orientation="Horizontal">
+                                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                      VerticalAlignment="Center"
+                                                      ToolTip="Check this cut for the actions that work on a selection"/>
+                                            <TextBlock Text="{Binding Index}" FontSize="10" FontWeight="Bold"
+                                                       Margin="4,0,1,0" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource LinkBlue}"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border HorizontalAlignment="Right" VerticalAlignment="Top"
+                                            Margin="3" Padding="3,1"
+                                            Background="#A0000000" CornerRadius="3"
+                                            Visibility="{Binding HasEffects, Converter={StaticResource BoolToVis}}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Style="{StaticResource RotationMark}" Margin="0,0,2,0"
+                                                  Visibility="{Binding ShowsRotationMark, Converter={StaticResource BoolToVis}}"/>
+                                            <ItemsControl ItemsSource="{Binding EffectMarks}" FontSize="10"
+                                                      VerticalAlignment="Center"
+                                                      ItemsPanel="{StaticResource EffectMarksPanel}"
+                                                      ItemTemplate="{StaticResource EffectMarkTemplate}"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border VerticalAlignment="Bottom" Background="#A0000000" Padding="4,1"
+                                            Visibility="{Binding IsIncomplete, Converter={StaticResource NotBoolToVis}}">
+                                        <Grid>
+                                            <TextBlock HorizontalAlignment="Left" FontSize="10"
+                                                       FontFamily="Consolas"
+                                                       Foreground="{DynamicResource TextSecondary}">
+                                                <Run Text="{Binding StartDisplay, Mode=OneWay}"/><Run Text="–"/><Run Text="{Binding EndDisplay, Mode=OneWay}"/>
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding EffectiveDurationDisplay}"
+                                                       HorizontalAlignment="Right" FontSize="10"
+                                                       Foreground="{DynamicResource ValueGreen}"/>
+                                        </Grid>
+                                    </Border>
+
+                                    <Border VerticalAlignment="Bottom" Background="#A0000000" Padding="4,1"
+                                            Visibility="{Binding IsIncomplete, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="open" FontSize="10" FontStyle="Italic"
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource StatusError}"/>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+
+                        <!-- C — Detail. One cut to a row, frame on the left. The
+                             only layout with room for the speed as its own
+                             column, the way the row list has it. -->
+                        <DataTemplate x:Key="StoryboardDetail">
+                            <Border Padding="6" BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="0,0,0,1">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                              VerticalAlignment="Center" Margin="0,0,8,0"
+                                              ToolTip="Check this cut for the actions that work on a selection"/>
+
+                                    <Border Grid.Column="1" Width="112" Height="63" Margin="0,0,10,0"
+                                            Background="#FF000000" CornerRadius="2">
+                                        <Image Source="{Binding Thumbnail}" Stretch="Uniform"/>
+                                    </Border>
+
+                                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Index, StringFormat=[{0}]}" FontWeight="Bold"
+                                                       Foreground="{DynamicResource LinkBlue}"/>
+                                            <TextBlock Text="{Binding Label}" Margin="6,0,0,0"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Foreground="{DynamicResource ValueYellow}"
+                                                       Visibility="{Binding HasLabel, Converter={StaticResource BoolToVis}}"/>
+                                            <TextBlock Text="open" FontStyle="Italic" Margin="6,0,0,0"
+                                                       Foreground="{DynamicResource StatusError}"
+                                                       Visibility="{Binding IsIncomplete, Converter={StaticResource BoolToVis}}"/>
+                                        </StackPanel>
+
+                                        <TextBlock Margin="0,2,0,0" FontFamily="Consolas" FontSize="11"
+                                                   Foreground="{DynamicResource TextSecondary}"
+                                                   Visibility="{Binding IsIncomplete, Converter={StaticResource NotBoolToVis}}">
+                                            <Run Text="{Binding StartDisplay, Mode=OneWay}"/><Run Text=" – "/><Run Text="{Binding EndDisplay, Mode=OneWay}"/><Run Text="  "/><Run Text="{Binding EffectiveDurationDisplay, StringFormat=({0}), Mode=OneWay}" Foreground="{DynamicResource ValueGreen}"/>
+                                        </TextBlock>
+
+                                        <StackPanel Orientation="Horizontal" Margin="0,2,0,0"
+                                                    Visibility="{Binding HasEffects, Converter={StaticResource BoolToVis}}">
+                                            <Path Style="{StaticResource RotationMark}" Margin="0,0,3,0"
+                                                  Visibility="{Binding ShowsRotationMark, Converter={StaticResource BoolToVis}}"/>
+                                            <ItemsControl ItemsSource="{Binding EffectMarks}" FontSize="11"
+                                                      VerticalAlignment="Center"
+                                                      ItemsPanel="{StaticResource EffectMarksPanel}"
+                                                      ItemTemplate="{StaticResource EffectMarkTemplate}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <TextBlock Grid.Column="3" Text="{Binding SpeedShortDisplay}"
+                                               VerticalAlignment="Center" Margin="10,0,2,0"
+                                               Foreground="{DynamicResource LinkBlue}"
+                                               ToolTip="{Binding SpeedDisplay, StringFormat=Plays at {0} when saved}"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+
+                        <!-- D — Filmstrip. First and last frame side by side, the
+                             only layout that says how a cut ends. The second
+                             frame is a second ffmpeg call, which is why only this
+                             layout fetches one. -->
+                        <DataTemplate x:Key="StoryboardFilmstrip">
+                            <Border Width="206" Padding="6"
+                                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                    CornerRadius="4">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                  VerticalAlignment="Center"
+                                                  ToolTip="Check this cut for the actions that work on a selection"/>
+                                        <TextBlock Text="{Binding Index, StringFormat=[{0}]}" FontWeight="Bold"
+                                                   Margin="4,0,0,0" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource LinkBlue}"/>
+                                        <TextBlock Text="{Binding Label}" Margin="5,0,0,0" FontSize="11"
+                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                   Foreground="{DynamicResource ValueYellow}"
+                                                   Visibility="{Binding HasLabel, Converter={StaticResource BoolToVis}}"/>
+                                    </StackPanel>
+
+                                    <!-- Two frames, a hairline apart, so the pair
+                                         reads as one strip rather than two
+                                         pictures that happen to be adjacent. -->
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="2"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Height="54" Background="#FF000000" CornerRadius="2,0,0,2">
+                                            <Image Source="{Binding Thumbnail}" Stretch="Uniform"/>
+                                        </Border>
+                                        <Border Grid.Column="2" Height="54" Background="#FF000000" CornerRadius="0,2,2,0">
+                                            <Image Source="{Binding ThumbnailEnd}" Stretch="Uniform"/>
+                                        </Border>
+
+                                        <!-- The marks ride on the strip itself,
+                                             over the join between the two frames,
+                                             rather than on a line of their own
+                                             below it. Centred there because the
+                                             join is the one part of the picture
+                                             that is never the subject. -->
+                                        <Border Grid.ColumnSpan="3" HorizontalAlignment="Center"
+                                                VerticalAlignment="Bottom" Margin="0,0,0,3"
+                                                Background="#A0000000" CornerRadius="3" Padding="3,1"
+                                                Visibility="{Binding HasEffects, Converter={StaticResource BoolToVis}}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Style="{StaticResource RotationMark}" Margin="0,0,2,0"
+                                                      Visibility="{Binding ShowsRotationMark, Converter={StaticResource BoolToVis}}"/>
+                                                <ItemsControl ItemsSource="{Binding EffectMarks}" FontSize="10"
+                                                              VerticalAlignment="Center"
+                                                              ItemsPanel="{StaticResource EffectMarksPanel}"
+                                                              ItemTemplate="{StaticResource EffectMarkTemplate}"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+
+                                    <Grid Margin="0,4,0,0"
+                                          Visibility="{Binding IsIncomplete, Converter={StaticResource NotBoolToVis}}">
+                                        <TextBlock Text="{Binding StartDisplay}" HorizontalAlignment="Left"
+                                                   FontFamily="Consolas" FontSize="11"
+                                                   Foreground="{DynamicResource TextSecondary}"/>
+                                        <TextBlock Text="{Binding EffectiveDurationDisplay}" HorizontalAlignment="Center"
+                                                   FontSize="11" Foreground="{DynamicResource ValueGreen}"/>
+                                        <TextBlock Text="{Binding EndDisplay}" HorizontalAlignment="Right"
+                                                   FontFamily="Consolas" FontSize="11"
+                                                   Foreground="{DynamicResource TextSecondary}"/>
+                                    </Grid>
+
+                                    <TextBlock Text="open" FontStyle="Italic" Margin="0,4,0,0"
+                                               Foreground="{DynamicResource StatusError}"
+                                               Visibility="{Binding IsIncomplete, Converter={StaticResource BoolToVis}}"/>
+
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </Border.Resources>
+
                     <DockPanel>
                         <!-- The count reads CompletePairCount, not
                              Bookmarks.Count as the old "n items" did: a lone
@@ -1455,14 +1953,86 @@
                              SPEED" heading could sit over the sliders — but the
                              reading beside each slider names what it is doing
                              in the row itself, which is where it is read. -->
-                        <TextBlock DockPanel.Dock="Top" Margin="4,2,4,8"
-                                   Text="{Binding CompletePairCount, StringFormat='Bookmarks: {0}'}"
-                                   FontWeight="SemiBold" Foreground="{DynamicResource TextDim}"/>
+                        <!-- The count, and the five views out at the right end
+                             of the same line. They go here rather than on a
+                             line of their own because the row was already
+                             there with nothing in the rest of it, and a
+                             switcher is read as belonging to the thing it is
+                             sitting over. The View menu still carries all five
+                             for whoever looks there first. -->
+                        <Grid DockPanel.Dock="Top" Margin="4,2,4,8">
+                            <TextBlock Text="{Binding CompletePairCount, StringFormat='Bookmarks: {0}'}"
+                                       VerticalAlignment="Center"
+                                       FontWeight="SemiBold" Foreground="{DynamicResource TextDim}"/>
 
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <ToggleButton Content="☰" Style="{StaticResource ViewToggle}"
+                                              IsChecked="{Binding CutsAsList, Mode=TwoWay}"
+                                              ToolTip="List — the cuts as rows, with times, length, name, markers and a speed slider on each"/>
+
+                                <!-- A rule between the list and the four
+                                     storyboards: they are one choice of five,
+                                     but the storyboards are four of a kind. -->
+                                <Border Width="1" Margin="4,2" Background="{DynamicResource ControlHover}"/>
+
+                                <ToggleButton Content="▦" Style="{StaticResource ViewToggle}"
+                                              IsChecked="{Binding LayoutIsCards, Mode=TwoWay}"
+                                              ToolTip="Cards — frame above, everything about the cut below. The balanced one."/>
+                                <ToggleButton Content="▩" Style="{StaticResource ViewToggle}"
+                                              IsChecked="{Binding LayoutIsContactSheet, Mode=TwoWay}"
+                                              ToolTip="Contact sheet — frames and nothing else, with the number and length over the corners. Three times as many cuts on screen."/>
+                                <ToggleButton Content="▤" Style="{StaticResource ViewToggle}"
+                                              IsChecked="{Binding LayoutIsDetail, Mode=TwoWay}"
+                                              ToolTip="Detail — one cut to a row, frame on the left and the text beside it."/>
+                                <ToggleButton Content="▭" Style="{StaticResource ViewToggle}"
+                                              IsChecked="{Binding LayoutIsFilmstrip, Mode=TwoWay}"
+                                              ToolTip="Filmstrip — first and last frame of each cut, side by side. The only layout that says how a cut ends."/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- A box at the head of the column of boxes, checking
+                             and clearing the lot. The first two column widths
+                             repeat the row template's, and the 4px left margin
+                             repeats the ListViewItem padding, so this box sits
+                             exactly over the ones below it rather than merely
+                             near them. Change either there and this has to
+                             follow.
+
+                             Nothing else on the row: the headings that used to
+                             sit here named columns that now name themselves. -->
+                        <Grid DockPanel.Dock="Top" Margin="4,0,4,4"
+                              Visibility="{Binding ShowSelectAllHeader, Converter={StaticResource BoolToVis}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="28"/>
+                                <ColumnDefinition Width="26"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Bound to a bool?, but not three-state: the
+                                 indeterminate look is for showing a partly
+                                 ticked list, never something to click into.
+
+                                 The 2px is the ListView's own inner padding,
+                                 which the rows below sit inside and this row,
+                                 being outside the list entirely, does not. -->
+                            <CheckBox Grid.Column="1" IsThreeState="False"
+                                      IsChecked="{Binding AllBookmarksSelected, Mode=TwoWay}"
+                                      VerticalAlignment="Center" Margin="2,0,0,0"
+                                      ToolTip="Check every cut, or clear them all"/>
+                        </Grid>
+
+                        <!-- Both views live here, one of them collapsed. A Grid
+                             rather than two children of the DockPanel: a
+                             DockPanel stretches its last child and docks every
+                             other one, so the rows list would be given its own
+                             width and shoved to the left edge the moment a
+                             second view was added after it. -->
+                        <Grid>
                         <ListView ItemsSource="{Binding Session.Bookmarks}"
                                   SelectedItem="{Binding SelectedBookmark}"
                                   Background="Transparent" BorderThickness="0"
                                   Foreground="{DynamicResource TextBody}"
+                                  Visibility="{Binding StoryboardView, Converter={StaticResource NotBoolToVis}}"
                                   ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                             <ListView.ItemContainerStyle>
                                 <Style TargetType="ListViewItem">
@@ -1552,6 +2122,7 @@
                                                      the whole row taller, and anything in it that
                                                      is not centered then reads as lifted. -->
                                                 <TextBox Text="{Binding Label, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                         KeyDown="ChapterName_KeyDown"
                                                          Width="90" Height="20" Padding="4,0"
                                                          Background="{DynamicResource ControlBackground}"
                                                          Foreground="{DynamicResource TextPrimary}"
@@ -1624,6 +2195,19 @@
                                                 <TextBlock Style="{StaticResource RowGap}"/>
                                                 <TextBlock Text="{Binding EffectiveDurationDisplay, StringFormat=({0})}" Foreground="{DynamicResource ValueGreen}" VerticalAlignment="Center"
                                                            ToolTip="How long the saved clip will run — the marked range at this clip's speed"/>
+
+                                                <!-- Two more, for three in all with the one
+                                                     that follows this panel. Every other gap
+                                                     on the row is a space, a nudge arrow and
+                                                     another space — and the arrows are hidden
+                                                     rather than collapsed off-hover, so they
+                                                     hold their width and those gaps read far
+                                                     wider than the single space that used to
+                                                     separate the length from the markers.
+                                                     There is no arrow to put here, so the
+                                                     spaces stand in for one. -->
+                                                <TextBlock Style="{StaticResource RowGap}"/>
+                                                <TextBlock Style="{StaticResource RowGap}"/>
                                             </StackPanel>
                                             <TextBlock Style="{StaticResource RowGap}"/>
                                             <TextBlock Text="incomplete" Foreground="{DynamicResource StatusError}" FontStyle="Italic" VerticalAlignment="Center"
@@ -1633,9 +2217,24 @@
                                         <!-- Flip, rotation and mute. The speed keeps its own two
                                              columns, so it is not stated twice — the overlay
                                              combines all four instead, where there is no room
-                                             for columns (see Bookmark.Prefix). -->
-                                        <TextBlock Grid.Column="4" Text="{Binding RowMarkers}" Foreground="{DynamicResource StatusWarn}"
-                                                   FontWeight="Bold" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="12"/>
+                                             for columns (see Bookmark.Prefix).
+
+                                             One line, trimmed, never wrapped. This is the star
+                                             column — it is handed whatever is left once every
+                                             other column has taken its share — so wrapping made
+                                             a row's height depend on how little was left over,
+                                             and "flipped · turned right · muted" came out as
+                                             four stacked words on a narrow window. A row is one
+                                             line tall; what does not fit ends in an ellipsis and
+                                             the tooltip says the rest. -->
+                                        <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Path Style="{StaticResource RotationMark}" Margin="0,0,3,0"
+                                                  Visibility="{Binding ShowsRotationMark, Converter={StaticResource BoolToVis}}"/>
+                                            <ItemsControl ItemsSource="{Binding EffectMarks}" FontSize="12"
+                                                      VerticalAlignment="Center"
+                                                      ItemsPanel="{StaticResource EffectMarksPanel}"
+                                                      ItemTemplate="{StaticResource EffectMarkTemplate}"/>
+                                        </StackPanel>
 
                                         <Slider Grid.Column="5" Minimum="0.25" Maximum="2.0" TickFrequency="0.25"
                                                 IsSnapToTickEnabled="True" Value="{Binding Speed, Mode=TwoWay}"
@@ -1655,6 +2254,77 @@
                                 </DataTemplate>
                             </ListView.ItemTemplate>
                         </ListView>
+
+                        <!-- Storyboard: the same cuts, the same selection and
+                             the same checkboxes, read as pictures. A ListView
+                             rather than an ItemsControl so SelectedBookmark
+                             keeps working across both views — picking a card
+                             drives the clip preview exactly as picking a row
+                             does, and switching views leaves the selection
+                             where it was.
+
+                             Only one of the two is ever up, so the hidden one
+                             costs a visibility binding and nothing else. -->
+                        <ListView ItemsSource="{Binding Session.Bookmarks}"
+                                  SelectedItem="{Binding SelectedBookmark}"
+                                  Background="Transparent" BorderThickness="0"
+                                  Foreground="{DynamicResource TextBody}"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                  PreviewMouseWheel="Storyboard_PreviewMouseWheel">
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Margin" Value="4"/>
+                                    <Setter Property="ContextMenu" Value="{StaticResource ClipSpeedMenu}"/>
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <!-- Detail stretches its row to the full
+                                         width; the wrapping layouts size to
+                                         their own content, where this has
+                                         nothing to do. -->
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter Property="Background" Value="{DynamicResource RowSelected}"/>
+                                        </Trigger>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="{DynamicResource RowHover}"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ListView.ItemContainerStyle>
+
+                            <!-- Visibility, the template and the panel all come
+                                 from here rather than from attributes: a local
+                                 value beats a Style setter, so anything set
+                                 above would pin itself and the triggers below
+                                 would silently stop working. -->
+                            <ListView.Style>
+                                <Style TargetType="ListView">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Setter Property="ItemTemplate" Value="{StaticResource StoryboardCards}"/>
+                                    <Setter Property="ItemsPanel" Value="{StaticResource StoryboardWrap}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding StoryboardView}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding StoryboardLayout}"
+                                                     Value="{x:Static services:StoryboardLayout.ContactSheet}">
+                                            <Setter Property="ItemTemplate" Value="{StaticResource StoryboardContactSheet}"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding StoryboardLayout}"
+                                                     Value="{x:Static services:StoryboardLayout.Detail}">
+                                            <Setter Property="ItemTemplate" Value="{StaticResource StoryboardDetail}"/>
+                                            <Setter Property="ItemsPanel" Value="{StaticResource StoryboardStack}"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding StoryboardLayout}"
+                                                     Value="{x:Static services:StoryboardLayout.Filmstrip}">
+                                            <Setter Property="ItemTemplate" Value="{StaticResource StoryboardFilmstrip}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ListView.Style>
+                        </ListView>
+                        </Grid>
                     </DockPanel>
                 </Border>
 

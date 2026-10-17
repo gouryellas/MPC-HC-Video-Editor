@@ -76,6 +76,10 @@ public class TimelineRanges : FrameworkElement
         DependencyProperty.Register(nameof(MarkBrush), typeof(Brush), typeof(TimelineRanges),
             new FrameworkPropertyMetadata(DefaultMarkBrush, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty SnapPointsProperty =
+        DependencyProperty.Register(nameof(SnapPoints), typeof(IEnumerable), typeof(TimelineRanges),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, OnSnapPointsChanged));
+
     public static readonly DependencyProperty DragBookmarkProperty =
         DependencyProperty.Register(nameof(DragBookmark), typeof(Bookmark), typeof(TimelineRanges),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
@@ -118,6 +122,34 @@ public class TimelineRanges : FrameworkElement
         get => (Brush)GetValue(MarkBrushProperty);
         set => SetValue(MarkBrushProperty, value);
     }
+
+    /// <summary>
+    /// Times where a scan found the video changing, drawn as a tick along the
+    /// foot of the bar so what a drag will snap to is visible before it does.
+    /// </summary>
+    public IEnumerable? SnapPoints
+    {
+        get => (IEnumerable?)GetValue(SnapPointsProperty);
+        set => SetValue(SnapPointsProperty, value);
+    }
+
+    private static void OnSnapPointsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var self = (TimelineRanges)d;
+
+        // The collection is filled after it is bound — a scan takes a while —
+        // so following the property alone would leave the ticks undrawn until
+        // something else happened to invalidate the control.
+        if (e.OldValue is INotifyCollectionChanged oldPoints)
+            oldPoints.CollectionChanged -= self.OnSnapPointsCollectionChanged;
+        if (e.NewValue is INotifyCollectionChanged newPoints)
+            newPoints.CollectionChanged += self.OnSnapPointsCollectionChanged;
+
+        self.InvalidateVisual();
+    }
+
+    private void OnSnapPointsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        => InvalidateVisual();
 
     /// <summary>
     /// The bookmark one of whose brackets is mid-drag, or null the rest of
@@ -279,6 +311,8 @@ public class TimelineRanges : FrameworkElement
         var markPen = FrozenPen(markBrush, StemWidth);
         var checkPen = FrozenPen(markBrush, 1.8);
 
+        DrawSnapTicks(dc, markBrush, width, height, total);
+
         foreach (var b in Bookmarks.OfType<Bookmark>())
         {
             // The dragged end reads from the pointer, not the model — see
@@ -311,6 +345,56 @@ public class TimelineRanges : FrameworkElement
             DrawBracket(dc, markBrush, markPen, startX, width, height, opening: true, cutWidth);
             DrawBracket(dc, markBrush, markPen, endX, width, height, opening: false, cutWidth);
             DrawLabel(dc, b, markBrush, checkPen, startX, endX, height);
+        }
+    }
+
+    /// <summary>How tall a snap tick stands, as a fraction of the bar.</summary>
+    private const double SnapTickFraction = 0.28;
+
+    /// <summary>Width of a snap tick.</summary>
+    private const double SnapTickWidth = 1;
+
+    /// <summary>
+    /// How solid a snap tick is drawn.
+    /// </summary>
+    /// <remarks>
+    /// Faint on purpose. These are not marks the user made — they are what a
+    /// machine thought it noticed — and a scan of a busy film can find
+    /// hundreds. At full strength they would read as a second set of cuts and
+    /// bury the brackets that matter.
+    /// </remarks>
+    private const double SnapTickOpacity = 0.4;
+
+    /// <summary>
+    /// Draws a short tick at the foot of the bar for every edit point.
+    /// </summary>
+    /// <remarks>
+    /// Along the bottom, where the brackets' feet do not reach and the
+    /// position wash is only a background — so they say where a bracket would
+    /// land without competing with the brackets already there.
+    /// </remarks>
+    private void DrawSnapTicks(DrawingContext dc, Brush markBrush, double width, double height, double total)
+    {
+        if (SnapPoints is null) return;
+
+        var tickHeight = height * SnapTickFraction;
+        var top = height - tickHeight;
+
+        dc.PushOpacity(SnapTickOpacity);
+        try
+        {
+            foreach (var seconds in SnapPoints.OfType<double>())
+            {
+                if (seconds <= 0 || seconds >= total) continue;
+
+                var x = Math.Clamp(seconds / total, 0, 1) * width;
+                x = Math.Clamp(x - SnapTickWidth / 2, 0, Math.Max(0, width - SnapTickWidth));
+                dc.DrawRectangle(markBrush, null, new Rect(x, top, SnapTickWidth, tickHeight));
+            }
+        }
+        finally
+        {
+            dc.Pop();
         }
     }
 

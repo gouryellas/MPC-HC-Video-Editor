@@ -804,6 +804,171 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     public bool OverlayClickable => _settings.Current.OverlayClickable;
 
+    /// <summary>
+    /// Where a scan found the video actually changing. The timeline draws a
+    /// tick at each, and a dragged bracket lands on one when it comes close.
+    /// </summary>
+    /// <remarks>
+    /// Observable so both of those follow a scan without being told. Empty
+    /// until <see cref="ScanEditPointsCommand"/> or a run of
+    /// <see cref="DetectBookmarksCommand"/> fills it, and cleared when the
+    /// video changes — the points describe one file and mean nothing against
+    /// another.
+    /// </remarks>
+    public ObservableCollection<double> SnapPoints { get; } = new();
+
+    /// <summary>Whether a dragged bracket snaps to a nearby edit point.</summary>
+    public bool SnapToEditPoints
+    {
+        get => _settings.Current.SnapToEditPoints;
+        set
+        {
+            if (_settings.Current.SnapToEditPoints == value) return;
+            _settings.Current.SnapToEditPoints = value;
+            _settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Whether the cuts are shown as thumbnail cards rather than rows.</summary>
+    public bool StoryboardView
+    {
+        get => _settings.Current.StoryboardView;
+        set
+        {
+            if (_settings.Current.StoryboardView != value)
+            {
+                _settings.Current.StoryboardView = value;
+                _settings.Save();
+                OnPropertyChanged(nameof(ShowSelectAllHeader));
+
+                // Nothing drew them while the list was rows, so the cards
+                // would otherwise come up empty and stay that way.
+                if (value) _ = RefreshStoryboardThumbnailsAsync();
+            }
+
+            // Raised even when nothing moved. The two menu entries are a pair
+            // of alternatives rather than two switches, and clicking the one
+            // already ticked has to leave it ticked — which means telling the
+            // menu to re-read a value that did not change.
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CutsAsList));
+            OnPropertyChanged(nameof(CutsAsStoryboard));
+
+            // Each of the four layout flags carries "and the storyboard is
+            // what is being shown", so leaving for the list unlights all four
+            // rather than leaving one lit beside it.
+            foreach (var name in LayoutFlagNames) OnPropertyChanged(name);
+        }
+    }
+
+    /// <summary>
+    /// The View menu's two ways of showing the cuts, as a pair of
+    /// alternatives: exactly one of them is ticked at any time.
+    /// </summary>
+    /// <remarks>
+    /// WPF has no radio group for menu items, so each is an ordinary
+    /// checkable entry whose setter only ever acts on being <em>turned on</em>.
+    /// Turning one off is what clicking the current view does, and the answer
+    /// to that is to put the tick straight back rather than to leave the menu
+    /// claiming neither view is in use.
+    /// </remarks>
+    public bool CutsAsList
+    {
+        get => !StoryboardView;
+        set
+        {
+            if (value) StoryboardView = false;
+            else OnPropertyChanged();
+        }
+    }
+
+    /// <inheritdoc cref="CutsAsList"/>
+    public bool CutsAsStoryboard
+    {
+        get => StoryboardView;
+        set
+        {
+            if (value) StoryboardView = true;
+            else OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Which arrangement the storyboard is drawn in.</summary>
+    public StoryboardLayout StoryboardLayout
+    {
+        get => _settings.Current.StoryboardLayout;
+        set
+        {
+            if (_settings.Current.StoryboardLayout != value)
+            {
+                _settings.Current.StoryboardLayout = value;
+                _settings.Save();
+                OnPropertyChanged();
+            }
+
+            // Only the filmstrip wants a closing frame, so arriving at it is
+            // the moment to go and get them.
+            if (value == StoryboardLayout.Filmstrip && StoryboardView)
+                _ = RefreshStoryboardThumbnailsAsync();
+
+            foreach (var name in LayoutFlagNames) OnPropertyChanged(name);
+        }
+    }
+
+    private static readonly string[] LayoutFlagNames =
+        { nameof(LayoutIsCards), nameof(LayoutIsContactSheet), nameof(LayoutIsDetail), nameof(LayoutIsFilmstrip) };
+
+    /// <summary>
+    /// The storyboard's four layouts as a set of alternatives for the menu,
+    /// on the same terms as <see cref="CutsAsList"/>: picking one selects it
+    /// and switches to the storyboard, and clicking the one already ticked
+    /// leaves it ticked.
+    /// </summary>
+    public bool LayoutIsCards
+    {
+        get => StoryboardView && StoryboardLayout == StoryboardLayout.Cards;
+        set => ChooseLayout(StoryboardLayout.Cards, value, nameof(LayoutIsCards));
+    }
+
+    /// <inheritdoc cref="LayoutIsCards"/>
+    public bool LayoutIsContactSheet
+    {
+        get => StoryboardView && StoryboardLayout == StoryboardLayout.ContactSheet;
+        set => ChooseLayout(StoryboardLayout.ContactSheet, value, nameof(LayoutIsContactSheet));
+    }
+
+    /// <inheritdoc cref="LayoutIsCards"/>
+    public bool LayoutIsDetail
+    {
+        get => StoryboardView && StoryboardLayout == StoryboardLayout.Detail;
+        set => ChooseLayout(StoryboardLayout.Detail, value, nameof(LayoutIsDetail));
+    }
+
+    /// <inheritdoc cref="LayoutIsCards"/>
+    public bool LayoutIsFilmstrip
+    {
+        get => StoryboardView && StoryboardLayout == StoryboardLayout.Filmstrip;
+        set => ChooseLayout(StoryboardLayout.Filmstrip, value, nameof(LayoutIsFilmstrip));
+    }
+
+    /// <summary>
+    /// Picking a layout from the menu also leaves the list view, since
+    /// choosing how the storyboard looks while looking at something else
+    /// would be a setting rather than a view.
+    /// </summary>
+    private void ChooseLayout(StoryboardLayout layout, bool chosen, string flagName)
+    {
+        if (!chosen)
+        {
+            OnPropertyChanged(flagName);
+            return;
+        }
+
+        StoryboardLayout = layout;
+        StoryboardView = true;
+    }
+
     /// <summary>Whether the seekbar — timeline, position and length — is shown at all.</summary>
     public bool ShowSeekbar => _settings.Current.ShowSeekbar;
 
@@ -1619,6 +1784,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // HookSession, which the constructor does call.
         OnPropertyChanged(nameof(HasValidBookmarks));
         Session.NotifyDurationChanged();
+
+        // A cut added while the storyboard is up needs a card drawn for it.
+        if (StoryboardView && e.NewItems != null) _ = RefreshStoryboardThumbnailsAsync();
     }
 
     private void Bookmark_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -1665,6 +1833,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
                            or nameof(Bookmark.EndSeconds)
                            or nameof(Bookmark.IsIncomplete))
             RefreshNudgeLimits();
+
+        // The card draws the cut's first frame, so moving the start makes the
+        // one on screen a picture of somewhere the cut no longer begins.
+        // Dropped rather than re-fetched here: the refresh below only redraws
+        // what is missing, and this is how it is told what is.
+        if (e.PropertyName is nameof(Bookmark.StartSeconds) or nameof(Bookmark.EndSeconds)
+            && sender is Bookmark moved)
+        {
+            if (e.PropertyName == nameof(Bookmark.StartSeconds)) moved.Thumbnail = null;
+            else moved.ThumbnailEnd = null;
+
+            if (StoryboardView) _ = RefreshStoryboardThumbnailsAsync();
+        }
     }
 
     private void Session_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -1683,6 +1864,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             _thumbnails.Clear();
             RefreshClipPreview();
+
+            // Both of these describe the file that just went away. Edit points
+            // found in one video are meaningless in another, and a card drawn
+            // from one would be a frame of the wrong film.
+            SnapPoints.Clear();
+            foreach (var b in Session.Bookmarks) { b.Thumbnail = null; b.ThumbnailEnd = null; }
+
+            if (StoryboardView) _ = RefreshStoryboardThumbnailsAsync();
         }
     }
 
@@ -1756,6 +1945,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         OnPropertyChanged(nameof(HasEditLength));
         OnPropertyChanged(nameof(HasNoBookmarks));
+        OnPropertyChanged(nameof(AllBookmarksSelected));
+        OnPropertyChanged(nameof(ShowSelectAllHeader));
 
         SetTimestampCommand.NotifyCanExecuteChanged();
         UndoLastBookmarkCommand.NotifyCanExecuteChanged();
@@ -3064,6 +3255,68 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public string SelectAllButtonLabel => _selectionButtonClears ? "Select None" : "Select All";
 
     /// <summary>
+    /// The same caption for the Bookmarks menu's one selection entry, in the
+    /// sentence case the rest of the menu is written in.
+    /// </summary>
+    /// <remarks>
+    /// The menu carried a permanent pair — "Select all" and "Select none" —
+    /// one of which was always the wrong one to want, and which the toolbar
+    /// had already stopped doing. Both now point at the same command and
+    /// swap by the same rule, so the menu and the button never disagree
+    /// about which half of the pair is worth offering.
+    /// </remarks>
+    public string SelectAllMenuHeader => _selectionButtonClears ? "Select none" : "Select all";
+
+    /// <summary>The glyph beside it, following the caption.</summary>
+    public string SelectAllMenuGlyph => _selectionButtonClears ? "☐" : "☑";
+
+    /// <summary>
+    /// The state of the box at the head of the cut list: checked when every
+    /// cut is, clear when none is, and indeterminate on anything between.
+    /// </summary>
+    /// <remarks>
+    /// A checkbox, unlike the menu entry and the toolbar button beside it,
+    /// reports rather than offers — so this one does follow a partial
+    /// selection instead of holding the last answer. Filled in one state and
+    /// empty in the other is what a checkbox at the head of a list of
+    /// checkboxes is read as meaning, and leaving it checked over a half-
+    /// ticked list would be a plain untruth.
+    ///
+    /// Setting it either fills or empties the list; the indeterminate state
+    /// is only ever shown, never chosen, which is why the box itself is not
+    /// three-state.
+    /// </remarks>
+    public bool? AllBookmarksSelected
+    {
+        get
+        {
+            var total = Session.Bookmarks.Count;
+            if (total == 0) return false;
+
+            var selected = SelectedCount;
+            if (selected == 0) return false;
+            return selected == total ? true : null;
+        }
+        set
+        {
+            if (value == true) SelectAll();
+            else SelectNone();
+        }
+    }
+
+    /// <summary>
+    /// Whether that box is shown at all.
+    /// </summary>
+    /// <remarks>
+    /// Not over an empty list, where it would offer to select nothing, and
+    /// not over the storyboard, where it lines up with nothing — the cards
+    /// carry their own boxes wherever the grid happens to put them, and a
+    /// heading box aligned to a column that is not there reads as a stray
+    /// control. The menu entry still covers both cases.
+    /// </remarks>
+    public bool ShowSelectAllHeader => !HasNoBookmarks && !StoryboardView;
+
+    /// <summary>
     /// Points the select button at whichever action is worth offering.
     /// </summary>
     /// <remarks>
@@ -3088,6 +3341,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (clears == _selectionButtonClears) return;
         _selectionButtonClears = clears;
         OnPropertyChanged(nameof(SelectAllButtonLabel));
+        OnPropertyChanged(nameof(SelectAllMenuHeader));
+        OnPropertyChanged(nameof(SelectAllMenuGlyph));
 
         // The toolbar is data, so this caption has to be written into the item
         // rather than picked up from a binding on a button that no longer
@@ -5838,7 +6093,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             Owner = Application.Current?.MainWindow
         };
-        if (dlg.ShowDialog() != true) return;
+        var accepted = dlg.ShowDialog() == true;
+
+        // Harvested whichever way the dialog closed. The scan has already
+        // paid for a full decode, and where it found the video changing is
+        // worth keeping even when none of its proposals were wanted.
+        TakeSnapPoints(dlg.Scanned);
+
+        if (!accepted) return;
 
         if (dlg.ReplaceExisting) Session.Bookmarks.Clear();
 
@@ -5886,6 +6148,113 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ? $"Added {added} {Entries(added)} from the scan"
             : $"Added {added} {Entries(added)} from the scan — skipped {skipped} that " +
               $"overlapped cuts already in the list";
+    }
+
+    /// <summary>
+    /// Replaces <see cref="SnapPoints"/> with the edges of the ranges given.
+    /// </summary>
+    /// <remarks>
+    /// A range's start and end are each a point where the video changed, so
+    /// both go in; the two that fall on the very start and end of the file do
+    /// not, since nothing can be dragged past them anyway and a tick there is
+    /// a tick on the frame of the bar. Near-duplicates are collapsed — one
+    /// range's end and the next one's start are usually the same instant seen
+    /// twice.
+    /// </remarks>
+    private void TakeSnapPoints(IEnumerable<DetectedRange> ranges)
+    {
+        var duration = Session.VideoDurationSeconds;
+
+        var points = ranges
+            .SelectMany(r => new[] { r.Start, r.End })
+            .Where(s => s > 0.05 && (duration <= 0 || s < duration - 0.05))
+            .OrderBy(s => s)
+            .ToList();
+
+        SnapPoints.Clear();
+
+        var last = double.NegativeInfinity;
+        foreach (var p in points)
+        {
+            if (p - last < 0.05) continue;
+            SnapPoints.Add(p);
+            last = p;
+        }
+    }
+
+    /// <summary>
+    /// Scans for edit points without proposing any cuts, purely to give the
+    /// timeline something for its brackets to snap to.
+    /// </summary>
+    /// <remarks>
+    /// The same dialog that proposes cuts, since choosing what to look for and
+    /// how hard is the same question either way — the result is simply kept
+    /// rather than applied. Someone who wants the cuts as well already has
+    /// "Find clips automatically", which now fills these in on its way past.
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(HasActiveVideo))]
+    private void ScanEditPoints()
+    {
+        if (string.IsNullOrWhiteSpace(Session.VideoPath)) return;
+
+        var dlg = new DetectBookmarksDialog(_ffmpeg, Session.VideoPath)
+        {
+            Owner = Application.Current?.MainWindow,
+            Title = "Scan for edit points"
+        };
+        dlg.ShowDialog();
+
+        TakeSnapPoints(dlg.Scanned);
+
+        StatusText = SnapPoints.Count == 0
+            ? "The scan found no edit points — try a lower threshold, or another mode"
+            : $"Found {SnapPoints.Count} edit point(s) — brackets dragged near one now land on it";
+    }
+
+    /// <summary>
+    /// Fills in a frame for every cut the storyboard will draw a card for.
+    /// </summary>
+    /// <remarks>
+    /// One at a time rather than all at once: each is an ffmpeg call, and a
+    /// dozen of them started together would fight each other for the disk and
+    /// arrive no sooner. Cards fill in from the top as they come, which also
+    /// reads as progress.
+    ///
+    /// Already-drawn cuts are skipped, so toggling the view back and forth
+    /// costs nothing the second time.
+    /// </remarks>
+    private async Task RefreshStoryboardThumbnailsAsync()
+    {
+        var video = Session.VideoPath;
+        if (string.IsNullOrWhiteSpace(video)) return;
+
+        var wantsEnd = StoryboardLayout == StoryboardLayout.Filmstrip;
+
+        foreach (var b in Session.Bookmarks.ToList())
+        {
+            if (!b.IsValid) continue;
+            if (b.Thumbnail != null && (!wantsEnd || b.ThumbnailEnd != null)) continue;
+
+            // A different video can be loaded while this runs, which makes the
+            // rest of the pass frames of the wrong film.
+            if (video != Session.VideoPath) return;
+
+            try
+            {
+                b.Thumbnail ??= await _thumbnails.GetAsync(video, b.StartSeconds);
+
+                // A hair inside the cut rather than on its closing mark: the
+                // end is the first instant the clip no longer covers, and a
+                // frame fetched exactly there belongs to whatever follows.
+                if (wantsEnd && b.ThumbnailEnd is null)
+                    b.ThumbnailEnd = await _thumbnails.GetAsync(video, Math.Max(b.StartSeconds, b.EndSeconds - 0.25));
+            }
+            catch
+            {
+                // A frame that will not decode leaves an empty card, which is
+                // a great deal better than taking the view down with it.
+            }
+        }
     }
 
     /// <summary>

@@ -29,6 +29,19 @@ public enum Rotation
     UpsideDown
 }
 
+/// <summary>
+/// One mark in a clip's row of effect glyphs.
+/// </summary>
+/// <param name="Glyph">The character, or short text where no character will do.</param>
+/// <param name="Alert">
+/// Whether it is drawn in the warning colour rather than the ordinary one.
+/// For mute alone: every other mark changes how a clip looks, and looking
+/// wrong is obvious the moment it is played. Silence is not — a muted clip
+/// plays perfectly and simply has nothing in it, which is the one of these
+/// worth noticing before the merge rather than after.
+/// </param>
+public readonly record struct EffectMark(string Glyph, bool Alert);
+
 public class Bookmark : INotifyPropertyChanged
 {
     private int _index;
@@ -149,6 +162,10 @@ public class Bookmark : INotifyPropertyChanged
             _isFlipped = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(Prefix));
+            OnPropertyChanged(nameof(EffectGlyphs));
+            OnPropertyChanged(nameof(EffectMarks));
+            OnPropertyChanged(nameof(ShowsRotationMark));
+            OnPropertyChanged(nameof(HasEffects));
             OnPropertyChanged(nameof(FlipDisplay));
             OnPropertyChanged(nameof(RowMarkers));
         }
@@ -164,6 +181,10 @@ public class Bookmark : INotifyPropertyChanged
             OnPropertyChanged(nameof(SpeedDisplay));
             OnPropertyChanged(nameof(SpeedShortDisplay));
             OnPropertyChanged(nameof(Prefix));
+            OnPropertyChanged(nameof(EffectGlyphs));
+            OnPropertyChanged(nameof(EffectMarks));
+            OnPropertyChanged(nameof(ShowsRotationMark));
+            OnPropertyChanged(nameof(HasEffects));
             OnPropertyChanged(nameof(EffectiveDurationDisplay));
             OnPropertyChanged(nameof(DurationDisplay)); // in case UI binds to it
         }
@@ -180,6 +201,10 @@ public class Bookmark : INotifyPropertyChanged
             OnPropertyChanged();
             OnPropertyChanged(nameof(RotationDisplay));
             OnPropertyChanged(nameof(Prefix));
+            OnPropertyChanged(nameof(EffectGlyphs));
+            OnPropertyChanged(nameof(EffectMarks));
+            OnPropertyChanged(nameof(ShowsRotationMark));
+            OnPropertyChanged(nameof(HasEffects));
             OnPropertyChanged(nameof(RowMarkers));
         }
     }
@@ -202,6 +227,10 @@ public class Bookmark : INotifyPropertyChanged
             OnPropertyChanged();
             OnPropertyChanged(nameof(MuteDisplay));
             OnPropertyChanged(nameof(Prefix));
+            OnPropertyChanged(nameof(EffectGlyphs));
+            OnPropertyChanged(nameof(EffectMarks));
+            OnPropertyChanged(nameof(ShowsRotationMark));
+            OnPropertyChanged(nameof(HasEffects));
             OnPropertyChanged(nameof(RowMarkers));
         }
     }
@@ -231,6 +260,10 @@ public class Bookmark : INotifyPropertyChanged
             OnPropertyChanged(nameof(HasFade));
             OnPropertyChanged(nameof(FadeDisplay));
             OnPropertyChanged(nameof(Prefix));
+            OnPropertyChanged(nameof(EffectGlyphs));
+            OnPropertyChanged(nameof(EffectMarks));
+            OnPropertyChanged(nameof(ShowsRotationMark));
+            OnPropertyChanged(nameof(HasEffects));
             OnPropertyChanged(nameof(RowMarkers));
         }
     }
@@ -251,6 +284,10 @@ public class Bookmark : INotifyPropertyChanged
             OnPropertyChanged(nameof(HasFade));
             OnPropertyChanged(nameof(FadeDisplay));
             OnPropertyChanged(nameof(Prefix));
+            OnPropertyChanged(nameof(EffectGlyphs));
+            OnPropertyChanged(nameof(EffectMarks));
+            OnPropertyChanged(nameof(ShowsRotationMark));
+            OnPropertyChanged(nameof(HasEffects));
             OnPropertyChanged(nameof(RowMarkers));
         }
     }
@@ -320,6 +357,10 @@ public class Bookmark : INotifyPropertyChanged
         OnPropertyChanged(nameof(HasCrop));
         OnPropertyChanged(nameof(CropDisplay));
         OnPropertyChanged(nameof(Prefix));
+        OnPropertyChanged(nameof(EffectGlyphs));
+        OnPropertyChanged(nameof(EffectMarks));
+        OnPropertyChanged(nameof(ShowsRotationMark));
+        OnPropertyChanged(nameof(HasEffects));
         OnPropertyChanged(nameof(RowMarkers));
     }
 
@@ -344,6 +385,10 @@ public class Bookmark : INotifyPropertyChanged
         OnPropertyChanged(nameof(HasCrop));
         OnPropertyChanged(nameof(CropDisplay));
         OnPropertyChanged(nameof(Prefix));
+        OnPropertyChanged(nameof(EffectGlyphs));
+        OnPropertyChanged(nameof(EffectMarks));
+        OnPropertyChanged(nameof(ShowsRotationMark));
+        OnPropertyChanged(nameof(HasEffects));
         OnPropertyChanged(nameof(RowMarkers));
     }
 
@@ -429,6 +474,43 @@ public class Bookmark : INotifyPropertyChanged
     /// <summary>Whether this bookmark carries a name.</summary>
     public bool HasLabel => !string.IsNullOrWhiteSpace(_label);
 
+    private object? _thumbnail;
+
+    /// <summary>
+    /// A frame from the start of this cut, for the storyboard's card. Null
+    /// until something asks for it.
+    /// </summary>
+    /// <remarks>
+    /// Filled in by the view model, and only while the storyboard is the view
+    /// being shown — a frame per cut is an ffmpeg call per cut, which is not
+    /// worth paying for a list of rows that would never draw them.
+    ///
+    /// Held as <c>object</c> rather than a BitmapSource so this file does not
+    /// have to know what a bitmap is; binding neither knows nor cares.
+    /// </remarks>
+    public object? Thumbnail
+    {
+        get => _thumbnail;
+        set { _thumbnail = value; OnPropertyChanged(); }
+    }
+
+    private object? _thumbnailEnd;
+
+    /// <summary>
+    /// A frame from the end of this cut, for the filmstrip layout's second
+    /// picture. Null until something asks for it.
+    /// </summary>
+    /// <remarks>
+    /// Fetched only by the one layout that shows it. It is the second ffmpeg
+    /// call per cut that makes the filmstrip twice the wait of the others, so
+    /// the other three never pay for it.
+    /// </remarks>
+    public object? ThumbnailEnd
+    {
+        get => _thumbnailEnd;
+        set { _thumbnailEnd = value; OnPropertyChanged(); }
+    }
+
     /// <summary>
     /// True while this bookmark is still waiting for its closing timestamp.
     /// </summary>
@@ -496,14 +578,139 @@ public class Bookmark : INotifyPropertyChanged
         get
         {
             var parts = new List<string>(5);
-            if (IsFlipped) parts.Add("flipped");
-            if (Rotation != Rotation.None) parts.Add(DescribeRotation(Rotation));
+            parts.AddRange(OrientationWords());
             if (HasCrop) parts.Add("cropped");
             if (IsMuted) parts.Add("muted");
             if (HasFade) parts.Add(FadeDisplay);
             return string.Join(" · ", parts);
         }
     }
+
+    /// <summary>
+    /// How this clip has been turned about, in as few words as it takes.
+    /// Empty when it is written as it was recorded.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Flip is a vertical one — <c>vflip</c>, top swapped for bottom — and a
+    /// half turn is <c>transpose=1,transpose=1</c>. Composing those two gives
+    /// <c>hflip</c> exactly: the clip comes back the right way up, but mirrored
+    /// left for right. Reporting that as "flipped · turned 180°" describes the
+    /// two button presses rather than the one thing they did, and reads as two
+    /// transforms fighting each other when it is really a mirror.
+    /// </para>
+    /// <para>
+    /// The pair is not redundant and must not be collapsed away: a horizontal
+    /// mirror has no setting of its own here, so those two together are the
+    /// only way to ask for one. Flip against each of the four rotations gives
+    /// eight arrangements and no two of them look alike, so nothing in this
+    /// set ever cancels out — it only ever adds up to something with a shorter
+    /// name.
+    /// </para>
+    /// </remarks>
+    private IEnumerable<string> OrientationWords()
+    {
+        if (IsFlipped && Rotation == Rotation.UpsideDown)
+        {
+            yield return "mirrored";
+            yield break;
+        }
+
+        if (IsFlipped) yield return "flipped";
+        if (Rotation != Rotation.None) yield return DescribeRotation(Rotation);
+    }
+
+    /// <summary>
+    /// Everything being done to this clip, as the smallest row of marks that
+    /// can say it. Empty when the clip is written as it was recorded.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// For the views where a cut is a picture and little else. The words in
+    /// <see cref="Prefix"/> need a line of their own; these fit in a corner,
+    /// which is the difference between a thumbnail that reports what will
+    /// happen to it and one that has no room to.
+    /// </para>
+    /// <para>
+    /// The marks are the toolbar's own — ↕ is the Flip button, ⟳ the Rotate
+    /// button, 🔇 Mute, ◐ Fade, ⬚ Crop — so the row is read with something
+    /// already learned rather than a key invented for it. The two that have no
+    /// button to borrow from say themselves instead: a half turn is "180°",
+    /// and a speed is its own multiplier, because no arrow means "half speed"
+    /// to anyone.
+    /// </para>
+    /// <para>
+    /// Whatever is lost in compressing words to marks is in the tooltip, which
+    /// carries <see cref="Prefix"/> in full.
+    /// </para>
+    /// </remarks>
+    public string EffectGlyphs
+    {
+        get
+        {
+            var parts = new List<string>(6);
+
+            // Same pairing <see cref="OrientationWords"/> makes: a vertical
+            // flip and a half turn are a horizontal mirror, and ↔ says that
+            // where a flip mark beside a turn mark would describe the two
+            // button presses instead.
+            if (IsFlipped && Rotation == Rotation.UpsideDown) parts.Add("↔");
+            else if (IsFlipped) parts.Add("↕");
+
+            // The turn itself is not here: it is drawn, not typed — see
+            // ShowsRotationMark.
+            if (HasCrop) parts.Add("⬚");
+            if (IsMuted) parts.Add("🔇");
+            if (HasFade) parts.Add("◐");
+            if (!Is(Speed, 1.0)) parts.Add($"{Speed:0.##}x");
+
+            return string.Join(" ", parts);
+        }
+    }
+
+    /// <summary>
+    /// The same marks as <see cref="EffectGlyphs"/>, one at a time, so each
+    /// can be coloured on its own.
+    /// </summary>
+    /// <remarks>
+    /// A single string can only be one colour. Mute earns a colour of its own
+    /// — see <see cref="EffectMark.Alert"/> — so the row has to be a list of
+    /// marks rather than a line of text.
+    /// </remarks>
+    public IReadOnlyList<EffectMark> EffectMarks
+    {
+        get
+        {
+            var marks = new List<EffectMark>(6);
+
+            if (IsFlipped && Rotation == Rotation.UpsideDown) marks.Add(new("↔", false));
+            else if (IsFlipped) marks.Add(new("↕", false));
+
+            if (HasCrop) marks.Add(new("⬚", false));
+            if (IsMuted) marks.Add(new("🔇", true));
+            if (HasFade) marks.Add(new("◐", false));
+            if (!Is(Speed, 1.0)) marks.Add(new($"{Speed:0.##}x", false));
+
+            return marks;
+        }
+    }
+
+    /// <summary>
+    /// Whether the turn is drawn as an arc beside <see cref="EffectGlyphs"/>.
+    /// </summary>
+    /// <remarks>
+    /// False for a clip that is not turned, and false for the flip-and-half-
+    /// turn pair, which is a mirror and says so with ↔ rather than with a
+    /// turn mark that would be only half the story.
+    /// </remarks>
+    public bool ShowsRotationMark =>
+        Rotation != Rotation.None && !(IsFlipped && Rotation == Rotation.UpsideDown);
+
+    /// <summary>
+    /// Whether anything at all is being done to this clip — the test for
+    /// whether the marks are worth making room for.
+    /// </summary>
+    public bool HasEffects => ShowsRotationMark || EffectGlyphs.Length > 0;
 
     /// <summary>Whether the clip will be silent.</summary>
     public string MuteDisplay => IsMuted ? "muted" : string.Empty;
@@ -594,8 +801,7 @@ public class Bookmark : INotifyPropertyChanged
         {
             var parts = new List<string>(6);
 
-            if (IsFlipped) parts.Add("flipped");
-            if (Rotation != Rotation.None) parts.Add(DescribeRotation(Rotation));
+            parts.AddRange(OrientationWords());
             if (HasCrop) parts.Add("cropped");
             if (IsMuted) parts.Add("muted");
             if (!Is(Speed, 1.0)) parts.Add(DescribeSpeed(Speed));
