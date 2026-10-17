@@ -1701,8 +1701,95 @@ public partial class MainWindow : Window
         // drawing nothing either.
         if (duration <= 0 || width <= 0) return;
 
-        var fraction = Math.Clamp(e.GetPosition(TimelineArea).X / width, 0, 1);
+        var x = e.GetPosition(TimelineArea).X;
+
+        // A press that lands on a bracket resizes the cut instead of seeking
+        // — the same gesture a person already reaches for to move a mark,
+        // just closer to the mark itself than a click-and-retype.
+        var grabbed = FindBracketNear(x, width, duration);
+        if (grabbed is { } g)
+        {
+            _draggingBookmark = g.Bookmark;
+            _draggingIsStart = g.IsStart;
+            ((UIElement)sender).CaptureMouse();
+            e.Handled = true;
+            return;
+        }
+
+        var fraction = Math.Clamp(x / width, 0, 1);
         _vm.SeekToTimeCommand.Execute(fraction * duration);
+    }
+
+    // ------------------------------------------------------------------
+    // Dragging a bracket to resize a cut
+    // ------------------------------------------------------------------
+
+    /// <summary>How close, in pixels, a press has to land to a bracket to grab it rather than seek.</summary>
+    private const double BracketGrabPixels = 6;
+
+    private Bookmark? _draggingBookmark;
+    private bool _draggingIsStart;
+
+    /// <summary>
+    /// The nearest bracket to <paramref name="pointerX"/> within
+    /// <see cref="BracketGrabPixels"/>, or null when nothing is that close.
+    /// </summary>
+    /// <remarks>
+    /// Every bookmark's own two ends are candidates, not just the selected
+    /// row's — a cut can be resized from the bar without selecting it first,
+    /// the same as it can already be sought to without selecting it.
+    /// </remarks>
+    private (Bookmark Bookmark, bool IsStart)? FindBracketNear(double pointerX, double width, double duration)
+    {
+        if (_vm is null) return null;
+
+        Bookmark? bestBookmark = null;
+        bool bestIsStart = false;
+        var bestDistance = double.PositiveInfinity;
+
+        void Consider(Bookmark b, bool isStart, double seconds)
+        {
+            var x = Math.Clamp(seconds / duration, 0, 1) * width;
+            var distance = Math.Abs(x - pointerX);
+            if (distance > BracketGrabPixels || distance >= bestDistance) return;
+
+            bestBookmark = b;
+            bestIsStart = isStart;
+            bestDistance = distance;
+        }
+
+        foreach (var b in _vm.Session.Bookmarks)
+        {
+            Consider(b, true, b.StartSeconds);
+            if (b.IsValid) Consider(b, false, b.EndSeconds);
+        }
+
+        return bestBookmark is null ? null : (bestBookmark, bestIsStart);
+    }
+
+    private void Timeline_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_draggingBookmark is null) return;
+        EndBracketDrag();
+        ((UIElement)sender).ReleaseMouseCapture();
+    }
+
+    /// <summary>
+    /// Safety net for a drag that ends some other way — the window losing
+    /// focus mid-drag, say — rather than an ordinary mouse-up. Harmless to
+    /// call twice: <see cref="Timeline_MouseLeftButtonUp"/> already clears
+    /// <see cref="_draggingBookmark"/> before releasing capture, so the
+    /// <see cref="EndBracketDrag"/> this triggers in turn is a no-op.
+    /// </summary>
+    private void Timeline_LostMouseCapture(object sender, MouseEventArgs e) => EndBracketDrag();
+
+    private void EndBracketDrag()
+    {
+        if (_draggingBookmark is null) return;
+
+        _vm?.CommitBracketDrag(_draggingBookmark, _draggingIsStart, RangesControl.DragSeconds);
+        _draggingBookmark = null;
+        RangesControl.DragBookmark = null;
     }
 
     // ------------------------------------------------------------------
@@ -1754,6 +1841,31 @@ public partial class MainWindow : Window
         var x = e.GetPosition(TimelineArea).X;
         var fraction = Math.Clamp(x / width, 0, 1);
         _hoverPreviewSeconds = fraction * duration;
+
+        if (_draggingBookmark is { } dragging)
+        {
+            // Clamped here, in the View, so the bracket never visually
+            // crosses a limit it will be refused at anyway — see
+            // GetBracketDragRange's remarks on why this does not touch the
+            // bookmark itself.
+            var (floor, ceiling) = _vm.GetBracketDragRange(dragging, _draggingIsStart);
+            var clamped = floor > ceiling
+                ? _draggingIsStart ? dragging.StartSeconds : dragging.EndSeconds
+                : Math.Clamp(_hoverPreviewSeconds, Math.Max(0, floor), ceiling);
+
+            RangesControl.DragBookmark = dragging;
+            RangesControl.DragIsStart = _draggingIsStart;
+            RangesControl.DragSeconds = clamped;
+
+            // The popup's clock follows the bracket, not the raw pointer —
+            // otherwise it would claim a time the drag just refused.
+            _hoverPreviewSeconds = clamped;
+        }
+        else
+        {
+            var grabbed = FindBracketNear(x, width, duration);
+            ((Border)sender).Cursor = grabbed is null ? Cursors.Hand : Cursors.SizeWE;
+        }
 
         HoverPreviewTime.Text = Bookmark.FormatTime(_hoverPreviewSeconds);
         HoverPreviewPopup.PlacementTarget = TimelineArea;

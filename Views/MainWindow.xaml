@@ -1255,6 +1255,7 @@
                 <Border Grid.Column="1" Background="{DynamicResource SeekbarTrack}" CornerRadius="0"
                         BorderBrush="{DynamicResource SeekbarBorder}" BorderThickness="1" Height="22"
                         Cursor="Hand" MouseLeftButtonDown="Timeline_MouseLeftButtonDown"
+                        MouseLeftButtonUp="Timeline_MouseLeftButtonUp" LostMouseCapture="Timeline_LostMouseCapture"
                         MouseMove="Timeline_MouseMove" MouseLeave="Timeline_MouseLeave">
                     <!-- Right-click reaches the same commands Options offers,
                          the way the toolbar's own context menu does — found by
@@ -1386,11 +1387,11 @@
 
                              Full height, so the brackets stand clear of the
                              handle rather than being hidden behind it. -->
-                        <helpers:TimelineRanges Bookmarks="{Binding Session.Bookmarks}"
+                        <helpers:TimelineRanges x:Name="RangesControl" Bookmarks="{Binding Session.Bookmarks}"
                                                 DurationSeconds="{Binding Session.VideoDurationSeconds}"
                                                 BracketStyle="{Binding SeekbarBracketStyle}"
                                                 MarkBrush="{DynamicResource SeekbarMark}"
-                                                ToolTip="Where the cuts fall — a bracket at each end of every range, with the cut's number between them and a tick when it is checked. A bookmark still waiting for its closing timestamp shows an opening bracket on its own."/>
+                                                ToolTip="Where the cuts fall — a bracket at each end of every range, with the cut's number between them and a tick when it is checked. A bookmark still waiting for its closing timestamp shows an opening bracket on its own. Drag a bracket to resize the cut."/>
                     </Grid>
                 </Border>
 

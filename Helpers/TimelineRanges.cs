@@ -76,6 +76,18 @@ public class TimelineRanges : FrameworkElement
         DependencyProperty.Register(nameof(MarkBrush), typeof(Brush), typeof(TimelineRanges),
             new FrameworkPropertyMetadata(DefaultMarkBrush, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty DragBookmarkProperty =
+        DependencyProperty.Register(nameof(DragBookmark), typeof(Bookmark), typeof(TimelineRanges),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty DragIsStartProperty =
+        DependencyProperty.Register(nameof(DragIsStart), typeof(bool), typeof(TimelineRanges),
+            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty DragSecondsProperty =
+        DependencyProperty.Register(nameof(DragSeconds), typeof(double), typeof(TimelineRanges),
+            new FrameworkPropertyMetadata(0d, FrameworkPropertyMetadataOptions.AffectsRender));
+
     public IEnumerable? Bookmarks
     {
         get => (IEnumerable?)GetValue(BookmarksProperty);
@@ -105,6 +117,39 @@ public class TimelineRanges : FrameworkElement
     {
         get => (Brush)GetValue(MarkBrushProperty);
         set => SetValue(MarkBrushProperty, value);
+    }
+
+    /// <summary>
+    /// The bookmark one of whose brackets is mid-drag, or null the rest of
+    /// the time. Set from code-behind, not bound — this is input state the
+    /// View owns, not data the ViewModel holds.
+    /// </summary>
+    /// <remarks>
+    /// Nothing on <see cref="Bookmark"/> itself changes while this is set:
+    /// a drag is read straight off the pointer and drawn here, and only
+    /// written back to the bookmark — once — when the drag ends. Doing
+    /// otherwise would fire the clip preview's ffmpeg extraction and the
+    /// undo-history recorder on every pixel the pointer crosses rather than
+    /// once for the whole gesture.
+    /// </remarks>
+    public Bookmark? DragBookmark
+    {
+        get => (Bookmark?)GetValue(DragBookmarkProperty);
+        set => SetValue(DragBookmarkProperty, value);
+    }
+
+    /// <summary>Which of <see cref="DragBookmark"/>'s two brackets is being dragged.</summary>
+    public bool DragIsStart
+    {
+        get => (bool)GetValue(DragIsStartProperty);
+        set => SetValue(DragIsStartProperty, value);
+    }
+
+    /// <summary>Where the dragged bracket is right now, in seconds.</summary>
+    public double DragSeconds
+    {
+        get => (double)GetValue(DragSecondsProperty);
+        set => SetValue(DragSecondsProperty, value);
     }
 
     private static void OnBookmarksChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -236,18 +281,35 @@ public class TimelineRanges : FrameworkElement
 
         foreach (var b in Bookmarks.OfType<Bookmark>())
         {
-            var startX = Math.Clamp(b.StartSeconds / total, 0, 1) * width;
-            var open = b.IsIncomplete || b.EndSeconds <= b.StartSeconds;
+            // The dragged end reads from the pointer, not the model — see
+            // DragBookmark's remarks. The other end, and every other
+            // bookmark, reads its own properties exactly as before.
+            var dragging = ReferenceEquals(b, DragBookmark);
+            var liveStart = dragging && DragIsStart ? DragSeconds : b.StartSeconds;
+            var liveEnd = dragging && !DragIsStart ? DragSeconds : b.EndSeconds;
+
+            var startX = Math.Clamp(liveStart / total, 0, 1) * width;
+            var open = b.IsIncomplete || liveEnd <= liveStart;
 
             // Opened and not yet closed: the opening bracket on its own says so,
-            // where a second one would claim an end it has not got.
-            var openingPen = open ? IncompletePen : markPen;
-            DrawBracket(dc, open ? IncompleteBrush : markBrush, openingPen, startX, width, height, opening: true);
+            // where a second one would claim an end it has not got. Nothing on
+            // the other side of it to crowd, so its reach is never shortened.
+            if (open)
+            {
+                DrawBracket(dc, IncompleteBrush, IncompletePen, startX, width, height, opening: true, cutWidth: double.PositiveInfinity);
+                continue;
+            }
 
-            if (open) continue;
+            var endX = Math.Clamp(liveEnd / total, 0, 1) * width;
 
-            var endX = Math.Clamp(b.EndSeconds / total, 0, 1) * width;
-            DrawBracket(dc, markBrush, markPen, endX, width, height, opening: false);
+            // How much room the two brackets actually have to reach into
+            // before they would start drawing over each other — see
+            // DrawBracket's remarks on why this is passed down rather than
+            // left as a fixed pixel count per style.
+            var cutWidth = Math.Max(0, endX - startX);
+
+            DrawBracket(dc, markBrush, markPen, startX, width, height, opening: true, cutWidth);
+            DrawBracket(dc, markBrush, markPen, endX, width, height, opening: false, cutWidth);
             DrawLabel(dc, b, markBrush, checkPen, startX, endX, height);
         }
     }
@@ -327,6 +389,12 @@ public class TimelineRanges : FrameworkElement
     /// <summary>
     /// Draws one end of a range, in whichever of the four styles is chosen.
     /// </summary>
+    /// <param name="cutWidth">
+    /// How many pixels wide the cut itself is — the room the two brackets
+    /// have to reach into before they would start drawing on top of each
+    /// other. Infinite for the lone bracket of an open bookmark, which has
+    /// no other end to crowd.
+    /// </param>
     /// <remarks>
     /// Whatever the style, it is drawn at the mark and nothing between a pair
     /// of them: a band the length of the cut was a lot of paint for two
@@ -334,9 +402,14 @@ public class TimelineRanges : FrameworkElement
     /// the timeline became a row of blocks with the gaps — the parts being
     /// thrown away — as the only thing left legible. A line joining each pair
     /// was the same idea at lower volume and had the same problem.
+    ///
+    /// On a cut too narrow for a style's usual reach, that reach is shortened
+    /// to half of what is actually there instead of being drawn at full size
+    /// regardless — the two ends then meet in the cut's own middle rather
+    /// than overshoot each other and read as one tangled mark instead of two.
     /// </remarks>
     private void DrawBracket(DrawingContext dc, Brush brush, Pen pen, double x,
-                             double width, double height, bool opening)
+                             double width, double height, bool opening, double cutWidth)
     {
         switch (BracketStyle)
         {
@@ -345,13 +418,13 @@ public class TimelineRanges : FrameworkElement
                 break;
 
             case SeekbarBracketStyle.Chevrons:
-                DrawChevron(dc, pen, x, width, height, opening);
+                DrawChevron(dc, pen, x, width, height, opening, cutWidth);
                 break;
 
             case SeekbarBracketStyle.Classic:
             default:
                 var stemX = DrawStem(dc, brush, x, width, height);
-                DrawFeet(dc, brush, stemX, width, height, opening);
+                DrawFeet(dc, brush, stemX, width, height, opening, cutWidth);
                 break;
         }
     }
@@ -371,13 +444,18 @@ public class TimelineRanges : FrameworkElement
     /// closing one, which is what makes a pair read as enclosing.
     /// </summary>
     private static void DrawFeet(DrawingContext dc, Brush brush, double stemX,
-                                 double width, double height, bool opening)
+                                 double width, double height, bool opening, double cutWidth)
     {
-        var footX = opening ? stemX + StemWidth : stemX - FootLength;
-        footX = Math.Clamp(footX, 0, Math.Max(0, width - FootLength));
+        // Half of what the cut actually has, once that is less than a full
+        // foot — see DrawBracket's remarks.
+        var footLength = Math.Min(FootLength, cutWidth / 2);
+        if (footLength <= 0) return;
 
-        dc.DrawRectangle(brush, null, new Rect(footX, 0, FootLength, FootWeight));
-        dc.DrawRectangle(brush, null, new Rect(footX, height - FootWeight, FootLength, FootWeight));
+        var footX = opening ? stemX + StemWidth : stemX - footLength;
+        footX = Math.Clamp(footX, 0, Math.Max(0, width - footLength));
+
+        dc.DrawRectangle(brush, null, new Rect(footX, 0, footLength, FootWeight));
+        dc.DrawRectangle(brush, null, new Rect(footX, height - FootWeight, footLength, FootWeight));
     }
 
     /// <summary>How far a chevron's arms reach from its vertex.</summary>
@@ -390,10 +468,15 @@ public class TimelineRanges : FrameworkElement
     /// closing one.
     /// </summary>
     private static void DrawChevron(DrawingContext dc, Pen pen, double x,
-                                    double width, double height, bool opening)
+                                    double width, double height, bool opening, double cutWidth)
     {
+        // Half of what the cut actually has, once that is less than a full
+        // arm — see DrawBracket's remarks. Below that a chevron's two arms
+        // would reach past the opposite mark rather than stopping at it.
+        var reach = Math.Min(ChevronReach, cutWidth / 2);
+
         var vertexX = Math.Clamp(x, 0, width);
-        var armX = Math.Clamp(opening ? vertexX + ChevronReach : vertexX - ChevronReach, 0, width);
+        var armX = Math.Clamp(opening ? vertexX + reach : vertexX - reach, 0, width);
         var mid = height / 2;
 
         dc.DrawLine(pen, new Point(vertexX, mid), new Point(armX, 0));

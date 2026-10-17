@@ -8556,6 +8556,82 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return (Math.Ceiling(floor), Math.Floor(ceiling));
     }
 
+    // ------------------------------------------------------------------
+    // Dragging a bracket on the seekbar
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// The least clearance a dragged bracket ever keeps from its own other
+    /// end. The visible brackets themselves shrink to fit a cramped cut
+    /// rather than overlap (see <see cref="Helpers.TimelineRanges.DrawBracket"/>),
+    /// so this is not sized against that — it is the shortest cut dragging is
+    /// meant to be able to create at all, the same one second
+    /// <see cref="NudgeGapSeconds"/> already holds the nudge arrows to.
+    /// </summary>
+    private const double DragMinGapSeconds = NudgeGapSeconds;
+
+    /// <summary>
+    /// The same floor and ceiling <see cref="NudgeRange"/> computes, but
+    /// unrounded: a drag reads continuously off the pointer, where a nudge
+    /// steps a whole second at a time, and rounding this to whole seconds
+    /// would make a bracket jump between them rather than track the mouse.
+    /// </summary>
+    /// <remarks>
+    /// Exposed so the View can clamp a drag in progress without touching the
+    /// bookmark itself — see <see cref="CommitBracketDrag"/> for the one
+    /// place a drag actually changes anything.
+    /// </remarks>
+    public (double Floor, double Ceiling) GetBracketDragRange(Bookmark b, bool movingStart)
+    {
+        var gap = DragMinGapSeconds;
+        var duration = Session.VideoDurationSeconds;
+        var cap = duration > 0 ? duration - gap : double.PositiveInfinity;
+
+        var ordered = Session.Bookmarks.OrderBy(x => x.StartSeconds).ToList();
+        var index = ordered.IndexOf(b);
+
+        if (movingStart)
+        {
+            var previous = index > 0 ? ordered[index - 1] : null;
+            var floor = previous is null
+                ? 0
+                : previous.IsValid ? previous.EndSeconds : previous.StartSeconds;
+            var ceiling = b.IsValid ? Math.Min(cap, b.EndSeconds - gap) : cap;
+            return (floor, ceiling);
+        }
+        else
+        {
+            var next = index >= 0 && index < ordered.Count - 1 ? ordered[index + 1] : null;
+            var floor = b.StartSeconds + gap;
+            var ceiling = next is null ? cap : Math.Min(cap, next.StartSeconds);
+            return (floor, ceiling);
+        }
+    }
+
+    /// <summary>
+    /// Moves one end of a cut to where a bracket was dragged to, and saves.
+    /// </summary>
+    /// <remarks>
+    /// The one place a drag actually touches the bookmark. While the drag is
+    /// in progress the View only moves a visual mark — see
+    /// <see cref="Helpers.TimelineRanges.DragBookmark"/> — so the clip preview
+    /// and the undo stack each see one change for the whole gesture instead
+    /// of one for every pixel the pointer crossed.
+    /// </remarks>
+    public void CommitBracketDrag(Bookmark b, bool movingStart, double proposedSeconds)
+    {
+        var (floor, ceiling) = GetBracketDragRange(b, movingStart);
+        if (floor > ceiling) return;
+
+        var clamped = Math.Clamp(proposedSeconds, Math.Max(0, floor), ceiling);
+
+        if (movingStart) b.StartSeconds = clamped;
+        else b.EndSeconds = clamped;
+
+        Session.NotifyDurationChanged();
+        if (IsBookmarkFileLoaded) SaveBookmarks();
+    }
+
     /// <summary>
     /// Works out which of each row's four arrows still has room to move, so the
     /// ones that do not can be taken off the row.
