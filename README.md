@@ -6,8 +6,7 @@ Create bookmarks with a hotkey to merge, split, and trim video clips via ffmpeg 
 
 ![The main window showing three bookmarked clips as rows, with their times, lengths and speed sliders, the waveform timeline with a bracket at each end of every cut, and the first and last frame of the selected clip](Assets/screenshots/view-list.png)
 
-**Portable.** No installer. Everything it writes lives beside the executable;
-copy the folder anywhere and it runs.
+**Portable.** No installer. Some backup data is stored in appdata, but it still retains its portability.
 
 ## Multiple Views
 
@@ -19,15 +18,13 @@ copy the folder anywhere and it runs.
 
 ![The storyboard in the filmstrip layout: each cut shows its opening and closing frame next to each other, with the start time, length and end time underneath](Assets/screenshots/view-filmstrip.png)
 
-## Making it yours
+## Customization
 
 Right-click the seekbar for its own settings, or Options for the rest.
 
 ![The Customize seekbar window, offering four ways to mark a cut — classic brackets, plain lines, chevrons, or nothing — with a transparency slider and a switch for the filled position bar](Assets/screenshots/customize-seekbar.png)
 
 ![The Seekbar colors window, with a live preview at the top and separate palettes for the position bar, the border, the background, the brackets and the waveform, each able to follow the theme or take a colour of its own](Assets/screenshots/seekbar-colors.png)
-
-## What it can do with them
 
 ![The Save thumbnails window, asking how often to take a frame and how wide each should be, whether to write one image per frame or a single tiled sheet, and where they should go](Assets/screenshots/save-thumbnails.png)
 
