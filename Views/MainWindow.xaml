@@ -1785,16 +1785,31 @@
 
                                     <Border VerticalAlignment="Bottom" Background="#A0000000" Padding="4,1"
                                             Visibility="{Binding IsIncomplete, Converter={StaticResource NotBoolToVis}}">
-                                        <Grid>
-                                            <TextBlock HorizontalAlignment="Left" FontSize="10"
-                                                       FontFamily="Consolas"
-                                                       Foreground="{DynamicResource TextSecondary}">
-                                                <Run Text="{Binding StartDisplay, Mode=OneWay}"/><Run Text="–"/><Run Text="{Binding EndDisplay, Mode=OneWay}"/>
-                                            </TextBlock>
-                                            <TextBlock Text="{Binding EffectiveDurationDisplay}"
-                                                       HorizontalAlignment="Right" FontSize="10"
-                                                       Foreground="{DynamicResource ValueGreen}"/>
-                                        </Grid>
+                                        <StackPanel>
+                                            <!-- The name above the times, on the
+                                                 same plate. A tile this size has
+                                                 no corner left to put it in, and
+                                                 a name is what a cut is called —
+                                                 worth the line it costs on the
+                                                 cuts that have one, and costing
+                                                 nothing on the ones that do
+                                                 not. -->
+                                            <TextBlock Text="{Binding Label}" FontSize="10"
+                                                       HorizontalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Foreground="{DynamicResource ValueYellow}"
+                                                       Visibility="{Binding HasLabel, Converter={StaticResource BoolToVis}}"/>
+                                            <Grid>
+                                                <TextBlock HorizontalAlignment="Left" FontSize="10"
+                                                           FontFamily="Consolas"
+                                                           Foreground="{DynamicResource TextSecondary}">
+                                                    <Run Text="{Binding StartDisplay, Mode=OneWay}"/><Run Text="–"/><Run Text="{Binding EndDisplay, Mode=OneWay}"/>
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding EffectiveDurationDisplay}"
+                                                           HorizontalAlignment="Right" FontSize="10"
+                                                           Foreground="{DynamicResource ValueGreen}"/>
+                                            </Grid>
+                                        </StackPanel>
                                     </Border>
 
                                     <Border VerticalAlignment="Bottom" Background="#A0000000" Padding="4,1"
@@ -1974,8 +1989,7 @@
 
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                 <ToggleButton Content="☰" Style="{StaticResource ViewToggle}"
-                                              IsChecked="{Binding CutsAsList, Mode=TwoWay}"
-                                              ToolTip="List — the cuts as rows, with times, length, name, markers and a speed slider on each"/>
+                                              IsChecked="{Binding CutsAsList, Mode=TwoWay}"/>
 
                                 <!-- A rule between the list and the four
                                      storyboards: they are one choice of five,
@@ -1983,17 +1997,13 @@
                                 <Border Width="1" Margin="4,2" Background="{DynamicResource ControlHover}"/>
 
                                 <ToggleButton Content="▦" Style="{StaticResource ViewToggle}"
-                                              IsChecked="{Binding LayoutIsCards, Mode=TwoWay}"
-                                              ToolTip="Cards — frame above, everything about the cut below. The balanced one."/>
+                                              IsChecked="{Binding LayoutIsCards, Mode=TwoWay}"/>
                                 <ToggleButton Content="▩" Style="{StaticResource ViewToggle}"
-                                              IsChecked="{Binding LayoutIsContactSheet, Mode=TwoWay}"
-                                              ToolTip="Contact sheet — frames and nothing else, with the number and length over the corners. Three times as many cuts on screen."/>
+                                              IsChecked="{Binding LayoutIsContactSheet, Mode=TwoWay}"/>
                                 <ToggleButton Content="▤" Style="{StaticResource ViewToggle}"
-                                              IsChecked="{Binding LayoutIsDetail, Mode=TwoWay}"
-                                              ToolTip="Detail — one cut to a row, frame on the left and the text beside it."/>
+                                              IsChecked="{Binding LayoutIsDetail, Mode=TwoWay}"/>
                                 <ToggleButton Content="▭" Style="{StaticResource ViewToggle}"
-                                              IsChecked="{Binding LayoutIsFilmstrip, Mode=TwoWay}"
-                                              ToolTip="Filmstrip — first and last frame of each cut, side by side. The only layout that says how a cut ends."/>
+                                              IsChecked="{Binding LayoutIsFilmstrip, Mode=TwoWay}"/>
                             </StackPanel>
                         </Grid>
 
