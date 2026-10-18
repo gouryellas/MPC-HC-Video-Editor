@@ -2,10 +2,7 @@
 
 <p align="center"><img src="Assets/logo.png" alt="MVE" width="200"></p>
 
-Modern rewrite of the original AutoHotkey **MPC-HC Video Editor v2.1**.
-
-Bookmark ranges in a video playing in MPC-HC, then cut, join, convert or extract
-audio from them with ffmpeg.
+Create bookmarks with a hotkey to merge, split, and trim video clips via ffmpeg in MPC-HC. There are also a lot of other features that allow you to: bulk image convert, bulk image resize, strip audio, convert video, crop video, apply video effects (flip, mute, fade, rotate), extract frame thumbnails, export clips as gifs, create custom anchors for filename tags, create explorer shortcuts, create and manage playlists customize the look and view, and more.
 
 ![The main window showing three bookmarked clips as rows, with their times, lengths and speed sliders, the waveform timeline with a bracket at each end of every cut, and the first and last frame of the selected clip](Assets/screenshots/view-list.png)
 
