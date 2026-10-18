@@ -7,10 +7,56 @@ Modern rewrite of the original AutoHotkey **MPC-HC Video Editor v2.1**.
 Bookmark ranges in a video playing in MPC-HC, then cut, join, convert or extract
 audio from them with ffmpeg.
 
-![The main window on the Parchment theme, showing four bookmarked clips with their times, durations and speed sliders, the timeline with a bracket at each end of every cut, and the first and last frame of the selected clip](Assets/screenshots/1.png)
+![The main window showing three bookmarked clips as rows, with their times, lengths and speed sliders, the waveform timeline with a bracket at each end of every cut, and the first and last frame of the selected clip](Assets/screenshots/view-list.png)
 
 **Portable.** No installer. Everything it writes lives beside the executable;
 copy the folder anywhere and it runs.
+
+## The cuts, five ways
+
+The same cuts, the same checkboxes, the same selection — arranged for whatever
+you are doing with them. Pick one from the row of switches above the list, or
+under **View**.
+
+**Cards** — a frame above, everything about the cut below.
+
+![The storyboard in the cards layout: each cut is a card with its frame, the checkbox and number over the top left of the picture, the chapter name along the foot of it, and the times and length centred underneath](Assets/screenshots/view-cards.png)
+
+**Contact sheet** — frames and little else, for finding a cut rather than
+reading one.
+
+![The storyboard in the contact sheet layout: a row of small frames, each with the checkbox and number over its top left and the times and length along a bar at its foot](Assets/screenshots/view-contact-sheet.png)
+
+**Detail** — one cut to a row, with a frame to recognise it by.
+
+![The storyboard in the detail layout: one cut per full-width row, the frame on the left and the number, name, times, length and speed beside it](Assets/screenshots/view-detail.png)
+
+**Filmstrip** — the first and last frame of every cut, side by side. The only
+layout that says how a cut ends.
+
+![The storyboard in the filmstrip layout: each cut shows its opening and closing frame next to each other, with the start time, length and end time underneath](Assets/screenshots/view-filmstrip.png)
+
+## Making it yours
+
+Right-click the seekbar for its own settings, or Options for the rest.
+
+![The Customize seekbar window, offering four ways to mark a cut — classic brackets, plain lines, chevrons, or nothing — with a transparency slider and a switch for the filled position bar](Assets/screenshots/customize-seekbar.png)
+
+![The Seekbar colors window, with a live preview at the top and separate palettes for the position bar, the border, the background, the brackets and the waveform, each able to follow the theme or take a colour of its own](Assets/screenshots/seekbar-colors.png)
+
+## What it can do with them
+
+![The Save thumbnails window, asking how often to take a frame and how wide each should be, whether to write one image per frame or a single tiled sheet, and where they should go](Assets/screenshots/save-thumbnails.png)
+
+![The Convert images window, with the output format chosen from a list and a choice of writing each file beside its original, into the Save to folder, or somewhere else](Assets/screenshots/convert-images.png)
+
+![The Export as animation window, offering GIF or animated WebP with the trade-offs of each spelled out, and fields for the frame rate and width](Assets/screenshots/export-animation.png)
+
+![The Resize images window, with standard sizes from a list, a choice of fitting inside, filling and cropping, or stretching, and where the resized copies should be written](Assets/screenshots/resize-images.png)
+
+![The Find clips automatically window, with silence, black frames and scene changes as the three things that can mark the end of a clip, the thresholds for each, and a list of proposed clips to review before accepting](Assets/screenshots/find-clips.png)
+
+![The Crop window, showing a frame from the video with nothing drawn on it yet and the instruction to drag a box on the picture, a row of shape presets, and a choice between cropping the marked cuts or the whole video](Assets/screenshots/crop.png)
 
 **Upgrading keeps your settings.** A spare `settings.json` is kept in
 `%APPDATA%\MPC-HC Video Editor\` and restored only when none is found beside the
