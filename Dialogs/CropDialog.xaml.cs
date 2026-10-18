@@ -319,6 +319,16 @@ public partial class CropDialog : Window
 
     private void Redraw()
     {
+        // Nothing drawn until there is a rectangle to draw. A box covering the
+        // whole frame is the same thing as no box — WhatIsUnder says so, and
+        // starts a fresh one on any press inside it — so outlining it and
+        // putting handles on its corners offered four grips that could not be
+        // taken hold of: a press on one of them began a new box instead of
+        // resizing the old, which is the right thing to happen and the wrong
+        // thing to have advertised. With the frame bare and the cursor a
+        // crosshair, the only thing on offer is the one that works.
+        Overlay.Visibility = IsWholeFrame ? Visibility.Collapsed : Visibility.Visible;
+
         Canvas.SetLeft(Box, _box.X);
         Canvas.SetTop(Box, _box.Y);
         Box.Width = _box.Width;
