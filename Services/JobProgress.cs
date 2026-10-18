@@ -39,6 +39,20 @@ public partial class JobProgress : ObservableObject
     /// <summary>What is happening to it, e.g. "Encoding segment 2/3".</summary>
     [ObservableProperty] private string _step = string.Empty;
 
+    /// <summary>
+    /// What a finished job produced — clips, length, size, whether the audio
+    /// lines up. Empty while one is running.
+    /// </summary>
+    /// <remarks>
+    /// Said here as well as in the toast because the toast is anchored to
+    /// MPC-HC's window and gone in two seconds: it is built for a hotkey
+    /// press during fullscreen playback, which is the opposite of where
+    /// someone watching a merge finish is looking. This panel is already on
+    /// screen in the editor, already holds for a few seconds afterwards, and
+    /// already flashes when the job lands.
+    /// </remarks>
+    [ObservableProperty] private string _summary = string.Empty;
+
     [ObservableProperty] private int _fileIndex;
     [ObservableProperty] private int _fileCount;
     [ObservableProperty] private double _percent;
@@ -112,6 +126,7 @@ public partial class JobProgress : ObservableObject
         FileIndex = 0;
         CurrentFile = string.Empty;
         Step = string.Empty;
+        Summary = string.Empty;
         Percent = 0;
         ElapsedDisplay = "0:00";
         RemainingDisplay = "—";
@@ -148,7 +163,7 @@ public partial class JobProgress : ObservableObject
     /// <param name="headline">What happened, e.g. "Merged 10 files into".</param>
     /// <param name="createdFile">The file produced, shown under the headline.</param>
     /// <param name="holdMs">How long the finished bar stays up.</param>
-    public async Task CompleteAsync(string headline, string? createdFile = null, int holdMs = 3000)
+    public async Task CompleteAsync(string headline, string? createdFile = null, int holdMs = 3000, string? summary = null)
     {
         var generation = _generation;
 
@@ -161,6 +176,7 @@ public partial class JobProgress : ObservableObject
         _clock.Stop();
         if (FileCount > 0) FileIndex = FileCount;
         if (createdFile != null) CurrentFile = createdFile;
+        if (summary != null) Summary = summary;
         Action = headline;
         Step = string.Empty;
 
@@ -184,8 +200,8 @@ public partial class JobProgress : ObservableObject
     /// made to sit through the hold. The generation check makes it safe to
     /// leave running unattended.
     /// </summary>
-    public void Complete(string headline, string? createdFile = null, int holdMs = 3000)
-        => _ = CompleteAsync(headline, createdFile, holdMs);
+    public void Complete(string headline, string? createdFile = null, int holdMs = 3000, string? summary = null)
+        => _ = CompleteAsync(headline, createdFile, holdMs, summary);
 
     /// <summary>
     /// Ends the job and hides the panel immediately. For cancellation and

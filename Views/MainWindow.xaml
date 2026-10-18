@@ -1192,6 +1192,13 @@
                                Visibility="{Binding Job.ShowsProgress, Converter={StaticResource BoolToVis}}"/>
                 </Grid>
 
+                <!-- What the finished job produced. Empty while one is
+                     running, so it costs the panel no height until there is
+                     something to report. -->
+                <TextBlock Text="{Binding Job.Summary}" Foreground="{DynamicResource ValueGreen}"
+                           FontWeight="SemiBold" Margin="0,0,0,4" TextWrapping="Wrap"
+                           Visibility="{Binding Job.Summary, Converter={StaticResource NonEmptyToVis}}"/>
+
                 <TextBlock Text="{Binding Job.CurrentFile}" Foreground="{DynamicResource Accent}"
                            TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
 

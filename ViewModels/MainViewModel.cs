@@ -4429,7 +4429,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // Holds the finished bar on screen for a few seconds, then hides the
         // panel itself — so no Job.End() on this path. After the finally, so
         // the toolbar is usable again while the result is still up.
-        if (completed) Job.Complete($"Merged {fileCount} files into", outName);
+        if (completed)
+        {
+            // This path had no summary at all, which made the one place that
+            // reports nothing the one where the inputs are least known — the
+            // files were picked from anywhere rather than cut from a loaded
+            // video. No sync reading here: a concat of whole files has no
+            // marked range to check an output against.
+            var madeDuration = await _ffmpeg.GetDurationAsync(outPath);
+            var madeMb = new FileInfo(outPath) is { Exists: true } made ? made.Length / 1024.0 / 1024.0 : 0;
+
+            Job.Complete($"Merged {fileCount} files into", outName,
+                         summary: $"{fileCount} files · {Bookmark.FormatTime(madeDuration)} · {madeMb:0.#} MB");
+        }
     }
 
     /// <summary>
@@ -4716,6 +4728,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // consumed, not on whatever happens to be loaded when it finishes.
         var source = Session.VideoPath;
         var succeeded = false;
+        string? jobSummary = null;
 
         IsBusy = true; ProgressPercent = 0; StatusText = trimming ? "Trimming…" : "Merging…";
         Job.Begin(trimming ? "Trimming cut" : "Merging cuts");
@@ -4744,6 +4757,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 ? $"audio runs {Math.Abs(drift!.Value) * 1000:0}ms {(drift.Value > 0 ? "longer" : "shorter")} than the video"
                 : null;
 
+            // Measured either way: the panel says what came out even when
+            // something about it is also worth warning over.
+            var finishedDuration = await _ffmpeg.GetDurationAsync(outPath);
+            var sizeMb = new FileInfo(outPath) is { Exists: true } file ? file.Length / 1024.0 / 1024.0 : 0;
+            var made = trimming
+                ? $"{Bookmark.FormatTime(finishedDuration)} · {sizeMb:0.#} MB"
+                : $"{toMerge.Count} cuts · {Bookmark.FormatTime(finishedDuration)} · {sizeMb:0.#} MB";
+
+            jobSummary = driftNoticeable
+                ? $"{made} · {driftText}"
+                : $"{made} · audio in sync";
+
             if (_ffmpeg.LastOutputWarning is { } warning)
             {
                 // A held, forced toast either way — something to read, not
@@ -4761,12 +4786,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             }
             else
             {
-                var finishedDuration = await _ffmpeg.GetDurationAsync(outPath);
-                var sizeMb = new FileInfo(outPath) is { Exists: true } info ? info.Length / 1024.0 / 1024.0 : 0;
-                var recap = trimming
-                    ? $"{Bookmark.FormatTime(finishedDuration)} · {sizeMb:0.#} MB · audio in sync"
-                    : $"{toMerge.Count} cuts · {Bookmark.FormatTime(finishedDuration)} · {sizeMb:0.#} MB · audio in sync";
-                _toast.Show(trimming ? "Trimmed cut" : "Merged cuts", recap, "🎬");
+                _toast.Show(trimming ? "Trimmed cut" : "Merged cuts", jobSummary, "🎬");
             }
 
             succeeded = true;
@@ -4782,7 +4802,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // rather than after the finished bar has finished holding.
         if (succeeded)
             Job.Complete(trimming ? "Trimmed cut into" : $"Merged {toMerge.Count} cuts into",
-                         Path.GetFileName(outPath));
+                         Path.GetFileName(outPath), summary: jobSummary);
 
         // Only after the output is on disk.
         if (succeeded) await RunPostOperationCleanup(source, includeBookmarks: true, justWrote: outPath);
