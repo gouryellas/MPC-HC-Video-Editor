@@ -12,27 +12,13 @@ audio from them with ffmpeg.
 **Portable.** No installer. Everything it writes lives beside the executable;
 copy the folder anywhere and it runs.
 
-## The cuts, five ways
-
-The same cuts, the same checkboxes, the same selection — arranged for whatever
-you are doing with them. Pick one from the row of switches above the list, or
-under **View**.
-
-**Cards** — a frame above, everything about the cut below.
+## Multiple Views
 
 ![The storyboard in the cards layout: each cut is a card with its frame, the checkbox and number over the top left of the picture, the chapter name along the foot of it, and the times and length centred underneath](Assets/screenshots/view-cards.png)
 
-**Contact sheet** — frames and little else, for finding a cut rather than
-reading one.
-
 ![The storyboard in the contact sheet layout: a row of small frames, each with the checkbox and number over its top left and the times and length along a bar at its foot](Assets/screenshots/view-contact-sheet.png)
 
-**Detail** — one cut to a row, with a frame to recognise it by.
-
 ![The storyboard in the detail layout: one cut per full-width row, the frame on the left and the number, name, times, length and speed beside it](Assets/screenshots/view-detail.png)
-
-**Filmstrip** — the first and last frame of every cut, side by side. The only
-layout that says how a cut ends.
 
 ![The storyboard in the filmstrip layout: each cut shows its opening and closing frame next to each other, with the start time, length and end time underneath](Assets/screenshots/view-filmstrip.png)
 
