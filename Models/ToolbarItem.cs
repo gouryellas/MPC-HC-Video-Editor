@@ -117,22 +117,147 @@ public sealed class ToolbarItem : INotifyPropertyChanged
             OnPropertyChanged(nameof(Caption));
             OnPropertyChanged(nameof(ButtonWidth));
             OnPropertyChanged(nameof(ButtonMinWidth));
+            OnPropertyChanged(nameof(ShowText));
+            OnPropertyChanged(nameof(IconSize));
+            OnPropertyChanged(nameof(ButtonPadding));
         }
     }
 
     private bool _isCompact;
 
+    /// <summary>
+    /// Base name of this button's picture under <c>Assets\icons</c>, without
+    /// the extension — or null for an entry that has none.
+    /// </summary>
+    /// <remarks>
+    /// The emoji in <see cref="Icon"/> and <see cref="Label"/> are the fallback
+    /// rather than the other way round: every action ships with a picture, but
+    /// the naming tags and the layout fillers never will, and a button with
+    /// nothing to draw has to still say what it is.
+    /// </remarks>
+    public string? IconFile { get; init; }
+
+    /// <summary>True for a button with a picture to draw.</summary>
+    public bool HasImage => IconFile is { Length: > 0 };
+
+    /// <summary>
+    /// Where that picture lives, as a pack URI. Null when there is none, which
+    /// is what the template's visibility binding keys off.
+    /// </summary>
+    /// <remarks>
+    /// A string rather than an <c>ImageSource</c>: WPF converts it on the
+    /// binding, and keeping the model free of a presentation type means the
+    /// Customize dialog's copies cost nothing to make.
+    /// </remarks>
+    public string? IconSource =>
+        HasImage ? $"pack://application:,,,/Assets/icons/{IconFile}.png" : null;
+
+    /// <summary>
+    /// Whether the button draws its name beside the picture.
+    /// </summary>
+    /// <remarks>
+    /// False only for a compact button that has a picture. A compact button
+    /// without one — a naming tag — keeps its text, because hiding that would
+    /// leave an empty square.
+    /// </remarks>
+    public bool ShowText => !(_isCompact && HasImage);
+
     /// <summary>What the toolbar button actually shows.</summary>
-    public string Caption => _isCompact && Icon is { Length: > 0 } ? Icon : Label;
+    /// <remarks>
+    /// With a picture in front of it the label's own leading emoji is a second
+    /// icon saying the same thing, so it is dropped — see
+    /// <see cref="WithoutLeadingGlyph"/>.
+    /// </remarks>
+    public string Caption => HasImage
+        ? WithoutLeadingGlyph(Label)
+        : _isCompact && Icon is { Length: > 0 } ? Icon : Label;
+
+    /// <summary>
+    /// How big the picture is drawn.
+    /// </summary>
+    /// <remarks>
+    /// With the labels off it takes nearly the whole button, because there the
+    /// picture is the whole button and anything less is a small image marooned
+    /// in a large square — short of the border by <see cref="ButtonPadding"/>,
+    /// so the artwork is not flush against the edge. Beside a label it drops to
+    /// the cap height of the text it sits next to.
+    /// </remarks>
+    public double IconSize => _isCompact && HasImage ? 22 : 20;
+
+    /// <summary>
+    /// The button's inner padding, as a string for WPF to convert.
+    /// </summary>
+    /// <remarks>
+    /// Small and even for an icon-only button: <c>DarkButton</c> sets 10,5 for
+    /// text, and on a 36px square that leaves the picture 14px to live in.
+    /// Everything else keeps the shared value — this overrides the style's
+    /// setter, so it has to repeat it rather than leave it unset.
+    /// </remarks>
+    public string ButtonPadding => _isCompact && HasImage ? "3" : "10,5";
+
+    /// <summary>
+    /// True while the toolbar is drawn without button chrome — no fill, no
+    /// border, just the picture and its name.
+    /// </summary>
+    /// <remarks>
+    /// Carried per item for the same reason <see cref="IsCompact"/> is: the
+    /// template needs something to listen to when the setting is flipped under
+    /// a row that is already on screen.
+    ///
+    /// It applies in both modes. With the labels off it leaves bare icons on
+    /// the background; with them on, the names go bare too, which is the point
+    /// — half-chromed buttons would read as some being disabled.
+    /// </remarks>
+    public bool IsFlat
+    {
+        get => _isFlat;
+        set { _isFlat = value; OnPropertyChanged(); }
+    }
+
+    private bool _isFlat;
 
     /// <summary>Square while compact, and whatever it asked for otherwise.</summary>
-    public double ButtonWidth => _isCompact && Icon is { Length: > 0 } ? 36 : Width;
+    public double ButtonWidth =>
+        _isCompact && (HasImage || Icon is { Length: > 0 }) ? 36 : Width;
 
     /// <summary>
     /// The minimum width, dropped while compact — one button reserves room for
     /// its longer name, which an icon does not need.
     /// </summary>
-    public double ButtonMinWidth => _isCompact && Icon is { Length: > 0 } ? 0 : MinWidth;
+    public double ButtonMinWidth =>
+        _isCompact && (HasImage || Icon is { Length: > 0 }) ? 0 : MinWidth;
+
+    /// <summary>
+    /// A label with its decorative first word removed: "📍 Set timestamp"
+    /// becomes "Set timestamp".
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Only a first token carrying no ASCII letter or digit is dropped, so
+    /// "Select all" and the bracketed naming tags keep every word they have.
+    /// Done here rather than by rewriting the labels themselves because the
+    /// emoji is still what the Customize dialog's list shows, where there is no
+    /// picture beside it.
+    /// </para>
+    /// <para>
+    /// ASCII specifically, not <c>char.IsLetterOrDigit</c>. Several of the
+    /// glyphs in use are letters as far as Unicode is concerned — ℹ is category
+    /// Lo — so asking that question kept the information symbol and drew it
+    /// next to the picture that had just replaced it. Every real word in these
+    /// labels is ASCII; every glyph is not.
+    /// </para>
+    /// </remarks>
+    private static string WithoutLeadingGlyph(string label)
+    {
+        var space = label.IndexOf(' ');
+        if (space <= 0) return label;
+
+        foreach (var c in label.AsSpan(0, space))
+            if (c is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9')
+                return label;
+
+        return label[(space + 1)..];
+    }
 
     /// <summary>
     /// The tooltip, falling back to the button's own name. With the labels off
@@ -224,12 +349,19 @@ public sealed class ToolbarItem : INotifyPropertyChanged
         Kind = Kind,
         Label = Label,
         Icon = Icon,
+        IconFile = IconFile,
         Group = Group,
         Command = Command,
         ToolTip = ToolTip,
         Width = Width,
         MinWidth = MinWidth,
-        StyleKey = StyleKey
+        StyleKey = StyleKey,
+
+        // Carried, unlike IsCompact: the Customize dialog draws its chips
+        // full-size whatever the size setting says, but it does honour the
+        // chrome setting — a preview of a toolbar with no button backgrounds
+        // has to be a preview without them.
+        IsFlat = IsFlat
     };
 
     public event PropertyChangedEventHandler? PropertyChanged;

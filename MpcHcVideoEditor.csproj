@@ -46,6 +46,12 @@
          depend on a loose file surviving next to the executable. -->
     <Resource Include="Assets\app.ico" />
     <Resource Include="Assets\tray.ico" />
+
+    <!-- The toolbar's button icons, embedded for the same reason: a portable
+         install is one file plus its data, and a toolbar whose pictures depend
+         on a loose folder surviving beside the executable is a toolbar that
+         comes up blank the first time somebody copies only the .exe. -->
+    <Resource Include="Assets\icons\*.png" />
   </ItemGroup>
 
 </Project>

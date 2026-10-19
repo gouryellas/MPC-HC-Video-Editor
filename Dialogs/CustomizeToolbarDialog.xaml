@@ -16,6 +16,10 @@
              throws the moment it is applied. -->
         <helpers:DragOpacityConverter x:Key="DragOpacity"/>
         <helpers:ResourceKeyToStyleConverter x:Key="StyleByKey"/>
+        <!-- Needed by the chip, which draws a button's picture the same way the
+             toolbar does. Declared here for the reason above: this window sees
+             none of the main window's resources. -->
+        <helpers:BoolToVisibilityConverter x:Key="BoolToVis"/>
 
         <Style TargetType="Button">
             <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
@@ -49,10 +53,39 @@
                  actions could not be picked up, while the fillers, which have a
                  Border of their own, could. -->
             <Grid Margin="3" Background="Transparent" Opacity="{Binding ChipOpacity}">
-                <Button Content="{Binding Label}" IsHitTestVisible="False" Focusable="False"
+                <!-- Same content as the real toolbar button, so the preview
+                     shows the picture the toolbar will show rather than the
+                     emoji the label still carries for this list's benefit. -->
+                <Button IsHitTestVisible="False" Focusable="False"
                         Margin="0" MinWidth="{Binding MinWidth}"
+                        Padding="{Binding ButtonPadding}"
+                        AutomationProperties.Name="{Binding Label}"
                         Style="{Binding StyleKey, Converter={StaticResource StyleByKey}}"
-                        Visibility="{Binding Kind, Converter={StaticResource IsAction}}"/>
+                        Visibility="{Binding Kind, Converter={StaticResource IsAction}}">
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Image Source="{Binding IconSource}"
+                               Width="{Binding IconSize}" Height="{Binding IconSize}"
+                               Visibility="{Binding HasImage, Converter={StaticResource BoolToVis}}"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               Stretch="Uniform" VerticalAlignment="Center"
+                               SnapsToDevicePixels="True"/>
+                        <TextBlock Text="{Binding Caption}"
+                                   Visibility="{Binding ShowText, Converter={StaticResource BoolToVis}}"
+                                   VerticalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Margin" Value="0"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasImage}" Value="True">
+                                            <Setter Property="Margin" Value="6,0,0,0"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Button>
 
                 <Border Background="{DynamicResource InsetBackground}"
                         BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
@@ -172,13 +205,33 @@
             </Border>
         </Grid>
 
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
-            <Button Content="Reset to default" Click="Reset_Click" Margin="4,4,24,4"/>
-            <Button Content="Cancel" Width="90" IsCancel="True" Click="Cancel_Click"/>
-            <Button Content="Save" Width="90" IsDefault="True" Click="Save_Click"
-                    Background="{DynamicResource PrimaryButton}"
-                    BorderBrush="{DynamicResource PrimaryButtonBorder}"
-                    Foreground="{DynamicResource OnAccent}"/>
-        </StackPanel>
+        <!-- The two appearance settings, the same ones Settings shows and
+             writing to the same place. They live here because this is the
+             window where somebody is looking at the toolbar deciding what it
+             should be, and going to Settings to find out what it would look
+             like without labels meant closing this and losing the layout. -->
+        <DockPanel Grid.Row="3" Margin="0,14,0,0" LastChildFill="False">
+            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                <CheckBox x:Name="SmallIconsCheck" VerticalAlignment="Center"
+                          Foreground="{DynamicResource TextPrimary}"
+                          Content="Small button icons"
+                          ToolTip="Draw the toolbar as icons alone, with no labels. The list below stays full-size so the buttons can still be told apart."
+                          Checked="Chrome_Changed" Unchecked="Chrome_Changed"/>
+                <CheckBox x:Name="FlatIconsCheck" VerticalAlignment="Center" Margin="18,0,0,0"
+                          Foreground="{DynamicResource TextPrimary}"
+                          Content="No button backgrounds"
+                          ToolTip="Show the icons on their own, with no rounded square behind them."
+                          Checked="Chrome_Changed" Unchecked="Chrome_Changed"/>
+            </StackPanel>
+
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Content="Reset to default" Click="Reset_Click" Margin="4,4,24,4"/>
+                <Button Content="Cancel" Width="90" IsCancel="True" Click="Cancel_Click"/>
+                <Button Content="Save" Width="90" IsDefault="True" Click="Save_Click"
+                        Background="{DynamicResource PrimaryButton}"
+                        BorderBrush="{DynamicResource PrimaryButtonBorder}"
+                        Foreground="{DynamicResource OnAccent}"/>
+            </StackPanel>
+        </DockPanel>
     </Grid>
 </Window>

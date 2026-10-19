@@ -51,6 +51,9 @@ public partial class SettingsDialog : Window
     /// <summary>Whether the toolbar is drawn as icons with no labels.</summary>
     public bool SmallButtonIcons { get; private set; }
 
+    /// <summary>Whether the toolbar's buttons are drawn without their chrome.</summary>
+    public bool FlatButtonIcons { get; private set; }
+
     /// <summary>Whether the seekbar — timeline, position and length — is shown at all.</summary>
     public bool ShowSeekbar { get; private set; }
 
@@ -159,6 +162,7 @@ public partial class SettingsDialog : Window
         ToastsEnabled = current.ToastsEnabled;
         CompletionSound = current.CompletionSound;
         SmallButtonIcons = current.SmallButtonIcons;
+        FlatButtonIcons = current.FlatButtonIcons;
         ShowSeekbar = current.ShowSeekbar;
         ShowSeekbarWaveform = current.ShowSeekbarWaveform;
         ToastSeconds = current.ToastSeconds;
@@ -195,6 +199,7 @@ public partial class SettingsDialog : Window
         ToastsCheck.IsChecked = current.ToastsEnabled;
         CompletionSoundCheck.IsChecked = current.CompletionSound;
         SmallIconsCheck.IsChecked = current.SmallButtonIcons;
+        FlatIconsCheck.IsChecked = current.FlatButtonIcons;
         ShowSeekbarCheck.IsChecked = current.ShowSeekbar;
         ShowSeekbarWaveformCheck.IsChecked = current.ShowSeekbarWaveform;
         CheckForUpdatesCheck.IsChecked = current.CheckForUpdates;
@@ -371,6 +376,7 @@ public partial class SettingsDialog : Window
         ToastsEnabled = ToastsCheck.IsChecked == true;
         CompletionSound = CompletionSoundCheck.IsChecked == true;
         SmallButtonIcons = SmallIconsCheck.IsChecked == true;
+        FlatButtonIcons = FlatIconsCheck.IsChecked == true;
         ShowSeekbar = ShowSeekbarCheck.IsChecked == true;
         ShowSeekbarWaveform = ShowSeekbarWaveformCheck.IsChecked == true;
         CheckForUpdates = CheckForUpdatesCheck.IsChecked == true;

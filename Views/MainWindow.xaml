@@ -151,7 +151,8 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="4"
@@ -162,6 +163,37 @@
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.4"/>
                             </Trigger>
+
+                            <!-- "Show the graphic, not the square." Bound to the
+                                 item rather than to a property of the button,
+                                 because the style is picked per item by its
+                                 family and there is no second style to switch
+                                 to that would not have to be written four more
+                                 times.
+
+                                 FallbackValue matters: this template is the
+                                 implicit one for every Button in the window,
+                                 and the rest have no ToolbarItem behind them.
+                                 Without it each of those logs a binding failure
+                                 on load. -->
+                            <DataTrigger Binding="{Binding IsFlat, FallbackValue=False, TargetNullValue=False}" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="Transparent"/>
+                                <Setter TargetName="Chrome" Property="BorderThickness" Value="0"/>
+
+                                <!-- And the text back to the ordinary colour.
+                                     The four coloured families set a Foreground
+                                     picked to read against their own fill —
+                                     near-black on yellow for the video one —
+                                     so with the fill not drawn they were
+                                     near-black on the toolbar instead, which
+                                     is to say invisible.
+
+                                     A template trigger outranks the style
+                                     setter that put the family colour there,
+                                     which is what makes this possible without
+                                     a second style per family. -->
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+                            </DataTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -1319,16 +1351,76 @@
                                              greyed button that will not say
                                              what it is is only a grey square.
                                              Whether it is greyed at all is the
-                                             bound command's own answer. -->
+                                             bound command's own answer.
+
+                                             AutomationProperties.Name is stated
+                                             because it used to be free. A button
+                                             whose Content is a string reports
+                                             that string as its name; one whose
+                                             content is a panel reports nothing
+                                             — so putting the picture in cost
+                                             every toolbar button its name to a
+                                             screen reader, and with the labels
+                                             off there is no text inside to fall
+                                             back on. -->
                                         <Button Visibility="{Binding IsButton, Converter={StaticResource BoolToVis}}"
-                                                Content="{Binding Caption}"
                                                 Command="{Binding Command}"
                                                 ToolTip="{Binding Hint}"
                                                 ToolTipService.ShowOnDisabled="True"
+                                                AutomationProperties.Name="{Binding Hint}"
                                                 Width="{Binding ButtonWidth, Converter={StaticResource WidthOrAuto}}"
                                                 MinWidth="{Binding ButtonMinWidth}"
+                                                Padding="{Binding ButtonPadding}"
                                                 Style="{Binding StyleKey, Converter={StaticResource StyleByKey}}"
-                                                Opacity="{Binding IsDragging, Converter={StaticResource DragOpacity}}"/>
+                                                Opacity="{Binding IsDragging, Converter={StaticResource DragOpacity}}">
+                                            <!-- Picture then name. Both are
+                                                 optional and neither is always
+                                                 present: the naming tags have
+                                                 no picture, and with the labels
+                                                 off a button that has one drops
+                                                 its text. -->
+                                            <StackPanel Orientation="Horizontal"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center">
+                                                <Image Source="{Binding IconSource}"
+                                                       Width="{Binding IconSize}"
+                                                       Height="{Binding IconSize}"
+                                                       Visibility="{Binding HasImage, Converter={StaticResource BoolToVis}}"
+                                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                                       Stretch="Uniform"
+                                                       VerticalAlignment="Center"
+                                                       SnapsToDevicePixels="True"/>
+                                                <!-- The gap belongs to the text,
+                                                     and only when there is a
+                                                     picture to be spaced from:
+                                                     on the image it would pad
+                                                     the right of an icon-only
+                                                     button, and fixed on the
+                                                     text it would indent the
+                                                     naming tags, which have no
+                                                     picture at all.
+
+                                                     Set through the style and
+                                                     never as an attribute here —
+                                                     a local value outranks every
+                                                     setter and the trigger would
+                                                     silently do nothing. -->
+                                                <TextBlock Text="{Binding Caption}"
+                                                           Visibility="{Binding ShowText, Converter={StaticResource BoolToVis}}"
+                                                           VerticalAlignment="Center">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Margin" Value="0"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasImage}" Value="True">
+                                                                    <Setter Property="Margin" Value="6,0,0,0"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </Button>
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>

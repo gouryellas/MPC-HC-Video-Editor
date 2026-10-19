@@ -561,6 +561,19 @@ public class AppSettings
     /// icon as the rest.
     /// </remarks>
     public bool SmallButtonIcons { get; set; }
+
+    /// <summary>
+    /// Draws the toolbar without button chrome — no fill, no border, no rounded
+    /// square behind each icon.
+    /// </summary>
+    /// <remarks>
+    /// Independent of <see cref="SmallButtonIcons"/> and applies with or
+    /// without the labels. The four coloured families keep their text colour
+    /// but lose their fill, which is the whole of what the colour was: a flat
+    /// toolbar cannot say "this is a video operation" with a background that
+    /// is not drawn.
+    /// </remarks>
+    public bool FlatButtonIcons { get; set; }
     public string? KeyboardHotkey { get; set; } // e.g. "F8"
     public bool MiddleMouseHotkeyEnabled { get; set; } = true;
     /// <summary>

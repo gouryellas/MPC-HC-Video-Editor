@@ -29,6 +29,21 @@ public partial class CustomizeToolbarDialog : Window
     /// <summary>The layout to apply, or null when the dialog was cancelled.</summary>
     public List<ToolbarItem>? Layout { get; private set; }
 
+    /// <summary>
+    /// Whether the toolbar should be drawn as icons alone — the same setting
+    /// Settings shows, answered from here.
+    /// </summary>
+    public bool SmallButtonIcons { get; private set; }
+
+    /// <summary>Whether the toolbar's buttons should be drawn without chrome.</summary>
+    public bool FlatButtonIcons { get; private set; }
+
+    /// <summary>
+    /// True while the constructor is filling the checkboxes, so setting
+    /// <c>IsChecked</c> does not run the handler against half-built state.
+    /// </summary>
+    private bool _loading;
+
     /// <summary>Everything that can be put on a toolbar.</summary>
     private readonly List<ToolbarItem> _catalogue;
 
@@ -55,11 +70,20 @@ public partial class CustomizeToolbarDialog : Window
 
     public CustomizeToolbarDialog(List<ToolbarItem> catalogue,
                                   IEnumerable<ToolbarItem> current,
-                                  double minimumWidth)
+                                  double minimumWidth,
+                                  bool smallButtonIcons,
+                                  bool flatButtonIcons)
     {
         InitializeComponent();
 
         _catalogue = catalogue;
+        SmallButtonIcons = smallButtonIcons;
+        FlatButtonIcons = flatButtonIcons;
+
+        _loading = true;
+        SmallIconsCheck.IsChecked = smallButtonIcons;
+        FlatIconsCheck.IsChecked = flatButtonIcons;
+        _loading = false;
 
         // The preview is bounded by the width the toolbar can always count on.
         // Padding and the border are not toolbar, so they come off it.
@@ -136,6 +160,58 @@ public partial class CustomizeToolbarDialog : Window
             copy.IsPlaced = item.Kind == ToolbarItemKind.Button && placed.Contains(item.Key);
             _available.Add(copy);
         }
+
+        ApplyChrome();
+    }
+
+    /// <summary>
+    /// Pushes the two appearance settings onto everything on screen.
+    /// </summary>
+    /// <remarks>
+    /// Called from <see cref="RefreshAvailable"/>, which already runs after
+    /// every drop, removal and search — so a chip that has just been cloned
+    /// into one of the lists is dressed before it is drawn.
+    ///
+    /// The preview takes both settings, because the preview is the toolbar. The
+    /// Available list takes only the chrome one and stays full-size whatever
+    /// the size setting says: it is a list to choose from, and a row of
+    /// unlabelled icons is no way to tell Convert video from Convert images.
+    /// </remarks>
+    private void ApplyChrome()
+    {
+        var small = SmallIconsCheck.IsChecked == true;
+        var flat = FlatIconsCheck.IsChecked == true;
+
+        foreach (var item in _rows.SelectMany(r => r))
+        {
+            item.IsCompact = small;
+            item.IsFlat = flat;
+        }
+
+        foreach (var item in _available)
+        {
+            item.IsCompact = false;
+            item.IsFlat = flat;
+        }
+
+        // The catalogue is what every chip is cloned from, so dressing it here
+        // means a freshly dropped button is already right before ApplyChrome
+        // reaches it.
+        foreach (var item in _catalogue)
+        {
+            item.IsCompact = false;
+            item.IsFlat = flat;
+        }
+    }
+
+    /// <summary>Either appearance checkbox was clicked.</summary>
+    private void Chrome_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+
+        SmallButtonIcons = SmallIconsCheck.IsChecked == true;
+        FlatButtonIcons = FlatIconsCheck.IsChecked == true;
+        ApplyChrome();
     }
 
     /// <summary>Available, grouped by the menu each action lives in.</summary>
@@ -549,6 +625,11 @@ public partial class CustomizeToolbarDialog : Window
     // Leaving
     // ------------------------------------------------------------------
 
+    /// <remarks>
+    /// Resets the layout, not the appearance: the two checkboxes are settings
+    /// of their own and keep whatever they are showing, the same as they would
+    /// if they had been changed in Settings.
+    /// </remarks>
     private void Reset_Click(object sender, RoutedEventArgs e)
     {
         Layout = new List<ToolbarItem>();       // Empty means "the shipped layout".
