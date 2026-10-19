@@ -194,6 +194,24 @@
                                      a second style per family. -->
                                 <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
                             </DataTrigger>
+
+                            <!-- Except the naming tag that is in use. Exactly
+                                 one of those buttons is the true one, and the
+                                 only thing that ever said which was the accent
+                                 fill the trigger above has just removed — so
+                                 flat, they all looked alike and pressing one
+                                 looked like pressing none.
+
+                                 After the flat trigger on purpose: both set
+                                 Foreground, and the last matching trigger in a
+                                 collection is the one that wins. -->
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsFlat, FallbackValue=False, TargetNullValue=False}" Value="True"/>
+                                    <Condition Binding="{Binding StyleKey}" Value="ActiveTagButton"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Foreground" Value="{DynamicResource StatusOk}"/>
+                            </MultiDataTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>

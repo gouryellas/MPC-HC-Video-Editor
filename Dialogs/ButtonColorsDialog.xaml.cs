@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using MpcHcVideoEditor.Services;
 
 namespace MpcHcVideoEditor.Dialogs;
@@ -125,13 +126,35 @@ public partial class ButtonColorsDialog : Window
             IsHitTestVisible = false
         };
 
+        // The picture and the name, laid out as the toolbar lays them out —
+        // the point of the preview is that it is a picture of a real button,
+        // and a sample still carrying an emoji stopped being one when the
+        // toolbar started drawing icons.
         var sampleText = new TextBlock
         {
             FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(6, 0, 0, 0)
+        };
+
+        var sampleRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Center
         };
 
-        sample.Child = sampleText;
+        sampleRow.Children.Add(new Image
+        {
+            Source = new BitmapImage(IconFor(family)),
+            Width = 20,
+            Height = 20,
+            Stretch = Stretch.Uniform,
+            VerticalAlignment = VerticalAlignment.Center,
+            SnapsToDevicePixels = true
+        });
+
+        sampleRow.Children.Add(sampleText);
+        sample.Child = sampleRow;
 
         var previewBlock = new StackPanel { HorizontalAlignment = HorizontalAlignment.Right };
 
@@ -218,7 +241,7 @@ public partial class ButtonColorsDialog : Window
             sample.Background = Fill(look.Fill);
             sample.BorderBrush = Fill(look.Edge);
             sampleText.Foreground = Fill(look.Ink);
-            sampleText.Text = Glyph(family) + "  " + Example(family);
+            sampleText.Text = Example(family);
 
             theme.IsChecked = setting == ButtonColors.FollowTheme;
             none.IsChecked = setting == ButtonColors.NoColour;
@@ -296,14 +319,18 @@ public partial class ButtonColorsDialog : Window
     private Dictionary<string, string> Settings() =>
         _chosen.ToDictionary(p => ButtonColors.KeyOf(p.Key), p => p.Value);
 
-    /// <summary>A glyph standing for the family, taken from its own operations.</summary>
-    private static string Glyph(ButtonFamily family) => family switch
+    /// <summary>
+    /// The picture for the sample button: the icon of the very operation
+    /// <see cref="Example"/> names, so the preview is that button rather than
+    /// something standing in for it.
+    /// </summary>
+    private static Uri IconFor(ButtonFamily family) => new(family switch
     {
-        ButtonFamily.Video => "🎬",
-        ButtonFamily.Audio => "🔊",
-        ButtonFamily.Image => "🖼",
-        _ => "📍"
-    };
+        ButtonFamily.Video => "pack://application:,,,/Assets/icons/icon-merge.png",
+        ButtonFamily.Audio => "pack://application:,,,/Assets/icons/icon-strip_audio.png",
+        ButtonFamily.Image => "pack://application:,,,/Assets/icons/icon-resize_images.png",
+        _ => "pack://application:,,,/Assets/icons/icon-set_timestamp.png"
+    });
 
     private static SolidColorBrush Fill(string hex)
     {
