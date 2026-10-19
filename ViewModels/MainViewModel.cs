@@ -44,6 +44,36 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private bool _autoLoadingVideo;
 
     /// <summary>
+    /// The last playback position the fallback saw move, and when. Used only
+    /// when the Web Interface cannot say whether the player is running — see
+    /// <see cref="InferPlayingFromPosition"/>.
+    /// </summary>
+    private double _lastMovedPosition = -1;
+    private DateTime _positionLastMovedUtc = DateTime.MinValue;
+
+    /// <summary>
+    /// When the play/pause button last acted on its own authority. Readings the
+    /// player made before this are ignored: they describe the state it was in
+    /// before it was told to change, and treating them as current is what made
+    /// the button flash through the wrong picture on its way to the right one.
+    /// </summary>
+    private DateTime _playStateAssumedUtc = DateTime.MinValue;
+
+    /// <summary>
+    /// How long the position may stand still before the fallback calls it
+    /// paused.
+    /// </summary>
+    /// <remarks>
+    /// Generous because the status bar reports whole seconds: at ordinary speed
+    /// one ticks over every second, but at half speed every two, and a
+    /// threshold tight enough to feel quick would have the button flapping
+    /// between the two pictures on a video that is playing perfectly well.
+    /// Slower than half speed still reads as paused — the honest answer there
+    /// is to turn the Web Interface back on.
+    /// </remarks>
+    private const int PositionIdleMs = 3000;
+
+    /// <summary>
     /// Tracks window focus so the poll can do less work while the window is in
     /// the background. Deliberately a plain flag rather than a change to
     /// <c>_pollTimer.Interval</c>: assigning Interval makes DispatcherTimer
@@ -287,10 +317,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 ToolTip = "Propose cuts from silence, black frames or scene changes" },
         new() { Key = "edit-bookmarks", Group = "Bookmarks", Label = "✎ Edit bookmarks", Icon = "✎", IconFile = "icon-edit_bookmarks", Command = EditBookmarksCommand,
                 ToolTip = "Open the bookmark CSV in a text editor" },
-        new() { Key = "play", Group = "Bookmarks", Label = "▶ Play", Icon = "▶", IconFile = "icon-play", Command = PlayCutsCommand,
-                ToolTip = "Play the checked cuts in turn, or every cut when none are checked" },
-        new() { Key = "pause", Group = "Bookmarks", Label = "⏸ Pause", Icon = "⏸", IconFile = "icon-pause", Command = TogglePauseCommand,
-                ToolTip = "Pause the player, or start it playing again" },
+        // Walking the cuts is a menu action only — Bookmarks ▸ Play all cuts and
+        // Play selected cuts. It had a toolbar button, but once play/pause
+        // arrived the two were a blue ▶ apiece doing unrelated things, and the
+        // one that walks cuts is the rarer of them.
+        //
+        // Still keyed "pause" although it is now both halves: a key is what a
+        // saved layout is a list of, and this one has shipped. Renaming it
+        // would quietly drop the button from any toolbar already carrying it.
+        // The label and picture are what anybody sees, and those do change.
+        new() { Key = "pause", Group = "Bookmarks", Label = "▶ Play", Icon = "▶", IconFile = "icon-play", Command = TogglePauseCommand,
+                ToolTip = "Play or pause the video" },
         new() { Key = "export-animation", Group = "Actions", Label = "🎞 GIF / WebP", Icon = "🎞", IconFile = "icon-gif_webp", Command = ExportAnimationCommand,
                 ToolTip = "Export the checked cuts as an animation" },
         new() { Key = "convert-images", Group = "Actions", Label = "🖼 Convert images", Icon = "🖼", IconFile = "icon-convert_images", Command = ConvertImagesCommand,
@@ -442,8 +479,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 ToolbarItems.Add(item);
             }
 
-        // The row is new, so whichever tag is active has to be lit again.
+        // The row is new, so whichever tag is active has to be lit again, and
+        // the play/pause button has to be pointed at the right one of its two.
         RefreshNamingTagButtons();
+        RefreshPlayPauseButton();
         RefreshToolbarRows();
     }
 
@@ -539,6 +578,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
 
         RefreshNamingTagButtons();
+        RefreshPlayPauseButton();
         SaveToolbarOrder();
     }
 
@@ -1975,7 +2015,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ExportAnimationCommand.NotifyCanExecuteChanged();
         PlayAllCommand.NotifyCanExecuteChanged();
         PlaySelectedCommand.NotifyCanExecuteChanged();
-        PlayCutsCommand.NotifyCanExecuteChanged();
         TogglePauseCommand.NotifyCanExecuteChanged();
         SelectAllCommand.NotifyCanExecuteChanged();
         SelectNoneCommand.NotifyCanExecuteChanged();
@@ -2780,6 +2819,32 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (Session.VideoDurationSeconds > 0)
             TimelineProgress = Math.Clamp(Session.CurrentTimeSeconds / Session.VideoDurationSeconds, 0, 1);
 
+        // Keep the play/pause button honest. Up here rather than further down
+        // because everything below returns early in the ordinary case — the
+        // file has not changed — and the button still has to notice the space
+        // bar being pressed in MPC-HC's own window.
+        var (playing, observedUtc) = _mpc.GetPlaybackState();
+
+        if (playing == MpcHcService.PlaybackState.Unknown)
+        {
+            InferPlayingFromPosition(now);
+        }
+        else if (observedUtc > _playStateAssumedUtc)
+        {
+            SetVideoPlaying(playing == MpcHcService.PlaybackState.Playing);
+
+            // Drop the fallback's baseline while the real answer is available,
+            // so that if the interface goes away later it starts measuring from
+            // then rather than from a reading of unknown age.
+            _lastMovedPosition = -1;
+        }
+
+        // The remaining case is an answer older than the last press: the player
+        // is being asked about something it had not been told yet. Left alone
+        // deliberately — acting on it is what made the button show the new
+        // picture, snap back to the old one, and then change again a moment
+        // later.
+
         // While a "Play all" / "Play selected" loop is sequencing through
         // bookmarks, do NOT auto-load a new file even if MPC-HC's window
         // title momentarily reports a different path (it can glitch during
@@ -3494,43 +3559,137 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// command does, because for playback the user's checkmarks are the
     /// whole point.
     /// </summary>
-    /// <summary>
-    /// Plays the checked cuts, or every cut when none are checked.
-    /// </summary>
-    /// <remarks>
-    /// One button rather than two. "Play all" and "Play checked" differ only in
-    /// which cuts they walk, and the checkmarks already say which those are —
-    /// so the toolbar asks the list instead of asking the user to pick the
-    /// matching verb. The menu keeps both, where there is room to be explicit.
-    /// </remarks>
-    [RelayCommand(CanExecute = nameof(CanPlayAll))]
-    private async Task PlayCutsAsync()
-    {
-        var checkedCuts = Session.Bookmarks.Where(b => b.IsSelected && b.IsValid).ToList();
-
-        if (checkedCuts.Count > 0)
-        {
-            await PlayCutsAsync(checkedCuts.OrderBy(b => b.StartSeconds).ToList(), "checked");
-            return;
-        }
-
-        await PlayAllAsync();
-    }
 
     /// <summary>
     /// Pauses the player, or sets it going again if it is already paused.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A transport control and nothing more: it acts on whatever MPC-HC has
-    /// open, which is what the seekbar here is reporting. The Play button
-    /// beside it is a different thing — it walks the cuts — so the two are not
-    /// a pair, and this one is named for the only half it does.
+    /// open, which is what the seekbar here is reporting. The separate Play
+    /// button is a different thing — it walks the cuts — and this one never
+    /// touches them.
+    /// </para>
+    /// <para>
+    /// One button for both halves, showing whichever the player is <em>not</em>
+    /// doing: a pause sign while it plays, a play sign while it does not. That
+    /// is the convention every transport control follows, and it is only
+    /// honest if the picture tracks the player rather than the last press —
+    /// pausing from MPC-HC's own window has to turn this back into a play
+    /// sign. See <see cref="RefreshPlayPauseButton"/>.
+    /// </para>
+    /// <para>
+    /// Explicit play and pause rather than the player's own toggle, because the
+    /// button has already decided which it means from the state it is showing.
+    /// Sending a toggle would act on whatever the player's state had become in
+    /// the meantime, which is how a button that reads "pause" ends up starting
+    /// playback.
+    /// </para>
     /// </remarks>
     [RelayCommand(CanExecute = nameof(CanPause))]
-    private void TogglePause() => _mpc.PlayPause();
+    private void TogglePause()
+    {
+        if (IsVideoPlaying) _mpc.Pause();
+        else _mpc.Play();
+
+        // Answer the press now rather than waiting up to a second for the next
+        // probe. The poll corrects it if the player disagreed.
+        SetVideoPlaying(!IsVideoPlaying);
+
+        // Everything the player said before this moment is now out of date.
+        // Readings older than it are ignored until a fresh one arrives, and
+        // asking for one immediately is what keeps that wait to a single tick.
+        _playStateAssumedUtc = DateTime.UtcNow;
+        _mpc.InvalidatePlaybackState();
+
+        // Restart the fallback's clock too, for the case where it is the thing
+        // deciding. Its last sample predates this press, so leaving it be would
+        // have the next tick read movement that happened before the pause and
+        // flip the button straight back.
+        _lastMovedPosition = -1;
+    }
 
     /// <summary>There is nothing to pause without a player with a file in it.</summary>
     private bool CanPause() => HasActiveVideo;
+
+    /// <summary>
+    /// True while MPC-HC is playing. Drives the play/pause button's picture.
+    /// </summary>
+    [ObservableProperty] private bool _isVideoPlaying;
+
+    /// <summary>
+    /// Points the play/pause button at whichever of the two it should offer.
+    /// </summary>
+    /// <remarks>
+    /// Swapping the item's own picture and label, the way the Select all button
+    /// turns into Select none — the toolbar binds to those, so there is nothing
+    /// else to tell.
+    /// </remarks>
+    private void RefreshPlayPauseButton()
+    {
+        foreach (var item in ToolbarItems)
+        {
+            if (item.Key != "pause") continue;
+
+            item.IconFile = IsVideoPlaying ? "icon-pause" : "icon-play";
+            item.Icon = IsVideoPlaying ? "⏸" : "▶";
+            item.Label = IsVideoPlaying ? "⏸ Pause" : "▶ Play";
+        }
+    }
+
+    /// <summary>Records the play state, repainting the button when it moves.</summary>
+    private void SetVideoPlaying(bool playing)
+    {
+        if (playing == IsVideoPlaying) return;
+
+        IsVideoPlaying = playing;
+        RefreshPlayPauseButton();
+    }
+
+    /// <summary>
+    /// Works out whether the player is running from whether its position is
+    /// moving. Used only when the Web Interface cannot say.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A position that has moved recently means playing; one that has stood
+    /// still for <see cref="PositionIdleMs"/> means it is not. The position is
+    /// already being read on every tick for the timeline, so this asks the
+    /// player nothing it was not being asked anyway — which matters, because
+    /// the reason the Web Interface is not answering is usually that it is
+    /// switched off, and nothing else here can reach it.
+    /// </para>
+    /// <para>
+    /// Measured from the last time the value <em>changed</em> rather than
+    /// across a fixed window. Sampling two readings a fixed distance apart
+    /// calls a playing video paused whenever both happen to land inside the
+    /// same whole second, which is most pairs of samples at a 600ms poll.
+    /// </para>
+    /// </remarks>
+    private void InferPlayingFromPosition(DateTime now)
+    {
+        var current = _cachedPlaybackPosition.Current;
+
+        // First reading since the interface went quiet: start the clock, and
+        // leave the button showing whatever it already was.
+        if (_lastMovedPosition < 0)
+        {
+            _lastMovedPosition = current;
+            _positionLastMovedUtc = now;
+            return;
+        }
+
+        if (Math.Abs(current - _lastMovedPosition) > 0.001)
+        {
+            _lastMovedPosition = current;
+            _positionLastMovedUtc = now;
+            SetVideoPlaying(true);
+            return;
+        }
+
+        if ((now - _positionLastMovedUtc).TotalMilliseconds >= PositionIdleMs)
+            SetVideoPlaying(false);
+    }
 
     [RelayCommand(CanExecute = nameof(CanPlaySelected))]
     private async Task PlaySelectedAsync()

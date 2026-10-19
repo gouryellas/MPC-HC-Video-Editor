@@ -240,9 +240,65 @@ public class MpcHcService
     /// the UI thread cannot read a path with the other one's timestamp. The
     /// reference assignment is atomic; <c>volatile</c> is what publishes it.
     /// </remarks>
-    private sealed record WebFile(string Path, DateTime AtUtc);
+    private sealed record WebFile(string Path, PlaybackState State, DateTime AtUtc);
 
     private volatile WebFile? _webFile;
+
+    /// <summary>Whether the player is running, paused or stopped.</summary>
+    public enum PlaybackState
+    {
+        /// <summary>Not answering, or answering something unrecognised.</summary>
+        Unknown,
+        Stopped,
+        Paused,
+        Playing
+    }
+
+    /// <summary>
+    /// What the player is doing, or <see cref="PlaybackState.Unknown"/> when
+    /// there is no recent answer.
+    /// </summary>
+    /// <remarks>
+    /// Read from the same <c>variables.html</c> fetch that identifies the open
+    /// file, so asking costs nothing beyond the request already being made once
+    /// a second. There is no window-message fallback: the status bar names the
+    /// state in words that change with the player's language, while this field
+    /// is a number that does not.
+    ///
+    /// Unknown rather than a guess when the answer is stale. A caller drawing a
+    /// play/pause button would otherwise claim the player is paused for the ten
+    /// seconds of backoff that follow the Web Interface being switched off.
+    ///
+    /// The time it was observed comes back with it, because "what the player
+    /// was doing" is only useful alongside "when". A caller that has just told
+    /// the player to do something else needs to tell a reading from before its
+    /// instruction from one that reflects it — an answer up to a second old is
+    /// still inside the staleness window and will happily contradict a press
+    /// that has already happened.
+    /// </remarks>
+    public (PlaybackState State, DateTime AtUtc) GetPlaybackState()
+    {
+        BeginWebFileProbe();
+
+        var snapshot = _webFile;
+        if (snapshot is null) return (PlaybackState.Unknown, DateTime.MinValue);
+
+        return (DateTime.UtcNow - snapshot.AtUtc).TotalMilliseconds <= WebFileStaleMs
+            ? (snapshot.State, snapshot.AtUtc)
+            : (PlaybackState.Unknown, snapshot.AtUtc);
+    }
+
+    /// <summary>
+    /// Drops the gap before the next probe, so the following poll tick asks the
+    /// player again rather than reusing an answer from up to a second ago.
+    /// </summary>
+    /// <remarks>
+    /// For use straight after telling the player to do something: it is the
+    /// difference between the button confirming itself within a tick and
+    /// waiting out the rest of the probe interval to do it.
+    /// </remarks>
+    public void InvalidatePlaybackState() =>
+        Interlocked.Exchange(ref _webProbeNotBeforeTicks, 0);
 
     /// <summary>Guards against a second probe starting while one is in flight.</summary>
     private int _webProbeRunning;
@@ -299,9 +355,25 @@ public class MpcHcService
                     ? WebUtility.HtmlDecode(match.Groups[1].Value).Trim()
                     : string.Empty;
 
+                // The same page carries what the player is doing, as a number:
+                // 0 stopped, 1 paused, 2 playing. Taken here rather than in a
+                // request of its own — this one is already being made.
+                var stateMatch = Regex.Match(html, @"id=""state""[^>]*>(-?\d+)<",
+                                             RegexOptions.IgnoreCase);
+
+                var state = stateMatch.Success && int.TryParse(stateMatch.Groups[1].Value, out var raw)
+                    ? raw switch
+                    {
+                        0 => PlaybackState.Stopped,
+                        1 => PlaybackState.Paused,
+                        2 => PlaybackState.Playing,
+                        _ => PlaybackState.Unknown   // -1 is "no file"
+                    }
+                    : PlaybackState.Unknown;
+
                 if (path.Length > 0)
                 {
-                    _webFile = new WebFile(path, DateTime.UtcNow);
+                    _webFile = new WebFile(path, state, DateTime.UtcNow);
                     answered = true;
                 }
             }

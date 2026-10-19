@@ -134,8 +134,29 @@ public sealed class ToolbarItem : INotifyPropertyChanged
     /// rather than the other way round: every action ships with a picture, but
     /// the naming tags and the layout fillers never will, and a button with
     /// nothing to draw has to still say what it is.
+    ///
+    /// Settable, like <see cref="Label"/> and <see cref="Icon"/>, because one
+    /// button changes its picture while the program runs: play/pause shows
+    /// whichever of the two the player is not currently doing.
     /// </remarks>
-    public string? IconFile { get; init; }
+    public string? IconFile
+    {
+        get => _iconFile;
+        set
+        {
+            if (_iconFile == value) return;
+            _iconFile = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasImage));
+            OnPropertyChanged(nameof(IconSource));
+            OnPropertyChanged(nameof(Caption));
+            OnPropertyChanged(nameof(ShowText));
+            OnPropertyChanged(nameof(IconSize));
+            OnPropertyChanged(nameof(ButtonPadding));
+        }
+    }
+
+    private string? _iconFile;
 
     /// <summary>True for a button with a picture to draw.</summary>
     public bool HasImage => IconFile is { Length: > 0 };
