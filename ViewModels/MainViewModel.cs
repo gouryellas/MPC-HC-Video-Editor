@@ -55,8 +55,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Cancellation token source for the active "Play all" / "Play selected"
     /// playback loop. Non-null while a playback loop is running; canceled
-    /// by <see cref="StopPlayback"/> or by starting a new playback. Null
-    /// again once the loop exits.
+    /// by starting a new playback or at shutdown — there is no "stop" of its
+    /// own. Null again once the loop exits.
     /// </summary>
     private CancellationTokenSource? _playbackCts;
 
@@ -64,9 +64,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// True while a "Play all" / "Play selected" loop is actively sequencing
     /// through bookmarks. Used by <see cref="PollMpc"/> to skip its normal
     /// "auto-load a new file" path so playback isn't interrupted if MPC-HC
-    /// briefly reports a window-title glitch mid-seek. Bound to the
-    /// "Stop playback" menu item's IsEnabled so the user can only click it
-    /// while a playback is actually running.
+    /// briefly reports a window-title glitch mid-seek.
     /// </summary>
     [ObservableProperty] private bool _isPlayingCuts;
 
@@ -291,6 +289,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 ToolTip = "Open the bookmark CSV in a text editor" },
         new() { Key = "play", Group = "Bookmarks", Label = "▶ Play", Icon = "▶", IconFile = "icon-play", Command = PlayCutsCommand,
                 ToolTip = "Play the checked cuts in turn, or every cut when none are checked" },
+        new() { Key = "pause", Group = "Bookmarks", Label = "⏸ Pause", Icon = "⏸", IconFile = "icon-pause", Command = TogglePauseCommand,
+                ToolTip = "Pause the player, or start it playing again" },
         new() { Key = "export-animation", Group = "Actions", Label = "🎞 GIF / WebP", Icon = "🎞", IconFile = "icon-gif_webp", Command = ExportAnimationCommand,
                 ToolTip = "Export the checked cuts as an animation" },
         new() { Key = "convert-images", Group = "Actions", Label = "🖼 Convert images", Icon = "🖼", IconFile = "icon-convert_images", Command = ConvertImagesCommand,
@@ -1976,6 +1976,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         PlayAllCommand.NotifyCanExecuteChanged();
         PlaySelectedCommand.NotifyCanExecuteChanged();
         PlayCutsCommand.NotifyCanExecuteChanged();
+        TogglePauseCommand.NotifyCanExecuteChanged();
         SelectAllCommand.NotifyCanExecuteChanged();
         SelectNoneCommand.NotifyCanExecuteChanged();
         ToggleSelectAllCommand.NotifyCanExecuteChanged();
@@ -3465,8 +3466,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// bookmark's start, and so on. Incomplete bookmarks are skipped.
     /// </summary>
     /// <remarks>
-    /// The loop is cancellable via <see cref="StopPlayback"/>; starting a
-    /// new Play all / Play selected also cancels any in-progress one.
+    /// Starting a new Play all / Play selected cancels any in-progress one;
+    /// nothing else ends the loop short of shutdown.
     /// While the loop is running, <see cref="IsPlayingCuts"/> is true so
     /// <see cref="PollMpc"/> knows not to fight the loop with auto-loads.
     /// <see cref="IsBusy"/> is NOT set — the polling timer keeps running
@@ -3516,6 +3517,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
         await PlayAllAsync();
     }
 
+    /// <summary>
+    /// Pauses the player, or sets it going again if it is already paused.
+    /// </summary>
+    /// <remarks>
+    /// A transport control and nothing more: it acts on whatever MPC-HC has
+    /// open, which is what the seekbar here is reporting. The Play button
+    /// beside it is a different thing — it walks the cuts — so the two are not
+    /// a pair, and this one is named for the only half it does.
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(CanPause))]
+    private void TogglePause() => _mpc.PlayPause();
+
+    /// <summary>There is nothing to pause without a player with a file in it.</summary>
+    private bool CanPause() => HasActiveVideo;
+
     [RelayCommand(CanExecute = nameof(CanPlaySelected))]
     private async Task PlaySelectedAsync()
     {
@@ -3558,8 +3574,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var token = _playbackCts.Token;
 
         IsPlayingCuts = true;
-        _mpc.BringToFront();
 
+        // The player is deliberately left where it is. Playing the cuts used to
+        // pull MPC-HC to the front, on the reasoning that you are about to want
+        // to look at it — but it takes the focus away from the editor you
+        // pressed the button in, and from whatever you were typing in it. The
+        // player keeps playing behind whatever is in front; bringing it forward
+        // is a thing to do by hand, when it is wanted.
         try
         {
             for (int i = 0; i < cuts.Count; i++)
