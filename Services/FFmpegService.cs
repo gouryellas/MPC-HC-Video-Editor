@@ -211,6 +211,54 @@ public class FFmpegService
     /// offset by reporting whichever stream is longer. Either value is 0 when
     /// that stream is missing or unreadable.
     /// </summary>
+    /// <summary>
+    /// Whether the file carries an audio stream at all.
+    /// </summary>
+    /// <remarks>
+    /// Asked before extracting rather than inferred from the wreckage
+    /// afterwards. ffmpeg's own answer to "extract the audio from a file that
+    /// has none" is a muxer complaining that the output has no streams, an
+    /// exit code of -22, and a page of input metadata — true, but it describes
+    /// the output rather than the cause, and it reads like a bug in the
+    /// program rather than a fact about the file.
+    ///
+    /// Returns true when the question cannot be answered — ffprobe missing,
+    /// the file locked. Guessing "no audio" there would refuse a file that may
+    /// be perfectly good, and the run itself is the better judge of a file
+    /// this cannot read.
+    /// </remarks>
+    public async Task<bool> HasAudioAsync(string filePath)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = _ffprobePath,
+                Arguments = "-v error -select_streams a -show_entries stream=index " +
+                            $"-of csv=p=0 \"{filePath}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var p = Process.Start(psi);
+            if (p == null) return true;
+
+            var output = await p.StandardOutput.ReadToEndAsync();
+            await p.WaitForExitAsync();
+
+            // One line per audio stream, and nothing at all when there are
+            // none. Exit code is 0 either way — a file without audio is not an
+            // error as far as ffprobe is concerned.
+            return !string.IsNullOrWhiteSpace(output);
+        }
+        catch
+        {
+            return true;
+        }
+    }
+
     private async Task<(double Video, double Audio)> GetStreamDurationsAsync(string filePath)
     {
         try
@@ -650,16 +698,53 @@ public class FFmpegService
     // ------------------------------------------------------------------
     // Strip audio → MP3
     // ------------------------------------------------------------------
-    public async Task StripAudioAsync(string inputPath, string? outputPath = null,
-        IProgress<FFmpegProgressEventArgs>? progress = null, CancellationToken ct = default)
+public async Task StripAudioAsync(string inputPath, string? outputPath = null,
+    IProgress<FFmpegProgressEventArgs>? progress = null, CancellationToken ct = default)
+{
+    if (string.IsNullOrWhiteSpace(inputPath) || !File.Exists(inputPath))
+        throw new FileNotFoundException("Input file not found.", inputPath);
+
+    outputPath ??= Path.ChangeExtension(inputPath, ".mp3");
+
+    // Avoid overwriting source if it was already .mp3
+    if (string.Equals(Path.GetFullPath(inputPath), Path.GetFullPath(outputPath), StringComparison.OrdinalIgnoreCase))
+        outputPath = Path.Combine(
+            Path.GetDirectoryName(outputPath) ?? ".",
+            Path.GetFileNameWithoutExtension(outputPath) + "_audio.mp3");
+
+    // Asked outright, because the alternative is reading it off a failure.
+    // The optional map below means a file with no audio does not fail on the
+    // map — it goes on to write an output with no streams in it, which the
+    // muxer rejects with "Output file does not contain any stream" and an exit
+    // code of -22. Nothing in that names the actual problem, and matching the
+    // text of it is a promise about wording that ffmpeg never made.
+    if (!await HasAudioAsync(inputPath))
+        throw new InvalidOperationException(
+            $"{Path.GetFileName(inputPath)} has no audio track, so there is nothing to extract.");
+
+    // Optional map so files with no audio don't hard-fail on the map itself
+    var args = $"-hide_banner -y -fflags +igndts " +
+               $"-i \"{inputPath}\" " +
+               $"-vn -map 0:a:0? " +
+               $"-c:a libmp3lame -q:a 0 " +
+               $"\"{outputPath}\"";
+
+    try
     {
-        outputPath ??= Path.ChangeExtension(inputPath, ".mp3");
-
-        var args = $"-hide_banner -y -fflags +igndts -i \"{inputPath}\" " +
-                   $"-vn -c:a libmp3lame -q:a 0 \"{outputPath}\"";
-
         await RunAsync(args, progress, ct, await GetDurationAsync(inputPath));
     }
+    catch (Exception ex) when (ex.Message.Contains("matches no streams") || 
+                               ex.Message.Contains("does not contain any stream") ||
+                               ex.Message.Contains("Invalid argument"))
+    {
+        // Clean up empty/partial output if it was created
+        if (File.Exists(outputPath))
+            File.Delete(outputPath);
+
+        throw new InvalidOperationException(
+            "Input file contains no audio stream. Cannot extract audio to MP3.", ex);
+    }
+}
 
     /// <summary>
     /// Writes a copy of the video with its audio removed. Keeps the container
