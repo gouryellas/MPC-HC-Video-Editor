@@ -54,4 +54,31 @@ public static class PortablePaths
     public static string BackupFolder => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "MPC-HC Video Editor");
+
+    /// <summary>
+    /// Where bookmark files live: one folder beside the executable, holding
+    /// every CSV rather than one CSV per video folder.
+    /// </summary>
+    /// <remarks>
+    /// Consolidated here so the whole set can be listed, searched and carried
+    /// with the install. It also means a bookmark no longer needs somewhere
+    /// writable next to its video, which read-only sources and optical media
+    /// never had.
+    ///
+    /// The cost is that a bookmark no longer travels with its video, and that
+    /// two videos of the same name in different folders would collide on
+    /// filename alone — see <see cref="Services.BookmarkService"/>, which keys
+    /// each file to its video by a header line rather than by its name.
+    /// </remarks>
+    public static string BookmarksFolder => DataFolder("Bookmarks");
+
+    /// <summary>
+    /// The mirror of <see cref="BookmarksFolder"/> under %APPDATA%.
+    /// </summary>
+    /// <remarks>
+    /// Exists for the same reason the settings backup does: upgrading by
+    /// replacing the program folder would otherwise take every bookmark with
+    /// it. Not created on access — the one place that writes it makes it.
+    /// </remarks>
+    public static string BackupBookmarksFolder => Path.Combine(BackupFolder, "Bookmarks");
 }

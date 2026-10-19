@@ -57,3 +57,39 @@ local file always wins, so a deliberately fresh copy of the folder stays fresh.
 Worth knowing while testing: deleting `publish\portable\settings.json` no longer
 gives you a first-run install on a machine that has ever saved settings. Clear
 the `%APPDATA%` copy too.
+
+**Bookmarks work the same way, as a folder.** They live in `Bookmarks\` beside
+the executable, mirrored to `%APPDATA%\MPC-HC Video Editor\Bookmarks\`. An empty
+`Bookmarks\` folder is restored from the mirror at startup, which is what makes
+replacing the program folder safe. The same testing note applies, doubled: to
+get a clean slate you have to empty both folders.
+
+**`bookmarks.index` is what makes a deletion stick.** It lists the bookmark
+files this install has. A name in it that is no longer in `Bookmarks\` was
+deleted while the program was closed, so the mirror copy is dropped too —
+without it, deleting your last bookmark in Explorer would see it restored on the
+next launch, an empty folder being exactly what a replaced one looks like. It is
+never mirrored, which is the point: a replaced folder loses it and reads as
+"never had any", while a hand-deleted file leaves it behind and reads as "had
+it, lost it". Delete it by hand only together with `Bookmarks\`.
+
+## Packaging a release
+
+**Never ship the folder you have been running.** `publish\portable` is both the
+build output and the working directory of the portable build, so it accumulates
+your own data as you test. Two things must be out of the zip:
+
+- `settings.json` — holds every local path you have configured
+- `Bookmarks\` — holds the filename and cut timings of every video you have
+  bookmarked
+- `bookmarks.index` — lists those filenames again
+
+None of them is produced by `dotnet publish`, so none comes back if you delete
+it, and `dotnet publish` will not overwrite them either — they persist until
+removed by hand. Check for all three before zipping:
+
+```powershell
+Get-ChildItem publish\portable -Force | Where-Object { $_.Name -in 'settings.json','Bookmarks','bookmarks.index' }
+```
+
+Anything that command prints is yours and does not belong in a public download.

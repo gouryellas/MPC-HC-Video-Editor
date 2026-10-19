@@ -50,6 +50,12 @@ public partial class App : Application
             SeekbarAppearance.Apply(null, ThemeService.Current);
         }
 
+        // Before any window can load a video and look for its bookmarks. A
+        // program folder that arrived empty gets its collection back from the
+        // %APPDATA% mirror here, and anything the mirror missed is pushed to it
+        // — see BookmarkService.SyncWithBackup for why that order matters.
+        BookmarkService.SyncWithBackup();
+
         // Re-reads settings rather than closing over the instance above: that
         // one is a throwaway for startup, while this fires for as long as the
         // app runs and has to see whatever the Settings dialog last saved —

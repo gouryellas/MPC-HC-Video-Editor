@@ -2840,11 +2840,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Session.OutputDirectory = Path.GetDirectoryName(path)
                 ?? Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
 
-        // Always bind the conventional CSV path (video.csv next to video.mp4),
-        // whether or not the file exists yet. Leaving it empty for a video with
-        // no CSV meant SaveBookmarks silently did nothing, so the first
-        // session's bookmarks were never written to disk at all. "Loaded" is
-        // tracked separately, by whether the file is actually there.
+        // Always bind this video's place in the bookmarks folder, whether or
+        // not the file exists yet. Leaving it empty for a video with no CSV
+        // meant SaveBookmarks silently did nothing, so the first session's
+        // bookmarks were never written to disk at all. "Loaded" is tracked
+        // separately, by whether the file is actually there.
         var csvPath = _bookmarks.GetCsvPathForVideo(path);
         Session.CsvPath = csvPath;
         IsBookmarkFileLoaded = File.Exists(csvPath);
@@ -3189,13 +3189,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Deletes the session's CSV and marks the bookmark file as no longer
     /// loaded. <see cref="EditSession.CsvPath"/> is deliberately kept: it is
-    /// the conventional "video.csv next to video.mp4" path, so a later
-    /// timestamp recreates the file in the right place.
+    /// this video's place in the bookmarks folder, so a later timestamp
+    /// recreates the file where the rest of the collection is.
     /// </summary>
     /// <remarks>
     /// Goes to the Recycle Bin rather than being unlinked. A bookmark file is
     /// a hand-built list of timestamps that can represent a lot of watching,
     /// and it is small — there is no case for making it unrecoverable.
+    ///
+    /// The %APPDATA% copy goes with it, and only once the real one is gone: a
+    /// mirror still holding a file the program folder no longer has would have
+    /// the next restore bring it back.
     /// </remarks>
     private bool TryDeleteBookmarkFile(out string error)
     {
@@ -3209,6 +3213,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 error = failure ?? "unknown error";
                 return false;
             }
+
+            BookmarkService.MirrorDelete(csvPath);
         }
 
         IsBookmarkFileLoaded = false;
@@ -6761,7 +6767,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         try
         {
-            _bookmarks.SaveToCsv(Session.CsvPath, Session.Bookmarks);
+            // The video goes in the file's header, which is what ties it to
+            // this video rather than to its own filename. Empty for a CSV
+            // opened on its own, and the save then keeps the header it had.
+            _bookmarks.SaveToCsv(Session.CsvPath, Session.Bookmarks, Session.VideoPath);
 
             RememberBookmarkFile();
 
@@ -6947,18 +6956,30 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // LoadVideoAsync for why that has to be the end of the history.
         ResetHistory();
 
-        // If a video path with the same base name as the CSV happens to
-        // exist alongside it, treat that as the source video too — this
-        // matches the original convention (video.csv lives next to video.mp4).
-        var siblingVideo = Path.ChangeExtension(csvPath, null);
-        var candidates = new[] { ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".m4v", ".ts", ".mpg", ".mpeg" };
-        foreach (var ext in candidates)
+        // Load the video these bookmarks were made against, if it can be
+        // worked out. The file's header names it outright — that is what the
+        // header is for, and it holds wherever the CSV has been moved to.
+        var owner = _bookmarks.GetVideoPathFor(csvPath);
+        if (!string.IsNullOrEmpty(owner) && File.Exists(owner))
         {
-            var p = siblingVideo + ext;
-            if (File.Exists(p))
+            _ = LoadVideoAsync(owner);
+        }
+        else
+        {
+            // No header, or it names a video that has since moved. Fall back to
+            // the old convention — a video of the same name beside the CSV —
+            // which is still how a file carried over from an earlier build, or
+            // dropped in from a video folder, identifies itself.
+            var siblingVideo = Path.ChangeExtension(csvPath, null);
+            var candidates = new[] { ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".m4v", ".ts", ".mpg", ".mpeg" };
+            foreach (var ext in candidates)
             {
-                _ = LoadVideoAsync(p);
-                break;
+                var p = siblingVideo + ext;
+                if (File.Exists(p))
+                {
+                    _ = LoadVideoAsync(p);
+                    break;
+                }
             }
         }
 
