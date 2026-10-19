@@ -468,6 +468,16 @@ public partial class MainWindow : Window
     /// </summary>
     private void MainWindow_StateChanged(object? sender, EventArgs e)
     {
+        // Told, not asked: the overlay hides this window while it is up, so by
+        // the time the ViewModel wants to know whether it was minimized there
+        // is nothing on screen to look at. Recorded on the way into the state
+        // rather than read back out of it.
+        //
+        // Un-minimizing clears it, whichever way it happened — the taskbar
+        // button, the tray icon, or a restore this program asked for — so the
+        // next trip to the player starts from a window the user has out.
+        if (_vm is not null) _vm.WindowMinimized = WindowState == WindowState.Minimized;
+
         if (WindowState == WindowState.Minimized && InTrayMode)
             Hide();
     }
@@ -576,11 +586,23 @@ public partial class MainWindow : Window
 
         _minimal?.Hide();
 
+        // In tray mode, minimized means gone from the taskbar altogether — that
+        // is what minimizing does there. A restore that is not meant to raise
+        // the window must not undo it by showing the thing again, because the
+        // user would get a taskbar button back for a window they had put in the
+        // notification area. The tray icon is the way back to it.
+        if (!activate && WindowState == WindowState.Minimized && InTrayMode) return;
+
         // Show() takes the focus on its own — ShowActivated is true by default
         // and applies to every Show, not only the first — so a restore that is
         // not meant to steal focus has to say so before showing, and put the
         // property back afterwards for the restores that are.
-        ShowActivated = activate;
+        //
+        // And only when it would be granted. Showing with ShowActivated while
+        // another process holds the foreground is a SetForegroundWindow that
+        // Windows refuses, and a refusal flashes the taskbar button — the same
+        // trap as in RaiseToFront, one call earlier.
+        ShowActivated = activate && ForegroundWindow.OwnedByThisProcess();
         Show();
         ShowActivated = true;
 
@@ -612,14 +634,20 @@ public partial class MainWindow : Window
     /// has no more claim on the foreground afterwards than any other, and
     /// clicking back to the player hands it straight over.
     ///
-    /// Activate is still called, because when the foreground does happen to be
-    /// ours the window should have focus and not merely be visible.
+    /// Activate is still called, but only when the foreground does happen to be
+    /// ours — then it costs nothing and the window gets focus rather than
+    /// merely being visible. Asking for it when it will be refused is what made
+    /// the taskbar button flash on the way back from the player: a refused
+    /// SetForegroundWindow is not a no-op, it is Windows offering the user the
+    /// attention the program was denied. There is nothing to ask for anyway,
+    /// since the raise above has already done the part that works.
     /// </remarks>
     private void RaiseToFront()
     {
         Topmost = true;
         Topmost = false;
-        Activate();
+
+        if (ForegroundWindow.OwnedByThisProcess()) Activate();
     }
 
     /// <summary>
@@ -739,6 +767,10 @@ public partial class MainWindow : Window
 
         _vm.MinimalViewRequested += SetMinimalView;
         _vm.Job.Finished += PulseJobPanel;
+
+        // Seed it, since StateChanged only fires on a change and the window may
+        // already be in whatever state the saved placement put it.
+        _vm.WindowMinimized = WindowState == WindowState.Minimized;
 
         // The tray icon belongs to the window, not the ViewModel, so the
         // ViewModel just says when the setting changed.

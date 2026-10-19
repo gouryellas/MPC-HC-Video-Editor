@@ -1052,6 +1052,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private bool _minimalViewActive;
 
     /// <summary>
+    /// Whether the main window is minimized. Set by the View, which owns the
+    /// window state; read when deciding whether a restore should raise it.
+    /// </summary>
+    /// <remarks>
+    /// Reported rather than asked for, because the question is "what did the
+    /// user last do with this window", and the overlay hides the window while
+    /// it is up — so by the time the answer is wanted there is nothing visible
+    /// to read it off.
+    /// </remarks>
+    public bool WindowMinimized { get; set; }
+
+    /// <summary>
     /// Whether MPC-HC had focus at the last evaluation, or null when there is
     /// no decision on record. Makes <see cref="ApplyAutoViewSwitch"/>
     /// edge-triggered — see there.
@@ -1139,20 +1151,27 @@ public partial class MainViewModel : ObservableObject, IDisposable
             _lastMpcFocused = false;
 
             // The overlay only ever goes up while the player has focus, so
-            // losing it is always a real departure and the restore needs no
-            // further guard.
+            // losing it is always a real departure, and the window always comes
+            // back: the overlay is topmost and cannot be left floating over
+            // another application. What varies is whether it is raised.
             //
-            // Brought to the front, not merely un-hidden. Leaving the player is
-            // the gesture that asks for this window back — the overlay says so
-            // in as many words while the player is windowed — and a window that
-            // reappears behind whatever the user clicked has not come back in
-            // any sense they can see. It is a one-off raise, not topmost: this
-            // window has no more claim on the foreground afterwards than any
-            // other, and clicking back to the player hands it straight over.
+            // Raised only when this program is where the focus went — leaving
+            // the player for this window is the gesture that asks for it back,
+            // and the overlay says so in as many words while the player is
+            // windowed. It is a one-off raise, not topmost: this window has no
+            // more claim on the foreground afterwards than any other, and
+            // clicking back to the player hands it straight over.
             //
-            // This was briefly conditional on what took the focus, which read
-            // as the window not coming back at all.
-            if (_minimalViewActive) RestoreFullView(activate: true);
+            // Going to some third program is not that gesture. The window still
+            // returns, behind what was clicked, because a window that shoves
+            // itself in front of the thing someone just chose is interrupting
+            // them — and it has nothing to say that was worth the interruption.
+            //
+            // The same for a window the user had minimized, whoever took the
+            // focus. Minimizing says this window is not wanted on screen, and
+            // that outlives a trip to the player and back.
+            if (_minimalViewActive)
+                RestoreFullView(activate: ForegroundWindow.OwnedByThisProcess() && !WindowMinimized);
 
             return;
         }
@@ -1257,6 +1276,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// effect: the user asked to be shown this window, and that is what showing
     /// it costs. A windowed player is left exactly as it is.
     ///
+    /// None of which applies to a minimized window. Then X dismisses the
+    /// overlay and stops there — no window goes up, so the player keeps its
+    /// fullscreen and the one put away stays put away.
+    ///
     /// <see cref="AutoSwitchViews"/> is left alone — X means "full window now",
     /// not "stop switching views from now on", and the setting is the user's to
     /// change. Recording the current focus is what stops the overlay coming
@@ -1267,6 +1290,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ShowFullView()
     {
+        // Minimized, so X means only what it says on the overlay: take this
+        // away. The window was deliberately put out of sight and stays there,
+        // and the player keeps its fullscreen — leaving fullscreen is a cost
+        // paid to give this window somewhere to be seen, and there is no
+        // window going up to need it.
+        if (WindowMinimized)
+        {
+            _lastMpcFocused = _mpc.IsForeground();
+            RestoreFullView(activate: false);
+            return;
+        }
+
         _mpc.ExitFullscreen();
         _lastMpcFocused = _mpc.IsForeground();
 
