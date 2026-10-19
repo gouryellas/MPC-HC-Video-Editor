@@ -74,6 +74,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private const int PositionIdleMs = 3000;
 
     /// <summary>
+    /// How long a cut playback will sit paused before giving up on being
+    /// resumed and ending the sequence.
+    /// </summary>
+    /// <remarks>
+    /// Long enough that no ordinary pause reaches it, short enough that a
+    /// sequence paused and forgotten does not hold
+    /// <see cref="IsPlayingCuts"/> — and with it the poll's auto-load — for the
+    /// rest of the session.
+    /// </remarks>
+    private const int PausedSequenceGiveUpMs = 120_000;
+
+    /// <summary>
     /// Tracks window focus so the poll can do less work while the window is in
     /// the background. Deliberately a plain flag rather than a change to
     /// <c>_pollTimer.Interval</c>: assigning Interval makes DispatcherTimer
@@ -3565,10 +3577,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     /// <remarks>
     /// <para>
-    /// A transport control and nothing more: it acts on whatever MPC-HC has
-    /// open, which is what the seekbar here is reporting. The separate Play
-    /// button is a different thing — it walks the cuts — and this one never
-    /// touches them.
+    /// A transport control: it acts on whatever MPC-HC has open, which is what
+    /// the seekbar here is reporting. It never starts a cut playback — that is
+    /// the Bookmarks menu's job — but it does hold one that is already running,
+    /// because a sequence is only the player plus a clock and pausing one
+    /// without the other is what made the picture freeze while the cuts carried
+    /// on. See <see cref="PlayCutsAsync(List{Bookmark}, string)"/>.
     /// </para>
     /// <para>
     /// One button for both halves, showing whichever the player is <em>not</em>
@@ -3589,23 +3603,38 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanPause))]
     private void TogglePause()
     {
-        if (IsVideoPlaying) _mpc.Pause();
+        var wasPlaying = IsVideoPlaying;
+
+        if (wasPlaying) _mpc.Pause();
         else _mpc.Play();
 
-        // Answer the press now rather than waiting up to a second for the next
-        // probe. The poll corrects it if the player disagreed.
-        SetVideoPlaying(!IsVideoPlaying);
+        AssumePlaying(!wasPlaying);
+    }
 
-        // Everything the player said before this moment is now out of date.
-        // Readings older than it are ignored until a fresh one arrives, and
-        // asking for one immediately is what keeps that wait to a single tick.
+    /// <summary>
+    /// Records that the player has just been told to play or to stop, without
+    /// waiting to be told back.
+    /// </summary>
+    /// <remarks>
+    /// Three things at once, because they are one thought. The button shows the
+    /// new state immediately rather than a tick late. Anything the player said
+    /// before this moment is now out of date, so later readings are checked
+    /// against the time of this call and ignored if they predate it — without
+    /// which the next tick answered with pre-press data and the button showed
+    /// the new picture, snapped back to the old one, then changed again. And
+    /// the next probe is brought forward, so the confirming answer lands on the
+    /// following tick instead of up to a second later.
+    ///
+    /// The position fallback's baseline goes too: its last sample is older than
+    /// this instruction, and movement from before a pause would otherwise read
+    /// as the video still running.
+    /// </remarks>
+    private void AssumePlaying(bool playing)
+    {
+        SetVideoPlaying(playing);
+
         _playStateAssumedUtc = DateTime.UtcNow;
         _mpc.InvalidatePlaybackState();
-
-        // Restart the fallback's clock too, for the case where it is the thing
-        // deciding. Its last sample predates this press, so leaving it be would
-        // have the next tick read movement that happened before the pause and
-        // flip the button straight back.
         _lastMovedPosition = -1;
     }
 
@@ -3711,6 +3740,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// of bookmarks, seeking + playing each one for its effective
     /// duration. Cancellable via <see cref="_playbackCts"/>.
     /// </summary>
+    /// <remarks>
+    /// Pausing the player holds the sequence: each cut is timed against a clock
+    /// that stops with the picture and picks up where it left off, so the rest
+    /// of a cut is still the rest of that cut. Without it the wait ran out
+    /// behind a frozen frame and the sequence seeked on through the list
+    /// against a video that was not moving.
+    ///
+    /// Left paused for <see cref="PausedSequenceGiveUpMs"/> it gives up rather
+    /// than waiting all session, since a running sequence holds off the poll's
+    /// auto-load.
+    /// </remarks>
     /// <param name="cuts">The ordered list of bookmarks to play.</param>
     /// <param name="label">"all" or "selected" — used in the status text
     /// so the user can tell which mode is running.</param>
@@ -3733,6 +3773,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var token = _playbackCts.Token;
 
         IsPlayingCuts = true;
+
+        // Set when a cut is left paused long enough that the sequence gives up
+        // on being resumed. Checked after the inner wait so the for loop ends
+        // too, not just the one cut.
+        var abandoned = false;
 
         // The player is deliberately left where it is. Playing the cuts used to
         // pull MPC-HC to the front, on the reasoning that you are about to want
@@ -3779,32 +3824,88 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     await Task.Delay(200, token);
                     _mpc.Play();
 
+                    // Say so, rather than leaving the play/pause button to work
+                    // it out: it would show a play sign for the first tick of
+                    // every cut, and the wait below would read that as the user
+                    // having paused and hold against a video that is running.
+                    AssumePlaying(true);
+
                     // Time the cut against the wall clock. The old loop added a
                     // nominal 100ms per iteration while each actually took ~115,
                     // so it under-counted and every cut ran ~15% long — the
                     // "played past the end" symptom.
                     var clock = Stopwatch.StartNew();
                     var target = TimeSpan.FromSeconds(playSeconds);
+                    DateTime? pausedAt = null;
+
                     while (clock.Elapsed < target)
                     {
                         if (token.IsCancellationRequested) break;
+
+                        // Paused, by this program's button or by the player's
+                        // own keyboard. The cut is not advancing, so its clock
+                        // must not either — otherwise the wait runs out behind a
+                        // frozen picture and the sequence seeks on to the next
+                        // cut while the video sits still.
+                        if (!IsVideoPlaying)
+                        {
+                            if (clock.IsRunning)
+                            {
+                                clock.Stop();          // keeps what it has counted
+                                pausedAt = DateTime.UtcNow;
+                                StatusText = $"Paused — cut {i + 1}/{cuts.Count}";
+                            }
+
+                            // Not forever, though. IsPlayingCuts holds off the
+                            // poll's auto-load, so a sequence left paused and
+                            // walked away from would stop the program noticing
+                            // a different video being opened.
+                            if (pausedAt is { } since &&
+                                (DateTime.UtcNow - since).TotalMilliseconds >= PausedSequenceGiveUpMs)
+                            {
+                                abandoned = true;
+                                break;
+                            }
+
+                            await Task.Delay(100, token);
+                            continue;
+                        }
+
+                        // Playing again: pick the clock up where it stopped, so
+                        // the rest of the cut is the rest of the cut.
+                        if (!clock.IsRunning)
+                        {
+                            clock.Start();
+                            pausedAt = null;
+                            StatusText = $"Playing {label} cut {i + 1}/{cuts.Count}";
+                        }
+
                         var remaining = target - clock.Elapsed;
                         await Task.Delay(remaining > TimeSpan.FromMilliseconds(100)
                             ? TimeSpan.FromMilliseconds(100)
                             : remaining, token);
                     }
+
+                    if (abandoned) break;
                 }
                 catch (TaskCanceledException) { break; }
             }
 
-            if (!token.IsCancellationRequested)
+            if (token.IsCancellationRequested)
             {
-                try { _mpc.Pause(); } catch { }
-                StatusText = $"Finished playing {cuts.Count} cut(s).";
+                StatusText = "Playback stopped.";
+            }
+            else if (abandoned)
+            {
+                // Already paused — the player is where the user left it, and
+                // pausing it again would say nothing.
+                StatusText = "Playback stopped — left paused too long.";
             }
             else
             {
-                StatusText = "Playback stopped.";
+                try { _mpc.Pause(); } catch { }
+                AssumePlaying(false);
+                StatusText = $"Finished playing {cuts.Count} cut(s).";
             }
         }
         finally
