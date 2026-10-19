@@ -3669,7 +3669,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         SetVideoPlaying(playing);
 
         _playStateAssumedUtc = DateTime.UtcNow;
-        _mpc.InvalidatePlaybackState();
+        _mpc.InvalidatePlayerSnapshot();
         _lastMovedPosition = -1;
     }
 

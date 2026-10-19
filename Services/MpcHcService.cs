@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -240,7 +241,12 @@ public class MpcHcService
     /// the UI thread cannot read a path with the other one's timestamp. The
     /// reference assignment is atomic; <c>volatile</c> is what publishes it.
     /// </remarks>
-    private sealed record WebFile(string Path, PlaybackState State, DateTime AtUtc);
+    private sealed record WebFile(
+        string Path,
+        PlaybackState State,
+        double PositionSeconds,
+        double DurationSeconds,
+        DateTime AtUtc);
 
     private volatile WebFile? _webFile;
 
@@ -297,8 +303,43 @@ public class MpcHcService
     /// difference between the button confirming itself within a tick and
     /// waiting out the rest of the probe interval to do it.
     /// </remarks>
-    public void InvalidatePlaybackState() =>
+    public void InvalidatePlayerSnapshot() =>
         Interlocked.Exchange(ref _webProbeNotBeforeTicks, 0);
+
+    /// <summary>A millisecond value from the Web Interface, as seconds.</summary>
+    /// <remarks>
+    /// Zero when the field is missing or unreadable, which the caller treats as
+    /// "no answer" rather than as the start of the file — a player that really
+    /// is at zero also reports a duration, and that is what is checked.
+    /// </remarks>
+    private static double ReadMilliseconds(string html, string id)
+    {
+        var match = Regex.Match(html, $@"id=""{id}""[^>]*>(\d+)<", RegexOptions.IgnoreCase);
+
+        return match.Success && double.TryParse(match.Groups[1].Value,
+                   NumberStyles.Integer, CultureInfo.InvariantCulture, out var ms)
+            ? ms / 1000.0
+            : 0;
+    }
+
+    /// <summary>
+    /// Position and length as the Web Interface last reported them, or null
+    /// when there is no recent answer.
+    /// </summary>
+    /// <remarks>
+    /// Milliseconds, where the status bar gives whole seconds. Null rather than
+    /// zeroes so the caller can tell "the player is at the start" from "nobody
+    /// answered" and fall through to reading the window instead.
+    /// </remarks>
+    private (double Current, double Duration)? WebPlaybackPosition()
+    {
+        var snapshot = _webFile;
+        if (snapshot is null || snapshot.DurationSeconds <= 0) return null;
+
+        return (DateTime.UtcNow - snapshot.AtUtc).TotalMilliseconds <= WebFileStaleMs
+            ? (snapshot.PositionSeconds, snapshot.DurationSeconds)
+            : null;
+    }
 
     /// <summary>Guards against a second probe starting while one is in flight.</summary>
     private int _webProbeRunning;
@@ -371,9 +412,17 @@ public class MpcHcService
                     }
                     : PlaybackState.Unknown;
 
+                // And the clock, in milliseconds. The status bar counts in
+                // whole seconds, so reading it back can only ever say "1" for a
+                // player sitting anywhere from 1.00 to 1.99 — which is how a
+                // seek to 2s came to be reported as 1s, the fraction having
+                // been discarded by the player before this program saw it.
+                var position = ReadMilliseconds(html, "position");
+                var duration = ReadMilliseconds(html, "duration");
+
                 if (path.Length > 0)
                 {
-                    _webFile = new WebFile(path, state, DateTime.UtcNow);
+                    _webFile = new WebFile(path, state, position, duration, DateTime.UtcNow);
                     answered = true;
                 }
             }
@@ -470,8 +519,25 @@ public class MpcHcService
     /// Tries multiple methods to get current position + duration.
     /// Returns (currentSeconds, durationSeconds). Either may be 0 if unavailable.
     /// </summary>
+    /// <remarks>
+    /// The Web Interface first, because it is the only source that reports a
+    /// fraction of a second. The status bar counts in whole seconds, so a seek
+    /// to 2s that settles at 1.96 — which is ordinary, a seek lands on the
+    /// keyframe at or before what was asked for — reads back as a flat 1 and
+    /// the bar disagrees with the status line that just said 2s. Nothing
+    /// downstream can recover the fraction, because the player discarded it
+    /// before printing.
+    ///
+    /// It costs nothing: the page is already being fetched once a second for
+    /// the open file and the play state, and this reads two more fields of the
+    /// same answer. The window-message route stays as the fallback for an
+    /// interface that is switched off.
+    /// </remarks>
     public (double CurrentSeconds, double DurationSeconds) GetPlaybackPosition()
     {
+        BeginWebFileProbe();
+        if (WebPlaybackPosition() is { } fromWeb) return fromWeb;
+
         var hwnd = FindMpcWindow();
         if (hwnd == IntPtr.Zero) return (0, 0);
 
@@ -853,6 +919,12 @@ public class MpcHcService
             return false;
         }
         seconds = Math.Max(0, seconds);
+
+        // Whatever the cached answer says the position is, it is about to be
+        // wrong. Without this the bar reports where the player used to be for
+        // the rest of the probe interval, which after a seek is the one moment
+        // somebody is watching it.
+        InvalidatePlayerSnapshot();
 
         if (await TrySeekViaWebInterfaceAsync(seconds))
             return true;
