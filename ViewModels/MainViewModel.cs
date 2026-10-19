@@ -4249,6 +4249,29 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ?? Application.Current?.MainWindow;
 
     /// <summary>
+    /// Reports a failure in a box that looks and sounds like one.
+    /// </summary>
+    /// <remarks>
+    /// The icon is not decoration. MessageBox plays the system sound belonging
+    /// to whichever icon it is given, and one raised without an icon is silent
+    /// — so every failure in this program was announced by an untitled box with
+    /// no sound, which is the shape of a notice rather than of something having
+    /// gone wrong. Saying it is an error is what makes Windows say so too.
+    ///
+    /// Owned, like the other dialogs here: an unowned box can end up behind the
+    /// window it disabled. See <see cref="DialogOwner"/>.
+    /// </remarks>
+    private static void ShowError(string message, string title)
+    {
+        var owner = DialogOwner;
+
+        if (owner is not null)
+            MessageBox.Show(owner, message, title, MessageBoxButton.OK, MessageBoxImage.Error);
+        else
+            MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Error);
+    }
+
+    /// <summary>
     /// Returns a path that does not exist yet, asking the user what to do
     /// each time the candidate is taken. Returns null if they cancel.
     /// </summary>
@@ -4750,7 +4773,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             StatusText = $"Merged {fileCount} files → {outName}";
             completed = true;
         }
-        catch (Exception ex) { StatusText = "Merge failed"; MessageBox.Show(ex.Message); }
+        catch (Exception ex) { StatusText = "Merge failed"; ShowError(ex.Message, "Merge failed"); }
         finally
         {
             IsBusy = false; ProgressPercent = 0;
@@ -5122,7 +5145,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             succeeded = true;
         }
-        catch (Exception ex) { StatusText = trimming ? "Trim failed" : "Merge failed"; MessageBox.Show(ex.Message); }
+        catch (Exception ex)
+        {
+            var what = trimming ? "Trim failed" : "Merge failed";
+            StatusText = what;
+            ShowError(ex.Message, what);
+        }
         finally
         {
             IsBusy = false; ProgressPercent = 0;
@@ -5207,7 +5235,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             // is nothing the originals are redundant to.
             succeeded = written > 0;
         }
-        catch (Exception ex) { StatusText = "Split failed"; MessageBox.Show(ex.Message); }
+        catch (Exception ex) { StatusText = "Split failed"; ShowError(ex.Message, "Split failed"); }
         finally
         {
             IsBusy = false; ProgressPercent = 0;
@@ -6047,6 +6075,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IsBusy = true;
         int done = 0;
         int wroteAudio = 0, wroteVideo = 0;
+
+        // A run that threw, as against one the user cancelled at a name prompt.
+        // Only the first is a failure; the second is them changing their mind,
+        // and reporting it as a failure would be calling the user an error.
+        var anyFailed = false;
         var stripped = new List<string>();
         Job.Begin("Stripping audio", ofd.FileNames.Length);
         BeginNameBatch(ofd.FileNames.Length);
@@ -6111,7 +6144,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 });
 
                 try { await run(outPath, fileProgress); }
-                catch (Exception ex) { MessageBox.Show(ex.Message); return false; }
+                catch (Exception ex)
+                {
+                    anyFailed = true;
+                    ShowError(ex.Message, "Strip audio failed");
+                    return false;
+                }
                 finally { step++; }
 
                 return true;
@@ -6150,8 +6188,31 @@ public partial class MainViewModel : ObservableObject, IDisposable
             _ => $"Extracted the audio from {wroteAudio} file(s)"
         };
 
-        Job.Complete(produced + " to", ResolveSaveToDirectory());
-        StatusText = wantVideo && !wantAudio ? "Audio removal finished" : "Audio extraction finished";
+        // Nothing written is not a finished job. Completing regardless is what
+        // had a run that failed — and said so in a dialog — go on to fill the
+        // bar, report what it had produced, and play the finished chime over
+        // the top of the error the user was still reading.
+        //
+        // Counted rather than taken from the last run's result: with several
+        // files picked, some can be written and others fail, and the job is
+        // only a failure when none of them got through.
+        if (anyFailed || (wroteAudio == 0 && wroteVideo == 0))
+        {
+            var what = wantVideo && !wantAudio ? "Audio removal failed" : "Audio extraction failed";
+
+            // What did get written is still said. "Failed" on its own would
+            // hide three files that were written because a fourth was not, and
+            // leave the user hunting for output they already have.
+            var detail = wroteAudio > 0 || wroteVideo > 0 ? $"{what} — {produced}" : what;
+
+            Job.End(detail);
+            StatusText = detail;
+        }
+        else
+        {
+            Job.Complete(produced + " to", ResolveSaveToDirectory());
+            StatusText = wantVideo && !wantAudio ? "Audio removal finished" : "Audio extraction finished";
+        }
 
         // Same rule as Convert: these are files the user picked here, so the
         // session's bookmark file — which belongs to a different video — is not
@@ -8799,7 +8860,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             StatusText = $"{label} export failed";
-            MessageBox.Show(ex.Message);
+            ShowError(ex.Message, $"{label} export failed");
         }
         finally
         {
@@ -9059,7 +9120,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             StatusText = "The frame could not be saved";
-            MessageBox.Show(ex.Message);
+            ShowError(ex.Message, "Could not save the frame");
         }
     }
 
