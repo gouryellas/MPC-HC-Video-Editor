@@ -822,6 +822,26 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
                 segmentFiles.Add(segmentPath);
             }
 
+            // Nothing readable to join is a failure worth naming here. The
+            // concat demuxer given an empty list, or one pointing at segments
+            // that came out zero-length, reports "Output file does not contain
+            // any stream" and exits -22 — true, unhelpful, and about the output
+            // rather than about the cut that actually produced nothing.
+            var empty = segmentFiles
+                .Where(f => !File.Exists(f) || new FileInfo(f).Length < 1024)
+                .ToList();
+
+            if (segmentFiles.Count == 0)
+                throw new InvalidOperationException(
+                    "None of the cuts produced anything to merge. Check that each one has " +
+                    "both a start and an end, and that neither sits past the end of the video.");
+
+            if (empty.Count > 0)
+                throw new InvalidOperationException(
+                    $"{empty.Count} of {segmentFiles.Count} cuts came out empty, so there is " +
+                    "nothing to join. The usual cause is a cut whose start is at or past the " +
+                    "end of the video, or one too short to contain a frame.");
+
             // Write concat list
             var concatList = Path.Combine(tempDir, "concat.txt");
             await File.WriteAllLinesAsync(concatList,
