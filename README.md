@@ -34,7 +34,7 @@ Right-click the seekbar for its own settings, or Options for the rest.
 
 ![The Resize images window, with standard sizes from a list, a choice of fitting inside, filling and cropping, or stretching, and where the resized copies should be written](Assets/screenshots/resize-images.png)
 
-![The Find clips automatically window, with silence, black frames and scene changes as the three things that can mark the end of a clip, the thresholds for each, and a list of proposed clips to review before accepting](Assets/screenshots/find-clips.png)
+![The Scan for cuts window, with silence, black frames and scene changes as the three things that can mark the end of a clip, the thresholds for each, and a list of proposed clips to review before accepting](Assets/screenshots/find-clips.png)
 
 ![The Crop window, showing a frame from the video with nothing drawn on it yet and the instruction to drag a box on the picture, a row of shape presets, and a choice between cropping the marked cuts or the whole video](Assets/screenshots/crop.png)
 
@@ -88,7 +88,7 @@ A bookmark is a **timestamp pair**: the hotkey opens it, the hotkey closes it.
   `1m30s` and ranges like `1:00 - 2:30`.
 - **Edit bookmarks** opens the CSV in a text editor; changes are picked up when
   the window regains focus.
-- **Find clips automatically…** scans for silence, black frames or scene changes
+- **Scan for cuts…** scans for silence, black frames or scene changes
   and proposes cuts to review before accepting — appended or replacing.
 - **Play all** / **Play selected** seek the player to each cut and play it for
   its effective duration.

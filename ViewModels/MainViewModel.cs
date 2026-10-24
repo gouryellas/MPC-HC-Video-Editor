@@ -6501,9 +6501,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         if (string.IsNullOrWhiteSpace(Session.VideoPath)) return;
 
-        var dlg = new DetectBookmarksDialog(_ffmpeg, Session.VideoPath)
+        var dlg = new DetectBookmarksDialog(_ffmpeg, Session.VideoPath, Session.Bookmarks.Count > 0)
         {
-            Owner = Application.Current?.MainWindow
+            Owner = Application.Current?.MainWindow,
+            Report = s => StatusText = s
         };
         var accepted = dlg.ShowDialog() == true;
 
@@ -6609,18 +6610,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         if (string.IsNullOrWhiteSpace(Session.VideoPath)) return;
 
-        var dlg = new DetectBookmarksDialog(_ffmpeg, Session.VideoPath)
+        var dlg = new DetectBookmarksDialog(_ffmpeg, Session.VideoPath, Session.Bookmarks.Count > 0)
         {
             Owner = Application.Current?.MainWindow,
-            Title = "Scan for edit points"
+            Report = s => StatusText = s
         };
         dlg.ShowDialog();
 
         TakeSnapPoints(dlg.Scanned);
 
-        StatusText = SnapPoints.Count == 0
-            ? "The scan found no edit points — try a lower threshold, or another mode"
-            : $"Found {SnapPoints.Count} edit point(s) — brackets dragged near one now land on it";
+        // The dialog has already said what the scan found. Nothing to add: a
+        // second line here would only restate it in different words a moment
+        // later, which reads as a correction rather than as detail.
     }
 
     /// <summary>

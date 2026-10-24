@@ -1,7 +1,7 @@
 ﻿<Window x:Class="MpcHcVideoEditor.Dialogs.DetectBookmarksDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Find clips automatically"
+        Title="Scan for cuts"
         Height="560" Width="520"
         MinHeight="460" MinWidth="460"
         Background="{DynamicResource WindowBackground}"
@@ -45,6 +45,38 @@
             <Setter Property="Padding" Value="12,6"/>
             <Setter Property="Margin" Value="3,0,0,0"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <!-- The stock chrome ignores Background and paints its own
+                 near-white fill when disabled, which turned the two accent
+                 buttons into blank white rectangles the moment a scan started:
+                 white text on white. This template honours the colours it is
+                 given in every state, so a disabled button still reads as the
+                 button it was. -->
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                            <!-- Dimmed enough to read as unavailable, not so
+                                 far that the label goes with it. -->
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Chrome" Property="Opacity" Value="0.75"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style x:Key="Card" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource PanelBackground}"/>

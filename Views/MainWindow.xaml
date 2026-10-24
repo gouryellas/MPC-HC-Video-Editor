@@ -864,7 +864,7 @@
                         <TextBlock Text="◐" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Find clips automatically…" Command="{Binding DetectBookmarksCommand}"
+                <MenuItem Header="Scan for cuts…" Command="{Binding DetectBookmarksCommand}"
                           ToolTip="Scans the video for silence, black frames or scene cuts and proposes bookmarks you can review before accepting">
                     <MenuItem.Icon>
                         <TextBlock Text="🔍" Style="{StaticResource MenuGlyph}"/>
@@ -1522,7 +1522,7 @@
                                 </MenuItem.Icon>
                             </MenuItem>
                             <Separator/>
-                            <MenuItem Header="Scan for edit points…" Command="{Binding ScanEditPointsCommand}"
+                            <MenuItem Header="Scan for cuts…" Command="{Binding ScanEditPointsCommand}"
                                       ToolTip="Look for where the video actually changes — silence, black frames or scene cuts — and mark each with a tick on the bar. Nothing is added to the cut list.">
                                 <MenuItem.Icon>
                                     <TextBlock Text="🔍" Style="{StaticResource MenuGlyph}"/>
