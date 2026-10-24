@@ -602,7 +602,7 @@ public partial class MainWindow : Window
         // another process holds the foreground is a SetForegroundWindow that
         // Windows refuses, and a refusal flashes the taskbar button — the same
         // trap as in RaiseToFront, one call earlier.
-        ShowActivated = activate && ForegroundWindow.OwnedByThisProcess();
+        ShowActivated = activate && !ForegroundWindow.OwnedByAnotherApp();
         Show();
         ShowActivated = true;
 
@@ -647,7 +647,11 @@ public partial class MainWindow : Window
         Topmost = true;
         Topmost = false;
 
-        if (ForegroundWindow.OwnedByThisProcess()) Activate();
+        // Asked for whenever it will not be refused: when the foreground is
+        // ours already, and equally when nobody holds it. Withheld only from
+        // an application the user actually switched to — that is the refusal
+        // that flashes the taskbar button instead of raising anything.
+        if (!ForegroundWindow.OwnedByAnotherApp()) Activate();
     }
 
     /// <summary>

@@ -50,4 +50,34 @@ public static class ForegroundWindow
         GetWindowThreadProcessId(foreground, out var owner);
         return owner == (uint)Environment.ProcessId;
     }
+
+    /// <summary>
+    /// Whether some other application has deliberately been put in front.
+    /// </summary>
+    /// <remarks>
+    /// Not simply the negation of <see cref="OwnedByThisProcess"/>. Focus can
+    /// end up nowhere — a player that closed, a window that went away, the
+    /// desktop itself — and that is not the user choosing something else. Those
+    /// cases answer false, so a window restoring itself into the gap is filling
+    /// a vacancy rather than talking over anyone.
+    ///
+    /// The shell window is the desktop. Clicking it is as close to clicking
+    /// nothing as Windows offers, and treating it as a third application would
+    /// make "put everything away" the one gesture this never recovers from.
+    /// </remarks>
+    public static bool OwnedByAnotherApp()
+    {
+        var foreground = GetForegroundWindow();
+        if (foreground == IntPtr.Zero) return false;
+        if (foreground == GetShellWindow() || foreground == GetDesktopWindow()) return false;
+
+        GetWindowThreadProcessId(foreground, out var owner);
+        return owner != (uint)Environment.ProcessId;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetShellWindow();
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetDesktopWindow();
 }

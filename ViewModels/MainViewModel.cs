@@ -1170,8 +1170,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
             // The same for a window the user had minimized, whoever took the
             // focus. Minimizing says this window is not wanted on screen, and
             // that outlives a trip to the player and back.
+            //
+            // Everything else is raised, including focus that went nowhere at
+            // all — the player quit, or was dismissed onto the desktop. Nobody
+            // is being interrupted there, and the alternative is the editor
+            // sitting behind an empty screen waiting to be found.
             if (_minimalViewActive)
-                RestoreFullView(activate: ForegroundWindow.OwnedByThisProcess() && !WindowMinimized);
+                RestoreFullView(activate: !WindowMinimized && !ForegroundWindow.OwnedByAnotherApp());
 
             return;
         }
