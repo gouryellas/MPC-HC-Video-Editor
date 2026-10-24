@@ -212,6 +212,23 @@
                                 </MultiDataTrigger.Conditions>
                                 <Setter Property="Foreground" Value="{DynamicResource StatusOk}"/>
                             </MultiDataTrigger>
+
+                            <!-- And "no tag" in red rather than green, since
+                                 it is the one tag that says output keeps the
+                                 source's own name. Green reads as "a tag is
+                                 on"; this is the state where none is, and it
+                                 is worth being able to tell at a glance.
+
+                                 Last of the three on purpose, for the same
+                                 reason as the one above it. -->
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsFlat, FallbackValue=False, TargetNullValue=False}" Value="True"/>
+                                    <Condition Binding="{Binding StyleKey}" Value="ActiveTagButton"/>
+                                    <Condition Binding="{Binding Key}" Value="tag:none"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Foreground" Value="{DynamicResource StatusError}"/>
+                            </MultiDataTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
