@@ -708,6 +708,40 @@
                         <TextBlock Text="↷" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
+                <Separator/>
+                <!-- The same stack the two entries above walk one step at a
+                     time, laid out so it can be read and crossed in one go.
+                     Newest at the top, with the present marked between the
+                     changes undone and the changes still ahead.
+
+                     Each row carries its own command — see HistoryEntry — so
+                     nothing here has to reach back out of the popup for one. -->
+                <MenuItem Header="History" ItemsSource="{Binding HistoryEntries}"
+                          IsEnabled="{Binding HasHistory}"
+                          ToolTip="Every change to the cuts still on the stack. Click one to jump straight to it, however many steps away it is.">
+                    <MenuItem.Icon>
+                        <TextBlock Text="☰" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                    <MenuItem.ItemContainerStyle>
+                        <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                            <Setter Property="Header" Value="{Binding Display}"/>
+                            <Setter Property="ToolTip" Value="{Binding Hint}"/>
+                            <Setter Property="Command" Value="{Binding Command}"/>
+                            <Style.Triggers>
+                                <!-- The present is a label, not a destination.
+                                     Accented and unclickable, so the list has a
+                                     visible middle rather than two halves that
+                                     look alike and read in opposite
+                                     directions. -->
+                                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                    <Setter Property="IsEnabled" Value="False"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                    <Setter Property="Foreground" Value="{DynamicResource StatusOk}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </MenuItem.ItemContainerStyle>
+                </MenuItem>
             </MenuItem>
             <!-- Grouped by what each operation acts on, in the same four
                  families the toolbar is coloured by — video, then audio, then

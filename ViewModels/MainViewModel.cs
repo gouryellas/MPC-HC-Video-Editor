@@ -8184,6 +8184,85 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public string RedoEditHeader => _history.NextRedo is { } d ? $"Redo {d}" : "Redo";
 
     /// <summary>
+    /// How many changes either side of the present the history list shows.
+    /// </summary>
+    /// <remarks>
+    /// The stack holds fifty. All fifty in a menu is a column taller than most
+    /// screens, and the far end of it is somewhere nobody navigates to by
+    /// reading. Twenty each way is more than a session's worth of fiddling with
+    /// one cut, and Ctrl+Z still walks past the end of what is listed.
+    /// </remarks>
+    private const int HistoryEntriesShown = 20;
+
+    /// <summary>
+    /// The history as a list to read, newest first, with the present marked.
+    /// </summary>
+    /// <remarks>
+    /// Undo on its own only ever offers the one step, so stepping back six
+    /// changes means pressing it six times and watching the list jump, with no
+    /// way to see where you are going until you arrive. This says what each
+    /// step was and lets one click cross all of them.
+    /// </remarks>
+    public IReadOnlyList<HistoryEntry> HistoryEntries
+    {
+        get
+        {
+            var rows = new List<HistoryEntry>();
+
+            foreach (var step in _history.Timeline)
+            {
+                if (Math.Abs(step.Offset) > HistoryEntriesShown) continue;
+
+                // The present goes in on the way past, between the last step
+                // forward and the first step back.
+                if (step.Offset < 0 && rows.All(r => !r.IsCurrent))
+                    rows.Add(Present());
+
+                var offset = step.Offset;
+                rows.Add(new HistoryEntry(
+                    offset < 0 ? $"Undo {step.Description}" : $"Redo {step.Description}",
+                    offset,
+                    false)
+                {
+                    Command = new RelayCommand(() => GoToHistoryStep(offset))
+                });
+            }
+
+            // Nothing to undo, so the loop above never passed the boundary.
+            if (rows.Count > 0 && rows.All(r => !r.IsCurrent))
+                rows.Add(Present());
+
+            return rows;
+
+            static HistoryEntry Present() => new("Where you are now", 0, true);
+        }
+    }
+
+    /// <summary>Whether there is any history worth showing a list of.</summary>
+    public bool HasHistory => _history.CanUndo || _history.CanRedo;
+
+    /// <summary>
+    /// Jumps to a point in the history, however many changes away it is.
+    /// </summary>
+    /// <remarks>
+    /// Every change crossed is pushed onto the other side as it goes, so a jump
+    /// of six is six ordinary steps and is reversed by stepping forward again.
+    /// Nothing about arriving in one click makes the way back any harder.
+    /// </remarks>
+    private void GoToHistoryStep(int offset)
+    {
+        if (offset == 0) return;
+        if (!_history.TryMove(offset, CaptureBookmarks(), out var restore)) return;
+
+        RestoreBookmarks(restore);
+        NotifyHistoryChanged();
+
+        var n = Math.Abs(offset);
+        var changes = n == 1 ? "1 change" : $"{n} changes";
+        StatusText = offset < 0 ? $"Stepped back {changes}" : $"Stepped forward {changes}";
+    }
+
+    /// <summary>
     /// Every bookmark currently subscribed to, so subscribing is idempotent
     /// and nothing is left attached.
     /// </summary>
@@ -8386,6 +8465,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CanRedoEdit));
         OnPropertyChanged(nameof(UndoEditHeader));
         OnPropertyChanged(nameof(RedoEditHeader));
+        OnPropertyChanged(nameof(HistoryEntries));
+        OnPropertyChanged(nameof(HasHistory));
         UndoEditCommand.NotifyCanExecuteChanged();
         RedoEditCommand.NotifyCanExecuteChanged();
     }

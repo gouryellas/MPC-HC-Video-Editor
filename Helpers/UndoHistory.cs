@@ -20,6 +20,16 @@ public sealed class UndoHistory<TState>
 {
     private readonly record struct Entry(string Description, TState State);
 
+    /// <summary>
+    /// One change, and how far from here it is.
+    /// </summary>
+    /// <param name="Offset">
+    /// Negative to step back, positive to step forward, counted in changes.
+    /// −1 is what Undo would do; +1 is Redo. Never zero: the present is not a
+    /// change and has no entry of its own.
+    /// </param>
+    public readonly record struct Step(string Description, int Offset);
+
     private readonly List<Entry> _undo = new();
     private readonly List<Entry> _redo = new();
     private readonly int _capacity;
@@ -39,6 +49,74 @@ public sealed class UndoHistory<TState>
 
     /// <summary>What Redo would reapply, for the menu. Null when there is nothing.</summary>
     public string? NextRedo => CanRedo ? _redo[^1].Description : null;
+
+    /// <summary>
+    /// Every change still reachable, newest first: the furthest-forward redo
+    /// down to the oldest undo, with the present in between them.
+    /// </summary>
+    /// <remarks>
+    /// Newest first because that is the end being worked on. The row nearest
+    /// the present is the one most likely wanted, and a list that grew downward
+    /// would move it further away with every edit.
+    ///
+    /// Ordinary <see cref="List{T}"/> rather than anything observable: this is
+    /// rebuilt from scratch whenever the stacks move, which is cheap at fifty
+    /// entries and leaves no chance of a view holding a stale half of one.
+    /// </remarks>
+    public IReadOnlyList<Step> Timeline
+    {
+        get
+        {
+            var steps = new List<Step>(_undo.Count + _redo.Count);
+
+            // _redo[^1] is the next one forward, so the list reads furthest
+            // first — the same direction the undo half reads in.
+            for (int i = 0; i < _redo.Count; i++)
+                steps.Add(new Step(_redo[i].Description, _redo.Count - i));
+
+            for (int i = _undo.Count - 1; i >= 0; i--)
+                steps.Add(new Step(_undo[i].Description, -(_undo.Count - i)));
+
+            return steps;
+        }
+    }
+
+    /// <summary>
+    /// Moves by <paramref name="offset"/> changes in one go.
+    /// </summary>
+    /// <remarks>
+    /// Walks one step at a time rather than reaching straight into the stack.
+    /// Each step pushes the state it passed through onto the other side, so
+    /// every change crossed stays individually reversible — jumping back six
+    /// and then wanting only five of them back is an ordinary Redo afterwards,
+    /// not a branch that was thrown away.
+    ///
+    /// Stops early rather than failing if the offset runs past what is there,
+    /// and reports whether it moved at all.
+    /// </remarks>
+    public bool TryMove(int offset, TState current, out TState restore)
+    {
+        restore = current;
+        if (offset == 0) return false;
+
+        var moved = false;
+        for (int i = 0; i < Math.Abs(offset); i++)
+        {
+            // Into a local first. A failed TryUndo clears its out parameter on
+            // the way to returning false, so stepping directly into `restore`
+            // would throw away everything walked so far on the step that found
+            // the end of the stack.
+            var stepped = offset < 0
+                ? TryUndo(restore, out var next)
+                : TryRedo(restore, out next);
+
+            if (!stepped) break;
+            restore = next;
+            moved = true;
+        }
+
+        return moved;
+    }
 
     /// <summary>
     /// Records the state as it was before <paramref name="description"/>
