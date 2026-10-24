@@ -329,11 +329,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 ToolTip = "Propose cuts from silence, black frames or scene changes" },
         new() { Key = "edit-bookmarks", Group = "Bookmarks", Label = "✎ Edit bookmarks", Icon = "✎", IconFile = "icon-edit_bookmarks", Command = EditBookmarksCommand,
                 ToolTip = "Open the bookmark CSV in a text editor" },
-        // Walking the cuts is a menu action only — Bookmarks ▸ Play all cuts and
-        // Play selected cuts. It had a toolbar button, but once play/pause
-        // arrived the two were a blue ▶ apiece doing unrelated things, and the
-        // one that walks cuts is the rarer of them.
-        //
+        // Walking the cuts, as two buttons rather than the one this used to
+        // have. Telling them apart was the problem the first time: play/pause
+        // and "play the cuts" were a blue ▶ apiece doing unrelated things.
+        // Their own pictures settle that, so they are back.
+        new() { Key = "play-all", Group = "Bookmarks", Label = "▶ Play all", Icon = "▶", IconFile = "icon-play_all", Command = PlayAllCommand,
+                ToolTip = "Seek the player to each cut in turn and play it" },
+        new() { Key = "play-selected", Group = "Bookmarks", Label = "▶ Play selected", Icon = "▶", IconFile = "icon-play_selected", Command = PlaySelectedCommand,
+                MinWidth = 104, ToolTip = "Seek the player to each checked cut in turn and play it" },
+
         // Still keyed "pause" although it is now both halves: a key is what a
         // saved layout is a list of, and this one has shipped. Renaming it
         // would quietly drop the button from any toolbar already carrying it.
