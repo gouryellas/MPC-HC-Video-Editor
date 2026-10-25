@@ -4281,6 +4281,27 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// Reports an outcome that is not a failure, on the same terms.
+    /// </summary>
+    /// <remarks>
+    /// For the end of an action the user asked for and then stopped watching.
+    /// The status bar is where this program says what just happened, and it is
+    /// the right place for anything that follows from what is on screen — but
+    /// a line there is easy to miss when the answer is the whole reason the
+    /// menu item was clicked, and the window may not even be the one in front
+    /// by the time it arrives.
+    /// </remarks>
+    private static void ShowInfo(string message, string title)
+    {
+        var owner = DialogOwner;
+
+        if (owner is not null)
+            MessageBox.Show(owner, message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+        else
+            MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    /// <summary>
     /// Returns a path that does not exist yet, asking the user what to do
     /// each time the candidate is taken. Returns null if they cancel.
     /// </summary>
@@ -6761,12 +6782,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// menu item that had already done something else.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// The title every box this command raises carries — the menu entry that
+    /// opened it, so the answer is attributable to the question.
+    /// </summary>
+    private const string FindMovedFiles = "Find moved files";
+
     [RelayCommand]
     private async Task RelocatePlaylistEntries(string? plsPath)
     {
         if (string.IsNullOrWhiteSpace(plsPath) || !File.Exists(plsPath))
         {
             StatusText = "Playlist file not found.";
+            ShowError("That playlist file is no longer there.", FindMovedFiles);
             return;
         }
 
@@ -6783,6 +6811,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (unreachable == 0)
         {
             StatusText = $"{name}: every entry's file is where it says it is.";
+            ShowInfo($"Every one of {name}'s entries points at a file that is there. " +
+                     "Nothing needs finding.", FindMovedFiles);
             return;
         }
 
@@ -6819,7 +6849,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     ? $"Found all {relettered} {Entries(relettered)} on {chosen} — {name} now points at them"
                     : $"Found {relettered} {Entries(relettered)} on {chosen}, {unreachable} still missing";
 
-                if (unreachable == 0) return;
+                if (unreachable == 0)
+                {
+                    ShowInfo($"All {relettered} {Entries(relettered)} were on {chosen} under the same " +
+                             $"paths.\n\n{name} now points at them.", FindMovedFiles);
+                    return;
+                }
 
                 // Re-lettering rewrote the file, so the statuses gathered
                 // before it are stale — and an entry it moved onto the chosen
@@ -6833,6 +6868,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             StatusText = $"{name}: {unreachable} {Entries(unreachable)} are on a drive that is not " +
                          "connected, so there is nothing that can be searched for.";
+            ShowInfo($"{unreachable} {Entries(unreachable)} were not found on {chosen}, and the drive " +
+                     "they name is not connected — so there is no way to tell whether those files " +
+                     "still exist.\n\nNothing was changed. Connect that drive, or pick the one the " +
+                     "files are on now.", FindMovedFiles);
             return;
         }
 
@@ -6851,14 +6890,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ? $"{gone} {Entries(gone)} are not under {where} by their old paths."
             : $"None of {name}'s {gone} missing {Entries(gone)} are under {where} by their old paths.";
 
-        return MessageBox.Show(
-            Application.Current?.MainWindow!,
-            $"{opening}\n\n" +
-            $"Search {where} for them by filename instead? This reads every folder on it and can " +
-            "take a while on a large drive.",
-            "Find moved files",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question) == MessageBoxResult.Yes;
+        var question = $"{opening}\n\n" +
+                       $"Search {where} for them by filename instead? This reads every folder on it " +
+                       "and can take a while on a large drive.";
+
+        // Through DialogOwner rather than straight at MainWindow: the drive
+        // picker has just closed, and an unowned box can end up behind the
+        // window it disabled.
+        var owner = DialogOwner;
+
+        return (owner is not null
+            ? MessageBox.Show(owner, question, FindMovedFiles,
+                              MessageBoxButton.YesNo, MessageBoxImage.Question)
+            : MessageBox.Show(question, FindMovedFiles,
+                              MessageBoxButton.YesNo, MessageBoxImage.Question))
+            == MessageBoxResult.Yes;
     }
 
     /// <summary>
@@ -6909,6 +6955,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 : $"Relocated {moved.Count} of {gone} {Entries(gone)} in {name}";
 
             if (moved.Count > 0) PlaylistsChanged?.Invoke();
+
+            ShowInfo(
+                moved.Count == 0
+                    ? $"None of the {gone} missing {Entries(gone)} could be found anywhere under " +
+                      $"{where}.\n\n{name} was left as it was."
+                    : moved.Count == gone
+                        ? $"All {gone} missing {Entries(gone)} were found under {where}.\n\n" +
+                          $"{name} now points at them."
+                        : $"{moved.Count} of the {gone} missing {Entries(gone)} were found under " +
+                          $"{where}.\n\nThe other {gone - moved.Count} could not be, and were left " +
+                          "pointing where they were.",
+                FindMovedFiles);
         }
         finally
         {
