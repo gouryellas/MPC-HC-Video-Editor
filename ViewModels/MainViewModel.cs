@@ -6743,11 +6743,23 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// the playlist at them, instead of deleting the entries.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The counterpart to removal, and usually the one wanted: a file that is
     /// not where the playlist says has more often been moved than deleted.
-    /// Asks for a folder to search rather than guessing, then also searches the
-    /// folders the surviving entries live in — which is where a reorganized
-    /// library normally puts things.
+    /// </para>
+    /// <para>
+    /// Asks which drive first, and tries the cheap answer before any searching:
+    /// a disk that came back on a different letter has every file exactly where
+    /// it was, so swapping the root and asking whether it is there costs one
+    /// existence check per entry. That is the common case, and it finishes
+    /// before the dialog has finished closing.
+    /// </para>
+    /// <para>
+    /// Only what that leaves is worth a search, and the search is offered
+    /// rather than started: reading every folder on a drive takes minutes, and
+    /// is not something to begin on the user's behalf because they clicked a
+    /// menu item that had already done something else.
+    /// </para>
     /// </remarks>
     [RelayCommand]
     private async Task RelocatePlaylistEntries(string? plsPath)
@@ -6760,39 +6772,140 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         var name = Path.GetFileName(plsPath);
         var classified = _playlists.ClassifyEntries(plsPath);
-        var gone = classified.Count(e => e.Status == PlaylistEntryStatus.Missing);
 
-        if (gone == 0)
+        // Everything not where the playlist says, whichever reason. The two
+        // reasons matter very much to removal and not at all here: a file on a
+        // drive that is no longer connected is the whole reason somebody opens
+        // this, and counting only the confirmed-gone ones answered "nothing to
+        // look for" to a playlist where every entry had lost its drive letter.
+        var unreachable = classified.Count(e => e.Status != PlaylistEntryStatus.Present);
+
+        if (unreachable == 0)
         {
-            StatusText = $"{name}: nothing is confirmed gone, so there is nothing to look for.";
+            StatusText = $"{name}: every entry's file is where it says it is.";
             return;
         }
 
-        var picker = new OpenFolderDialog
+        var picker = new DriveSelectDialog(
+            $"{name} has {unreachable} {Entries(unreachable)} whose files are not where it says " +
+            "they are. If the drive holding them came back under a different letter, pick it here " +
+            "and they will be found straight away.")
         {
-            Title = $"Where should {name}'s {gone} missing {Entries(gone)} be looked for?"
+            Owner = Application.Current?.MainWindow
         };
         if (picker.ShowDialog() != true) return;
 
-        // The chosen root plus wherever the surviving entries already live: a
+        var chosen = picker.SelectedPath;
+        var relettered = 0;
+
+        // The filename search that may follow is narrower than the re-letter
+        // pass on purpose — see RelocateMissingEntries — so its own count is
+        // the confirmed-gone ones only.
+        var gone = classified.Count(e => e.Status == PlaylistEntryStatus.Missing);
+
+        // A folder was picked instead, so there is no drive to re-letter and
+        // nothing to try before searching it.
+        if (picker.IsWholeDrive)
+        {
+            var swapped = _playlists.RelocateToRoot(plsPath, chosen);
+            relettered = swapped.Count;
+
+            if (relettered > 0)
+            {
+                PlaylistsChanged?.Invoke();
+                unreachable -= relettered;
+
+                StatusText = unreachable == 0
+                    ? $"Found all {relettered} {Entries(relettered)} on {chosen} — {name} now points at them"
+                    : $"Found {relettered} {Entries(relettered)} on {chosen}, {unreachable} still missing";
+
+                if (unreachable == 0) return;
+
+                // Re-lettering rewrote the file, so the statuses gathered
+                // before it are stale — and an entry it moved onto the chosen
+                // drive is now Present rather than something to search for.
+                gone = _playlists.ClassifyEntries(plsPath)
+                    .Count(e => e.Status == PlaylistEntryStatus.Missing);
+            }
+        }
+
+        if (gone == 0)
+        {
+            StatusText = $"{name}: {unreachable} {Entries(unreachable)} are on a drive that is not " +
+                         "connected, so there is nothing that can be searched for.";
+            return;
+        }
+
+        if (!AskToSearch(name, gone, chosen, relettered)) return;
+
+        await SearchForMissingEntries(plsPath, name, gone, chosen, picker.IsWholeDrive);
+    }
+
+    /// <summary>
+    /// Asks before committing the user to a search that reads every folder
+    /// under what they picked.
+    /// </summary>
+    private static bool AskToSearch(string name, int gone, string where, int alreadyFound)
+    {
+        var opening = alreadyFound > 0
+            ? $"{gone} {Entries(gone)} are not under {where} by their old paths."
+            : $"None of {name}'s {gone} missing {Entries(gone)} are under {where} by their old paths.";
+
+        return MessageBox.Show(
+            Application.Current?.MainWindow!,
+            $"{opening}\n\n" +
+            $"Search {where} for them by filename instead? This reads every folder on it and can " +
+            "take a while on a large drive.",
+            "Find moved files",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question) == MessageBoxResult.Yes;
+    }
+
+    /// <summary>
+    /// The deep search: index every filename under the chosen place, then
+    /// repoint whatever matches.
+    /// </summary>
+    private async Task SearchForMissingEntries(
+        string plsPath, string name, int gone, string where, bool wholeDrive)
+    {
+        // The chosen place plus wherever the surviving entries already live: a
         // library that was reorganized usually moved files between folders it
-        // is already using.
-        var roots = new List<string> { picker.FolderName };
-        roots.AddRange(classified
+        // is already using. Ones that sit inside the chosen place are dropped
+        // by the index itself rather than walked twice.
+        var roots = new List<string> { where };
+        roots.AddRange(_playlists.ClassifyEntries(plsPath)
             .Where(e => e.Status == PlaylistEntryStatus.Present)
             .Select(e => Path.GetDirectoryName(e.Path) ?? string.Empty)
             .Where(d => d.Length > 0)
             .Distinct(StringComparer.OrdinalIgnoreCase));
 
-        StatusText = $"Searching for {gone} missing {Entries(gone)}…";
+        // A whole drive is searched to the bottom. The four-level default
+        // suits a folder someone pointed at, where the files are expected to
+        // be near the top; a drive root reaches almost nothing at four, and
+        // the user has just been told this one takes a while. The cap that
+        // remains is only there so a junction pointing at its own ancestor
+        // cannot spin forever.
+        var depth = wholeDrive ? 64 : 4;
+
+        // Constructed here, on the UI thread, so its callbacks come back to
+        // the UI thread — the search itself runs on a worker and must not
+        // touch StatusText directly.
+        var progress = new Progress<PlaylistService.SearchProgress>(p =>
+        {
+            if (p.Folder.Length == 0) return;
+            StatusText = $"Searching {where} — {p.Files:N0} files in {p.Folders:N0} folders";
+        });
+
+        StatusText = $"Searching {where}…";
         IsBusy = true;
         try
         {
             List<PlaylistService.RelocatedEntry> moved = new();
-            await Task.Run(() => moved = _playlists.RelocateMissingEntries(plsPath, roots));
+            await Task.Run(() => moved = _playlists.RelocateMissingEntries(
+                plsPath, roots, depth, CancellationToken.None, progress));
 
             StatusText = moved.Count == 0
-                ? $"{name}: none of the {gone} missing {Entries(gone)} could be found under {picker.FolderName}."
+                ? $"{name}: none of the {gone} missing {Entries(gone)} could be found under {where}."
                 : $"Relocated {moved.Count} of {gone} {Entries(gone)} in {name}";
 
             if (moved.Count > 0) PlaylistsChanged?.Invoke();

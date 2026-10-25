@@ -349,6 +349,97 @@ public class PlaylistService
     /// </summary>
     public readonly record struct RelocatedEntry(string OldPath, string NewPath);
 
+    /// <summary>How far through a search is, for the status bar.</summary>
+    /// <param name="Folders">Folders walked so far.</param>
+    /// <param name="Files">Filenames indexed so far.</param>
+    /// <param name="Folder">The folder being read, for somewhere to look.</param>
+    public readonly record struct SearchProgress(int Folders, int Files, string Folder);
+
+    /// <summary>
+    /// Re-points missing entries at the same paths on a different drive.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The cheap answer to the common case, and the one worth trying before
+    /// walking anything: a disk that came back on a different letter has every
+    /// file exactly where it was, under a root that changed. Swapping the root
+    /// and asking whether the file is there is one existence check per entry,
+    /// against a scan that reads every folder on a drive.
+    /// </para>
+    /// <para>
+    /// Both <see cref="PlaylistEntryStatus.Missing"/> and
+    /// <see cref="PlaylistEntryStatus.Unknown"/> entries move, and the second
+    /// of those is the point. A drive that came back under a different letter
+    /// leaves the old letter absent, so its entries are exactly the ones
+    /// nothing can be said about — classified Unknown, not Missing. Excluding
+    /// them here would mean this never fired in the one case it exists for.
+    /// </para>
+    /// <para>
+    /// That is not the licence <see cref="RelocateMissingEntries"/> withholds.
+    /// Searching by filename could land an entry on a different video that
+    /// happens to share a name; this repoints only when the <em>same</em> path
+    /// exists under a root the user has just nominated, which is as close to
+    /// proof as a re-lettered disk offers. Nothing is removed either way, and
+    /// an entry no match is found for is left exactly as it was.
+    /// </para>
+    /// <para>
+    /// A path with no root of its own is skipped rather than appended to the
+    /// new drive — a relative entry has no old drive to have changed, so there
+    /// is nothing here to correct.
+    /// </para>
+    /// </remarks>
+    public List<RelocatedEntry> RelocateToRoot(string plsPath, string newRoot)
+    {
+        var moved = new List<RelocatedEntry>();
+        if (!File.Exists(plsPath) || string.IsNullOrWhiteSpace(newRoot)) return moved;
+
+        var classified = ClassifyEntries(plsPath);
+        var updated = new List<string>(classified.Count);
+
+        foreach (var entry in classified)
+        {
+            if (entry.Status == PlaylistEntryStatus.Present)
+            {
+                updated.Add(entry.Path);
+                continue;
+            }
+
+            var candidate = OnRoot(entry.Path, newRoot);
+            if (candidate is not null && File.Exists(candidate))
+            {
+                moved.Add(new RelocatedEntry(entry.Path, candidate));
+                updated.Add(candidate);
+            }
+            else
+            {
+                updated.Add(entry.Path);
+            }
+        }
+
+        if (moved.Count > 0) WriteEntries(plsPath, updated);
+        return moved;
+    }
+
+    /// <summary>The same path, under a different root. Null when it has none.</summary>
+    private static string? OnRoot(string path, string newRoot)
+    {
+        try
+        {
+            var oldRoot = Path.GetPathRoot(path);
+            if (string.IsNullOrEmpty(oldRoot)) return null;
+
+            var tail = path[oldRoot.Length..].TrimStart(Path.DirectorySeparatorChar,
+                                                        Path.AltDirectorySeparatorChar);
+            if (tail.Length == 0) return null;
+
+            return Path.Combine(newRoot, tail);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     /// <summary>
     /// Looks for the files of confirmed-gone entries elsewhere and repoints
     /// them, rather than deleting the entries.
@@ -379,7 +470,7 @@ public class PlaylistService
     /// </param>
     public List<RelocatedEntry> RelocateMissingEntries(
         string plsPath, IEnumerable<string> searchRoots, int maxDepth = 4,
-        CancellationToken ct = default)
+        CancellationToken ct = default, IProgress<SearchProgress>? progress = null)
     {
         var moved = new List<RelocatedEntry>();
         if (!File.Exists(plsPath)) return moved;
@@ -390,7 +481,7 @@ public class PlaylistService
 
         // One index of every candidate filename, built once. Searching per
         // entry would re-walk the same folders for every missing file.
-        var index = BuildFileIndex(searchRoots, maxDepth, ct);
+        var index = BuildFileIndex(searchRoots, maxDepth, ct, progress);
 
         var updated = new List<string>(classified.Count);
         foreach (var entry in classified)
@@ -422,23 +513,58 @@ public class PlaylistService
     /// given depth. First occurrence wins.
     /// </summary>
     private static Dictionary<string, string> BuildFileIndex(
-        IEnumerable<string> roots, int maxDepth, CancellationToken ct)
+        IEnumerable<string> roots, int maxDepth, CancellationToken ct,
+        IProgress<SearchProgress>? progress = null)
     {
         var index = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var seenRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var walked = new List<string>();
 
-        foreach (var root in roots)
+        var folders = 0;
+        var lastReport = DateTime.UtcNow;
+
+        // Shortest first, so a containing folder is always walked before
+        // anything inside it and the inner one can be recognised as already
+        // covered. The other order would walk both.
+        var ordered = roots
+            .Where(r => !string.IsNullOrWhiteSpace(r) && Directory.Exists(r))
+            .Select(FullPath)
+            .Where(r => r.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(r => r.Length)
+            .ToList();
+
+        foreach (var root in ordered)
         {
-            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) continue;
-            if (!seenRoots.Add(Path.GetFullPath(root))) continue;
+            // A root inside one already walked is not a second search, it is
+            // the same folders again. Nesting is normal here: searching a whole
+            // drive is asked for alongside the folders the surviving entries
+            // live in, and those are usually on it.
+            if (walked.Any(w => IsUnder(root, w))) continue;
+
+            walked.Add(root);
             Walk(root, 0);
         }
 
+        // The final count, whatever the throttle last let through.
+        progress?.Report(new SearchProgress(folders, index.Count, string.Empty));
         return index;
 
         void Walk(string folder, int depth)
         {
             ct.ThrowIfCancellationRequested();
+
+            folders++;
+
+            // Throttled by time rather than by count: a folder of thousands of
+            // files and one holding nothing take very different amounts of
+            // time, and a report per folder would flood the UI thread on the
+            // second kind while saying nothing new on the first.
+            var now = DateTime.UtcNow;
+            if (progress is not null && now - lastReport > TimeSpan.FromMilliseconds(200))
+            {
+                lastReport = now;
+                progress.Report(new SearchProgress(folders, index.Count, folder));
+            }
 
             try
             {
@@ -457,6 +583,29 @@ public class PlaylistService
                 // A folder that cannot be read is skipped, not fatal. Denied
                 // system directories are normal on any real drive.
             }
+        }
+
+        // Left as GetFullPath leaves it, trailing separator and all. A drive
+        // root is "D:\" and trimming that to "D:" would turn it into the
+        // current directory on D: — a different folder, and the one place a
+        // tidier-looking path would quietly change what gets searched.
+        static string FullPath(string path)
+        {
+            try { return Path.GetFullPath(path); }
+            catch { return string.Empty; }
+        }
+
+        // Separator-aware, so "D:\Video" does not read as containing
+        // "D:\Videos" — a bare prefix test would skip the second folder
+        // entirely on the strength of sharing five characters with the first.
+        static bool IsUnder(string path, string maybeParent)
+        {
+            var parent = maybeParent.TrimEnd(Path.DirectorySeparatorChar);
+            var self = path.TrimEnd(Path.DirectorySeparatorChar);
+
+            return self.Equals(parent, StringComparison.OrdinalIgnoreCase) ||
+                   self.StartsWith(parent + Path.DirectorySeparatorChar,
+                                   StringComparison.OrdinalIgnoreCase);
         }
     }
 
