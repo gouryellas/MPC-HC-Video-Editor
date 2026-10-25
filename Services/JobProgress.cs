@@ -149,6 +149,7 @@ public partial class JobProgress : ObservableObject
     public void Begin(string action, int fileCount = 1, bool showsProgress = true)
     {
         _generation++;
+        _completing = false;
         Action = action;
         FileCount = fileCount;
         ShowsProgress = showsProgress;
@@ -178,6 +179,8 @@ public partial class JobProgress : ObservableObject
     /// </param>
     public void SetFile(int finished, string fileName)
     {
+        if (_completing) return;
+
         FileIndex = finished;
         CurrentFile = fileName;
     }
@@ -185,9 +188,28 @@ public partial class JobProgress : ObservableObject
     /// <summary>Reports the current step and overall percent.</summary>
     public void Report(string step, double percent)
     {
+        if (_completing) return;
+
         Step = step;
         Percent = Math.Clamp(percent, 0, 100);
     }
+
+    /// <summary>
+    /// Set from the moment a job starts finishing until the next one begins.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Progress{T}"/> delivers on the UI thread by posting, not by
+    /// calling, so the last few reports of an operation are still queued when
+    /// the await on it returns. They used to arrive after the panel had been
+    /// set to its finished state and put the step text back — a completed job
+    /// reading "Concatenating segments…" under a full green bar, which is the
+    /// one moment the panel is making a claim about the past rather than the
+    /// present.
+    ///
+    /// Ignored rather than ordered, because there is nothing useful a report
+    /// about a finished job could say.
+    /// </remarks>
+    private bool _completing;
 
     /// <summary>
     /// Finishes a job on a full green bar and holds the panel there before
@@ -201,11 +223,19 @@ public partial class JobProgress : ObservableObject
     {
         var generation = _generation;
 
-        // Every successful operation in the app ends here, which makes this the
-        // one place a "finished" sound can be raised from without nine callers
-        // having to remember it. Raised before the hold, not after: the sound is
-        // for whoever is not watching the panel.
-        Finished?.Invoke();
+        // Finishing the job comes first, and announcing it second. The order
+        // used to be the other way around, and it was load-bearing in the worst
+        // way: Finished is raised into whatever the app has subscribed — a
+        // sound, a flourish, a coloured strip — and one of those throwing took
+        // the rest of this method with it. CompleteAsync is called fire and
+        // forget, so there was nothing to observe the exception; the panel was
+        // simply left with its clock running and its headline frozen on
+        // whatever step it had reached, for every operation in the program at
+        // once.
+        //
+        // Nothing below this line can be skipped by a handler now, and the
+        // handlers run inside a catch besides.
+        _completing = true;
 
         // Both stop together, here and in End: the elapsed time is the length
         // of the job, so it stops when the job does and not a tick later.
@@ -221,6 +251,19 @@ public partial class JobProgress : ObservableObject
         // otherwise overwrite RemainingDisplay with "—" on a stopped clock.
         Percent = 100;
         RemainingDisplay = "0:00";
+
+        // Every successful operation in the app ends here, which makes this the
+        // one place a "finished" sound can be raised from without nine callers
+        // having to remember it. Raised before the hold, not after: the sound is
+        // for whoever is not watching the panel.
+        try { Finished?.Invoke(); }
+        catch
+        {
+            // A notification that cannot be delivered is not a job that did not
+            // finish. Swallowed rather than surfaced: by this point the work is
+            // done and the file is written, and there is nothing the user could
+            // usefully do about a chime.
+        }
 
         await Task.Delay(holdMs);
 
@@ -238,7 +281,17 @@ public partial class JobProgress : ObservableObject
     /// leave running unattended.
     /// </summary>
     public void Complete(string headline, string? createdFile = null, int holdMs = 3000, string? summary = null)
-        => _ = CompleteAsync(headline, createdFile, holdMs, summary);
+    {
+        // Faulted deliberately rather than discarded. `_ = CompleteAsync(…)`
+        // leaves an unobserved task, which is how a throw in here stayed
+        // invisible through an entire release: no dialog, no log line, nothing
+        // in the output window, only a progress panel that never went away.
+        // Nothing inside should throw any more, and if something does, this is
+        // where it becomes visible to anyone debugging.
+        _ = CompleteAsync(headline, createdFile, holdMs, summary)
+            .ContinueWith(t => Debug.Fail("JobProgress.CompleteAsync threw: " + t.Exception),
+                          TaskContinuationOptions.OnlyOnFaulted);
+    }
 
     /// <summary>
     /// Ends the job and hides the panel immediately. For cancellation and
@@ -249,6 +302,11 @@ public partial class JobProgress : ObservableObject
         _clock.Stop();
         _tick.Stop();
         if (finalStep != null) Step = finalStep;
+
+        // After the step, so a parting word survives it, and before IsRunning
+        // so a late report cannot land between the two.
+        _completing = true;
+
         Percent = 0;
         IsRunning = false;
     }

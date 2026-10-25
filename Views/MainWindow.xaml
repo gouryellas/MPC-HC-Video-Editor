@@ -1295,27 +1295,11 @@
              else for it to go in a strip at the bottom edge of a window, and
              it is what makes this read as a flare rather than as the bar
              having quietly changed colour. -->
+        <!-- The two flashes are begun from the code-behind, on StatusLevel
+             changing — see FlashStatusStrip, and PulseJobPanel above it, which
+             does the same thing for the same reason. A BeginStoryboard in a
+             Style trigger cannot resolve these names. -->
         <Grid DockPanel.Dock="Bottom">
-            <Grid.Style>
-                <Style TargetType="Grid">
-                    <Style.Triggers>
-                        <!-- Begun from the level rather than from the text, so
-                             anything that knows how an operation went can
-                             raise one without going near this file. -->
-                        <DataTrigger Binding="{Binding StatusLevel}" Value="Ok">
-                            <DataTrigger.EnterActions>
-                                <BeginStoryboard Storyboard="{StaticResource StatusFlashOk}"/>
-                            </DataTrigger.EnterActions>
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding StatusLevel}" Value="Failed">
-                            <DataTrigger.EnterActions>
-                                <BeginStoryboard Storyboard="{StaticResource StatusFlashFailed}"/>
-                            </DataTrigger.EnterActions>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Grid.Style>
-
             <Border Background="{DynamicResource PrimaryButton}"/>
 
             <Border x:Name="StatusOkFlash" Background="{DynamicResource StatusOk}"

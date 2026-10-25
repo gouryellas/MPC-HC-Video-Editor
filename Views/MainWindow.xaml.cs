@@ -1203,6 +1203,40 @@ public partial class MainWindow : Window
     {
         if (e.PropertyName == nameof(MainViewModel.ActiveSuffixDisplay))
             RefreshSuffixMenu();
+
+        if (e.PropertyName == nameof(MainViewModel.StatusLevel))
+            FlashStatusStrip();
+    }
+
+    /// <summary>
+    /// Colours the status strip for the level the ViewModel has just set.
+    /// </summary>
+    /// <remarks>
+    /// From here rather than from a trigger in the XAML, for the same reason
+    /// <see cref="PulseJobPanel"/> is: a Storyboard names its target, and
+    /// <c>Begin(this)</c> is what hands it the window as the scope to resolve
+    /// that name in.
+    ///
+    /// This was a DataTrigger with a BeginStoryboard in a Style, which looks
+    /// equivalent and is not. A Style has no namescope of its own, so the
+    /// TargetName resolved against the styled Grid, found nothing, and threw —
+    /// inside the PropertyChanged that set the level, which was raised from
+    /// JobProgress.Finished, which is called from a fire-and-forget
+    /// CompleteAsync. The exception went nowhere and took the rest of
+    /// completion with it: every finished job in the program was left with its
+    /// panel up, its clock running and its headline frozen mid-operation.
+    /// </remarks>
+    private void FlashStatusStrip()
+    {
+        var key = _vm?.StatusLevel switch
+        {
+            StatusLevel.Ok => "StatusFlashOk",
+            StatusLevel.Failed => "StatusFlashFailed",
+            _ => null                      // back to Normal: nothing to begin
+        };
+
+        if (key is not null && FindResource(key) is Storyboard flash)
+            flash.Begin(this);
     }
 
     /// <summary>
