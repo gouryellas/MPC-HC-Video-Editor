@@ -57,6 +57,31 @@
                               From="0" To="0.35" Duration="0:0:0.2" AutoReverse="True"/>
         </Storyboard>
 
+        <!-- The status strip says what just happened; these say how it went.
+             Up fast, held for most of three seconds, then faded out rather
+             than switched off — the arrival is the event worth noticing and
+             the departure is not, so only one of them is abrupt.
+
+             Three seconds is also what the ViewModel's timer waits before
+             putting the level back to Normal. The two have to agree: the
+             trigger below fires on the level changing, so a flash that
+             outlasted the reset would be cut off, and one that ended early
+             would leave a dead gap before the strip was ready to flash
+             again. -->
+        <Storyboard x:Key="StatusFlashOk">
+            <DoubleAnimation Storyboard.TargetName="StatusOkFlash" Storyboard.TargetProperty="Opacity"
+                             From="0" To="1" Duration="0:0:0.12"/>
+            <DoubleAnimation Storyboard.TargetName="StatusOkFlash" Storyboard.TargetProperty="Opacity"
+                             To="0" BeginTime="0:0:2.3" Duration="0:0:0.7"/>
+        </Storyboard>
+
+        <Storyboard x:Key="StatusFlashFailed">
+            <DoubleAnimation Storyboard.TargetName="StatusFailFlash" Storyboard.TargetProperty="Opacity"
+                             From="0" To="1" Duration="0:0:0.12"/>
+            <DoubleAnimation Storyboard.TargetName="StatusFailFlash" Storyboard.TargetProperty="Opacity"
+                             To="0" BeginTime="0:0:2.3" Duration="0:0:0.7"/>
+        </Storyboard>
+
         <!-- The preview frames are shown as the clip will be written, not as
              the file holds it: turned the way Rotate is set, mirrored if Flip
              is on. It costs nothing — the picture is already on screen, and
@@ -1260,12 +1285,60 @@
 
              No progress bar here either: the job panel directly above owns
              progress, and a second bar showed the same number twice. -->
-        <Border DockPanel.Dock="Bottom" Background="{DynamicResource PrimaryButton}" Padding="10,6">
-            <!-- Marquee rather than TextBlock: "Created <name> — <warning>"
-                 runs past the end of the bar on a long file name, and the
-                 warning is the half that gets clipped. -->
-            <helpers:MarqueeText Text="{Binding StatusText}" Foreground="{DynamicResource OnAccent}" VerticalAlignment="Center"/>
-        </Border>
+        <!-- Three layers, because the colour is temporary and the strip is
+             not. The theme fill is the floor; the two flashes sit over it at
+             zero opacity until something succeeds or fails; the text is above
+             both so a flash colours the strip rather than covering what it
+             says.
+
+             The glow is thrown upward, over the panel above. There is nowhere
+             else for it to go in a strip at the bottom edge of a window, and
+             it is what makes this read as a flare rather than as the bar
+             having quietly changed colour. -->
+        <Grid DockPanel.Dock="Bottom">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Style.Triggers>
+                        <!-- Begun from the level rather than from the text, so
+                             anything that knows how an operation went can
+                             raise one without going near this file. -->
+                        <DataTrigger Binding="{Binding StatusLevel}" Value="Ok">
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard Storyboard="{StaticResource StatusFlashOk}"/>
+                            </DataTrigger.EnterActions>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding StatusLevel}" Value="Failed">
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard Storyboard="{StaticResource StatusFlashFailed}"/>
+                            </DataTrigger.EnterActions>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+
+            <Border Background="{DynamicResource PrimaryButton}"/>
+
+            <Border x:Name="StatusOkFlash" Background="{DynamicResource StatusOk}"
+                    Opacity="0" IsHitTestVisible="False">
+                <Border.Effect>
+                    <DropShadowEffect Color="#8FD4A8" ShadowDepth="0" BlurRadius="26" Opacity="0.85"/>
+                </Border.Effect>
+            </Border>
+
+            <Border x:Name="StatusFailFlash" Background="{DynamicResource StatusError}"
+                    Opacity="0" IsHitTestVisible="False">
+                <Border.Effect>
+                    <DropShadowEffect Color="#E8706E" ShadowDepth="0" BlurRadius="26" Opacity="0.85"/>
+                </Border.Effect>
+            </Border>
+
+            <Border Padding="10,6">
+                <!-- Marquee rather than TextBlock: "Created <name> — <warning>"
+                     runs past the end of the bar on a long file name, and the
+                     warning is the half that gets clipped. -->
+                <helpers:MarqueeText Text="{Binding StatusText}" Foreground="{DynamicResource OnAccent}" VerticalAlignment="Center"/>
+            </Border>
+        </Grid>
 
         <!-- Job progress. Sits above the status bar and only takes space while
              an operation is running. -->

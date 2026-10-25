@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
@@ -1529,6 +1530,20 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // After the commands exist — every button in it holds one.
         BuildToolbar();
 
+        // Subscribed once, here, rather than assigned in ApplySettings. It was
+        // assigned there — "so saving Settings twice cannot end up playing the
+        // sound twice" — and an assignment takes the whole invocation list, so
+        // the first time Settings was saved it silently dropped the window's
+        // own handler and the job panel stopped flashing green for the rest of
+        // the session. Subscribing once is what that comment was reaching for;
+        // the setting it worried about is read inside the handler anyway, so
+        // nothing needed re-pushing.
+        Job.Finished += PlayCompletionSound;
+
+        // And the status strip says so too, from the one place every
+        // successful operation in the program already reports through.
+        Job.Finished += () => FlashStatus(StatusLevel.Ok);
+
         // Last, so the opening state is the baseline rather than something
         // half-built: everything above this line is setup, not an edit.
         StartWatchingForHistory();
@@ -1668,11 +1683,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         _toast.Enabled = _settings.Current.ToastsEnabled;
         _toast.HoldDuration = TimeSpan.FromSeconds(_settings.Current.ToastSeconds);
-
-        // Assigned rather than added, so saving Settings twice cannot end up
-        // playing the sound twice. The setting is read inside the handler, not
-        // captured here, so it takes effect on the job already running.
-        Job.Finished = PlayCompletionSound;
 
         // Static rather than injected — see RecycleBin.SendToBin. Pushed here
         // so it is set before anything can delete, and re-pushed when Settings
@@ -4257,6 +4267,72 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Application.Current?.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive)
         ?? Application.Current?.MainWindow;
 
+    // ------------------------------------------------------------------
+    // How the status bar is feeling
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Whether the last thing reported went well, badly, or is neither.
+    /// </summary>
+    /// <remarks>
+    /// Drives a brief colour over the status strip. Deliberately not derived
+    /// from the text: the bar is written to from something like a hundred
+    /// places, and deciding what a message means by reading it would be a pile
+    /// of string matching that is wrong the first time anybody rewords a
+    /// sentence. Set where the outcome is actually known instead.
+    /// </remarks>
+    [ObservableProperty] private StatusLevel _statusLevel = StatusLevel.Normal;
+
+    /// <summary>
+    /// Returns the strip to its ordinary colour, however the flash started.
+    /// </summary>
+    /// <remarks>
+    /// Needed even though the animation fades itself out. The view reacts to
+    /// the level <em>changing</em>, so one that stayed on Ok would leave the
+    /// next success with nothing to notice — a second flash has to be a second
+    /// transition, and that means going back to Normal in between.
+    /// </remarks>
+    private DispatcherTimer? _statusFlashTimer;
+
+    /// <summary>
+    /// Colours the status strip for a moment, then lets it settle back.
+    /// </summary>
+    private void FlashStatus(StatusLevel level)
+    {
+        _statusFlashTimer ??= new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+        _statusFlashTimer.Stop();
+
+        // Back to Normal first. Two successes in a row are two events, and
+        // without the gap the second is a write of the value already there,
+        // which raises nothing and flashes nothing.
+        StatusLevel = StatusLevel.Normal;
+        StatusLevel = level;
+
+        _statusFlashTimer.Tick -= StatusFlashElapsed;
+        _statusFlashTimer.Tick += StatusFlashElapsed;
+        _statusFlashTimer.Start();
+    }
+
+    private void StatusFlashElapsed(object? sender, EventArgs e)
+    {
+        _statusFlashTimer?.Stop();
+        StatusLevel = StatusLevel.Normal;
+    }
+
+    /// <summary>Says something went well, in the bar and on it.</summary>
+    private void ReportSuccess(string text)
+    {
+        StatusText = text;
+        FlashStatus(StatusLevel.Ok);
+    }
+
+    /// <summary>Says something did not, on the same terms.</summary>
+    private void ReportFailure(string text)
+    {
+        StatusText = text;
+        FlashStatus(StatusLevel.Failed);
+    }
+
     /// <summary>
     /// Reports a failure in a box that looks and sounds like one.
     /// </summary>
@@ -4269,9 +4345,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
     ///
     /// Owned, like the other dialogs here: an unowned box can end up behind the
     /// window it disabled. See <see cref="DialogOwner"/>.
+    ///
+    /// An instance method rather than a static one so it can colour the status
+    /// strip on the way past. Every failure in the program that raises a dialog
+    /// raises it through here, which makes this the one place a red flash can
+    /// be put without eight catch blocks each having to remember it.
     /// </remarks>
-    private static void ShowError(string message, string title)
+    private void ShowError(string message, string title)
     {
+        FlashStatus(StatusLevel.Failed);
+
         var owner = DialogOwner;
 
         if (owner is not null)
@@ -6587,10 +6670,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         RefreshCommandStates();
 
         var added = dlg.Accepted.Count - skipped;
-        StatusText = skipped == 0
+        ReportSuccess(skipped == 0
             ? $"Added {added} {Entries(added)} from the scan"
             : $"Added {added} {Entries(added)} from the scan — skipped {skipped} that " +
-              $"overlapped cuts already in the list";
+              $"overlapped cuts already in the list");
     }
 
     /// <summary>
@@ -6742,7 +6825,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            StatusText = "Chapter export failed";
+            ReportFailure("Chapter export failed");
             MessageBox.Show(ex.Message, "Chapter export failed",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
@@ -6845,9 +6928,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 PlaylistsChanged?.Invoke();
                 unreachable -= relettered;
 
-                StatusText = unreachable == 0
+                ReportSuccess(unreachable == 0
                     ? $"Found all {relettered} {Entries(relettered)} on {chosen} — {name} now points at them"
-                    : $"Found {relettered} {Entries(relettered)} on {chosen}, {unreachable} still missing";
+                    : $"Found {relettered} {Entries(relettered)} on {chosen}, {unreachable} still missing");
 
                 if (unreachable == 0)
                 {
@@ -6950,9 +7033,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
             await Task.Run(() => moved = _playlists.RelocateMissingEntries(
                 plsPath, roots, depth, CancellationToken.None, progress));
 
-            StatusText = moved.Count == 0
-                ? $"{name}: none of the {gone} missing {Entries(gone)} could be found under {where}."
-                : $"Relocated {moved.Count} of {gone} {Entries(gone)} in {name}";
+            // Found nothing is not a failure — the search ran and answered.
+            // It is simply not worth a flare either way.
+            if (moved.Count == 0)
+                StatusText = $"{name}: none of the {gone} missing {Entries(gone)} could be found under {where}.";
+            else
+                ReportSuccess($"Relocated {moved.Count} of {gone} {Entries(gone)} in {name}");
 
             if (moved.Count > 0) PlaylistsChanged?.Invoke();
 
@@ -7346,7 +7432,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             IsBookmarkFileLoaded = File.Exists(Session.CsvPath);
             RefreshBookmarksFileDisplay();
         }
-        catch (Exception ex) { StatusText = "Save failed: " + ex.Message; }
+        catch (Exception ex) { ReportFailure("Save failed: " + ex.Message); }
     }
 
     /// <summary>
@@ -8994,7 +9080,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            StatusText = "Crop failed";
+            ReportFailure("Crop failed");
             MessageBox.Show(ex.Message, "Crop", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
@@ -9121,7 +9207,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            StatusText = $"{label} export failed";
+            ReportFailure($"{label} export failed");
             ShowError(ex.Message, $"{label} export failed");
         }
         finally
@@ -9295,7 +9381,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            StatusText = "Thumbnails failed";
+            ReportFailure("Thumbnails failed");
             MessageBox.Show(ex.Message, "Save thumbnails",
                             MessageBoxButton.OK, MessageBoxImage.Warning);
         }
