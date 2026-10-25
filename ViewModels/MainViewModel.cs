@@ -5449,17 +5449,35 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         IsBusy = true;
         ProgressPercent = 0;
+        var succeeded = false;
         try
         {
+            // Through the job panel, like every other operation that writes a
+            // file. This used to be a line of status text and a percentage
+            // nailed at 50 — so the one-click save was the only thing in the
+            // program that started, said nothing more, and finished without
+            // the bar, the clock, the chime or any sign it had worked.
+            Job.Begin("Quick save", 1);
+            Job.SetFile(0, Path.GetFileName(outPath));
+            Job.Report("Cutting " + bookmark.StartDisplay + " → " + bookmark.EndDisplay, 0);
+
             StatusText = $"Splitting clip {bookmark.Index} → {Path.GetFileName(outPath)}";
-            ProgressPercent = 50;
+
+            // Real progress from ffmpeg rather than a figure chosen to look
+            // like something was happening.
+            var progress = new Progress<FFmpegProgressEventArgs>(p =>
+            {
+                ProgressPercent = p.Percent;
+                Job.Report(string.IsNullOrWhiteSpace(p.Message) ? "Cutting" : p.Message, p.Percent);
+            });
 
             // Reuse the same FFmpeg path that SplitSelected uses — it
             // honours Speed and IsFlipped on the bookmark.
-            await _ffmpeg.MergeBookmarksAsync(Session.VideoPath, outPath, new[] { bookmark }, null, default, format);
+            await _ffmpeg.MergeBookmarksAsync(Session.VideoPath, outPath, new[] { bookmark }, progress, default, format);
 
             ProgressPercent = 100;
             StatusText = $"Created clip → {outPath}";
+            succeeded = true;
 
             if (_ffmpeg.LastOutputWarning is { } warning)
                 _toast.Show("Output doesn't match the marked range", warning, "⚠", force: true,
@@ -5471,15 +5489,23 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            StatusText = "Split failed: " + ex.Message;
-            MessageBox.Show(ex.Message, "Split clip failed",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            // ShowError rather than a bare MessageBox: it carries the error
+            // icon, which is what makes Windows play the failure sound, and it
+            // colours the status strip on the way past.
+            StatusText = "Split failed";
+            ShowError(ex.Message, "Quick save failed");
         }
         finally
         {
             IsBusy = false;
             ProgressPercent = 0;
+            if (!succeeded) Job.End();
         }
+
+        // After the finally, like the other operations: Complete holds the
+        // finished panel on screen for a few seconds, and nothing that has to
+        // happen on the way out should be waiting behind it.
+        if (succeeded) Job.Complete("Quick saved clip " + bookmark.Index + " to", outPath);
     }
 
     /// <summary>
