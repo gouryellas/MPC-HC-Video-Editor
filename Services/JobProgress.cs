@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Windows;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace MpcHcVideoEditor.Services;
@@ -11,6 +13,37 @@ namespace MpcHcVideoEditor.Services;
 public partial class JobProgress : ObservableObject
 {
     private readonly Stopwatch _clock = new();
+
+    /// <summary>
+    /// Drives the elapsed display while a job runs.
+    /// </summary>
+    /// <remarks>
+    /// The stopwatch always kept real time; nothing read it. The only call to
+    /// <see cref="UpdateClock"/> was the percentage changing, so the clock on
+    /// screen advanced at the rate ffmpeg happened to report — which is to say
+    /// it froze for exactly as long as the machine was busiest, then jumped,
+    /// and showed the least movement when the user most wanted to know
+    /// something was still happening.
+    ///
+    /// Half a second rather than one, so the displayed second turns over
+    /// within half a second of really doing so. A whole-second tick drifts
+    /// against the value it is printing and visibly skips one now and then.
+    /// </remarks>
+    private readonly DispatcherTimer _tick;
+
+    public JobProgress()
+    {
+        // Bound to the UI dispatcher explicitly. This is constructed with the
+        // view model, which is built by the XAML on the UI thread — but a
+        // DispatcherTimer silently attaches to whatever thread creates it, and
+        // one attached to a worker would simply never fire.
+        _tick = new DispatcherTimer(DispatcherPriority.Normal,
+                                    Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher)
+        {
+            Interval = TimeSpan.FromMilliseconds(500)
+        };
+        _tick.Tick += (_, _) => UpdateClock();
+    }
 
     /// <summary>
     /// Bumped by every <see cref="Begin"/>. <see cref="CompleteAsync"/> captures
@@ -131,6 +164,7 @@ public partial class JobProgress : ObservableObject
         ElapsedDisplay = "0:00";
         RemainingDisplay = "—";
         _clock.Restart();
+        _tick.Start();
         IsRunning = true;
     }
 
@@ -173,7 +207,10 @@ public partial class JobProgress : ObservableObject
         // for whoever is not watching the panel.
         Finished?.Invoke();
 
+        // Both stop together, here and in End: the elapsed time is the length
+        // of the job, so it stops when the job does and not a tick later.
         _clock.Stop();
+        _tick.Stop();
         if (FileCount > 0) FileIndex = FileCount;
         if (createdFile != null) CurrentFile = createdFile;
         if (summary != null) Summary = summary;
@@ -210,6 +247,7 @@ public partial class JobProgress : ObservableObject
     public void End(string? finalStep = null)
     {
         _clock.Stop();
+        _tick.Stop();
         if (finalStep != null) Step = finalStep;
         Percent = 0;
         IsRunning = false;
@@ -220,6 +258,17 @@ public partial class JobProgress : ObservableObject
     /// estimate is deliberately withheld below 3% — early on it is dominated
     /// by startup cost and swings wildly enough to be worse than nothing.
     /// </summary>
+    /// <remarks>
+    /// Called both on the half-second tick and whenever the percentage moves.
+    /// The tick is what makes elapsed real time; the percentage is what makes
+    /// the estimate respond to a job that has just sped up or slowed down
+    /// rather than waiting out the rest of the second.
+    ///
+    /// Remaining grows while a job is stalled, which is not a fault: with the
+    /// percentage still and the clock running, the rate so far really has
+    /// fallen, and a figure that froze alongside the work would be claiming
+    /// the job was still on schedule.
+    /// </remarks>
     private void UpdateClock()
     {
         var elapsed = _clock.Elapsed;
