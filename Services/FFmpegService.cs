@@ -259,6 +259,182 @@ public class FFmpegService
         }
     }
 
+    /// <summary>What a file is carrying, one line per stream.</summary>
+    /// <param name="Kind">ffprobe's codec_type: video, audio, subtitle, data…</param>
+    /// <param name="Codec">codec_name, e.g. h264, aac, subrip, hdmv_pgs_subtitle.</param>
+    /// <param name="Disposition">
+    /// True when ffprobe marks the stream as attached cover art rather than
+    /// moving pictures.
+    /// </param>
+    public readonly record struct MediaStream(int Index, string Kind, string Codec, bool Disposition);
+
+    /// <summary>
+    /// Every stream in a file.
+    /// </summary>
+    /// <remarks>
+    /// Empty when the question cannot be answered, which callers read as "do
+    /// not try to be clever about mapping" rather than as "the file is empty".
+    /// </remarks>
+    public async Task<List<MediaStream>> ListStreamsAsync(string filePath, CancellationToken ct = default)
+    {
+        var streams = new List<MediaStream>();
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = _ffprobePath,
+                Arguments = "-v error -show_entries " +
+                            "stream=index,codec_type,codec_name:stream_disposition=attached_pic " +
+                            $"-of csv=p=0 \"{filePath}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var p = Process.Start(psi);
+            if (p == null) return streams;
+
+            var output = await p.StandardOutput.ReadToEndAsync(ct);
+            await p.WaitForExitAsync(ct);
+
+            foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var parts = line.Trim().Split(',');
+                if (parts.Length < 3) continue;
+                if (!int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var index))
+                    continue;
+
+                // index, codec_name, codec_type, attached_pic — ffprobe prints
+                // the fields in the order the stream carries them, not the
+                // order they were asked for, so codec_name arrives before
+                // codec_type however the -show_entries list is written.
+                var attached = parts.Length > 3 && parts[3].Trim() == "1";
+
+                streams.Add(new MediaStream(index, parts[2].Trim(), parts[1].Trim(), attached));
+            }
+        }
+        catch
+        {
+            streams.Clear();
+        }
+
+        return streams;
+    }
+
+    /// <summary>
+    /// Subtitle codecs that are text, and so can be rewritten into whatever
+    /// the target container wants.
+    /// </summary>
+    /// <remarks>
+    /// The others — PGS off a Blu-ray, VobSub off a DVD — are pictures. They
+    /// can ride along in Matroska untouched but there is no legal way to put
+    /// them in MP4, and asking ffmpeg to try fails the whole mux. A cut that
+    /// refuses to run is worse than a cut that leaves the subtitles behind, so
+    /// those are dropped on purpose and reported.
+    /// </remarks>
+    private static readonly HashSet<string> TextSubtitleCodecs = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "subrip", "srt", "ass", "ssa", "mov_text", "text", "webvtt"
+    };
+
+    /// <summary>
+    /// The <c>-map</c> and subtitle-codec flags that carry a file's extra
+    /// tracks through an operation.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Not <c>-map 0</c>, which is the obvious answer and the wrong one. It
+    /// takes the Matroska font attachments and the MP4 cover art along with
+    /// everything else; the fonts fail the mux and the cover art arrives as a
+    /// second video stream for the encoder to chew on.
+    /// </para>
+    /// <para>
+    /// First video stream, every audio stream, every text subtitle stream. The
+    /// <c>?</c> makes the last two optional so a file without them is not an
+    /// error. Default selection — which is what this replaces — takes exactly
+    /// one of each type, which is why a second language or a commentary track
+    /// has always been dropped here without anything being said.
+    /// </para>
+    /// <para>
+    /// The target container decides what the subtitles become, and whether
+    /// they can come at all — see <see cref="SubtitleCodecFor"/>.
+    /// </para>
+    /// </remarks>
+    private static string MappingFor(IReadOnlyList<MediaStream> streams, string extension)
+    {
+        // Nothing probed, so nothing is known. Default selection is at least
+        // the behaviour this has always had.
+        if (streams.Count == 0) return string.Empty;
+
+        var map = new StringBuilder("-map 0:v:0 -map 0:a? ");
+
+        var codec = SubtitleCodecFor(extension);
+        if (codec is null) return map.ToString();
+
+        var subs = streams.Where(s => s.Kind == "subtitle").ToList();
+        var carriable = subs.Where(s => TextSubtitleCodecs.Contains(s.Codec)).ToList();
+
+        if (carriable.Count == 0) return map.ToString();
+
+        // Every subtitle stream when they can all come, named individually when
+        // only some can — a blanket -map 0:s? would pull the picture ones in
+        // too and fail the mux.
+        if (carriable.Count == subs.Count)
+            map.Append("-map 0:s? ");
+        else
+            foreach (var s in carriable) map.Append($"-map 0:{s.Index} ");
+
+        map.Append($"-c:s {codec} ");
+        return map.ToString();
+    }
+
+    /// <summary>
+    /// What subtitles have to become to enter a container, or null when that
+    /// container will not take them at all.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every one of these converts, and none of them copies. Segments are
+    /// written as MP4 whatever the final container is, so by the time anything
+    /// reaches the join the subtitles are already mov_text — and Matroska
+    /// refuses that outright: "Subtitle codec mov_text (94213) is not
+    /// supported". It takes SubRip instead, which is what it gets.
+    /// </para>
+    /// <para>
+    /// Conservative past that. AVI, MPEG program streams and ASF have no sane
+    /// subtitle track between them, and an operation that fails the mux is a
+    /// worse outcome than one that quietly writes no subtitles — the legacy
+    /// formats are asked for precisely when something old has to read the
+    /// result.
+    /// </para>
+    /// </remarks>
+    private static string? SubtitleCodecFor(string extension) => extension.ToLowerInvariant() switch
+    {
+        ".mp4" or ".mov" or ".m4v" => "mov_text",
+        ".mkv" => "srt",
+        ".webm" => "webvtt",
+        _ => null
+    };
+
+    /// <summary>
+    /// Subtitle streams that cannot travel into the chosen container, for
+    /// saying so afterwards.
+    /// </summary>
+    private static int UncarriableSubtitles(IReadOnlyList<MediaStream> streams, string extension)
+    {
+        var subs = streams.Count(s => s.Kind == "subtitle");
+        if (subs == 0) return 0;
+
+        if (SubtitleCodecFor(extension) is null) return subs;
+
+        // Picture subtitles are left behind whatever the final container is:
+        // the segments in between are MP4, and there is no legal way to put a
+        // PGS or VobSub track in one.
+        return streams.Count(s => s.Kind == "subtitle" && !TextSubtitleCodecs.Contains(s.Codec));
+    }
+
     private async Task<(double Video, double Audio)> GetStreamDurationsAsync(string filePath)
     {
         try
@@ -804,6 +980,11 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
             var segmentFiles = new List<string>();
             var total = bookmarks.Count;
 
+            // Asked once, for the whole run: every segment comes from the same
+            // file, so the answer cannot differ between them.
+            var streams = await ListStreamsAsync(inputVideo, ct);
+            var droppedSubs = UncarriableSubtitles(streams, format.Extension);
+
             for (int i = 0; i < bookmarks.Count; i++)
             {
                 ct.ThrowIfCancellationRequested();
@@ -818,7 +999,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
                 });
 
                 var segmentPath = Path.Combine(tempDir, $"segment{i + 1:D3}.mp4");
-                await CreateSegmentAsync(inputVideo, segmentPath, b, ct);
+                await CreateSegmentAsync(inputVideo, segmentPath, b, ct, streams);
                 segmentFiles.Add(segmentPath);
             }
 
@@ -875,8 +1056,19 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
                 ? "-c:v copy -c:a aac -ar 48000 -ac 2"
                 : VideoFormats.ApplyEncoder(format, VideoCodec, QualityArgs);
 
+            // The join needs the mapping as much as the cutting did. Default
+            // selection applies here too, so segments carrying three audio
+            // tracks were joined into an output carrying one — the extra work
+            // upstream thrown away at the last step.
+            //
+            // Read off a segment rather than the source: the segments are what
+            // this is reading, and their subtitles are already mov_text.
+            var joinMapping = segmentFiles.Count > 0
+                ? MappingFor(await ListStreamsAsync(segmentFiles[0], ct), format.Extension)
+                : string.Empty;
+
             var concatArgs = $"-hide_banner -y -f concat -safe 0 -i \"{concatList}\" " +
-                             $"{outputArgs} \"{outputPath}\"";
+                             $"{joinMapping}{outputArgs} \"{outputPath}\"";
 
             await RunAsync(concatArgs, null, ct);
 
@@ -886,6 +1078,22 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
                 .Sum(b => (b.EndSeconds - b.StartSeconds) / (Math.Abs(b.Speed) < 0.01 ? 1.0 : b.Speed));
             await VerifyOutputAsync(outputPath, expected, ct);
             await VerifyAudioSyncAsync(outputPath);
+
+            // Said rather than silently done. Subtitles that are pictures have
+            // no legal home in MP4, so they are left behind on purpose — but
+            // leaving them behind without a word is how this lost whole tracks
+            // for years. Appended, because the length check above may already
+            // have something to say.
+            if (droppedSubs > 0)
+            {
+                var what = droppedSubs == 1 ? "subtitle track" : "subtitle tracks";
+                var note = $"{droppedSubs} picture-based {what} could not be carried into " +
+                           $"{format.Extension.TrimStart('.').ToUpperInvariant()} and " +
+                           $"{(droppedSubs == 1 ? "was" : "were")} left out. " +
+                           "Matroska keeps them as they are.";
+
+                LastOutputWarning = LastOutputWarning is null ? note : LastOutputWarning + " " + note;
+            }
         }
         finally
         {
@@ -1011,7 +1219,8 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
             yield return $"{name}=t=out:st={Fmt(Math.Max(0, length - fadeOut))}:d={Fmt(fadeOut)}";
     }
 
-    private async Task CreateSegmentAsync(string input, string output, Bookmark b, CancellationToken ct)
+    private async Task CreateSegmentAsync(string input, string output, Bookmark b,
+        CancellationToken ct, IReadOnlyList<MediaStream>? streams = null)
     {
         var start = TimeSpan.FromSeconds(b.StartSeconds).ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);
         var end   = TimeSpan.FromSeconds(b.EndSeconds).ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);
@@ -1034,6 +1243,12 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         if (af.Count > 0)
             sb.Append($"-af \"{string.Join(",", af)}\" ");
 
+        // Segments are .mp4 whatever the final container is, so the subtitles
+        // have to be mov_text from here on. Blank when nothing was probed, and
+        // then this behaves exactly as it always did.
+        var mapping = streams is null ? string.Empty : MappingFor(streams, ".mp4");
+        sb.Append(mapping);
+
         if (reencode)
         {
             // Segments stay H.264/AAC whatever the final container is — the
@@ -1041,6 +1256,13 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
             // cheaper than encoding every segment into the target codec.
             sb.Append($"-c:v {VideoCodec} {QualityArgs} -pix_fmt yuv420p ");
             sb.Append("-c:a aac -b:a 192k -ar 48000 -ac 2 ");
+        }
+        else if (mapping.Length > 0)
+        {
+            // Not a blanket -c copy: the subtitle codec is already named by the
+            // mapping, and a later -c copy would override it and try to push
+            // subrip into MP4, which fails the mux.
+            sb.Append("-c:v copy -c:a copy ");
         }
         else
         {
