@@ -298,8 +298,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 ToolTip = "Rotate" },
         new() { Key = "mute", Group = "Actions", Label = "🔇 Mute", Icon = "🔇", IconFile = "icon-mute", Command = ToggleMuteCommand,
                 ToolTip = "Mute" },
+        // Three entries, one per answer. "fade" keeps its key and its meaning
+        // of both ends, so a toolbar already carrying it is unchanged.
         new() { Key = "fade", Group = "Actions", Label = "◐ Fade", Icon = "◐", IconFile = "icon-fade", Command = ToggleFadeCommand,
-                ToolTip = "Fade" },
+                ToolTip = "Fade in and out" },
+        new() { Key = "fade-in", Group = "Actions", Label = "◐ Fade in", Icon = "◐", IconFile = "icon-fade_in", Command = FadeInCommand,
+                ToolTip = "Fade the start only — the end stays hard" },
+        new() { Key = "fade-out", Group = "Actions", Label = "◐ Fade out", Icon = "◐", IconFile = "icon-fade_out", Command = FadeOutCommand,
+                ToolTip = "Fade the end only — the start stays hard" },
         new() { Key = "crop", Group = "Actions", Label = "⬚ Crop", Icon = "⬚", IconFile = "icon-crop", Command = CropSelectedCommand,
                 ToolTip = "Crop video" },
         new() { Key = "select-all", Group = "Bookmarks", Label = "Select All", Icon = "☑", IconFile = "icon-select_all", Command = ToggleSelectAllCommand,
@@ -8904,29 +8910,66 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// the fades off if they all already have them.
     /// </summary>
     /// <remarks>
-    /// Both ends at once, at the length in Settings ▸ Output. A fade in without
-    /// a fade out is a real thing to want but not the common one, and offering
-    /// two buttons for it would put a pair on the toolbar that nearly always
-    /// get pressed together. A cut fading at one end only can still be written
-    /// by hand into the bookmark file, which is where the two lengths live.
-    ///
-    /// "All of them already have one" rather than per-cut toggling, the same
-    /// rule as <see cref="ToggleFlip"/> and <see cref="ToggleMute"/>: advancing
-    /// each cut from its own state would leave a mixed selection permanently
-    /// out of step.
+    /// Both ends at once, at the length in Settings ▸ Output. See
+    /// <see cref="ApplyFade"/> for the other two.
     /// </remarks>
     [RelayCommand(CanExecute = nameof(CanToggleFlip))]
-    private void ToggleFade()
+    private void ToggleFade() => ApplyFade(FadeEnds.Both);
+
+    /// <summary>Fades the start of the selected cuts, and only the start.</summary>
+    [RelayCommand(CanExecute = nameof(CanToggleFlip))]
+    private void FadeIn() => ApplyFade(FadeEnds.In);
+
+    /// <summary>Fades the end of the selected cuts, and only the end.</summary>
+    [RelayCommand(CanExecute = nameof(CanToggleFlip))]
+    private void FadeOut() => ApplyFade(FadeEnds.Out);
+
+    /// <summary>Which ends of a cut a fade is wanted on.</summary>
+    private enum FadeEnds { In, Out, Both }
+
+    /// <summary>
+    /// Puts a fade on the ends named, and takes it off the ends not named.
+    /// </summary>
+    /// <remarks>
+    /// Three buttons where there was one. The old comment here argued against
+    /// exactly that — a pair that "nearly always get pressed together" — and
+    /// said a cut fading at one end only could be written by hand into the
+    /// bookmark file. That was true while every fade was something a person
+    /// placed deliberately. Splitting a cut produces one-ended fades on its
+    /// own, as the only way to divide a faded clip without dipping to nothing
+    /// in the middle of it, so the state needs to be reachable from the
+    /// interface that can now create it.
+    ///
+    /// The model already carried the two lengths separately and FadeDisplay
+    /// already read them out as "fade in 1s" — the capability was there and
+    /// only the commands were missing.
+    ///
+    /// Each button sets its own mode outright rather than toggling one end
+    /// independently: "fade in" means in and not out, which is what makes the
+    /// three of them readable as three answers to one question. Pressing the
+    /// one a selection is already in clears the fades, which is the only way
+    /// back to no fade at all.
+    ///
+    /// "All of them are already exactly this" rather than per-cut toggling,
+    /// the same rule as <see cref="ToggleFlip"/> and <see cref="ToggleMute"/>:
+    /// advancing each cut from its own state would leave a mixed selection
+    /// permanently out of step.
+    /// </remarks>
+    private void ApplyFade(FadeEnds ends)
     {
         var selected = ModifierTargets();
         if (selected.Count == 0 && NothingToModify()) return;
 
         var length = _settings.Current.FadeSeconds;
-        var turningOn = !selected.All(b => b.HasFade);
+        var wantIn = ends != FadeEnds.Out;
+        var wantOut = ends != FadeEnds.In;
+
+        var turningOff = selected.All(b =>
+            (b.FadeInSeconds > 0) == wantIn && (b.FadeOutSeconds > 0) == wantOut);
 
         // Turning them on with the length set to zero would report a fade and
         // apply nothing. The setting is the thing to change, so say so.
-        if (turningOn && length <= 0)
+        if (!turningOff && length <= 0)
         {
             Notify("The fade length is set to zero — see Settings ▸ Output.");
             return;
@@ -8934,16 +8977,23 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         foreach (var b in selected)
         {
-            b.FadeInSeconds = turningOn ? length : 0;
-            b.FadeOutSeconds = turningOn ? length : 0;
+            b.FadeInSeconds = !turningOff && wantIn ? length : 0;
+            b.FadeOutSeconds = !turningOff && wantOut ? length : 0;
         }
 
         Session.NotifyDurationChanged();
         if (IsBookmarkFileLoaded) SaveBookmarks();
 
-        StatusText = turningOn
-            ? $"{selected.Count} cut(s) will fade in and out over {length:0.##}s"
-            : $"{selected.Count} cut(s) will start and end hard";
+        var what = ends switch
+        {
+            FadeEnds.In => $"fade in over {length:0.##}s",
+            FadeEnds.Out => $"fade out over {length:0.##}s",
+            _ => $"fade in and out over {length:0.##}s"
+        };
+
+        StatusText = turningOff
+            ? $"{selected.Count} cut(s) will start and end hard"
+            : $"{selected.Count} cut(s) will {what}";
     }
 
     /// <summary>

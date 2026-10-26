@@ -934,8 +934,23 @@
                         <TextBlock Text="🔇" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
+                <!-- Three answers to one question, so they sit together. Each
+                     sets its own mode outright; pressing the one a selection
+                     is already in takes the fades off. -->
                 <MenuItem Header="Fade" Command="{Binding ToggleFadeCommand}"
-                          ToolTip="Fades over the length set in Settings ▸ Output">
+                          ToolTip="Fade both ends, over the length set in Settings ▸ Output">
+                    <MenuItem.Icon>
+                        <TextBlock Text="◐" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Fade in" Command="{Binding FadeInCommand}"
+                          ToolTip="Fade the start only — the end stays hard">
+                    <MenuItem.Icon>
+                        <TextBlock Text="◐" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Fade out" Command="{Binding FadeOutCommand}"
+                          ToolTip="Fade the end only — the start stays hard">
                     <MenuItem.Icon>
                         <TextBlock Text="◐" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
