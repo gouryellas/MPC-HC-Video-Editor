@@ -259,6 +259,169 @@ public class FFmpegService
         }
     }
 
+    /// <summary>
+    /// Whether a turn can be written as metadata rather than encoded into the
+    /// pixels, and by how much.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A quarter turn costs a full re-encode and a generation of quality when
+    /// it is done with <c>transpose</c>, and costs nothing at all when it is
+    /// done with the display matrix — four bytes in the container saying which
+    /// way up the picture goes. Every player honours it. The catch is that it
+    /// applies to a video stream, not to a moment in one, so it is only
+    /// available when the whole output wants the same turn.
+    /// </para>
+    /// <para>
+    /// Hence the conditions, each of which is a way the output could want
+    /// something a single matrix cannot say. Cuts turned different ways need
+    /// different pixels. Any other picture filter — flip, crop, speed, fade —
+    /// re-encodes regardless, and once the encoder is running a transpose is
+    /// free, so there is nothing to save. Precise cutting and loudness
+    /// normalisation re-encode for their own reasons.
+    /// </para>
+    /// <para>
+    /// A source that already carries a matrix is refused outright. Segments cut
+    /// with <c>-c copy</c> inherit it, so writing a second one at the join
+    /// compounds the two and turns the picture twice.
+    /// </para>
+    /// </remarks>
+    /// <returns>Degrees for ffmpeg's <c>-display_rotation</c>, or null.</returns>
+    private int? LosslessRotation(
+        IList<Bookmark> bookmarks, VideoFormats.Format format, double? existingRotation)
+    {
+        if (PreciseCuts || NormalizeAudio) return null;
+
+        // Written as a stream copy at the join, or the matrix is pointless —
+        // the re-encode it would avoid is happening anyway.
+        if (!format.CanCopyH264) return null;
+        if (!SupportsDisplayMatrix(format.Extension)) return null;
+
+        // The source is already turned, or could not be asked. Leave it alone.
+        if (existingRotation is not { } already || Math.Abs(already) > 0.5) return null;
+
+        var cuts = bookmarks.Where(b => b.IsValid).ToList();
+        if (cuts.Count == 0) return null;
+
+        var turn = cuts[0].Rotation;
+        if (turn == Rotation.None) return null;
+
+        foreach (var b in cuts)
+        {
+            if (b.Rotation != turn) return null;
+            if (b.IsFlipped || b.HasCrop || b.HasFade || b.IsMuted) return null;
+            if (Math.Abs(b.Speed - 1.0) > 0.01) return null;
+        }
+
+        // Signs verified against transpose by rendering both and comparing
+        // pixels: transpose=1 is a clockwise quarter turn and matches -90.
+        return turn switch
+        {
+            Rotation.Clockwise => -90,
+            Rotation.Counterclockwise => 90,
+            _ => 180
+        };
+    }
+
+    /// <summary>
+    /// Whether a file's existing streams are already legal in the target
+    /// container, so the conversion is a rewrap rather than a re-encode.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Deliberately narrow. The question is not "could some muxer somewhere be
+    /// persuaded to accept this" but "will it certainly work", because the
+    /// cost of being wrong is a failed conversion and the prize for being
+    /// right is only speed — a re-encode produces a correct file either way.
+    /// Anything not listed re-encodes as before.
+    /// </para>
+    /// <para>
+    /// AVI, WMV and MPEG are left out entirely. They are chosen when something
+    /// old has to read the result, which is exactly when a surprising codec
+    /// inside a familiar wrapper is least welcome.
+    /// </para>
+    /// </remarks>
+    private static bool CanRemux(IReadOnlyList<MediaStream> streams, VideoFormats.Format format)
+    {
+        if (streams.Count == 0) return false;
+
+        var video = streams.FirstOrDefault(s => s.Kind == "video" && !s.Disposition);
+        var audio = streams.Where(s => s.Kind == "audio").ToList();
+        if (video.Kind is null) return false;
+
+        bool Video(params string[] ok) => ok.Contains(video.Codec, StringComparer.OrdinalIgnoreCase);
+        bool Audio(params string[] ok) =>
+            audio.Count == 0 || audio.All(a => ok.Contains(a.Codec, StringComparer.OrdinalIgnoreCase));
+
+        return format.Extension.ToLowerInvariant() switch
+        {
+            ".mp4" or ".mov" or ".m4v" =>
+                Video("h264", "hevc", "mpeg4", "av1") &&
+                Audio("aac", "mp3", "ac3", "eac3", "alac"),
+
+            // Matroska holds essentially anything, but the list stays explicit
+            // so a stream nobody anticipated re-encodes rather than gambling.
+            ".mkv" =>
+                Video("h264", "hevc", "mpeg4", "av1", "vp8", "vp9", "mpeg2video") &&
+                Audio("aac", "mp3", "ac3", "eac3", "flac", "opus", "vorbis", "dts", "truehd", "pcm_s16le"),
+
+            ".webm" => Video("vp8", "vp9", "av1") && Audio("opus", "vorbis"),
+
+            _ => false
+        };
+    }
+
+    /// <summary>Containers that carry a display matrix.</summary>
+    private static bool SupportsDisplayMatrix(string extension) =>
+        extension.ToLowerInvariant() is ".mp4" or ".mov" or ".m4v" or ".mkv";
+
+    /// <summary>
+    /// The display rotation already on a file's first video stream, in degrees.
+    /// Zero when there is none, null when the question cannot be answered.
+    /// </summary>
+    /// <remarks>
+    /// Null rather than zero on failure, and the difference matters. Zero means
+    /// "not turned", which is the answer that permits writing a matrix — so a
+    /// probe that merely failed would hand out permission it never established,
+    /// and a source that was already turned would come out turned twice.
+    /// Declining instead costs a re-encode nobody will notice.
+    /// </remarks>
+    private async Task<double?> ExistingRotationAsync(string filePath, CancellationToken ct = default)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = _ffprobePath,
+                Arguments = "-v error -select_streams v:0 -show_entries stream_side_data=rotation " +
+                            $"-of csv=p=0 \"{filePath}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var p = Process.Start(psi);
+            if (p == null) return null;
+
+            var output = await p.StandardOutput.ReadToEndAsync(ct);
+            await p.WaitForExitAsync(ct);
+
+            // Nothing printed means no side data, which is a real answer: the
+            // stream carries no matrix.
+            if (string.IsNullOrWhiteSpace(output)) return 0;
+
+            return double.TryParse(output.Trim(), NumberStyles.Float,
+                                   CultureInfo.InvariantCulture, out var degrees)
+                ? degrees
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     /// <summary>What a file is carrying, one line per stream.</summary>
     /// <param name="Kind">ffprobe's codec_type: video, audio, subtitle, data…</param>
     /// <param name="Codec">codec_name, e.g. h264, aac, subrip, hdmv_pgs_subtitle.</param>
@@ -362,7 +525,8 @@ public class FFmpegService
     /// they can come at all — see <see cref="SubtitleCodecFor"/>.
     /// </para>
     /// </remarks>
-    private static string MappingFor(IReadOnlyList<MediaStream> streams, string extension)
+    private static string MappingFor(IReadOnlyList<MediaStream> streams, string extension,
+        bool viaMp4Segments = true)
     {
         // Nothing probed, so nothing is known. Default selection is at least
         // the behaviour this has always had.
@@ -370,11 +534,16 @@ public class FFmpegService
 
         var map = new StringBuilder("-map 0:v:0 -map 0:a? ");
 
-        var codec = SubtitleCodecFor(extension);
+        var codec = SubtitleCodecFor(extension, viaMp4Segments);
         if (codec is null) return map.ToString();
 
         var subs = streams.Where(s => s.Kind == "subtitle").ToList();
-        var carriable = subs.Where(s => TextSubtitleCodecs.Contains(s.Codec)).ToList();
+
+        // A container taking the subtitles untouched takes all of them,
+        // pictures included. Anything being converted has to be text first.
+        var carriable = codec == "copy"
+            ? subs
+            : subs.Where(s => TextSubtitleCodecs.Contains(s.Codec)).ToList();
 
         if (carriable.Count == 0) return map.ToString();
 
@@ -410,13 +579,19 @@ public class FFmpegService
     /// result.
     /// </para>
     /// </remarks>
-    private static string? SubtitleCodecFor(string extension) => extension.ToLowerInvariant() switch
-    {
-        ".mp4" or ".mov" or ".m4v" => "mov_text",
-        ".mkv" => "srt",
-        ".webm" => "webvtt",
-        _ => null
-    };
+    private static string? SubtitleCodecFor(string extension, bool viaMp4Segments) =>
+        extension.ToLowerInvariant() switch
+        {
+            ".mp4" or ".mov" or ".m4v" => "mov_text",
+
+            // Matroska takes what it is given, but only when it is given the
+            // original. Coming out of MP4 segments it is being handed mov_text,
+            // which Matroska refuses, so that path converts to SubRip instead.
+            ".mkv" => viaMp4Segments ? "srt" : "copy",
+
+            ".webm" => "webvtt",
+            _ => null
+        };
 
     /// <summary>
     /// Subtitle streams that cannot travel into the chosen container, for
@@ -427,7 +602,7 @@ public class FFmpegService
         var subs = streams.Count(s => s.Kind == "subtitle");
         if (subs == 0) return 0;
 
-        if (SubtitleCodecFor(extension) is null) return subs;
+        if (SubtitleCodecFor(extension, viaMp4Segments: true) is null) return subs;
 
         // Picture subtitles are left behind whatever the final container is:
         // the segments in between are MP4, and there is no legal way to put a
@@ -761,8 +936,20 @@ public class FFmpegService
         // audio — there is no "-c:a copy" here for a filter to conflict with.
         var normalize = NormalizeAudio ? $"-af \"{LoudnormFilter}\" " : string.Empty;
 
+        // A container change where the codecs are already legal in the target
+        // is a remux: the same bitstream rewritten into a different wrapper, in
+        // seconds, bit for bit. Converting an MKV of H.264 and AAC to MP4 is
+        // the common case, and re-encoding it threw away a generation of
+        // quality and several minutes to produce the file it started with.
+        var streams = await ListStreamsAsync(inputPath, ct);
+        var canRemux = !NormalizeAudio && CanRemux(streams, format);
+
+        var codecs = canRemux
+            ? MappingFor(streams, format.Extension, viaMp4Segments: false) + "-c:v copy -c:a copy"
+            : VideoFormats.ApplyEncoder(format, VideoCodec, QualityArgs);
+
         var args = $"-hide_banner -y -fflags +igndts -i \"{inputPath}\" {normalize}" +
-                   $"{VideoFormats.ApplyEncoder(format, VideoCodec, QualityArgs)} \"{outputPath}\"";
+                   $"{codecs} \"{outputPath}\"";
 
         // Probe first so the progress bar has something to divide by.
         await RunAsync(args, progress, ct, await GetDurationAsync(inputPath));
@@ -985,6 +1172,11 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
             var streams = await ListStreamsAsync(inputVideo, ct);
             var droppedSubs = UncarriableSubtitles(streams, format.Extension);
 
+            // A turn every cut agrees on, with nothing else asking for the
+            // encoder, is four bytes of metadata rather than a re-encode.
+            var spin = LosslessRotation(bookmarks, format,
+                                        await ExistingRotationAsync(inputVideo, ct));
+
             for (int i = 0; i < bookmarks.Count; i++)
             {
                 ct.ThrowIfCancellationRequested();
@@ -999,7 +1191,8 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
                 });
 
                 var segmentPath = Path.Combine(tempDir, $"segment{i + 1:D3}.mp4");
-                await CreateSegmentAsync(inputVideo, segmentPath, b, ct, streams);
+                await CreateSegmentAsync(inputVideo, segmentPath, b, ct, streams,
+                                         rotationIsMetadata: spin is not null);
                 segmentFiles.Add(segmentPath);
             }
 
@@ -1067,7 +1260,12 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
                 ? MappingFor(await ListStreamsAsync(segmentFiles[0], ct), format.Extension)
                 : string.Empty;
 
-            var concatArgs = $"-hide_banner -y -f concat -safe 0 -i \"{concatList}\" " +
+            // Before -i, because it says how to read the input rather than
+            // what to do with it. With -c:v copy that reading is what gets
+            // written back out, which is the whole trick.
+            var spinArg = spin is { } degrees ? $"-display_rotation:v:0 {degrees} " : string.Empty;
+
+            var concatArgs = $"-hide_banner -y {spinArg}-f concat -safe 0 -i \"{concatList}\" " +
                              $"{joinMapping}{outputArgs} \"{outputPath}\"";
 
             await RunAsync(concatArgs, null, ct);
@@ -1115,13 +1313,17 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
     /// rewritten them — a one-second fade on a half-speed cut then means one
     /// second of the clip as written, which is what the row says.
     /// </remarks>
-    private static List<string> PictureFilters(Bookmark b)
+    /// <param name="rotationIsMetadata">
+    /// True when the turn is being written as a display matrix instead, so the
+    /// filter must not also apply it — see <see cref="LosslessRotation"/>.
+    /// </param>
+    private static List<string> PictureFilters(Bookmark b, bool rotationIsMetadata = false)
     {
         var vf = new List<string>();
 
         if (b.IsFlipped) vf.Add("vflip");
 
-        if (b.Rotation != Rotation.None)
+        if (b.Rotation != Rotation.None && !rotationIsMetadata)
             vf.Add(b.Rotation switch
             {
                 Rotation.Clockwise => "transpose=1",
@@ -1220,12 +1422,13 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
     }
 
     private async Task CreateSegmentAsync(string input, string output, Bookmark b,
-        CancellationToken ct, IReadOnlyList<MediaStream>? streams = null)
+        CancellationToken ct, IReadOnlyList<MediaStream>? streams = null,
+        bool rotationIsMetadata = false)
     {
         var start = TimeSpan.FromSeconds(b.StartSeconds).ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);
         var end   = TimeSpan.FromSeconds(b.EndSeconds).ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);
 
-        var vf = PictureFilters(b);
+        var vf = PictureFilters(b, rotationIsMetadata);
         var af = SoundFilters(b);
 
         // A stream copy can only begin at a keyframe, so an exact cut has to be
