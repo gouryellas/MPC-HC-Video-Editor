@@ -332,6 +332,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 ToolTip = "Remove the last single timestamp" },
         new() { Key = "enter-time", Group = "Bookmarks", Label = "⌨ Enter time", Icon = "⌨", IconFile = "icon-enter_time", Command = EnterTimeManualCommand,
                 ToolTip = "Type a time or a range instead of using the hotkey" },
+        new() { Key = "split-at-playhead", Group = "Bookmarks", Label = "✂ Split here", Icon = "✂", IconFile = "icon-split", Command = SplitAtPlayheadCommand,
+                MinWidth = 104, ToolTip = "Put a cut boundary wherever the player is now" },
         new() { Key = "detect", Group = "Bookmarks", Label = "🔍 Detect cuts", Icon = "🔍", IconFile = "icon-detect_cuts", Command = DetectBookmarksCommand,
                 ToolTip = "Propose cuts from silence, black frames or scene changes" },
         new() { Key = "edit-bookmarks", Group = "Bookmarks", Label = "✎ Edit bookmarks", Icon = "✎", IconFile = "icon-edit_bookmarks", Command = EditBookmarksCommand,
@@ -8707,6 +8709,79 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private List<BookmarkState> CaptureBookmarks() =>
         Session.Bookmarks.Select(BookmarkState.From).ToList();
+
+    /// <summary>
+    /// Puts a boundary in the cut list wherever the player is.
+    /// </summary>
+    /// <remarks>
+    /// The arithmetic is <see cref="PlayheadSplit"/>; this is the part that has
+    /// to talk to the player, the list and the file. Applied through
+    /// <see cref="RestoreBookmarks"/>, which already knows how to swap the
+    /// whole list out without the history recording a change per row — the
+    /// result here is a new list rather than an edit to one, for the same
+    /// reason an undo is.
+    ///
+    /// One history entry, pushed by hand. Left to itself the collection handler
+    /// would describe this as "add", which is true of the mechanism and not of
+    /// what the user did.
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(HasActiveVideo))]
+    private void SplitAtPlayhead()
+    {
+        if (IsBusy)
+        {
+            StatusText = "Another operation is running — wait for it to finish.";
+            return;
+        }
+
+        var (playhead, playerDuration) = _mpc.GetPlaybackPosition();
+        if (playhead <= 0)
+        {
+            ReportFailure("The player is not reporting a position to split at.");
+            return;
+        }
+
+        // Either source will do. ffprobe fills this in on load and the poll
+        // keeps it in step with the player, but both can be a moment behind a
+        // video that has only just opened.
+        var duration = Session.VideoDurationSeconds > 0
+            ? Session.VideoDurationSeconds
+            : playerDuration;
+
+        var before = CaptureBookmarks();
+        var result = PlayheadSplit.At(before, playhead, duration);
+        var at = Bookmark.FormatTime(playhead);
+
+        if (result.Outcome is not (PlayheadSplit.Outcome.Divided or PlayheadSplit.Outcome.Filled))
+        {
+            StatusText = result.Outcome switch
+            {
+                PlayheadSplit.Outcome.AlreadySplit =>
+                    $"There is already a cut boundary at {at}",
+                PlayheadSplit.Outcome.TooShort =>
+                    $"Splitting at {at} would leave a piece too short to be a clip",
+                PlayheadSplit.Outcome.OutOfRange =>
+                    $"{at} is outside the part of the video that can be marked",
+                _ =>
+                    "The video's length is not known yet — try again in a moment"
+            };
+            return;
+        }
+
+        // Recorded against the list as it was, so one undo puts it back.
+        _history.Push("the split", before);
+        NotifyHistoryChanged();
+
+        RestoreBookmarks(result.Cuts);
+
+        // A split on a video with no cuts at all is what brings the bookmark
+        // file into existence, the same way the first hand-placed timestamp
+        // does — and RestoreBookmarks only saves a file that already exists.
+        if (!IsBookmarkFileLoaded) SaveBookmarks();
+
+        RefreshCommandStates();
+        ReportSuccess($"Split at {at} — {Session.Bookmarks.Count} {Bookmarks(Session.Bookmarks.Count)} now");
+    }
 
     /// <summary>Rebuilds the list from a snapshot, without recording it.</summary>
     private void RestoreBookmarks(IReadOnlyList<BookmarkState> state)

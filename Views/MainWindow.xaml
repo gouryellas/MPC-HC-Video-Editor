@@ -934,6 +934,12 @@
                         <TextBlock Text="🔇" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
+                <MenuItem Header="Split here" Command="{Binding SplitAtPlayheadCommand}"
+                          ToolTip="Puts a cut boundary wherever the player is now. Inside a cut it divides it in two; in a gap between cuts it fills the gap in.">
+                    <MenuItem.Icon>
+                        <TextBlock Text="✂" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <!-- Three answers to one question, so they sit together. Each
                      sets its own mode outright; pressing the one a selection
                      is already in takes the fades off. -->
