@@ -2110,6 +2110,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // no video open, which is to say disabled for the rest of the session.
         DetectBookmarksCommand.NotifyCanExecuteChanged();
         ExportChaptersCommand.NotifyCanExecuteChanged();
+        ExportCutListCommand.NotifyCanExecuteChanged();
+        ImportCutListCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>
@@ -6836,7 +6838,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// the only format that keeps a cut whole, which is why this writes
     /// somewhere else rather than offering to replace it.
     /// </remarks>
-    [RelayCommand(CanExecute = nameof(CanExportChapters))]
+    [RelayCommand(CanExecute = nameof(CanExportCutList))]
     private async Task ExportCutList()
     {
         var usable = Session.Bookmarks.Where(b => b.IsValid).ToList();
@@ -6910,7 +6912,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// name: two of the three are plain text, and a cut list arrives called
     /// whatever the tool that wrote it chose.
     /// </remarks>
-    [RelayCommand(CanExecute = nameof(HasActiveVideo))]
+    [RelayCommand(CanExecute = nameof(CanImportCutList))]
     private async Task ImportCutList()
     {
         var ofd = new OpenFileDialog
@@ -6941,9 +6943,24 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         if (entries.Count == 0)
         {
-            ReportFailure($"Nothing readable in {Path.GetFileName(ofd.FileName)}.");
+            // The one format with a real dependency on the video. A chapter
+            // list says where each heading starts and never where the last one
+            // ends, so without a duration to run it to there is nothing to
+            // give the final cut — and on a one-chapter list that is the whole
+            // file. Worth naming, because "nothing readable" would be a lie
+            // about a file that parsed perfectly well.
+            if (kind == CutListFormats.Kind.YouTube && Session.VideoDurationSeconds <= 0)
+                ReportFailure("Chapter lists need the video's length to size the last chapter, " +
+                              "and it is not known yet.");
+            else
+                ReportFailure($"Nothing readable in {Path.GetFileName(ofd.FileName)}.");
+
             return;
         }
+
+        if (kind == CutListFormats.Kind.YouTube && Session.VideoDurationSeconds <= 0)
+            ShowInfo("The last chapter has no end, because the video's length is not known yet. " +
+                     "Everything before it was imported.", "Import cut list");
 
         // Only asked when there is something to lose. See RelocatePlaylistEntries
         // for the same reasoning about a question that answers itself.
@@ -7076,6 +7093,38 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private bool CanExportChapters() =>
         HasActiveVideo && Session.Bookmarks.Any(b => b.IsValid);
+
+    /// <summary>
+    /// Writing the list out needs a list, and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// Not <see cref="HasActiveVideo"/>, which both of these were gated on at
+    /// first and neither has any business asking for: that predicate wants
+    /// MPC-HC to be running, and exporting a text file does not involve the
+    /// player at all. A bookmark CSV opened on its own, with no video anywhere,
+    /// is a perfectly good thing to convert to an EDL.
+    /// </remarks>
+    private bool CanExportCutList() => Session.Bookmarks.Any(b => b.IsValid);
+
+    /// <summary>
+    /// Reading a list in needs somewhere to put it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// CsvPath rather than a video, because that is the thing actually
+    /// required. It is bound whenever a video is loaded and whenever a
+    /// bookmark file is opened on its own, and it is what SaveBookmarks writes
+    /// to — without one an import would appear to work, save nothing, and
+    /// leave the cuts to evaporate.
+    /// </para>
+    /// <para>
+    /// This is also why there is no "import into nothing". Loading a video
+    /// clears the list and reads that video's own CSV over it, so cuts brought
+    /// in beforehand would be discarded the moment one opened. Open the video
+    /// or its bookmark file first, and the import has somewhere to live.
+    /// </para>
+    /// </remarks>
+    private bool CanImportCutList() => !string.IsNullOrEmpty(Session.CsvPath);
 
     /// <summary>
     /// Finds the files of confirmed-gone entries somewhere else and repoints
