@@ -6826,6 +6826,207 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// chapter marks a player can jump between. Streams are copied, so it is
     /// quick and lossless whatever the cut-accuracy setting says.
     /// </remarks>
+    /// <summary>
+    /// Writes the cut list in a format another tool can read.
+    /// </summary>
+    /// <remarks>
+    /// None of these carries what a cut actually is here — the speed, the
+    /// rotation, the crop, the fades all stay behind, because a list of start
+    /// and end times has nowhere to put them. The program's own CSV is still
+    /// the only format that keeps a cut whole, which is why this writes
+    /// somewhere else rather than offering to replace it.
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(CanExportChapters))]
+    private async Task ExportCutList()
+    {
+        var usable = Session.Bookmarks.Where(b => b.IsValid).ToList();
+        if (usable.Count == 0)
+        {
+            ReportFailure("No complete cuts to export.");
+            return;
+        }
+
+        var stem = string.IsNullOrWhiteSpace(Session.VideoPath)
+            ? "cuts"
+            : Path.GetFileNameWithoutExtension(Session.VideoPath);
+
+        var sfd = new SaveFileDialog
+        {
+            Title = "Export cut list",
+            Filter = "CSV — start, end, name|*.csv|" +
+                     "YouTube chapters|*.txt|" +
+                     "EDL — edit decision list|*.edl",
+            FileName = stem + ".csv",
+            InitialDirectory = string.IsNullOrWhiteSpace(Session.VideoPath)
+                ? null
+                : Path.GetDirectoryName(Session.VideoPath)
+        };
+        if (sfd.ShowDialog() != true) return;
+
+        try
+        {
+            // FilterIndex is one-based and says which of the three was chosen,
+            // which matters because two of them are plain text and the name
+            // alone cannot tell them apart.
+            var text = sfd.FilterIndex switch
+            {
+                2 => CutListFormats.WriteYouTube(usable),
+                3 => CutListFormats.WriteEdl(usable, await SourceFrameRate(), stem),
+                _ => CutListFormats.WriteCsv(usable)
+            };
+
+            await File.WriteAllTextAsync(sfd.FileName, text);
+
+            var what = sfd.FilterIndex switch
+            {
+                2 => "chapters",
+                3 => "EDL records",
+                _ => "rows"
+            };
+
+            ReportSuccess($"Exported {usable.Count} {what} → {Path.GetFileName(sfd.FileName)}");
+
+            // Said after the write, not instead of it. The file is correct
+            // either way; YouTube is simply particular about when it will show
+            // chapters at all, and finding that out from a silent video page
+            // later is worse than hearing it now.
+            if (sfd.FilterIndex == 2 && CutListFormats.YouTubeProblems(usable) is { Count: > 0 } problems)
+                ShowInfo("The file is written, but YouTube will not turn these into chapters:\n\n• " +
+                         string.Join("\n• ", problems),
+                         "Export cut list");
+        }
+        catch (Exception ex)
+        {
+            StatusText = "Export failed";
+            ShowError(ex.Message, "Export cut list");
+        }
+    }
+
+    /// <summary>
+    /// Reads a cut list written somewhere else.
+    /// </summary>
+    /// <remarks>
+    /// The format is worked out from what is in the file rather than from its
+    /// name: two of the three are plain text, and a cut list arrives called
+    /// whatever the tool that wrote it chose.
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(HasActiveVideo))]
+    private async Task ImportCutList()
+    {
+        var ofd = new OpenFileDialog
+        {
+            Title = "Import cut list",
+            Filter = "Cut lists|*.csv;*.txt;*.edl|All files|*.*",
+            InitialDirectory = string.IsNullOrWhiteSpace(Session.VideoPath)
+                ? null
+                : Path.GetDirectoryName(Session.VideoPath)
+        };
+        if (ofd.ShowDialog() != true) return;
+
+        List<CutListFormats.Entry> entries;
+        CutListFormats.Kind kind;
+
+        try
+        {
+            var text = await File.ReadAllTextAsync(ofd.FileName);
+            kind = CutListFormats.Detect(text);
+            entries = CutListFormats.Read(text, await SourceFrameRate(), Session.VideoDurationSeconds);
+        }
+        catch (Exception ex)
+        {
+            StatusText = "Import failed";
+            ShowError(ex.Message, "Import cut list");
+            return;
+        }
+
+        if (entries.Count == 0)
+        {
+            ReportFailure($"Nothing readable in {Path.GetFileName(ofd.FileName)}.");
+            return;
+        }
+
+        // Only asked when there is something to lose. See RelocatePlaylistEntries
+        // for the same reasoning about a question that answers itself.
+        var replace = false;
+        if (Session.Bookmarks.Count > 0)
+        {
+            var answer = MessageBox.Show(
+                DialogOwner!,
+                $"{Path.GetFileName(ofd.FileName)} holds {entries.Count} " +
+                $"{(entries.Count == 1 ? "cut" : "cuts")}, read as {Describe(kind)}.\n\n" +
+                "Replace the cuts currently loaded? Choosing No adds them to the list instead.",
+                "Import cut list",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Question);
+
+            if (answer == MessageBoxResult.Cancel) return;
+            replace = answer == MessageBoxResult.Yes;
+        }
+
+        var before = CaptureBookmarks();
+        if (replace) Session.Bookmarks.Clear();
+
+        var skipped = 0;
+        foreach (var e in entries)
+        {
+            if (OverlappingCut(e.Start, e.End) is not null) { skipped++; continue; }
+
+            Session.Bookmarks.Add(new Bookmark
+            {
+                Index = Session.Bookmarks.Count + 1,
+                StartSeconds = e.Start,
+                EndSeconds = e.End,
+                Label = e.Label
+            });
+        }
+
+        int i = 1;
+        foreach (var b in Session.Bookmarks) b.Index = i++;
+
+        _history.Push("the import", before);
+        NotifyHistoryChanged();
+
+        HookSession(Session);
+        Session.NotifyDurationChanged();
+        SaveBookmarks();
+        RefreshCommandStates();
+
+        var added = entries.Count - skipped;
+        ReportSuccess(skipped == 0
+            ? $"Imported {added} {Bookmarks(added)} from {Path.GetFileName(ofd.FileName)}"
+            : $"Imported {added} {Bookmarks(added)} — skipped {skipped} that overlapped cuts already in the list");
+    }
+
+    private static string Describe(CutListFormats.Kind kind) => kind switch
+    {
+        CutListFormats.Kind.YouTube => "YouTube chapters",
+        CutListFormats.Kind.Edl => "an edit decision list",
+        _ => "a CSV"
+    };
+
+    /// <summary>
+    /// The source's frame rate, for the one format that counts in frames.
+    /// </summary>
+    /// <remarks>
+    /// 25 when it cannot be read, which is a guess but a declared one: an EDL
+    /// has to name a rate, and the editor reading it conforms against the real
+    /// file anyway.
+    /// </remarks>
+    private async Task<double> SourceFrameRate()
+    {
+        if (string.IsNullOrWhiteSpace(Session.VideoPath)) return 25;
+
+        try
+        {
+            var (_, value) = await _ffmpeg.GetFrameRateRationalAsync(Session.VideoPath);
+            return value > 0 ? value : 25;
+        }
+        catch
+        {
+            return 25;
+        }
+    }
+
     [RelayCommand(CanExecute = nameof(CanExportChapters))]
     private async Task ExportChapters()
     {

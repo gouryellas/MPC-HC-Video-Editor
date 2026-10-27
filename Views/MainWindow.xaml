@@ -820,6 +820,23 @@
                     </MenuItem.Icon>
                 </MenuItem>
 
+                <!-- The cut list as other tools read it. Timings and names
+                     only: none of these formats has anywhere to put a speed,
+                     a crop or a fade, so this is a way out to another editor
+                     rather than a second place to keep the work. -->
+                <MenuItem Header="Export cut list…" Command="{Binding ExportCutListCommand}"
+                          ToolTip="Write the cuts as a CSV, as YouTube chapter headings, or as an EDL. Timings and names only — speed, rotation, crop and fades are not carried.">
+                    <MenuItem.Icon>
+                        <TextBlock Text="↗" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Import cut list…" Command="{Binding ImportCutListCommand}"
+                          ToolTip="Read a cut list written by another tool. The format is worked out from the contents, not the file name.">
+                    <MenuItem.Icon>
+                        <TextBlock Text="↙" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+
                 <Separator/>
 
                 <MenuItem Header="Strip audio…" Command="{Binding StripAudioCommand}"
