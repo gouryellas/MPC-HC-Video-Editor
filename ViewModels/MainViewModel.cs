@@ -2085,6 +2085,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         RotateSelectedCommand.NotifyCanExecuteChanged();
         ToggleMuteCommand.NotifyCanExecuteChanged();
         ToggleFadeCommand.NotifyCanExecuteChanged();
+        FadeInCommand.NotifyCanExecuteChanged();
+        FadeOutCommand.NotifyCanExecuteChanged();
         SaveCurrentFrameCommand.NotifyCanExecuteChanged();
         ExportAnimationCommand.NotifyCanExecuteChanged();
         PlayAllCommand.NotifyCanExecuteChanged();
@@ -2109,6 +2111,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // time, so each sat in the state it was evaluated in at startup — with
         // no video open, which is to say disabled for the rest of the session.
         DetectBookmarksCommand.NotifyCanExecuteChanged();
+        SplitAtPlayheadCommand.NotifyCanExecuteChanged();
         ExportChaptersCommand.NotifyCanExecuteChanged();
         ExportCutListCommand.NotifyCanExecuteChanged();
         ImportCutListCommand.NotifyCanExecuteChanged();
