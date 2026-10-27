@@ -1206,6 +1206,13 @@ public partial class MainWindow : Window
 
         if (e.PropertyName == nameof(MainViewModel.StatusLevel))
             FlashStatusStrip();
+
+        // The tick marking the loaded playlist is drawn when the menu is
+        // built, and loading one does not change the set of playlists — so
+        // without this the mark stayed on whichever was loaded when the menu
+        // was last rebuilt.
+        if (e.PropertyName == nameof(MainViewModel.LoadedPlaylistPath))
+            Dispatcher.BeginInvoke(RefreshPlaylistsMenu);
     }
 
     /// <summary>
@@ -1418,14 +1425,23 @@ public partial class MainWindow : Window
         // would mean a File.Exists per video on every rebuild, which is the
         // per-video stat cost the lazy submenu below exists to avoid.
         var entryCount = _vm?.CountPlaylistEntriesForMenu(plsPath) ?? 0;
+        // Exactly one playlist is the loaded one, and nothing in this menu
+        // said which — so a list of eight clipboards gave no clue where "Add
+        // current video" was about to send anything. The tick is the one glyph
+        // that means "this one" without having to be explained.
+        var isLoaded = !string.IsNullOrEmpty(_vm?.LoadedPlaylistPath) &&
+                       string.Equals(System.IO.Path.GetFullPath(_vm!.LoadedPlaylistPath!),
+                                     System.IO.Path.GetFullPath(plsPath),
+                                     StringComparison.OrdinalIgnoreCase);
+
         var parent = new MenuItem
         {
             // A MenuItem's string header renders through AccessText, which
             // swallows a single underscore as an access-key marker — without
             // doubling them, "my_videos.pls" shows up as "myvideos.pls".
             Header = $"{plsName.Replace("_", "__")} ({entryCount})",
-            Icon = MenuGlyph("📋"),
-            ToolTip = plsPath,
+            Icon = MenuGlyph(isLoaded ? "✔" : "📋"),
+            ToolTip = isLoaded ? plsPath + "  — loaded" : plsPath,
             Tag = plsPath
         };
 

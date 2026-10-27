@@ -1,4 +1,4 @@
-<!-- Title is set in the constructor from the assembly version — see AppVersion.
+﻿<!-- Title is set in the constructor from the assembly version — see AppVersion.
      The literal that used to be on the Title attribute below is why 3.0.1
      shipped with a window still captioned 3.0; what is left there is only what
      the XAML designer shows. -->
@@ -796,6 +796,12 @@
                         <TextBlock Text="✂" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
+                <MenuItem Header="Split time" Command="{Binding SplitAtPlayheadCommand}"
+                          ToolTip="Puts a cut boundary wherever the player is now. Inside a cut it divides it in two; in a gap between cuts it fills the gap in.">
+                    <MenuItem.Icon>
+                        <TextBlock Text="✂" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <!-- Not gated like the modifiers further down: a crop needs a
                      picture and nothing else, so with no video loaded it asks
                      for one and with no cuts it offers the whole video. -->
@@ -817,23 +823,6 @@
                           ToolTip="Writes the video out once with the bookmarks as chapter marks, instead of cutting it into separate clips">
                     <MenuItem.Icon>
                         <TextBlock Text="🔖" Style="{StaticResource MenuGlyph}"/>
-                    </MenuItem.Icon>
-                </MenuItem>
-
-                <!-- The cut list as other tools read it. Timings and names
-                     only: none of these formats has anywhere to put a speed,
-                     a crop or a fade, so this is a way out to another editor
-                     rather than a second place to keep the work. -->
-                <MenuItem Header="Export cut list…" Command="{Binding ExportCutListCommand}"
-                          ToolTip="Write the cuts as a CSV, as YouTube chapter headings, or as an EDL. Timings and names only — speed, rotation, crop and fades are not carried.">
-                    <MenuItem.Icon>
-                        <TextBlock Text="↗" Style="{StaticResource MenuGlyph}"/>
-                    </MenuItem.Icon>
-                </MenuItem>
-                <MenuItem Header="Import cut list…" Command="{Binding ImportCutListCommand}"
-                          ToolTip="Read a cut list written by another tool. The format is worked out from the contents, not the file name.">
-                    <MenuItem.Icon>
-                        <TextBlock Text="↙" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
 
@@ -951,12 +940,6 @@
                         <TextBlock Text="🔇" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Split time" Command="{Binding SplitAtPlayheadCommand}"
-                          ToolTip="Puts a cut boundary wherever the player is now. Inside a cut it divides it in two; in a gap between cuts it fills the gap in.">
-                    <MenuItem.Icon>
-                        <TextBlock Text="✂" Style="{StaticResource MenuGlyph}"/>
-                    </MenuItem.Icon>
-                </MenuItem>
                 <!-- Three answers to one question, so they sit together. Each
                      sets its own mode outright; pressing the one a selection
                      is already in takes the fades off. -->
@@ -978,6 +961,8 @@
                         <TextBlock Text="◐" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
+                <Separator/>
+
                 <MenuItem Header="Scan for cuts…" Command="{Binding DetectBookmarksCommand}"
                           ToolTip="Scans the video for silence, black frames or scene cuts and proposes bookmarks you can review before accepting">
                     <MenuItem.Icon>
@@ -1024,6 +1009,25 @@
                           ToolTip="Open the bookmark CSV in a text editor — changes are picked up when this window regains focus">
                     <MenuItem.Icon>
                         <TextBlock Text="✎" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+
+                <!-- Beside Edit bookmarks, the other two entries that treat
+                     the bookmark file as a file. Timings and names only:
+                     none of the formats on the other side of these has
+                     anywhere to put a speed, a crop or a fade, so they are a
+                     way out to another editor rather than a second place to
+                     keep the work. -->
+                <MenuItem Header="Export bookmarks…" Command="{Binding ExportCutListCommand}"
+                          ToolTip="Write the bookmarks as a CSV, as YouTube chapter headings, or as an EDL. Timings and names only — speed, rotation, crop and fades are not carried.">
+                    <MenuItem.Icon>
+                        <TextBlock Text="↗" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Import bookmarks…" Command="{Binding ImportCutListCommand}"
+                          ToolTip="Read bookmarks written by another tool. The format is worked out from the contents, not the file name.">
+                    <MenuItem.Icon>
+                        <TextBlock Text="↙" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Enter time / range…" Command="{Binding EnterTimeManualCommand}">
@@ -1228,6 +1232,9 @@
                         <TextBlock Text="🔧" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
+                <MenuItem Header="Hide seekbar" IsCheckable="True"
+                          IsChecked="{Binding HideSeekbar, Mode=TwoWay}"
+                          ToolTip="Put the seekbar away without losing how it is set up. Everything under Customize seekbar is remembered."/>
                 <MenuItem Header="Change seekbar colors…" Command="{Binding ChangeSeekbarColorsCommand}"
                           ToolTip="What the seekbar's position bar, border, background, brackets and waveform are painted">
                     <MenuItem.Icon>
@@ -1677,6 +1684,9 @@
                             <MenuItem Header="Snap brackets to edit points" IsCheckable="True"
                                       IsChecked="{Binding SnapToEditPoints, Mode=TwoWay}"
                                       ToolTip="A bracket dragged near one of the ticks lands exactly on it. Hold Alt while dragging to place it freely."/>
+                            <MenuItem Header="Hide seekbar" IsCheckable="True"
+                                      IsChecked="{Binding HideSeekbar, Mode=TwoWay}"
+                                      ToolTip="Put the seekbar away without losing how it is set up. Bring it back from Options ▸ Hide seekbar."/>
                         </ContextMenu>
                     </Border.ContextMenu>
 
@@ -2847,6 +2857,17 @@
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                             <TextBlock Text="CURRENT PLAYLIST" FontSize="12" FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center"/>
+                            <!-- The same pair the bookmarks header carries, for
+                                 the same reason: the file named below is a
+                                 file, and editing it by hand is the escape
+                                 hatch when the menu cannot express something.
+                                 Shown only with a playlist loaded, there being
+                                 nothing to edit otherwise. -->
+                            <Button Content="✎" Style="{StaticResource HeaderIcon}"
+                                    Command="{Binding OpenPlaylistFileCommand}"
+                                    CommandParameter="{Binding LoadedPlaylistPath}"
+                                    Visibility="{Binding HasLoadedPlaylist, Converter={StaticResource BoolToVis}}"
+                                    ToolTip="Open the playlist in a text editor"/>
                             <!-- Every format the program reads, not only the one
                                  it writes. -->
                             <Button Content="📂" Style="{StaticResource HeaderIcon}"

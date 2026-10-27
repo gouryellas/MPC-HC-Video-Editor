@@ -333,7 +333,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         new() { Key = "enter-time", Group = "Bookmarks", Label = "⌨ Enter time", Icon = "⌨", IconFile = "icon-enter_time", Command = EnterTimeManualCommand,
                 ToolTip = "Type a time or a range instead of using the hotkey" },
         new() { Key = "split-at-playhead", Group = "Bookmarks", Label = "✂ Split time", Icon = "✂", IconFile = "icon-split_time", Command = SplitAtPlayheadCommand,
-                MinWidth = 104, ToolTip = "Put a cut boundary wherever the player is now" },
+                ToolTip = "Put a cut boundary wherever the player is now" },
         new() { Key = "detect", Group = "Bookmarks", Label = "🔍 Detect cuts", Icon = "🔍", IconFile = "icon-detect_cuts", Command = DetectBookmarksCommand,
                 ToolTip = "Propose cuts from silence, black frames or scene changes" },
         new() { Key = "edit-bookmarks", Group = "Bookmarks", Label = "✎ Edit bookmarks", Icon = "✎", IconFile = "icon-edit_bookmarks", Command = EditBookmarksCommand,
@@ -891,6 +891,32 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </remarks>
     public ObservableCollection<double> SnapPoints { get; } = new();
 
+    /// <summary>
+    /// Whether the seekbar is put away.
+    /// </summary>
+    /// <remarks>
+    /// The inverse of the setting rather than the setting itself, because the
+    /// menu entry reads "Hide seekbar" and a checkable item that meant the
+    /// opposite of its own label would be a trap. Settable where
+    /// <see cref="ShowSeekbar"/> is not: that one is read by the layout and
+    /// changed through the Customize dialog, which is several clicks away from
+    /// somebody who only wants the bar gone for a minute.
+    /// </remarks>
+    public bool HideSeekbar
+    {
+        get => !_settings.Current.ShowSeekbar;
+        set
+        {
+            if (_settings.Current.ShowSeekbar == !value) return;
+            _settings.Current.ShowSeekbar = !value;
+            _settings.Save();
+            OnPropertyChanged();
+
+            // The bar's own visibility reads the positive form.
+            OnPropertyChanged(nameof(ShowSeekbar));
+        }
+    }
+
     /// <summary>Whether a dragged bracket snaps to a nearby edit point.</summary>
     public bool SnapToEditPoints
     {
@@ -1402,7 +1428,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     public string AddToPlaylistMenuLabel
         => !string.IsNullOrEmpty(LoadedPlaylistPath) && File.Exists(LoadedPlaylistPath)
-            ? $"Add current video to '{Path.GetFileName(LoadedPlaylistPath)}'"
+            // Doubled, because a MenuItem's string header renders through
+            // AccessText and a single underscore is an access-key marker —
+            // "puta_man.pls" arrived as "putaman.pls" with the m underlined.
+            // The same doubling is done where the playlist submenus are built.
+            ? $"Add current video to '{Path.GetFileName(LoadedPlaylistPath).Replace("_", "__")}'"
             : "Add current video to a playlist…";
 
     /// <summary>
@@ -3309,6 +3339,33 @@ public partial class MainViewModel : ObservableObject, IDisposable
         foreach (var b in toDelete)
             Session.Bookmarks.Remove(b);
 
+        // Nothing left to store, so the file goes with it rather than
+        // lingering empty and still counting as "loaded" — the same rule
+        // UndoLastBookmark has always applied to the last timestamp, which
+        // this path never picked up. Deleting the only pair left a CSV behind
+        // that said a file was loaded and had nothing in it.
+        //
+        // SaveBookmarks cannot do this on its own: it is also called by
+        // ResetEverything on the way out, with the list already cleared, and
+        // deleting there would take the file every time the session ended.
+        if (Session.Bookmarks.Count == 0)
+        {
+            Renumber();
+
+            if (!TryDeleteBookmarkFile(out var error))
+            {
+                Session.NotifyDurationChanged();
+                ReportFailure("Deleted the bookmarks but could not delete the file: " + error);
+                return;
+            }
+
+            Session.NotifyDurationChanged();
+            StatusText = toDelete.Count == 1
+                ? $"Deleted bookmark {toDelete[0].Index} — bookmark file deleted"
+                : $"Deleted {toDelete.Count} bookmarks — bookmark file deleted";
+            return;
+        }
+
         Renumber();
         SaveBookmarks();
         Session.NotifyDurationChanged();
@@ -4096,20 +4153,22 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <param name="suffix">Optional extra text appended to the status message.</param>
     private void OpenInTextEditor(string path, string label, string suffix = "")
     {
-        var editor = ResolveTextEditor(Path.GetExtension(path));
+        // Resolved against .txt rather than against the file's own extension.
+        // Everything routed through here is plain text whatever it is called,
+        // and asking about the real extension found the wrong answer every
+        // time: .pls is registered to a media player and .csv to a
+        // spreadsheet, neither of which is in the safe list, so both fell
+        // through to the "Open with" picker — which on current Windows often
+        // does nothing at all, and "View playlist content" looked broken.
+        //
+        // Asking about .txt still honours a chosen editor, since somebody who
+        // has put Notepad++ or VS Code on their text files has said which one
+        // they want. Notepad is the floor, and it is always there.
+        var editor = ResolveTextEditor(".txt") ?? "notepad.exe";
         try
         {
-            if (editor != null)
-            {
-                Process.Start(new ProcessStartInfo(editor, $"\"{path}\"") { UseShellExecute = true });
-                StatusText = $"Opened {Path.GetFileName(path)}{suffix}";
-            }
-            else
-            {
-                Process.Start(new ProcessStartInfo("rundll32.exe",
-                    $"shell32.dll,OpenAs_RunDLL \"{path}\"") { UseShellExecute = true });
-                StatusText = $"Pick a text editor to view the {label}{suffix}";
-            }
+            Process.Start(new ProcessStartInfo(editor, $"\"{path}\"") { UseShellExecute = true });
+            StatusText = $"Opened {Path.GetFileName(path)}{suffix}";
         }
         catch (Exception ex)
         {
@@ -6857,7 +6916,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         var sfd = new SaveFileDialog
         {
-            Title = "Export cut list",
+            Title = "Export bookmarks",
             Filter = "CSV — start, end, name|*.csv|" +
                      "YouTube chapters|*.txt|" +
                      "EDL — edit decision list|*.edl",
@@ -6898,12 +6957,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
             if (sfd.FilterIndex == 2 && CutListFormats.YouTubeProblems(usable) is { Count: > 0 } problems)
                 ShowInfo("The file is written, but YouTube will not turn these into chapters:\n\n• " +
                          string.Join("\n• ", problems),
-                         "Export cut list");
+                         "Export bookmarks");
         }
         catch (Exception ex)
         {
             StatusText = "Export failed";
-            ShowError(ex.Message, "Export cut list");
+            ShowError(ex.Message, "Export bookmarks");
         }
     }
 
@@ -6920,7 +6979,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         var ofd = new OpenFileDialog
         {
-            Title = "Import cut list",
+            Title = "Import bookmarks",
             Filter = "Cut lists|*.csv;*.txt;*.edl|All files|*.*",
             InitialDirectory = string.IsNullOrWhiteSpace(Session.VideoPath)
                 ? null
@@ -6940,7 +6999,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             StatusText = "Import failed";
-            ShowError(ex.Message, "Import cut list");
+            ShowError(ex.Message, "Import bookmarks");
             return;
         }
 
@@ -6963,7 +7022,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         if (kind == CutListFormats.Kind.YouTube && Session.VideoDurationSeconds <= 0)
             ShowInfo("The last chapter has no end, because the video's length is not known yet. " +
-                     "Everything before it was imported.", "Import cut list");
+                     "Everything before it was imported.", "Import bookmarks");
 
         // Only asked when there is something to lose. See RelocatePlaylistEntries
         // for the same reasoning about a question that answers itself.
@@ -6975,7 +7034,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 $"{Path.GetFileName(ofd.FileName)} holds {entries.Count} " +
                 $"{(entries.Count == 1 ? "cut" : "cuts")}, read as {Describe(kind)}.\n\n" +
                 "Replace the cuts currently loaded? Choosing No adds them to the list instead.",
-                "Import cut list",
+                "Import bookmarks",
                 MessageBoxButton.YesNoCancel,
                 MessageBoxImage.Question);
 
@@ -8316,6 +8375,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // its appearance when it next appears.
         SuffixExampleDisplay = BuildSuffixExample(_settings.GetActiveSuffixText());
         OnPropertyChanged(nameof(ShowSeekbar));
+        OnPropertyChanged(nameof(HideSeekbar));
         OnPropertyChanged(nameof(ShowSeekbarWaveform));
 
         // Nothing was decoded while it was off, so turning it back on needs a
