@@ -332,7 +332,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 ToolTip = "Remove the last single timestamp" },
         new() { Key = "enter-time", Group = "Bookmarks", Label = "⌨ Enter time", Icon = "⌨", IconFile = "icon-enter_time", Command = EnterTimeManualCommand,
                 ToolTip = "Type a time or a range instead of using the hotkey" },
-        new() { Key = "split-at-playhead", Group = "Bookmarks", Label = "✂ Split here", Icon = "✂", IconFile = "icon-split", Command = SplitAtPlayheadCommand,
+        new() { Key = "split-at-playhead", Group = "Bookmarks", Label = "✂ Split time", Icon = "✂", IconFile = "icon-split_time", Command = SplitAtPlayheadCommand,
                 MinWidth = 104, ToolTip = "Put a cut boundary wherever the player is now" },
         new() { Key = "detect", Group = "Bookmarks", Label = "🔍 Detect cuts", Icon = "🔍", IconFile = "icon-detect_cuts", Command = DetectBookmarksCommand,
                 ToolTip = "Propose cuts from silence, black frames or scene changes" },

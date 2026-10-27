@@ -951,7 +951,7 @@
                         <TextBlock Text="🔇" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Split here" Command="{Binding SplitAtPlayheadCommand}"
+                <MenuItem Header="Split time" Command="{Binding SplitAtPlayheadCommand}"
                           ToolTip="Puts a cut boundary wherever the player is now. Inside a cut it divides it in two; in a gap between cuts it fills the gap in.">
                     <MenuItem.Icon>
                         <TextBlock Text="✂" Style="{StaticResource MenuGlyph}"/>
