@@ -974,7 +974,7 @@
                      binding changes. -->
                 <MenuItem Header="Current" Style="{StaticResource MenuSectionHeader}"/>
                 <MenuItem Header="{Binding HotkeyMenuLabel}" IsEnabled="False"/>
-                <Separator/>
+                <MenuItem Header="Set" Style="{StaticResource MenuSectionHeader}"/>
                 <MenuItem Header="Change keybind…" Command="{Binding SetTimestampHotkeyCommand}"
                           ToolTip="Pick a mouse button or capture a keyboard combination">
                     <MenuItem.Icon>
