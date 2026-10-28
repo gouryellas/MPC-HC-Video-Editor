@@ -5464,8 +5464,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Splits a single bookmark into its own clip — the "radio button"
-    /// one-click split from the bookmark list. Output goes to the
+    /// Splits a single bookmark into its own clip — the save button at the
+    /// head of each row in the bookmark list. Output goes to the
     /// quick save folder, falling back to the source video's own directory
     /// when no quick save folder is set (see
     /// <see cref="ResolveQuickSaveDirectory"/>), using the active suffix and
@@ -5567,6 +5567,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ProgressPercent = 100;
             StatusText = $"Created clip → {outPath}";
             succeeded = true;
+
+            // The row's button becomes a check mark. Set here rather than
+            // after the try, so a throw on the way out of the write cannot
+            // leave a row claiming a clip that was never finished.
+            bookmark.QuickSaved = true;
 
             if (_ffmpeg.LastOutputWarning is { } warning)
                 _toast.Show("Output doesn't match the marked range", warning, "⚠", force: true,

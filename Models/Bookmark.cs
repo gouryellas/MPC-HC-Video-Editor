@@ -48,6 +48,7 @@ public class Bookmark : INotifyPropertyChanged
     private double _startSeconds;
     private double _endSeconds;
     private bool _isSelected;
+    private bool _quickSaved;
     private bool _isFlipped;
     private double _speed = 1.0;
     private Rotation _rotation;
@@ -72,6 +73,10 @@ public class Bookmark : INotifyPropertyChanged
             OnPropertyChanged(nameof(StartDisplay));
             OnPropertyChanged(nameof(DurationSeconds));
             OnPropertyChanged(nameof(DurationDisplay));
+
+            // The saved mark described the range as it stood when it was
+            // written; see QuickSaved.
+            QuickSaved = false;
 
             // The row shows the length the saved clip will have, which is this
             // range divided by the speed. Moving either end changes it just as
@@ -101,6 +106,9 @@ public class Bookmark : INotifyPropertyChanged
             OnPropertyChanged(nameof(EndDisplay));
             OnPropertyChanged(nameof(DurationSeconds));
             OnPropertyChanged(nameof(DurationDisplay));
+
+            // As in StartSeconds: a moved end is a different clip.
+            QuickSaved = false;
 
             // The row shows the length the saved clip will have, which is this
             // range divided by the speed. Moving either end changes it just as
@@ -150,6 +158,37 @@ public class Bookmark : INotifyPropertyChanged
         {
             if (_isSelected == value) return;
             _isSelected = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
+    /// Whether this bookmark has been written out by the row's quick save
+    /// button since its times were last changed.
+    /// </summary>
+    /// <remarks>
+    /// Only the quick save button sets this, and only on a write that
+    /// finished. It is the row's own memory of "I did that one" — the list of
+    /// what has and has not been saved yet is otherwise only in the user's
+    /// head, and on a long list that is where clips get saved twice and
+    /// missed entirely.
+    ///
+    /// Deliberately not serialized. The claim is about a file that exists
+    /// right now, and a mark restored from a bookmark file would be asserting
+    /// something about a clip that might have been moved, renamed or deleted
+    /// in between — a quiet lie is worse here than no answer at all.
+    ///
+    /// Moving either end clears it, in the setters above: a clip saved from
+    /// 5s–12s is not the clip 5s–20s names, so the mark would be pointing at
+    /// the wrong range the moment a nudge arrow is pressed.
+    /// </remarks>
+    public bool QuickSaved
+    {
+        get => _quickSaved;
+        set
+        {
+            if (_quickSaved == value) return;
+            _quickSaved = value;
             OnPropertyChanged();
         }
     }

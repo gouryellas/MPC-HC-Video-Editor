@@ -676,6 +676,67 @@
                 </MultiDataTrigger>
             </Style.Triggers>
         </Style>
+
+        <!-- The one-click quick save at the head of each bookmark row. A save
+             icon that becomes a check mark once the clip has been written.
+
+             It was a radio button, which was wrong in two ways at once: a
+             radio button promises a choice between the rows, and nothing here
+             is being chosen — pressing it writes a file. And it had no way to
+             say it had already been pressed, because a radio button in a group
+             of its own stays filled whether it did anything or not. The icons
+             carry both: what it does, and whether it has done it.
+
+             Both sources are set on the same Image rather than one per state.
+             Two images with their visibility swapped would each have to agree
+             about size and position, and the one underneath would still be
+             taking up layout. -->
+        <Style x:Key="RowQuickSave" TargetType="Button">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <!-- Transparent for the same reason as the nudge
+                             arrows: a null background is not a hit-test
+                             target, so only the icon's own pixels would
+                             answer the click, and a save glyph is mostly
+                             empty space. -->
+                        <Border x:Name="Chrome" Background="Transparent" CornerRadius="3"
+                                ToolTip="Click to save this clip now — goes to the quick save folder, or next to the source video if none is set">
+                            <Image x:Name="Glyph" Width="16" Height="16" Stretch="Uniform"
+                                   Source="pack://application:,,,/Assets/icons/icon-quick_save.png"
+                                   RenderOptions.BitmapScalingMode="HighQuality"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <!-- Bound to the bookmark, which is this button's
+                                 own DataContext inside the row template. -->
+                            <DataTrigger Binding="{Binding QuickSaved}" Value="True">
+                                <Setter TargetName="Glyph" Property="Source"
+                                        Value="pack://application:,,,/Assets/icons/icon-check_mark.png"/>
+                                <!-- Still live, and says so. Saving the same
+                                     range twice is a reasonable thing to want
+                                     — the first clip may have been moved or
+                                     deleted — so the check mark reports, it
+                                     does not refuse. -->
+                                <Setter TargetName="Chrome" Property="ToolTip"
+                                        Value="Already saved — click to save this clip again"/>
+                            </DataTrigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background"
+                                        Value="{DynamicResource ControlBackground}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Glyph" Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <DockPanel>
@@ -1964,17 +2025,16 @@
                                                     Margin="4" Padding="3,1"
                                                     Background="#A0000000" CornerRadius="3">
                                                 <StackPanel Orientation="Horizontal">
-                                                    <!-- Quick save, as on the cut list: one
-                                                         click writes this clip on its own.
-                                                         See the radio button there for what
-                                                         the group name is doing. -->
-                                                    <RadioButton GroupName="{Binding Index, StringFormat=card{0}}"
-                                                                 Visibility="{Binding IsValid, Converter={StaticResource BoolToVis}}"
-                                                                 Command="{Binding DataContext.SplitSingleCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                                 CommandParameter="{Binding}"
-                                                                 ToolTip="Click to save this clip now — goes to the quick save folder, or next to the source video if none is set"
-                                                                 VerticalAlignment="Center" Margin="0,0,4,0"
-                                                                 Cursor="Hand"/>
+                                                    <!-- Quick save, as on the bookmark list:
+                                                         one click writes this clip on its
+                                                         own, and the icon becomes a check
+                                                         mark once it has. Same style as the
+                                                         list, so the two never drift. -->
+                                                    <Button Style="{StaticResource RowQuickSave}"
+                                                            Margin="0,0,4,0"
+                                                            Visibility="{Binding IsValid, Converter={StaticResource BoolToVis}}"
+                                                            Command="{Binding DataContext.SplitSingleCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                            CommandParameter="{Binding}"/>
                                                     <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                               VerticalAlignment="Center"
                                                               ToolTip="Check this bookmark for the actions that work on a selection"/>
@@ -2069,13 +2129,11 @@
                                             Margin="3" Padding="3,1"
                                             Background="#A0000000" CornerRadius="3">
                                         <StackPanel Orientation="Horizontal">
-                                            <RadioButton GroupName="{Binding Index, StringFormat=sheet{0}}"
-                                                         Visibility="{Binding IsValid, Converter={StaticResource BoolToVis}}"
-                                                         Command="{Binding DataContext.SplitSingleCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                         CommandParameter="{Binding}"
-                                                         ToolTip="Click to save this clip now — goes to the quick save folder, or next to the source video if none is set"
-                                                         VerticalAlignment="Center" Margin="0,0,4,0"
-                                                         Cursor="Hand"/>
+                                            <Button Style="{StaticResource RowQuickSave}"
+                                                    Margin="0,0,4,0"
+                                                    Visibility="{Binding IsValid, Converter={StaticResource BoolToVis}}"
+                                                    Command="{Binding DataContext.SplitSingleCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                    CommandParameter="{Binding}"/>
                                             <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                       VerticalAlignment="Center"
                                                       ToolTip="Check this bookmark for the actions that work on a selection"/>
@@ -2154,13 +2212,11 @@
 
                                     <StackPanel Grid.Column="0" Orientation="Horizontal"
                                                 VerticalAlignment="Center" Margin="0,0,8,0">
-                                        <RadioButton GroupName="{Binding Index, StringFormat=detail{0}}"
-                                                     Visibility="{Binding IsValid, Converter={StaticResource BoolToVis}}"
-                                                     Command="{Binding DataContext.SplitSingleCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                     CommandParameter="{Binding}"
-                                                     ToolTip="Click to save this clip now — goes to the quick save folder, or next to the source video if none is set"
-                                                     VerticalAlignment="Center" Margin="0,0,6,0"
-                                                     Cursor="Hand"/>
+                                        <Button Style="{StaticResource RowQuickSave}"
+                                                Margin="0,0,6,0"
+                                                Visibility="{Binding IsValid, Converter={StaticResource BoolToVis}}"
+                                                Command="{Binding DataContext.SplitSingleCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                CommandParameter="{Binding}"/>
                                         <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                   VerticalAlignment="Center"
                                                   ToolTip="Check this bookmark for the actions that work on a selection"/>
@@ -2219,13 +2275,11 @@
                                     CornerRadius="4">
                                 <StackPanel>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                        <RadioButton GroupName="{Binding Index, StringFormat=strip{0}}"
-                                                     Visibility="{Binding IsValid, Converter={StaticResource BoolToVis}}"
-                                                     Command="{Binding DataContext.SplitSingleCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                     CommandParameter="{Binding}"
-                                                     ToolTip="Click to save this clip now — goes to the quick save folder, or next to the source video if none is set"
-                                                     VerticalAlignment="Center" Margin="0,0,4,0"
-                                                     Cursor="Hand"/>
+                                        <Button Style="{StaticResource RowQuickSave}"
+                                                Margin="0,0,4,0"
+                                                Visibility="{Binding IsValid, Converter={StaticResource BoolToVis}}"
+                                                Command="{Binding DataContext.SplitSingleCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                CommandParameter="{Binding}"/>
                                         <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                   VerticalAlignment="Center"
                                                   ToolTip="Check this bookmark for the actions that work on a selection"/>
@@ -2425,21 +2479,19 @@
                                             <ColumnDefinition Width="Auto" MinWidth="52"/>
                                         </Grid.ColumnDefinitions>
 
-                                        <!-- One-click split: clicking this radio button
+                                        <!-- One-click split: clicking this save icon
                                              immediately FFmpeg-splits just this clip into
                                              the quick save folder (File ▸ "Quick save: …"),
                                              or next to the source video when that folder is
-                                             unset, using the active suffix. Only shown on
+                                             unset, using the active suffix. It turns into a
+                                             check mark once the clip has been written —
+                                             see the RowQuickSave style. Only shown on
                                              complete (valid) bookmarks. -->
-                                        <RadioButton Grid.Column="0"
-                                                     GroupName="{Binding Index}"
-                                                     Visibility="{Binding IsValid, Converter={StaticResource BoolToVis}}"
-                                                     Command="{Binding DataContext.SplitSingleCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                     CommandParameter="{Binding}"
-                                                     ToolTip="Click to save this clip now — goes to the quick save folder, or next to the source video if none is set"
-                                                     VerticalAlignment="Center"
-                                                     HorizontalAlignment="Center"
-                                                     Cursor="Hand"/>
+                                        <Button Grid.Column="0"
+                                                Style="{StaticResource RowQuickSave}"
+                                                Visibility="{Binding IsValid, Converter={StaticResource BoolToVis}}"
+                                                Command="{Binding DataContext.SplitSingleCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                CommandParameter="{Binding}"/>
                                         <!-- Checkable on every row, including a bookmark that is
                                              still open. It was disabled until a closing timestamp
                                              arrived, which made a lone opening timestamp the one
