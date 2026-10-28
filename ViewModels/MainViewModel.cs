@@ -2861,10 +2861,28 @@ public partial class MainViewModel : ObservableObject, IDisposable
         StatusText = "No video loaded";
     }
 
+    /// <summary>Whether the player was running on the previous tick.</summary>
+    private bool _playerWasRunning;
+
     private void PollMpc()
     {
         if (IsBusy) return;
         IsMpcRunning = _mpc.IsRunning;
+
+        // The player just appeared. Clear the Web Interface backoff, which by
+        // now is certainly engaged: while MPC-HC was closed every probe failed
+        // with a refused connection, and a failed probe waits ten seconds
+        // before the next — a gap sized for "the interface is switched off",
+        // which is the usual reason, and much too long for "the player has
+        // only this moment started".
+        //
+        // It matters because the title cannot cover the gap. MPC-HC's title
+        // carries a bare filename, and auto-load refuses an unrooted path it
+        // cannot resolve, so until the interface answers there is nothing to
+        // load from — a video opened outside this program sat unrecognised for
+        // up to ten seconds.
+        if (IsMpcRunning && !_playerWasRunning) _mpc.InvalidatePlayerSnapshot();
+        _playerWasRunning = IsMpcRunning;
 
         // Focus moves between processes without notifying us, so the view
         // condition is re-evaluated on every tick. It returns immediately when

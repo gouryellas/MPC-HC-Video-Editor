@@ -303,8 +303,18 @@ public class MpcHcService
     /// difference between the button confirming itself within a tick and
     /// waiting out the rest of the probe interval to do it.
     /// </remarks>
-    public void InvalidatePlayerSnapshot() =>
+    public void InvalidatePlayerSnapshot()
+    {
         Interlocked.Exchange(ref _webProbeNotBeforeTicks, 0);
+
+        // And keep asking briskly for a while. A player that has only just
+        // started is not listening yet — its HTTP server comes up a moment
+        // after the process does — so the probe this unblocks will very likely
+        // fail, and the ordinary ten-second backoff would then apply to a
+        // player that is about to answer perfectly well.
+        Interlocked.Exchange(ref _webProbeEagerUntilTicks,
+                             DateTime.UtcNow.AddMilliseconds(WebProbeEagerWindowMs).Ticks);
+    }
 
     /// <summary>A millisecond value from the Web Interface, as seconds.</summary>
     /// <remarks>
@@ -360,6 +370,25 @@ public class MpcHcService
 
     /// <summary>How old an answer may be and still be used.</summary>
     private const int WebFileStaleMs = 5000;
+
+    /// <summary>
+    /// While this has not passed, a failed probe backs off by the ordinary
+    /// interval rather than by <see cref="WebProbeBackoffMs"/>.
+    /// </summary>
+    private long _webProbeEagerUntilTicks;
+
+    /// <summary>
+    /// How long to keep retrying briskly after the player appears.
+    /// </summary>
+    /// <remarks>
+    /// Long enough to cover MPC-HC starting up and opening its port, short
+    /// enough that a player launched with the interface switched off settles
+    /// back to the slow rate quickly. Nothing is lost either way: the cost of
+    /// a refused connection on a local socket is negligible, it is the
+    /// *forever* of retrying at the poll rate that the backoff exists to
+    /// prevent.
+    /// </remarks>
+    private const int WebProbeEagerWindowMs = 20_000;
 
     /// <summary>
     /// Starts a background read of the Web Interface, unless one is already
@@ -437,11 +466,12 @@ public class MpcHcService
                 // failed request. Neither is worth asking about every second,
                 // and the poll notices a file opening through the title in the
                 // meantime.
+                var eager = DateTime.UtcNow.Ticks < Interlocked.Read(ref _webProbeEagerUntilTicks);
+                var wait = answered || eager ? WebProbeIntervalMs : WebProbeBackoffMs;
+
                 Interlocked.Exchange(
                     ref _webProbeNotBeforeTicks,
-                    DateTime.UtcNow
-                            .AddMilliseconds(answered ? WebProbeIntervalMs : WebProbeBackoffMs)
-                            .Ticks);
+                    DateTime.UtcNow.AddMilliseconds(wait).Ticks);
 
                 Interlocked.Exchange(ref _webProbeRunning, 0);
             }
