@@ -693,6 +693,15 @@
              taking up layout. -->
         <Style x:Key="RowQuickSave" TargetType="Button">
             <Setter Property="Padding" Value="0"/>
+            <!-- The size of the box on the check box beside it, so the two
+                 marks at the head of a row are the same weight. Measured off
+                 the default WPF CheckBox template rather than guessed: its
+                 "checkBoxBorder" draws 14 wide by 13 high inside a control
+                 whose own footprint is 16 by 15. Not square, which is why the
+                 icon below is Uniform and not Fill — it draws 13 by 13,
+                 centered, rather than being squashed by a pixel. -->
+            <Setter Property="Width" Value="14"/>
+            <Setter Property="Height" Value="13"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Focusable" Value="False"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
@@ -707,7 +716,7 @@
                              empty space. -->
                         <Border x:Name="Chrome" Background="Transparent" CornerRadius="3"
                                 ToolTip="Click to save this clip now — goes to the quick save folder, or next to the source video if none is set">
-                            <Image x:Name="Glyph" Width="16" Height="16" Stretch="Uniform"
+                            <Image x:Name="Glyph" Stretch="Uniform"
                                    Source="pack://application:,,,/Assets/icons/icon-quick_save.png"
                                    RenderOptions.BitmapScalingMode="HighQuality"/>
                         </Border>
