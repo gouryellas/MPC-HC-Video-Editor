@@ -5283,7 +5283,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
             await _ffmpeg.MergeBookmarksAsync(Session.VideoPath, outPath, toMerge, progress, default, format);
 
             StatusText = $"Created {Path.GetFileName(outPath)}";
-            NoteOutput(outPath);
 
             // The app now checks what it produced against what was asked for,
             // and separately whether the audio and video tracks inside it
@@ -9539,7 +9538,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
             await _ffmpeg.CropVideoAsync(video, outPath, x, y, w, h, progress);
             written = true;
 
-            NoteOutput(outPath);
             StatusText = $"Cropped to {w * 100:0}% × {h * 100:0}% — wrote {Path.GetFileName(outPath)}";
         }
         catch (Exception ex)
@@ -10336,30 +10334,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // ------------------------------------------------------------------
 
     /// <summary>
-    /// The last file this app wrote, so it can be shown on request.
-    /// </summary>
-    private string? _lastOutputPath;
-
-    /// <summary>Whether there is a written file still on disk to reveal.</summary>
-    public bool HasRevealableOutput =>
-        !string.IsNullOrWhiteSpace(_lastOutputPath) && File.Exists(_lastOutputPath);
-
-    /// <summary>
-    /// Opens Explorer with the last written file selected.
-    /// </summary>
-    /// <remarks>
-    /// A menu entry rather than a setting: it is an action, and there is
-    /// nothing about it to configure. The status bar has named the file since
-    /// 4.0, but naming a file is not the same as being able to get to it.
-    /// </remarks>
-    [RelayCommand(CanExecute = nameof(HasRevealableOutput))]
-    private void RevealOutput()
-    {
-        if (!HasRevealableOutput) return;
-        RevealInExplorer(_lastOutputPath!);
-    }
-
-    /// <summary>
     /// Whether the loaded video is still on disk to be shown.
     /// </summary>
     /// <remarks>
@@ -10399,16 +10373,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             StatusText = $"Could not open Explorer — {ex.Message}";
         }
-    }
-
-    /// <summary>
-    /// Records a written file as the one Reveal will show.
-    /// </summary>
-    private void NoteOutput(string? path)
-    {
-        _lastOutputPath = path;
-        OnPropertyChanged(nameof(HasRevealableOutput));
-        RevealOutputCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>

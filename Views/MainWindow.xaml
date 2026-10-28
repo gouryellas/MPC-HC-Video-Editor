@@ -1298,7 +1298,7 @@
                      Off leaves this window up permanently. The hotkey still
                      works there — it says what it recorded in a toast, since
                      this window is behind the player at the time. -->
-                <MenuItem Header="Behaviour" Style="{StaticResource MenuSectionHeader}"/>
+                <MenuItem Header="Behavior" Style="{StaticResource MenuSectionHeader}"/>
                 <MenuItem Header="Switch views automatically" IsCheckable="True"
                           IsChecked="{Binding AutoSwitchViews, Mode=TwoWay}"/>
                 <!-- A pair of alternatives, not two switches — see
