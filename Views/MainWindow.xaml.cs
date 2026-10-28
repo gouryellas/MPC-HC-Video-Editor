@@ -1105,8 +1105,13 @@ public partial class MainWindow : Window
             recentMenu.Items.RemoveAt(i);
 
         bool hasAny = _vm.RecentVideos.Count > 0;
-        startSep.Visibility = hasAny ? Visibility.Visible : Visibility.Collapsed;
-        endSep.Visibility = hasAny ? Visibility.Visible : Visibility.Collapsed;
+
+        // Both stay hidden. They are insertion markers, and they used to show
+        // themselves whenever there was a list — which put a rule above it and
+        // another below. The "Viewed" caption introduces the list now, and
+        // nothing else in these menus is ruled off any more.
+        startSep.Visibility = Visibility.Collapsed;
+        endSep.Visibility = Visibility.Collapsed;
         if (emptyPlaceholder != null) emptyPlaceholder.Visibility = hasAny ? Visibility.Collapsed : Visibility.Visible;
         if (clearItem != null) clearItem.IsEnabled = hasAny;
 
@@ -1470,9 +1475,12 @@ public partial class MainWindow : Window
                 playlistMenu.Items.Insert(insertAt++, BuildPlaylistMenuItem(plsPath));
         }
 
-        // Show/hide separators + placeholder.
-        startSep.Visibility = hasAny ? Visibility.Visible : Visibility.Collapsed;
-        endSep.Visibility = hasAny ? Visibility.Visible : Visibility.Collapsed;
+        // The pair stays hidden: markers, not rules. They used to appear
+        // whenever there were playlists, which ruled the list off top and
+        // bottom — and the captions below it say where the list ends without
+        // a line. The one rule in this menu is the static one above Refresh.
+        startSep.Visibility = Visibility.Collapsed;
+        endSep.Visibility = Visibility.Collapsed;
         if (emptyPlaceholder != null)
         {
             emptyPlaceholder.Visibility = hasAny ? Visibility.Collapsed : Visibility.Visible;
