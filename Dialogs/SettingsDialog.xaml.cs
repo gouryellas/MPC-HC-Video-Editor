@@ -49,6 +49,26 @@ public partial class SettingsDialog : Window
     public bool CompletionSound { get; private set; }
 
     /// <summary>Whether the toolbar is drawn as icons with no labels.</summary>
+    /// <summary>
+    /// Shows the two toolbar boxes as they are ticked, before Save.
+    /// </summary>
+    /// <remarks>
+    /// Both of them change how every button in the toolbar is drawn, and the
+    /// toolbar is in full view behind this window — so describing the change
+    /// in a sentence and then asking the user to commit to it, close the
+    /// dialog and look, was the long way round to a question answered by
+    /// ticking the box.
+    ///
+    /// Assigned by the caller after construction, which is also what keeps the
+    /// seeding below quiet: it ticks the boxes to match the saved settings
+    /// while this is still null.
+    /// </remarks>
+    public Action<bool, bool>? PreviewToolbarIcons { get; init; }
+
+    private void ToolbarIcons_Changed(object sender, RoutedEventArgs e) =>
+        PreviewToolbarIcons?.Invoke(SmallIconsCheck.IsChecked == true,
+                                    FlatIconsCheck.IsChecked == true);
+
     public bool SmallButtonIcons { get; private set; }
 
     /// <summary>Whether the toolbar's buttons are drawn without their chrome.</summary>

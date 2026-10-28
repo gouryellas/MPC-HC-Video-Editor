@@ -121,11 +121,13 @@
                                            Text="Switches between Graphite and Daylight to match the Windows setting, including live if it changes while the program is running. The picker above is ignored while this is on, and remembers what it was set to for when this is turned off again."/>
 
                                 <CheckBox x:Name="SmallIconsCheck" Margin="0,12,0,0"
+                                          Checked="ToolbarIcons_Changed" Unchecked="ToolbarIcons_Changed"
                                           Content="Small button icons"/>
                                 <TextBlock Style="{StaticResource Hint}"
                                            Text="Draws the toolbar as icons alone, the way the camera and bin buttons already are. Hover any of them for its name. Naming tag buttons keep their text."/>
 
                                 <CheckBox x:Name="FlatIconsCheck" Margin="0,12,0,0"
+                                          Checked="ToolbarIcons_Changed" Unchecked="ToolbarIcons_Changed"
                                           Content="No button backgrounds"/>
                                 <TextBlock Style="{StaticResource Hint}"
                                            Text="Shows the icons on their own, with no rounded square behind them. Works with or without the labels. The four coloured operation families keep their text colour but lose their fill, so the colours you pick for them stop showing."/>

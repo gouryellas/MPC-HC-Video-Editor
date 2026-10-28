@@ -8303,15 +8303,42 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// reaction to a changed setting next to the save rather than split
     /// across two files.
     /// </remarks>
+    /// <summary>
+    /// Redraws every toolbar button small or flat, without saving anything.
+    /// </summary>
+    /// <remarks>
+    /// The items carry both of these, so this is the whole of the change —
+    /// each button rebinds its own picture, padding and label from them. Used
+    /// by the live preview in Settings, by the cancel that undoes it, and by
+    /// the save that makes it permanent, so the three cannot drift.
+    /// </remarks>
+    private void ApplyToolbarIconStyle(bool small, bool flat)
+    {
+        foreach (var item in ToolbarItems)
+        {
+            item.IsCompact = small;
+            item.IsFlat = flat;
+        }
+    }
+
     [RelayCommand]
     private void OpenSettings()
     {
         var dlg = new SettingsDialog(_settings.Current, AutoSwitchViews, _ffmpeg)
         {
-            Owner = Application.Current?.MainWindow
+            Owner = Application.Current?.MainWindow,
+            PreviewToolbarIcons = ApplyToolbarIconStyle
         };
 
-        if (dlg.ShowDialog() != true) return;
+        if (dlg.ShowDialog() != true)
+        {
+            // Cancelled, so the preview has to come back off. The settings
+            // were never written, which makes them the record of how the
+            // toolbar looked before the dialog opened.
+            ApplyToolbarIconStyle(_settings.Current.SmallButtonIcons,
+                                  _settings.Current.FlatButtonIcons);
+            return;
+        }
 
         var s = _settings.Current;
 
@@ -8414,12 +8441,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // Flipped on the items that are already there rather than rebuilt from
         // the saved layout: a rebuild would reset the select button's caption,
         // which tracks the current selection and not the stored toolbar.
-        if (iconsChanged)
-            foreach (var item in ToolbarItems)
-            {
-                item.IsCompact = s.SmallButtonIcons;
-                item.IsFlat = s.FlatButtonIcons;
-            }
+        if (iconsChanged) ApplyToolbarIconStyle(s.SmallButtonIcons, s.FlatButtonIcons);
 
         TrimRecentVideosToLimit();
 
