@@ -1083,7 +1083,7 @@ public partial class MainWindow : Window
         // FindMenuItem) previously assumed _Recent lived one level deeper
         // than it actually needed to be searched for, and was a needless
         // extra failure point; the generated field can't miss it.
-        var recentMenu = RecentMenuItem;
+        var recentMenu = EditMenu;
         if (recentMenu == null) return;
 
         var startSep = FindNamed(recentMenu.Items, "RecentStartSeparator") as Separator;
@@ -1269,7 +1269,7 @@ public partial class MainWindow : Window
         // rebuild silently did nothing — newly added naming tags never appeared.
         // It happened a second time when the headers gained icons. A name is
         // checked by the compiler and cannot drift with the wording.
-        var suffixMenu = OptionsMenu;
+        var suffixMenu = TagsMenu;
 
         var startSep = FindNamed(suffixMenu.Items, "SuffixListStartSeparator") as Separator;
         var endSep = FindNamed(suffixMenu.Items, "SuffixListEndSeparator") as Separator;

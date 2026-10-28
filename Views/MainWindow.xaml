@@ -753,7 +753,7 @@
                 </MenuItem>
             </MenuItem>
 
-            <MenuItem Header="&#9998; Edit">
+            <MenuItem x:Name="EditMenu" Header="&#9998; Edit">
                 <!-- The headers name what will be reversed — "Undo the speed"
                      rather than a bare "Undo" — so the entry says what it is
                      about to do before it does it. -->
@@ -777,7 +777,7 @@
 
                      Each row carries its own command — see HistoryEntry — so
                      nothing here has to reach back out of the popup for one. -->
-                <MenuItem Header="History" ItemsSource="{Binding HistoryEntries}"
+                <MenuItem Header="Undo history" ItemsSource="{Binding HistoryEntries}"
                           IsEnabled="{Binding HasHistory}"
                           ToolTip="Every change to the bookmarks still on the stack. Click one to jump straight to it, however many steps away it is.">
                     <MenuItem.Icon>
@@ -802,6 +802,16 @@
                             </Style.Triggers>
                         </Style>
                     </MenuItem.ItemContainerStyle>
+                </MenuItem>
+                <Separator/>
+                <MenuItem Header="(no recent videos)" IsEnabled="False" x:Name="RecentEmptyPlaceholder"/>
+                <Separator x:Name="RecentStartSeparator" Visibility="Collapsed"/>
+                <!-- Dynamic per-video entries inserted here at runtime -->
+                <Separator x:Name="RecentEndSeparator" Visibility="Collapsed"/>
+                <MenuItem Header="Clear history" Click="ClearRecentList_Click" x:Name="RecentClearItem" IsEnabled="False">
+                <MenuItem.Icon>
+                    <TextBlock Text="🗑" Style="{StaticResource MenuGlyph}"/>
+                </MenuItem.Icon>
                 </MenuItem>
             </MenuItem>
             <!-- Grouped by what each operation acts on, in the same four
@@ -993,16 +1003,13 @@
                      "Hotkey: Ctrl+Shift+T", "Hotkey: OFF"). Bound to the
                      ViewModel's HotkeyMenuLabel which is updated whenever the
                      binding changes. -->
+                <MenuItem Header="Current" Style="{StaticResource MenuSectionHeader}"/>
                 <MenuItem Header="{Binding HotkeyMenuLabel}" IsEnabled="False"/>
-                <MenuItem Header="Set bookmark hotkey…" Command="{Binding SetTimestampHotkeyCommand}"
+                <Separator/>
+                <MenuItem Header="Change keybind…" Command="{Binding SetTimestampHotkeyCommand}"
                           ToolTip="Pick a mouse button or capture a keyboard combination">
                     <MenuItem.Icon>
                         <TextBlock Text="⌨" Style="{StaticResource MenuGlyph}"/>
-                    </MenuItem.Icon>
-                </MenuItem>
-                <MenuItem Header="Disable hotkey" Command="{Binding DisableTimestampHotkeyCommand}">
-                    <MenuItem.Icon>
-                        <TextBlock Text="✕" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
             </MenuItem>
@@ -1176,17 +1183,6 @@
             <!-- History — the recently-played videos, promoted out of the File
                  menu to a top-level menu of its own. Entries between the two
                  named separators are inserted at runtime from RecentVideos. -->
-            <MenuItem Header="&#128336; History" x:Name="RecentMenuItem" ToolTip="Recently played videos">
-                <MenuItem Header="(no recent videos)" IsEnabled="False" x:Name="RecentEmptyPlaceholder"/>
-                <Separator x:Name="RecentStartSeparator" Visibility="Collapsed"/>
-                <!-- Dynamic per-video entries inserted here at runtime -->
-                <Separator x:Name="RecentEndSeparator" Visibility="Collapsed"/>
-                <MenuItem Header="Clear history" Click="ClearRecentList_Click" x:Name="RecentClearItem" IsEnabled="False">
-                    <MenuItem.Icon>
-                        <TextBlock Text="🗑" Style="{StaticResource MenuGlyph}"/>
-                    </MenuItem.Icon>
-                </MenuItem>
-            </MenuItem>
             <!-- Shortcuts menu — lets the user add folder shortcuts that then
                  appear as clickable items at the bottom of the File menu. -->
             <MenuItem x:Name="ShortcutsMenu" Header="&#128279; Shortcuts">
@@ -1216,30 +1212,11 @@
                      the one line here that says which tag is actually in use, so
                      it stays at full contrast. It has no Command, so it is still
                      a label — clicking it just closes the menu. -->
-                <MenuItem Header="Naming tags" Style="{StaticResource MenuSectionHeader}"/>
-                <MenuItem Header="{Binding ActiveSuffixDisplay}">
-                    <MenuItem.Icon>
-                        <TextBlock Text="🏷" Style="{StaticResource MenuGlyph}"/>
-                    </MenuItem.Icon>
-                </MenuItem>
-                <MenuItem Header="{Binding SuffixExampleDisplay}" IsEnabled="False"/>
-                <Separator x:Name="SuffixListStartSeparator" Visibility="Collapsed"/>
                 <!-- Dynamic per-suffix entries inserted here at runtime by
                      MainWindow.xaml.cs. The active one gets a ✓ prefix;
                      clicking any entry sets it as active. SuffixListEndSeparator
                      doubles as the divider before "Add suffix…" — no extra
                      static separator needed. -->
-                <Separator x:Name="SuffixListEndSeparator" Visibility="Collapsed"/>
-                <MenuItem Header="Add new naming tag…" Command="{Binding AddSuffixCommand}">
-                    <MenuItem.Icon>
-                        <TextBlock Text="➕" Style="{StaticResource MenuGlyph}"/>
-                    </MenuItem.Icon>
-                </MenuItem>
-                <MenuItem Header="Manage naming tags…" Command="{Binding ManageSuffixesCommand}">
-                    <MenuItem.Icon>
-                        <TextBlock Text="✎" Style="{StaticResource MenuGlyph}"/>
-                    </MenuItem.Icon>
-                </MenuItem>
                 <!-- The way back from a rearranged toolbar. Dragging is
                      discoverable by accident; undoing it is not, so it needs a
                      line somewhere that can be found on purpose. -->
@@ -1285,6 +1262,27 @@
                           ToolTip="Put the seekbar's colors, transparency and bracket style back the way the program ships with.">
                     <MenuItem.Icon>
                         <TextBlock Text="↺" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+            </MenuItem>
+            <!-- Its own menu rather than a section of Options. The tags are
+                 a list the user maintains and switches between, which is a
+                 different kind of thing from the handful of appearance
+                 dialogs Options holds.
+
+                 Adding one lives inside Manage, where Rename and Remove
+                 already were — a second door to the same room is one door
+                 too many. -->
+            <MenuItem x:Name="TagsMenu" Header="&#127991; Tags">
+                <MenuItem Header="Example" Style="{StaticResource MenuSectionHeader}"/>
+                <MenuItem Header="{Binding SuffixExampleDisplay}" IsEnabled="False"/>
+                <Separator x:Name="SuffixListStartSeparator" Visibility="Collapsed"/>
+                <!-- Your tags are inserted here at runtime -->
+                <Separator x:Name="SuffixListEndSeparator" Visibility="Collapsed"/>
+                <Separator/>
+                <MenuItem Header="Manage…" Command="{Binding ManageSuffixesCommand}">
+                    <MenuItem.Icon>
+                        <TextBlock Text="✎" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
             </MenuItem>
