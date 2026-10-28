@@ -2371,24 +2371,36 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// The "filename.mp4 → filename[done].mp4" line under the naming tags.
+    /// The "filename.mp4 → filename[done].mp4" line under Tags ▸ Current.
     /// </summary>
     /// <remarks>
     /// Uses the configured output container, so changing the format in
     /// Settings updates the example to match what will actually be written
     /// rather than leaving a stale <c>.mp4</c> on screen.
+    ///
+    /// No "Example:" in front of it any more. It sits under a heading that
+    /// says Current, and a filename with an arrow through it is already
+    /// recognisably an example — the word was labelling what the line plainly
+    /// was.
+    ///
+    /// Underscores are doubled because this is a MenuItem header, which
+    /// renders through AccessText: a single one is an access-key marker and
+    /// would be eaten, so a tag named my_tag would show as "mytag" with the t
+    /// underlined.
     /// </remarks>
     private string BuildSuffixExample(string suffixText)
     {
         var ext = OutputFormat.Extension;
 
-        // With no tag the name does not change at all, which is worth saying
-        // outright — and worth warning about, because an output written beside
-        // its source then wants the source's own name.
+        // With no tag the name does not change, so there is no arrow and no
+        // second name to draw — showing "filename.mp4 → filename.mp4" made a
+        // rename out of a line whose whole point is that nothing is renamed.
+        // What replacing the original means is said where it can be acted on,
+        // in the [no tag] entry's own tooltip.
         if (suffixText.Length == 0)
-            return $"Example: filename{ext}  →  filename{ext}  (asks before replacing the original)";
+            return $"filename{ext}";
 
-        return $"Example: filename{ext}  →  filename[{suffixText}]{ext}";
+        return $"filename{ext}  →  filename[{suffixText.Replace("_", "__")}]{ext}";
     }
 
     /// <summary>

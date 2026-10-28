@@ -1301,16 +1301,30 @@ public partial class MainWindow : Window
         // line. That column exists for exactly this, and the padding only ever
         // lined up while every entry was in the same font — which the active
         // one is not, since it is also the bold one.
+        // "[no tag]" rather than "None", bracketed like every other entry: the
+        // brackets are what a tag looks like in a filename, so a list where
+        // one line has them and the rest do not reads as one odd line rather
+        // than as a set of alternatives. It is bracketed in the toolbar for
+        // the same reason.
         var noneActive = _vm.ActiveSuffixText.Length == 0;
         var noneItem = new MenuItem
         {
-            Header = "None",
+            Header = "[no tag]",
             Icon = MenuGlyph(noneActive ? "✓" : "🏷"),
             ToolTip = "Write output under the source's own name, with no tag added. " +
                       "Saved beside the source that means the same filename, so you will be " +
                       "asked whether to replace it.",
             FontWeight = noneActive ? FontWeights.SemiBold : FontWeights.Normal
         };
+
+        // Red while it is the active one, as on the toolbar: every other tag
+        // being on is a file gaining a bracket, and this one being on is the
+        // state where output keeps the source's own name — the one worth
+        // noticing before a merge rather than after. Only while active; red on
+        // an entry that is merely available would be warning about a choice
+        // nobody has made.
+        if (noneActive && TryFindResource("StatusError") is Brush danger)
+            noneItem.Foreground = danger;
         noneItem.Click += (_, _) => _vm?.ClearActiveSuffixCommand.Execute(null);
         suffixMenu.Items.Insert(insertAt++, noneItem);
 
@@ -1321,11 +1335,17 @@ public partial class MainWindow : Window
             // label's wording changed.
             var isActive = string.Equals(entry.Text, _vm.ActiveSuffixText,
                                          StringComparison.OrdinalIgnoreCase);
-            // Plain text, not entry.Display — the brackets are an output
-            // detail shown by the "Example:" line, not part of the tag name.
+            // Bracketed, which is how the tag reads in a filename and how it
+            // is written everywhere else it is named — the tooltip below, the
+            // toolbar, the example line above. Bare text here was the one
+            // place it was spelled differently.
+            //
+            // Underscores doubled: a MenuItem header renders through
+            // AccessText, where a single one is an access-key marker, so a tag
+            // named my_tag arrived as "mytag" with the t underlined.
             var item = new MenuItem
             {
-                Header = entry.Text,
+                Header = $"[{entry.Text.Replace("_", "__")}]",
                 Icon = MenuGlyph(isActive ? "✓" : "🏷"),
                 ToolTip = $"Click to set [{entry.Text}] as the active suffix",
                 Tag = entry,

@@ -1329,8 +1329,14 @@
                  already were — a second door to the same room is one door
                  too many. -->
             <MenuItem x:Name="TagsMenu" Header="&#127991; Tags">
-                <MenuItem Header="Example" Style="{StaticResource MenuSectionHeader}"/>
+                <!-- The active tag, shown as what it does to a filename rather
+                     than as its own name. The name is in the list below with a
+                     tick against it, so repeating it here would say the same
+                     thing twice and the example says the part the name does
+                     not. -->
+                <MenuItem Header="Current" Style="{StaticResource MenuSectionHeader}"/>
                 <MenuItem Header="{Binding SuffixExampleDisplay}" IsEnabled="False"/>
+                <MenuItem Header="Available" Style="{StaticResource MenuSectionHeader}"/>
                 <Separator x:Name="SuffixListStartSeparator" Visibility="Collapsed"/>
                 <!-- Your tags are inserted here at runtime -->
                 <Separator x:Name="SuffixListEndSeparator" Visibility="Collapsed"/>
