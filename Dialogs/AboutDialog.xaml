@@ -59,7 +59,7 @@
 
         <TextBlock Grid.Row="1" Foreground="{DynamicResource TextDim}" FontSize="12" TextWrapping="Wrap"
                    Margin="0,0,0,14"
-                   Text="Bookmark, trim, merge, and split video from MPC-HC. Set timestamps with a hotkey while you watch, then cut the result with ffmpeg."/>
+                   Text="Bookmark, trim, merge, and split video from MPC-HC. Set bookmarks with a hotkey while you watch, then cut the result with ffmpeg."/>
 
         <Border Grid.Row="2" Background="{DynamicResource PanelBackground}" CornerRadius="6" Padding="12">
             <ScrollViewer VerticalScrollBarVisibility="Auto">

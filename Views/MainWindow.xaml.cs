@@ -906,8 +906,12 @@ public partial class MainWindow : Window
         // divider before "Add quick save shortcut…" — keeping it visible avoids
         // a double-separator (endSep + a static Separator) when shortcuts
         // exist, and still gives a clean divider when there are none.
-        startSep.Visibility = hasAny ? Visibility.Visible : Visibility.Collapsed;
-        endSep.Visibility = Visibility.Visible;
+        // Both stay hidden. They are insertion markers and nothing else now
+        // that the section carries a caption — "Quick save" says what the list
+        // under it is, which is what the dividers were standing in for.
+        _ = hasAny;
+        startSep.Visibility = Visibility.Collapsed;
+        endSep.Visibility = Visibility.Collapsed;
 
         int insertAt = startIdx + 1;
         foreach (var entry in _vm.QuickSaveShortcuts)
@@ -930,15 +934,18 @@ public partial class MainWindow : Window
 
         int startIdx = shortcutsMenu.Items.IndexOf(startSep);
 
-        // Remove everything after the start separator — that range is
-        // entirely dynamic (no trailing end separator anymore).
-        while (shortcutsMenu.Items.Count > startIdx + 1)
-            shortcutsMenu.Items.RemoveAt(startIdx + 1);
+        // Everything ABOVE the separator is the dynamic range. The list sits
+        // at the top of this menu and Add/Manage below it, so the separator is
+        // the rule between the two rather than the start of anything.
+        for (int i = startIdx - 1; i >= 0; i--)
+            shortcutsMenu.Items.RemoveAt(i);
 
         bool hasAny = _vm!.Shortcuts.Count > 0;
+
+        // The one divider kept on purpose, and only when it divides something.
         startSep.Visibility = hasAny ? Visibility.Visible : Visibility.Collapsed;
 
-        int insertAt = startIdx + 1;
+        int insertAt = 0;
         foreach (var entry in _vm.Shortcuts)
             shortcutsMenu.Items.Insert(insertAt++, BuildShortcutsMenuItem(entry));
     }

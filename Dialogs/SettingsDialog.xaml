@@ -146,7 +146,7 @@
                                            Text="Decoded from the audio track once per video. Only asked about while the seekbar above is shown — with the bar hidden there is nothing for it to sit behind."/>
 
                                 <TextBlock Style="{StaticResource Hint}" Margin="0,10,0,0"
-                                           Text="Right-click the seekbar, or see Options, for its colors and how a cut's timestamps are marked on it."/>
+                                           Text="Right-click the seekbar, or see Options, for its colors and how a bookmark's start and end are marked on it."/>
                             </StackPanel>
                         </Border>
 
@@ -192,7 +192,7 @@
                             <StackPanel>
                                 <TextBlock Text="Notifications" Style="{StaticResource Heading}"/>
                                 <CheckBox x:Name="ToastsCheck"
-                                          Content="Show a toast when a timestamp is set"/>
+                                          Content="Show a toast when a bookmark is set"/>
                                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                     <TextBlock Text="Hold for" Style="{StaticResource Label}"/>
                                     <TextBox x:Name="ToastSecondsBox" Width="60"/>
@@ -424,7 +424,7 @@
                                     <TextBlock Text="seconds" Style="{StaticResource Label}" Margin="8,0,0,0"/>
                                 </StackPanel>
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="What the Fade button puts on a cut, at both ends, in picture and sound together. The button applies this rather than asking, so fading twenty checked cuts is one click. A fade is capped at half the clip it is on, so a short cut fades as far as it can rather than being refused."/>
+                                           Text="What the Fade button puts on a bookmark, at both ends, in picture and sound together. The button applies this rather than asking, so fading twenty checked cuts is one click. A fade is capped at half the clip it is on, so a short cut fades as far as it can rather than being refused."/>
                             </StackPanel>
                         </Border>
 
@@ -571,7 +571,7 @@
 
                         <TextBlock Foreground="{DynamicResource ValueYellow}" TextWrapping="Wrap"
                                    Margin="0,0,0,12"
-                                   Text="This overlay is the gui that is shown when MPC-HC is the active window. It shows the bookmark timestamps in a small window."/>
+                                   Text="This overlay is the gui that is shown when MPC-HC is the active window. It shows the bookmarks in a small window."/>
 
                         <Border Style="{StaticResource Card}">
                             <StackPanel>

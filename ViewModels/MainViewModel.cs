@@ -112,7 +112,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _isPlayingCuts;
 
     [ObservableProperty] private EditSession _session = new();
-    [ObservableProperty] private string _statusText = "Ready – open a video in MPC-HC, then set timestamps with your hotkey";
+    [ObservableProperty] private string _statusText = "Ready – open a video in MPC-HC, then set bookmarks with your hotkey";
     [ObservableProperty] private double _progressPercent;
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private Bookmark? _selectedBookmark;
@@ -286,8 +286,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public List<ToolbarItem> ToolbarCatalogue() => new List<ToolbarItem>
     {
         // The thirteen the toolbar ships with.
-        new() { Key = "set-timestamp", Group = "Bookmarks", Label = "📍 Set timestamp", Icon = "📍", IconFile = "icon-set_timestamp", Command = SetTimestampCommand,
-                ToolTip = "Set a timestamp at the current MPC-HC position" },
+        new() { Key = "set-timestamp", Group = "Bookmarks", Label = "📍 Set bookmark", Icon = "📍", IconFile = "icon-set_timestamp", Command = SetTimestampCommand,
+                ToolTip = "Set a bookmark at the current MPC-HC position" },
         new() { Key = "save-frame", Group = "Actions", Label = "📷 Save frame", Icon = "📷", IconFile = "icon-safe_frame", Command = SaveCurrentFrameCommand,
                 ToolTip = "Save image frame" },
         new() { Key = "delete", Group = "Bookmarks", Label = "🗑 Remove", Icon = "🗑", IconFile = "icon-remove", Command = DeleteSelectedCommand,
@@ -309,7 +309,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         new() { Key = "crop", Group = "Actions", Label = "⬚ Crop", Icon = "⬚", IconFile = "icon-crop", Command = CropSelectedCommand,
                 ToolTip = "Crop video" },
         new() { Key = "select-all", Group = "Bookmarks", Label = "Select All", Icon = "☑", IconFile = "icon-select_all", Command = ToggleSelectAllCommand,
-                MinWidth = 104, ToolTip = "Check every cut, or clear them all." },
+                MinWidth = 104, ToolTip = "Check every bookmark, or clear them all." },
         new() { Key = "merge", Group = "Actions", Label = "🎬 Merge", Icon = "🎬", IconFile = "icon-merge", Command = MergeSelectedCommand,
                 ToolTip = "Merge clips" },
         new() { Key = "split", Group = "Actions", Label = "✂ Split", Icon = "✂", IconFile = "icon-split", Command = SplitSelectedCommand,
@@ -328,14 +328,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 ToolTip = "Undo" },
         new() { Key = "redo-edit", Group = "Edit", Label = "↷ Redo", Icon = "↷", IconFile = "icon-redo", Command = RedoEditCommand,
                 ToolTip = "Redo" },
-        new() { Key = "undo-bookmark", Group = "Bookmarks", Label = "⎌ Undo timestamp", Icon = "⎌", IconFile = "icon-undo_timestamp", Command = UndoLastBookmarkCommand,
-                ToolTip = "Remove the last single timestamp" },
+        new() { Key = "undo-bookmark", Group = "Bookmarks", Label = "⎌ Undo bookmark", Icon = "⎌", IconFile = "icon-undo_timestamp", Command = UndoLastBookmarkCommand,
+                ToolTip = "Remove the last single bookmark" },
         new() { Key = "enter-time", Group = "Bookmarks", Label = "⌨ Enter time", Icon = "⌨", IconFile = "icon-enter_time", Command = EnterTimeManualCommand,
                 ToolTip = "Type a time or a range instead of using the hotkey" },
         new() { Key = "split-at-playhead", Group = "Bookmarks", Label = "✂ Split time", Icon = "✂", IconFile = "icon-split_time", Command = SplitAtPlayheadCommand,
-                ToolTip = "Put a cut boundary wherever the player is now" },
-        new() { Key = "detect", Group = "Bookmarks", Label = "🔍 Detect cuts", Icon = "🔍", IconFile = "icon-detect_cuts", Command = DetectBookmarksCommand,
-                ToolTip = "Propose cuts from silence, black frames or scene changes" },
+                ToolTip = "Put a boundary wherever the player is now" },
+        new() { Key = "detect", Group = "Bookmarks", Label = "🔍 Detect bookmarks", Icon = "🔍", IconFile = "icon-detect_cuts", Command = DetectBookmarksCommand,
+                ToolTip = "Propose bookmarks from silence, black frames or scene changes" },
         new() { Key = "edit-bookmarks", Group = "Bookmarks", Label = "✎ Edit bookmarks", Icon = "✎", IconFile = "icon-edit_bookmarks", Command = EditBookmarksCommand,
                 ToolTip = "Open the bookmark CSV in a text editor" },
         // Walking the cuts, as two buttons rather than the one this used to
@@ -343,9 +343,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // and "play the cuts" were a blue ▶ apiece doing unrelated things.
         // Their own pictures settle that, so they are back.
         new() { Key = "play-all", Group = "Bookmarks", Label = "▶ Play all", Icon = "▶", IconFile = "icon-play_all", Command = PlayAllCommand,
-                ToolTip = "Seek the player to each cut in turn and play it" },
+                ToolTip = "Seek the player to each bookmark in turn and play it" },
         new() { Key = "play-selected", Group = "Bookmarks", Label = "▶ Play selected", Icon = "▶", IconFile = "icon-play_selected", Command = PlaySelectedCommand,
-                MinWidth = 104, ToolTip = "Seek the player to each checked cut in turn and play it" },
+                MinWidth = 104, ToolTip = "Seek the player to each checked bookmark in turn and play it" },
 
         // Still keyed "pause" although it is now both halves: a key is what a
         // saved layout is a list of, and this one has shipped. Renaming it
@@ -354,7 +354,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         new() { Key = "pause", Group = "Bookmarks", Label = "▶ Play", Icon = "▶", IconFile = "icon-play", Command = TogglePauseCommand,
                 ToolTip = "Play or pause the video" },
         new() { Key = "export-animation", Group = "Actions", Label = "🎞 GIF / WebP", Icon = "🎞", IconFile = "icon-gif_webp", Command = ExportAnimationCommand,
-                ToolTip = "Export the checked cuts as an animation" },
+                ToolTip = "Export the checked bookmarks as an animation" },
         new() { Key = "convert-images", Group = "Actions", Label = "🖼 Convert images", Icon = "🖼", IconFile = "icon-convert_images", Command = ConvertImagesCommand,
                 ToolTip = "Convert images" },
         new() { Key = "resize-images", Group = "Actions", Label = "📐 Resize images", Icon = "📐", IconFile = "icon-resize_images", Command = ResizeImagesCommand,
@@ -364,7 +364,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         new() { Key = "thumbnails", Group = "Actions", Label = "▦ Save thumbnails", Icon = "▦", IconFile = "icon-save_thumbnails", Command = SaveThumbnailsCommand,
                 ToolTip = "Save thumbnails" },
         new() { Key = "export-chapters", Group = "Actions", Label = "🔖 Chapters", Icon = "🔖", IconFile = "icon-chapters", Command = ExportChaptersCommand,
-                ToolTip = "Write the cuts out as a chapter file" },
+                ToolTip = "Write the bookmarks out as a chapter file" },
         new() { Key = "add-to-playlist", Group = "Playlist", Label = "➕ To playlist", Icon = "➕", IconFile = "icon-to_playlist", Command = AddCurrentToPlaylistCommand,
                 ToolTip = "Add the current video to a playlist" },
 
@@ -1375,7 +1375,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _saveToFolderDisplay = "Save to: (not set)";
 
     /// <summary>Header for Bookmarks ▸ Set timestamp, carrying the live hotkey.</summary>
-    [ObservableProperty] private string _setTimestampMenuLabel = "Set timestamp";
+    [ObservableProperty] private string _setTimestampMenuLabel = "Set bookmark";
 
     /// <summary>Grayed-out example of what the active naming tag produces.</summary>
     [ObservableProperty] private string _suffixExampleDisplay = "Example: video_name[done].mp4";
@@ -2256,7 +2256,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     private bool NothingToModify()
     {
-        StatusText = "Nothing chosen — check the cuts you want, or click a row first.";
+        StatusText = "Nothing chosen — check the bookmarks you want, or click a row first.";
         return true;
     }
 
@@ -2286,7 +2286,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         HotkeyStatus = $"Hotkey: {label}";
         HotkeyMenuLabel = $"Hotkey: {label}";
         HotkeyDisplay = label;
-        SetTimestampMenuLabel = $"Set timestamp: {label}";
+        SetTimestampMenuLabel = $"Set bookmark: {label}";
     }
 
     /// <summary>
@@ -3232,7 +3232,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             // Says the time it refused and the time it wanted, because this is
             // read over a video and "invalid" would send the user to the main
             // window to work out which.
-            ShowRefusal("Timestamp not added", refusal + ". Marks go forwards.");
+            ShowRefusal("Bookmark not added", refusal + ". Marks go forwards.");
             return;
         }
 
@@ -3247,8 +3247,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // is the state "Undo last bookmark" deletes the file from.
         SaveBookmarks();
 
-        StatusText = $"Timestamp {nextIndex} set at {Bookmark.FormatTime(timestamp)}  (press again to close)";
-        _toast.Show($"Timestamp {nextIndex} set",
+        StatusText = $"Bookmark {nextIndex} set at {Bookmark.FormatTime(timestamp)}  (press again to close)";
+        _toast.Show($"Bookmark {nextIndex} set",
                     $"{Bookmark.FormatTime(timestamp)} — press again to close",
                     force: NeedsHotkeyToast);
     }
@@ -3295,11 +3295,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // than thrown away along with it.
         if (OverlappingCut(incomplete.StartSeconds, closing, incomplete) is { } clash)
         {
-            StatusText = $"Closing at {Bookmark.FormatTime(closing)} would run over cut " +
+            StatusText = $"Closing at {Bookmark.FormatTime(closing)} would run over bookmark " +
                          $"{clash.Index} ({clash.StartDisplay} – {clash.EndDisplay}) — " +
                          $"bookmark {incomplete.Index} is still open";
-            ShowRefusal($"Would overlap cut {clash.Index}",
-                        $"Cut {clash.Index} is {clash.StartDisplay} – {clash.EndDisplay}. " +
+            ShowRefusal($"Would overlap bookmark {clash.Index}",
+                        $"Bookmark {clash.Index} is {clash.StartDisplay} – {clash.EndDisplay}. " +
                         $"Bookmark {incomplete.Index} is still open — close it before {clash.StartDisplay}");
             return;
         }
@@ -3393,8 +3393,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         Session.NotifyDurationChanged();
         StatusText = turningOn
-            ? $"{selected.Count} timestamp pair(s) marked for inversion"
-            : $"{selected.Count} timestamp pair(s) restored to normal";
+            ? $"{selected.Count} bookmark(s) marked for inversion"
+            : $"{selected.Count} bookmark(s) restored to normal";
     }
 
     /// <summary>
@@ -3625,7 +3625,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             SaveBookmarks();
             Session.NotifyDurationChanged();
-            StatusText = $"Removed closing timestamp {removedEnd} — bookmark {last.Index} is open again";
+            StatusText = $"Removed the closing mark {removedEnd} — bookmark {last.Index} is open again";
             return;
         }
 
@@ -3641,19 +3641,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
             if (!TryDeleteBookmarkFile(out var error))
             {
                 Session.NotifyDurationChanged();
-                StatusText = "Undid the timestamp but could not delete the file: " + error;
+                StatusText = "Undid the bookmark but could not delete the file: " + error;
                 return;
             }
 
             Session.NotifyDurationChanged();
-            StatusText = $"Removed timestamp {removedStart} — bookmark file deleted";
+            StatusText = $"Removed bookmark {removedStart} — bookmark file deleted";
             return;
         }
 
         Renumber();
         SaveBookmarks();
         Session.NotifyDurationChanged();
-        StatusText = $"Removed opening timestamp {removedStart} (bookmark {removedIndex})";
+        StatusText = $"Removed the opening mark {removedStart} (bookmark {removedIndex})";
     }
 
     // ------------------------------------------------------------------
@@ -3681,7 +3681,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var cuts = Session.Bookmarks.Where(b => b.IsValid).OrderBy(b => b.StartSeconds).ToList();
         if (cuts.Count == 0)
         {
-            StatusText = "No valid bookmarks to play — complete at least one cut first.";
+            StatusText = "No valid bookmarks to play — complete at least one bookmark first.";
             return;
         }
         await PlayCutsAsync(cuts, "all");
@@ -3852,7 +3852,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                                     .ToList();
         if (cuts.Count == 0)
         {
-            StatusText = "No valid selected bookmarks — check at least one cut first.";
+            StatusText = "No valid selected bookmarks — check at least one bookmark first.";
             return;
         }
         await PlayCutsAsync(cuts, "selected");
@@ -3920,7 +3920,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 // so a 2x bookmark plays for half as long, etc.
                 var playSeconds = b.DurationSeconds / Math.Max(0.25, b.Speed);
 
-                StatusText = $"Playing {label} cut {i + 1}/{cuts.Count}: " +
+                StatusText = $"Playing {label} bookmark {i + 1}/{cuts.Count}: " +
                              $"{b.StartDisplay} → {b.EndDisplay}  " +
                              $"({Bookmark.FormatDuration(playSeconds)} at {b.SpeedDisplay})";
 
@@ -3977,7 +3977,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                             {
                                 clock.Stop();          // keeps what it has counted
                                 pausedAt = DateTime.UtcNow;
-                                StatusText = $"Paused — cut {i + 1}/{cuts.Count}";
+                                StatusText = $"Paused — bookmark {i + 1}/{cuts.Count}";
                             }
 
                             // Not forever, though. IsPlayingCuts holds off the
@@ -4001,7 +4001,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                         {
                             clock.Start();
                             pausedAt = null;
-                            StatusText = $"Playing {label} cut {i + 1}/{cuts.Count}";
+                            StatusText = $"Playing {label} bookmark {i + 1}/{cuts.Count}";
                         }
 
                         var remaining = target - clock.Elapsed;
@@ -4029,7 +4029,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             {
                 try { _mpc.Pause(); } catch { }
                 AssumePlaying(false);
-                StatusText = $"Finished playing {cuts.Count} cut(s).";
+                StatusText = $"Finished playing {cuts.Count} bookmark(s).";
             }
         }
         finally
@@ -5010,7 +5010,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void EnterTimeManual()
     {
         const string basePrompt =
-            "Single time = set one timestamp (incomplete)\n" +
+            "Single time = set one bookmark (incomplete)\n" +
             "Range (1:00 - 2:30) = full bookmark";
 
         var prompt = basePrompt;
@@ -5057,8 +5057,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 }
                 if (OverlappingCut(start, end) is { } clash)
                 {
-                    prompt = $"That range runs over cut {clash.Index} " +
-                             $"({clash.StartDisplay} – {clash.EndDisplay}). Cuts cannot " +
+                    prompt = $"That range runs over bookmark {clash.Index} " +
+                             $"({clash.StartDisplay} – {clash.EndDisplay}). Bookmarks cannot " +
                              $"overlap.\n\n{TimeFormatHelp}";
                     continue;
                 }
