@@ -783,10 +783,6 @@ public partial class MainWindow : Window
 
         _vm.Shortcuts.CollectionChanged += Shortcuts_CollectionChanged;
 
-        // Seeded here as well as on every change: the stack is empty at
-        // startup, so nothing would raise the change that builds it, and the
-        // separator would be left showing with nothing under it.
-        RefreshEditHistoryMenu();
 
         // Quick save shortcuts live in the File menu and are a separate list.
         _vm.QuickSaveShortcuts.CollectionChanged += (_, _) => RefreshFileMenuShortcuts();
@@ -1224,8 +1220,6 @@ public partial class MainWindow : Window
         if (e.PropertyName == nameof(MainViewModel.StatusLevel))
             FlashStatusStrip();
 
-        if (e.PropertyName == nameof(MainViewModel.HistoryEntries))
-            RefreshEditHistoryMenu();
 
         // The tick marking the loaded playlist is drawn when the menu is
         // built, and loading one does not change the set of playlists — so
@@ -1235,67 +1229,6 @@ public partial class MainWindow : Window
             Dispatcher.BeginInvoke(RefreshPlaylistsMenu);
     }
 
-
-    /// <summary>
-    /// Lists the undo stack in the Edit menu, under the rule after Redo.
-    /// </summary>
-    /// <remarks>
-    /// In code because a menu cannot hold fixed entries and a bound list at
-    /// once, and these belong in the Edit menu itself rather than in a submenu
-    /// of it — the whole point is to see where you are without opening
-    /// anything else.
-    ///
-    /// Everything after the separator is this list, so everything after the
-    /// separator is cleared and rebuilt. The separator hides itself when the
-    /// stack is empty: a rule with nothing under it is a line to nowhere.
-    /// </remarks>
-    private void RefreshEditHistoryMenu()
-    {
-        if (_vm is null) return;
-
-        var startSep = FindNamed(EditMenu.Items, "EditHistoryStartSeparator") as Separator;
-        if (startSep is null) return;
-
-        int startIdx = EditMenu.Items.IndexOf(startSep);
-        while (EditMenu.Items.Count > startIdx + 1)
-            EditMenu.Items.RemoveAt(startIdx + 1);
-
-        var entries = _vm.HistoryEntries;
-        startSep.Visibility = entries.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-
-        int insertAt = startIdx + 1;
-        foreach (var entry in entries)
-            EditMenu.Items.Insert(insertAt++, BuildHistoryMenuItem(entry));
-    }
-
-    /// <summary>One row of the undo stack.</summary>
-    /// <remarks>
-    /// The present is a label rather than a destination: disabled, so the
-    /// keyboard steps past it, and accented so the list has a visible middle
-    /// instead of two halves that look alike and read in opposite directions.
-    ///
-    /// Underscores doubled, as everywhere a filename can reach a menu header —
-    /// a change to a bookmark named with one would otherwise lose it to the
-    /// access-key marker.
-    /// </remarks>
-    private MenuItem BuildHistoryMenuItem(HistoryEntry entry)
-    {
-        var item = new MenuItem
-        {
-            Header = entry.Display.Replace("_", "__"),
-            ToolTip = entry.Hint,
-            Command = entry.Command
-        };
-
-        if (entry.IsCurrent)
-        {
-            item.IsEnabled = false;
-            item.FontWeight = FontWeights.SemiBold;
-            item.Foreground = ThemeService.Brush(nameof(ThemePalette.StatusOk));
-        }
-
-        return item;
-    }
 
     /// <summary>
     /// Colours the status strip for the level the ViewModel has just set.

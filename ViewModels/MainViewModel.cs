@@ -8838,13 +8838,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private const int HistoryEntriesShown = 20;
 
     /// <summary>
-    /// The history as a list to read, newest first, with the present marked.
+    /// The history as a list to read, newest first.
     /// </summary>
     /// <remarks>
     /// Undo on its own only ever offers the one step, so stepping back six
     /// changes means pressing it six times and watching the list jump, with no
     /// way to see where you are going until you arrive. This says what each
     /// step was and lets one click cross all of them.
+    ///
+    /// No row for the present. It was there to mark the middle of a flat list
+    /// read in two directions, and every row already says which way it goes —
+    /// "Undo the crop" above, "Redo the fade" below — so the marker was
+    /// telling the reader something the rows had already told them.
     /// </remarks>
     public IReadOnlyList<HistoryEntry> HistoryEntries
     {
@@ -8856,28 +8861,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
             {
                 if (Math.Abs(step.Offset) > HistoryEntriesShown) continue;
 
-                // The present goes in on the way past, between the last step
-                // forward and the first step back.
-                if (step.Offset < 0 && rows.All(r => !r.IsCurrent))
-                    rows.Add(Present());
-
                 var offset = step.Offset;
                 rows.Add(new HistoryEntry(
                     offset < 0 ? $"Undo {step.Description}" : $"Redo {step.Description}",
-                    offset,
-                    false)
+                    offset)
                 {
                     Command = new RelayCommand(() => GoToHistoryStep(offset))
                 });
             }
 
-            // Nothing to undo, so the loop above never passed the boundary.
-            if (rows.Count > 0 && rows.All(r => !r.IsCurrent))
-                rows.Add(Present());
-
             return rows;
-
-            static HistoryEntry Present() => new("Where you are now", 0, true);
         }
     }
 

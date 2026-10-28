@@ -754,15 +754,40 @@
             </MenuItem>
 
             <MenuItem x:Name="EditMenu" Header="&#9998; Edit">
-                <!-- The headers name what will be reversed — "Undo the speed"
+                <!-- The header names what will be reversed — "Undo the speed"
                      rather than a bare "Undo" — so the entry says what it is
-                     about to do before it does it. -->
-                <MenuItem Header="{Binding UndoEditHeader}" Command="{Binding UndoEditCommand}"
+                     about to do before it does it.
+
+                     The stack hangs off it as a submenu, newest first. Undo on
+                     its own only ever offers the one step, so stepping back six
+                     changes meant pressing it six times and watching the list
+                     jump with no way to see where it was going; here every step
+                     is named and one click crosses all of them.
+
+                     No marker for the present. Each row already says which way
+                     it goes — "Undo the crop" above, "Redo the fade" below —
+                     so a row saying "where you are now" told the reader what
+                     the rows either side of it had already said.
+
+                     A parent opens its submenu rather than running its own
+                     command, so this one no longer undoes a step when clicked.
+                     The first row in the list does exactly that, and Ctrl+Z is
+                     untouched. -->
+                <MenuItem Header="{Binding UndoEditHeader}"
+                          ItemsSource="{Binding HistoryEntries}"
+                          IsEnabled="{Binding HasHistory}"
                           InputGestureText="Ctrl+Z"
-                          ToolTip="Step back through changes to the bookmarks. Operations that have already written a file are not included — see the note in the manual.">
+                          ToolTip="Every change to the bookmarks still on the stack, newest first. Click one to jump straight to it, however many steps away it is.">
                     <MenuItem.Icon>
                         <TextBlock Text="↶" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
+                    <MenuItem.ItemContainerStyle>
+                        <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                            <Setter Property="Header" Value="{Binding Display}"/>
+                            <Setter Property="ToolTip" Value="{Binding Hint}"/>
+                            <Setter Property="Command" Value="{Binding Command}"/>
+                        </Style>
+                    </MenuItem.ItemContainerStyle>
                 </MenuItem>
                 <MenuItem Header="{Binding RedoEditHeader}" Command="{Binding RedoEditCommand}"
                           InputGestureText="Ctrl+Y">
@@ -770,18 +795,6 @@
                         <TextBlock Text="↷" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <!-- The stack the two entries above walk one step at a time,
-                     laid out so it can be read and crossed in one go. Newest
-                     at the top, with the present marked between the changes
-                     undone and those still ahead.
-
-                     Built in the code-behind — see RefreshEditHistoryMenu. A
-                     menu cannot hold fixed entries and a bound list at once,
-                     and these belong in the Edit menu itself rather than in a
-                     submenu of it: the point is to see where you are without
-                     opening anything further. The rule hides itself when the
-                     stack is empty. -->
-                <Separator x:Name="EditHistoryStartSeparator" Visibility="Collapsed"/>
             </MenuItem>
             <!-- Grouped by what each operation acts on, in the same four
                  families the toolbar is coloured by — video, then audio, then
