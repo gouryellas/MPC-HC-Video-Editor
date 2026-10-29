@@ -53,6 +53,19 @@ public partial class CustomizeToolbarDialog : Window
     public Action<bool>? PreviewHidden { get; set; }
 
     /// <summary>
+    /// Called with small and flat whenever either appearance box is clicked,
+    /// so the real toolbar is redrawn as the box is ticked rather than on
+    /// Save.
+    /// </summary>
+    /// <remarks>
+    /// The preview here is built from clones, so dressing it leaves the real
+    /// toolbar alone — which is why this has to be told. Same contract as
+    /// <see cref="PreviewHidden"/>: nothing is written, and the caller puts
+    /// it back if Cancel is pressed.
+    /// </remarks>
+    public Action<bool, bool>? PreviewChrome { get; set; }
+
+    /// <summary>
     /// True while the constructor is filling the checkboxes, so setting
     /// <c>IsChecked</c> does not run the handler against half-built state.
     /// </summary>
@@ -254,6 +267,11 @@ public partial class CustomizeToolbarDialog : Window
         SmallButtonIcons = SmallIconsCheck.IsChecked == true;
         FlatButtonIcons = FlatIconsCheck.IsChecked == true;
         ApplyChrome();
+
+        // And the real one behind this window, as Hide toolbar does. Deciding
+        // whether the labels are worth their width is a question about the
+        // toolbar at its real width, not about a preview of it.
+        PreviewChrome?.Invoke(SmallButtonIcons, FlatButtonIcons);
     }
 
     /// <summary>Available, grouped by the menu each action lives in.</summary>

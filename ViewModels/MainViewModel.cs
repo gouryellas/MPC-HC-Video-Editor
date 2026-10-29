@@ -636,9 +636,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void CustomizeToolbar()
     {
         // How the bar stood when the dialog opened. The settings are not
-        // written while it is open, so this is the only record of what Cancel
-        // has to put back.
+        // written while it is open, so these are the only record of what
+        // Cancel has to put back.
         var wasHidden = HideToolbar;
+        var wasSmall = _settings.Current.SmallButtonIcons;
+        var wasFlat = _settings.Current.FlatButtonIcons;
 
         var dlg = new CustomizeToolbarDialog(ToolbarCatalogue(), ToolbarItems, ToolbarMinimumWidth,
                                              _settings.Current.SmallButtonIcons,
@@ -646,14 +648,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
                                              wasHidden)
         {
             Owner = DialogOwner,
-            PreviewHidden = PreviewToolbarHidden
+            PreviewHidden = PreviewToolbarHidden,
+            PreviewChrome = ApplyToolbarIconStyle
         };
 
         if (dlg.ShowDialog() != true || dlg.Layout is null)
         {
-            // Cancelled, so the preview comes back off — as the icon preview
+            // Cancelled, so both previews come back off — as the icon preview
             // does when Settings is cancelled.
             PreviewToolbarHidden(wasHidden);
+            ApplyToolbarIconStyle(wasSmall, wasFlat);
             return;
         }
 
