@@ -1439,28 +1439,33 @@
                 <MenuItem Header="Behavior" Style="{StaticResource MenuSectionHeader}"/>
                 <MenuItem Header="Switch views automatically" IsCheckable="True"
                           IsChecked="{Binding AutoSwitchViews, Mode=TwoWay}"/>
-                <!-- A pair of alternatives, not two switches — see
+                <!-- Five alternatives, not five switches — see
                      MainViewModel.CutsAsList for why each one only acts on
-                     being ticked. -->
+                     being ticked, and ChooseLayout for why picking one of the
+                     last four also leaves the list.
+
+                     Flat, where the four storyboards used to be a submenu. The
+                     submenu kept the menu short at the cost of the one thing
+                     this menu is for: which view is in use was behind a
+                     popout, so four of the five possible answers could not be
+                     seen without opening something further. Ticked in a list,
+                     it is answered by looking — the way every other choice in
+                     the program is.
+
+                     Exactly one is ticked at any time, including while the
+                     list is showing: each LayoutIs… reads false unless the
+                     storyboard is up. -->
                 <MenuItem Header="Layout" Style="{StaticResource MenuSectionHeader}"/>
                 <MenuItem Header="List" IsCheckable="True"
                           IsChecked="{Binding CutsAsList, Mode=TwoWay}"/>
-                <!-- A submenu rather than four more entries out here: the four
-                     are one choice — how the storyboard looks — and the View
-                     menu stays four lines long instead of eight. Picking any of
-                     them also switches to the storyboard, since choosing how it
-                     looks while looking at something else would be a setting
-                     rather than a view. -->
-                <MenuItem Header="Storyboard">
-                    <MenuItem Header="Cards" IsCheckable="True"
-                              IsChecked="{Binding LayoutIsCards, Mode=TwoWay}"/>
-                    <MenuItem Header="Contact sheet" IsCheckable="True"
-                              IsChecked="{Binding LayoutIsContactSheet, Mode=TwoWay}"/>
-                    <MenuItem Header="Detail" IsCheckable="True"
-                              IsChecked="{Binding LayoutIsDetail, Mode=TwoWay}"/>
-                    <MenuItem Header="Filmstrip" IsCheckable="True"
-                              IsChecked="{Binding LayoutIsFilmstrip, Mode=TwoWay}"/>
-                </MenuItem>
+                <MenuItem Header="Slides" IsCheckable="True"
+                          IsChecked="{Binding LayoutIsCards, Mode=TwoWay}"/>
+                <MenuItem Header="Compact" IsCheckable="True"
+                          IsChecked="{Binding LayoutIsContactSheet, Mode=TwoWay}"/>
+                <MenuItem Header="Film" IsCheckable="True"
+                          IsChecked="{Binding LayoutIsFilmstrip, Mode=TwoWay}"/>
+                <MenuItem Header="Detailed" IsCheckable="True"
+                          IsChecked="{Binding LayoutIsDetail, Mode=TwoWay}"/>
             </MenuItem>
 
             <MenuItem Header="&#10067; Help">
