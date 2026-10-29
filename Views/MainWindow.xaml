@@ -1427,27 +1427,14 @@
                      thing twice and the example says the part the name does
                      not. -->
                 <MenuItem Header="Example" Style="{StaticResource MenuSectionHeader}"/>
-                <!-- Not IsEnabled="False", which is how this line used to be
-                     held still: the MenuItem style greys disabled items, so it
-                     was greyed whether or not there was a tag to demonstrate,
-                     and the one state worth distinguishing looked like the
-                     other. It has no Command either way, so it stays a label —
-                     clicking it just closes the menu. -->
-                <MenuItem Header="{Binding SuffixExampleDisplay}" Focusable="False">
-                    <MenuItem.Style>
-                        <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
-                            <Style.Triggers>
-                                <!-- Greyed with no tag active: the line is then
-                                     just the name the file already has, which
-                                     is worth reading but is not an example of
-                                     anything happening to it. -->
-                                <DataTrigger Binding="{Binding HasActiveTag}" Value="False">
-                                    <Setter Property="Foreground" Value="#888888"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </MenuItem.Style>
-                </MenuItem>
+                <!-- Disabled, which the MenuItem style greys and which takes
+                     the line out of keyboard navigation. It is something to
+                     read rather than something to pick, in both states: with a
+                     tag it demonstrates the rename, without one it is the name
+                     the file keeps. Greyed either way says that once, instead
+                     of making the reader wonder what the difference in colour
+                     is telling them. -->
+                <MenuItem Header="{Binding SuffixExampleDisplay}" IsEnabled="False"/>
                 <MenuItem Header="List" Style="{StaticResource MenuSectionHeader}"/>
                 <Separator x:Name="SuffixListStartSeparator" Visibility="Collapsed"/>
                 <!-- Your tags are inserted here at runtime -->

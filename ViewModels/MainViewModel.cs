@@ -2322,24 +2322,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     public string ActiveSuffixText => _settings.GetActiveSuffixText();
 
-    /// <summary>
-    /// Whether a naming tag is active, as opposed to [no tag].
-    /// </summary>
-    /// <remarks>
-    /// For the example line under Tags ▸ Example, which greys itself when
-    /// there is no tag: the line then says only what the file is already
-    /// called, and a name that is not going to change is not the example the
-    /// heading is promising. Greyed it is still there to be read — which is
-    /// the point, since "nothing is added" is the part of this state worth
-    /// knowing — without claiming to demonstrate anything.
-    /// </remarks>
-    public bool HasActiveTag => ActiveSuffixText.Length > 0;
-
     private void UpdateActiveSuffixDisplay()
     {
         var text = _settings.GetActiveSuffixText();
         OnPropertyChanged(nameof(ActiveSuffixText));
-        OnPropertyChanged(nameof(HasActiveTag));
 
         // Brackets are an output detail, not part of the tag's name — the
         // menu shows "done", the example below it shows where the brackets
