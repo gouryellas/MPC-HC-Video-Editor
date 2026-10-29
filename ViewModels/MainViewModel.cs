@@ -141,17 +141,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _hotkeyStatus = "MButton: ON";
     /// <summary>
     /// The binding on its own — "MButton", "Ctrl+Shift+T", "OFF" — for the
-    /// CURRENT HOTKEY block in the right panel. Unprefixed, because the block
-    /// already carries a heading saying what it is.
+    /// CURRENT HOTKEY block in the right panel and the Current line of the
+    /// Hotkey menu. Unprefixed, because both already carry a heading saying
+    /// what it is.
     /// </summary>
+    /// <remarks>
+    /// The menu had its own "Hotkey: MButton" label until it gained the
+    /// Current heading, which left the word on screen three times — the menu,
+    /// the heading and the line — before the binding itself.
+    /// </remarks>
     [ObservableProperty] private string _hotkeyDisplay = "MButton";
-    /// <summary>
-    /// Compact label shown on the Hotkey menu's top-level header so the
-    /// user can see the current binding at a glance without expanding the
-    /// menu (e.g. "Hotkey: MButton"). Kept in sync by
-    /// <see cref="UpdateHotkeyStatus"/>.
-    /// </summary>
-    [ObservableProperty] private string _hotkeyMenuLabel = "Hotkey: MButton";
     [ObservableProperty] private string _playlistFolderDisplay = "Playlist folder: (not set)";
     [ObservableProperty] private string _quickSaveFolderDisplay = "Quick save: (not set)";
 
@@ -2314,7 +2313,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ? "OFF"
             : binding.Display;
         HotkeyStatus = $"Hotkey: {label}";
-        HotkeyMenuLabel = $"Hotkey: {label}";
         HotkeyDisplay = label;
         SetTimestampMenuLabel = $"Set bookmark: {label}";
     }

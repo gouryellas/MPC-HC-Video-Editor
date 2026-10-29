@@ -1119,12 +1119,16 @@
 
             </MenuItem>
             <MenuItem Header="&#9000; Hotkey">
-                <!-- Header shows the current binding live (e.g. "Hotkey: MButton",
-                     "Hotkey: Ctrl+Shift+T", "Hotkey: OFF"). Bound to the
-                     ViewModel's HotkeyMenuLabel which is updated whenever the
-                     binding changes. -->
+                <!-- The binding on its own — "MButton", "Ctrl+Shift+T", "OFF" —
+                     live as it changes. It used to read "Hotkey: MButton"
+                     under a menu called Hotkey and a heading called Current,
+                     which is the word three times before the one thing the
+                     line is here to say.
+
+                     Bound to HotkeyDisplay, which the right-hand panel already
+                     uses unprefixed for exactly this reason. -->
                 <MenuItem Header="Current" Style="{StaticResource MenuSectionHeader}"/>
-                <MenuItem Header="{Binding HotkeyMenuLabel}" IsEnabled="False"/>
+                <MenuItem Header="{Binding HotkeyDisplay}" IsEnabled="False"/>
                 <MenuItem Header="Set" Style="{StaticResource MenuSectionHeader}"/>
                 <MenuItem Header="Change keybind…" Command="{Binding SetTimestampHotkeyCommand}"
                           ToolTip="Pick a mouse button or capture a keyboard combination">
