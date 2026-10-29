@@ -446,6 +446,16 @@ public class AppSettings
     /// </remarks>
     public bool ToolbarCustomized { get; set; }
 
+    /// <summary>Whether the action toolbar is shown at all.</summary>
+    /// <remarks>
+    /// Separate from the layout, which is why hiding the bar does not disturb
+    /// <see cref="ToolbarOrder"/> or <see cref="ToolbarCustomized"/>: putting
+    /// it away for a while and arranging it are different intentions, and the
+    /// arrangement is waiting when it comes back. The same split as
+    /// <see cref="ShowSeekbar"/> against the seekbar's own settings.
+    /// </remarks>
+    public bool ShowToolbar { get; set; } = true;
+
     /// <summary>
     /// What each family of operations is painted: "theme", "none", or a hex
     /// colour. A family that is absent follows the theme.

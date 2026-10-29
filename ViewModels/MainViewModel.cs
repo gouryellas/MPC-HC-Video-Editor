@@ -917,6 +917,36 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Whether the action toolbar is put away.
+    /// </summary>
+    /// <remarks>
+    /// The inverse of the setting, for the same reason as
+    /// <see cref="HideSeekbar"/>: the menu entry reads "Hide toolbar" and a
+    /// checkable item meaning the opposite of its own label would be a trap.
+    ///
+    /// Nothing about the arrangement is touched. The buttons, their order and
+    /// their colours are all still there to come back to — this is the bar
+    /// being out of the way, not being emptied.
+    /// </remarks>
+    public bool HideToolbar
+    {
+        get => !_settings.Current.ShowToolbar;
+        set
+        {
+            if (_settings.Current.ShowToolbar == !value) return;
+            _settings.Current.ShowToolbar = !value;
+            _settings.Save();
+            OnPropertyChanged();
+
+            // The bar's own visibility reads the positive form.
+            OnPropertyChanged(nameof(ShowToolbar));
+        }
+    }
+
+    /// <summary>Whether the action toolbar is shown at all.</summary>
+    public bool ShowToolbar => _settings.Current.ShowToolbar;
+
     /// <summary>Whether a dragged bracket snaps to a nearby edit point.</summary>
     public bool SnapToEditPoints
     {

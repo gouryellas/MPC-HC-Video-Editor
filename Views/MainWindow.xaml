@@ -1365,6 +1365,20 @@
                         <TextBlock Text="🎨" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
+                <!-- Above Reset, as on the toolbar's own right-click menu, and
+                     for the same reason the seekbar's is: the one reversible
+                     switch here does not belong below the item that throws the
+                     arrangement away.
+
+                     This is also the only way back once the bar is hidden,
+                     since there is then nothing left to right-click. -->
+                <MenuItem Header="Hide toolbar" IsCheckable="True"
+                          IsChecked="{Binding HideToolbar, Mode=TwoWay}"
+                          ToolTip="Put the toolbar away without losing how it is set up. The buttons, their order and their colours are all remembered; bring it back from Options ▸ Hide toolbar.">
+                    <MenuItem.Icon>
+                        <Path Style="{StaticResource HideEyeGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <MenuItem Header="Reset toolbar" Command="{Binding ResetToolbarOrderCommand}"
                           ToolTip="Put the buttons across the top back in the order the program ships with. Drag a button onto another to rearrange them.">
                     <MenuItem.Icon>
@@ -1676,9 +1690,14 @@
                  wraps a row the window is too narrow to hold. -->
             <ItemsControl x:Name="ActionToolbar" Grid.Row="0" Margin="0,0,0,10"
                           ItemsSource="{Binding ToolbarRows}"
+                          Visibility="{Binding ShowToolbar, Converter={StaticResource BoolToVis}}"
                           PreviewMouseLeftButtonDown="Toolbar_MouseDown"
                           PreviewMouseMove="Toolbar_MouseMove">
                 <ItemsControl.ContextMenu>
+                    <!-- Word for word the Toolbar section of the Options menu,
+                         in the same order, as the seekbar's menu is for its
+                         own section. No tooltips here: a context menu is
+                         opened on the thing it acts on. -->
                     <ContextMenu>
                         <MenuItem Header="Customize toolbar…" Command="{Binding CustomizeToolbarCommand}">
                             <MenuItem.Icon>
@@ -1688,6 +1707,12 @@
                         <MenuItem Header="Change button colors…" Command="{Binding ChangeButtonColorsCommand}">
                             <MenuItem.Icon>
                                 <TextBlock Text="🎨" Style="{StaticResource MenuGlyph}"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="Hide toolbar" IsCheckable="True"
+                                  IsChecked="{Binding HideToolbar, Mode=TwoWay}">
+                            <MenuItem.Icon>
+                                <Path Style="{StaticResource HideEyeGlyph}"/>
                             </MenuItem.Icon>
                         </MenuItem>
                         <MenuItem Header="Reset toolbar" Command="{Binding ResetToolbarOrderCommand}">
