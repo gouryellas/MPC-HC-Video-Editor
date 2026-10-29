@@ -2843,6 +2843,29 @@
                                                 <TextBlock Text="{Binding EffectiveDurationDisplay, StringFormat=({0})}" Foreground="{DynamicResource ValueGreen}" VerticalAlignment="Center"
                                                            ToolTip="How long the saved clip will run — the marked range at this clip's speed"/>
 
+                                                <!-- Which clip the running operation is on,
+                                                     moving down the list as it works. Here,
+                                                     at the end of the times, because that is
+                                                     what it is pointing at: a progress bar
+                                                     says how far along the whole job is, and
+                                                     this says which of these rows is being
+                                                     cut right now.
+
+                                                     Collapsed rather than hidden: every other
+                                                     mark on this row holds its width on
+                                                     purpose, but this one appears on a single
+                                                     row at a time and keeping a gap for it on
+                                                     all the others would be a column of empty
+                                                     space that is never filled. The marker
+                                                     sits after the length, where there is
+                                                     nothing to its right to be pushed along. -->
+                                                <Image Source="pack://application:,,,/Assets/icons/icon-step_tracker.png"
+                                                       Width="14" Height="14" Margin="6,0,0,0"
+                                                       VerticalAlignment="Center"
+                                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                                       Visibility="{Binding IsCurrentStep, Converter={StaticResource BoolToVis}}"
+                                                       ToolTip="Working on this bookmark now"/>
+
                                                 <!-- Two more, for three in all with the one
                                                      that follows this panel. Every other gap
                                                      on the row is a space, a nudge arrow and

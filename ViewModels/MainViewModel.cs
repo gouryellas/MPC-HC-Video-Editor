@@ -4492,6 +4492,26 @@ public partial class MainViewModel : ObservableObject, IDisposable
         StatusLevel = StatusLevel.Normal;
     }
 
+    /// <summary>
+    /// Puts the step marker on one bookmark and takes it off the rest.
+    /// </summary>
+    /// <remarks>
+    /// The whole list every time rather than clearing the last one by
+    /// reference. It is a handful of rows, and it is the only way to be sure
+    /// exactly one is marked — a run that threw halfway through would
+    /// otherwise leave its marker behind on a row nothing is working on.
+    ///
+    /// Null clears the lot, which is what the end of an operation wants.
+    /// </remarks>
+    private void MarkStep(Bookmark? current)
+    {
+        foreach (var b in Session.Bookmarks)
+            b.IsCurrentStep = ReferenceEquals(b, current);
+    }
+
+    /// <summary>Takes the step marker off every row.</summary>
+    private void ClearStep() => MarkStep(null);
+
     /// <summary>Says something went well, in the bar and on it.</summary>
     private void ReportSuccess(string text)
     {
@@ -5285,6 +5305,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 ProgressPercent = p.Percent;
                 StatusText = p.Message;
                 Job.Report(p.Message, p.Percent);
+
+                // Current is the segment being cut, counted against the list
+                // handed over just below — so it indexes that list and not the
+                // session's, which may hold rows this run is not touching.
+                if (p.Current >= 0 && p.Current < toMerge.Count)
+                    MarkStep(toMerge[p.Current]);
             });
             await _ffmpeg.MergeBookmarksAsync(Session.VideoPath, outPath, toMerge, progress, default, format);
 
@@ -5344,6 +5370,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         finally
         {
             IsBusy = false; ProgressPercent = 0;
+            ClearStep();
             if (!succeeded) Job.End();
         }
 
@@ -5404,6 +5431,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 // starting — so the two sat there disagreeing, "1/3" above
                 // "Splitting 2/3".
                 i++; ProgressPercent = (double)i / toSplit.Count * 100;
+                MarkStep(b);
                 StatusText = $"Splitting {b.StartDisplay} → {b.EndDisplay}";
                 _batchRemaining = toSplit.Count - i + 1;
                 // i - 1, matching the percentage on the next line: i has
@@ -5429,6 +5457,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         finally
         {
             IsBusy = false; ProgressPercent = 0;
+            ClearStep();
             if (!succeeded) Job.End();
         }
 
@@ -5538,6 +5567,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Job.SetFile(0, Path.GetFileName(outPath));
             Job.Report("Cutting " + bookmark.StartDisplay + " → " + bookmark.EndDisplay, 0);
 
+            MarkStep(bookmark);
             StatusText = $"Splitting clip {bookmark.Index} → {Path.GetFileName(outPath)}";
 
             // Real progress from ffmpeg rather than a figure chosen to look
@@ -5581,6 +5611,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             IsBusy = false;
             ProgressPercent = 0;
+            ClearStep();
             if (!succeeded) Job.End();
         }
 

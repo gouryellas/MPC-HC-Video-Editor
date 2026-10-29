@@ -49,6 +49,7 @@ public class Bookmark : INotifyPropertyChanged
     private double _endSeconds;
     private bool _isSelected;
     private bool _quickSaved;
+    private bool _isCurrentStep;
     private bool _isFlipped;
     private double _speed = 1.0;
     private Rotation _rotation;
@@ -189,6 +190,29 @@ public class Bookmark : INotifyPropertyChanged
         {
             if (_quickSaved == value) return;
             _quickSaved = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
+    /// Whether an operation is working on this bookmark at this moment.
+    /// </summary>
+    /// <remarks>
+    /// Exactly one bookmark carries this at a time, and none between runs —
+    /// the ViewModel clears the list before setting the next, so the mark
+    /// cannot be left behind by a run that ended badly.
+    ///
+    /// Not serialized, and not undoable. It describes what the program is
+    /// doing rather than anything about the cut, and a moment later it
+    /// describes a different row.
+    /// </remarks>
+    public bool IsCurrentStep
+    {
+        get => _isCurrentStep;
+        set
+        {
+            if (_isCurrentStep == value) return;
+            _isCurrentStep = value;
             OnPropertyChanged();
         }
     }
