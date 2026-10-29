@@ -613,6 +613,13 @@
              ends up using, and would stop matching the moment either changed.
              Written as &#32; because a space is the one attribute value that
              cannot be read back from the file with any confidence. -->
+        <!-- The yellow the step marker is drawn in, taken from the icon
+             itself: #FFD800 is 615 of its 870 opaque pixels, the rest being
+             its black outline. A theme key would have been a guess at a
+             match, and the whole point of the colour here is that the frame
+             and the arrow are recognisably the same mark. -->
+        <SolidColorBrush x:Key="StepTracker" Color="#FFD800"/>
+
         <Style x:Key="RowGap" TargetType="TextBlock">
             <Setter Property="Text" Value="&#32;"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
@@ -663,6 +670,27 @@
                     <TranslateTransform Y="-1.66"/>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <!-- A thumbnail frame that turns yellow while an operation is working
+             on its clip. The list shows the same thing as an arrow beside the
+             times; these layouts have no such line to put one on, and a frame
+             is the one part of a tile big enough to be seen changing from
+             across the room.
+
+             The border is always two pixels and only its colour changes.
+             Switching the thickness instead would re-lay-out the tile as the
+             marker arrived and again as it left, so every clip in a batch
+             would nudge the ones after it. Transparent against the black a
+             thumbnail sits on is invisible, which is what it needs to be. -->
+        <Style x:Key="StepFrame" TargetType="Border">
+            <Setter Property="BorderThickness" Value="2"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsCurrentStep}" Value="True">
+                    <Setter Property="BorderBrush" Value="{StaticResource StepTracker}"/>
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
 
         <Style x:Key="RowIndexNumber" TargetType="TextBlock">
@@ -2192,6 +2220,7 @@
                                          shows, and what letterboxes a frame
                                          whose shape does not match the box. -->
                                     <Border Height="88" Background="#FF000000" CornerRadius="2"
+                                            Style="{StaticResource StepFrame}"
                                             ClipToBounds="True">
                                         <Grid>
                                             <Image Source="{Binding Thumbnail}" Stretch="Uniform"/>
@@ -2300,6 +2329,7 @@
                              caption instead of two scraps. -->
                         <DataTemplate x:Key="StoryboardContactSheet">
                             <Border Width="116" Height="66" Background="#FF000000" CornerRadius="2"
+                                    Style="{StaticResource StepFrame}"
                                     ClipToBounds="True">
                                 <Grid>
                                     <Image Source="{Binding Thumbnail}" Stretch="Uniform"/>
@@ -2469,11 +2499,31 @@
                                                        Visibility="{Binding IsIncomplete, Converter={StaticResource BoolToVis}}"/>
                                         </StackPanel>
 
-                                        <TextBlock Margin="0,2,0,0" FontFamily="Consolas" FontSize="11"
-                                                   Foreground="{DynamicResource TextSecondary}"
-                                                   Visibility="{Binding IsIncomplete, Converter={StaticResource NotBoolToVis}}">
-                                            <Run Text="{Binding StartDisplay, Mode=OneWay}"/><Run Text=" – "/><Run Text="{Binding EndDisplay, Mode=OneWay}"/><Run Text="  "/><Run Text="{Binding EffectiveDurationDisplay, StringFormat=({0}), Mode=OneWay}" Foreground="{DynamicResource ValueGreen}"/>
-                                        </TextBlock>
+                                        <!-- The arrow goes after the length, as it
+                                             does in the list: this layout is a
+                                             row with a line of times in it, so it
+                                             can carry the same mark in the same
+                                             place rather than lighting its frame
+                                             like the tiled layouts do. -->
+                                        <StackPanel Orientation="Horizontal" Margin="0,2,0,0"
+                                                    Visibility="{Binding IsIncomplete, Converter={StaticResource NotBoolToVis}}">
+                                            <TextBlock FontFamily="Consolas" FontSize="11"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TextSecondary}">
+                                                <Run Text="{Binding StartDisplay, Mode=OneWay}"/><Run Text=" – "/><Run Text="{Binding EndDisplay, Mode=OneWay}"/><Run Text="  "/><Run Text="{Binding EffectiveDurationDisplay, StringFormat=({0}), Mode=OneWay}" Foreground="{DynamicResource ValueGreen}"/>
+                                            </TextBlock>
+
+                                            <Image Source="pack://application:,,,/Assets/icons/icon-step_tracker.png"
+                                                   Width="14" Height="14" Margin="6,0,0,0"
+                                                   VerticalAlignment="Center"
+                                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                                   Visibility="{Binding IsCurrentStep, Converter={StaticResource BoolToVis}}"
+                                                   ToolTip="Working on this bookmark now">
+                                                <Image.RenderTransform>
+                                                    <TranslateTransform Y="2"/>
+                                                </Image.RenderTransform>
+                                            </Image>
+                                        </StackPanel>
 
                                         <StackPanel Orientation="Horizontal" Margin="0,2,0,0"
                                                     Visibility="{Binding HasEffects, Converter={StaticResource BoolToVis}}">
@@ -2540,10 +2590,17 @@
                                             <ColumnDefinition Width="2"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Border Grid.Column="0" Height="54" Background="#FF000000" CornerRadius="2,0,0,2">
+                                        <!-- Open on the inside edges, so the two
+                                             frames are outlined as the one strip
+                                             they read as rather than boxed
+                                             separately with a double line down
+                                             the middle. -->
+                                        <Border Grid.Column="0" Height="54" Background="#FF000000" CornerRadius="2,0,0,2"
+                                                Style="{StaticResource StepFrame}" BorderThickness="2,2,0,2">
                                             <Image Source="{Binding Thumbnail}" Stretch="Uniform"/>
                                         </Border>
-                                        <Border Grid.Column="2" Height="54" Background="#FF000000" CornerRadius="0,2,2,0">
+                                        <Border Grid.Column="2" Height="54" Background="#FF000000" CornerRadius="0,2,2,0"
+                                                Style="{StaticResource StepFrame}" BorderThickness="0,2,2,2">
                                             <Image Source="{Binding ThumbnailEnd}" Stretch="Uniform"/>
                                         </Border>
 
