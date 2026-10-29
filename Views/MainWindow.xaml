@@ -1330,7 +1330,9 @@
             </MenuItem>
             <MenuItem Header="&#128336; History" x:Name="RecentMenuItem" ToolTip="Recently played videos">
                 <MenuItem Header="Viewed" Style="{StaticResource MenuSectionHeader}"/>
-                <MenuItem Header="(no recent videos)" IsEnabled="False" x:Name="RecentEmptyPlaceholder"/>
+                <!-- "(empty)", not "(no recent videos)": it stands under the
+                     Viewed caption, in a menu called History. -->
+                <MenuItem Header="(empty)" IsEnabled="False" x:Name="RecentEmptyPlaceholder"/>
                 <Separator x:Name="RecentStartSeparator" Visibility="Collapsed"/>
                 <!-- Dynamic per-video entries inserted here at runtime -->
                 <Separator x:Name="RecentEndSeparator" Visibility="Collapsed"/>
