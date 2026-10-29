@@ -1496,9 +1496,9 @@
                 <MenuItem Header="Compact" IsCheckable="True"
                           IsChecked="{Binding LayoutIsContactSheet, Mode=TwoWay}"/>
                 <MenuItem Header="Film" IsCheckable="True"
-                          IsChecked="{Binding LayoutIsFilmstrip, Mode=TwoWay}"/>
-                <MenuItem Header="Detailed" IsCheckable="True"
                           IsChecked="{Binding LayoutIsDetail, Mode=TwoWay}"/>
+                <MenuItem Header="Detailed" IsCheckable="True"
+                          IsChecked="{Binding LayoutIsFilmstrip, Mode=TwoWay}"/>
             </MenuItem>
 
             <MenuItem Header="&#10067; Help">
@@ -2128,7 +2128,8 @@
                             <StackPanel Orientation="Vertical"/>
                         </ItemsPanelTemplate>
 
-                        <!-- A — Cards. The check and the number ride on the frame
+                        <!-- A — Cards, which the View menu calls Slides. The check
+                             and the number ride on the frame
                              itself, the name sits along its foot, and the times
                              are centred underneath. -->
                         <DataTemplate x:Key="StoryboardCards">
@@ -2241,7 +2242,8 @@
                             </Border>
                         </DataTemplate>
 
-                        <!-- B — Contact sheet. Everything the tile has to say is
+                        <!-- B — Contact sheet, which the View menu calls Compact.
+                             Everything the tile has to say is
                              said on the tile: the check and the number at the top
                              left, the marks opposite them, and the times along the
                              foot. One plate for the times rather than a badge at
@@ -2327,7 +2329,8 @@
                             </Border>
                         </DataTemplate>
 
-                        <!-- C — Detail. One cut to a row, frame on the left. The
+                        <!-- C — Detail, which the View menu calls Film. One cut to
+                             a row, frame on the left. The
                              only layout with room for the speed as its own
                              column, the way the row list has it. -->
                         <DataTemplate x:Key="StoryboardDetail">
@@ -2415,7 +2418,8 @@
                             </Border>
                         </DataTemplate>
 
-                        <!-- D — Filmstrip. First and last frame side by side, the
+                        <!-- D — Filmstrip, which the View menu calls Detailed.
+                             First and last frame side by side, the
                              only layout that says how a cut ends. The second
                              frame is a second ffmpeg call, which is why only this
                              layout fetches one. -->
@@ -2542,10 +2546,10 @@
                                               IsChecked="{Binding LayoutIsCards, Mode=TwoWay}"/>
                                 <ToggleButton Content="▩" Style="{StaticResource ViewToggle}"
                                               IsChecked="{Binding LayoutIsContactSheet, Mode=TwoWay}"/>
-                                <ToggleButton Content="▭" Style="{StaticResource ViewToggle}"
-                                              IsChecked="{Binding LayoutIsFilmstrip, Mode=TwoWay}"/>
                                 <ToggleButton Content="▤" Style="{StaticResource ViewToggle}"
                                               IsChecked="{Binding LayoutIsDetail, Mode=TwoWay}"/>
+                                <ToggleButton Content="▭" Style="{StaticResource ViewToggle}"
+                                              IsChecked="{Binding LayoutIsFilmstrip, Mode=TwoWay}"/>
                             </StackPanel>
                         </Grid>
 
