@@ -1140,11 +1140,24 @@ public partial class MainWindow : Window
         // common case. Sub-items are for the less-frequent "remove" action.
         parent.Click += (_, _) => _vm?.OpenRecentVideoCommand.Execute(path);
 
+        // Handled on both children, because MenuItem.Click bubbles: a click on
+        // one of these reaches the parent's handler too, and the parent's
+        // handler opens the video. Remove took the entry off the list and then
+        // opened the video it had just removed; Open ran the open twice. The
+        // playlist entries carry the same note for the same reason.
         var open = new MenuItem { Header = "Open", Icon = MenuGlyph("📂"), Tag = path };
-        open.Click += (_, _) => _vm?.OpenRecentVideoCommand.Execute(path);
+        open.Click += (_, e) =>
+        {
+            e.Handled = true;
+            _vm?.OpenRecentVideoCommand.Execute(path);
+        };
 
         var remove = new MenuItem { Header = "Remove from list", Icon = MenuGlyph("🗑"), Tag = path };
-        remove.Click += (_, _) => _vm?.RemoveRecentVideoCommand.Execute(path);
+        remove.Click += (_, e) =>
+        {
+            e.Handled = true;
+            _vm?.RemoveRecentVideoCommand.Execute(path);
+        };
 
         parent.Items.Add(open);
         parent.Items.Add(remove);
