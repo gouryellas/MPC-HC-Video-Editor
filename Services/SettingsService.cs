@@ -1053,27 +1053,37 @@ public class SettingsService
     }
 
     /// <summary>
-    /// Rewrites a saved filename pattern that still uses the 4.0 variable
+    /// Rewrites a saved filename pattern that still uses retired variable
     /// names.
     /// </summary>
     /// <remarks>
     /// <c>{index}</c> and <c>{index2}</c> shipped in 4.0 and were renamed to
     /// <c>{number}</c> and <c>{number2}</c> because nothing about "index2" said
-    /// what made it different. Both still expand, so this changes nothing about
-    /// the filenames produced — it exists so the Settings box shows a pattern
-    /// built from names that are actually in the list beneath it, rather than
-    /// two that quietly still work but are documented nowhere.
+    /// what made it different. <c>{suffix}</c> went the same way when the
+    /// program settled on calling them tags.
+    ///
+    /// All three still expand, so this changes nothing about the filenames
+    /// produced — it exists so the Settings box shows a pattern built from
+    /// names that are actually in the list beneath it, rather than ones that
+    /// quietly still work but are documented nowhere.
     /// </remarks>
     private void MigrateNameTemplate()
     {
         var template = Current.NameTemplate;
         if (string.IsNullOrEmpty(template)) return;
-        if (!template.Contains("{index", StringComparison.Ordinal)) return;
+
+        var migrated = template;
 
         // Longest first: replacing {index} before {index2} would leave a "2".
-        Current.NameTemplate = template
-            .Replace("{index2}", "{number2}", StringComparison.Ordinal)
-            .Replace("{index}", "{number}", StringComparison.Ordinal);
+        if (migrated.Contains("{index", StringComparison.Ordinal))
+            migrated = migrated
+                .Replace("{index2}", "{number2}", StringComparison.Ordinal)
+                .Replace("{index}", "{number}", StringComparison.Ordinal);
+
+        migrated = migrated.Replace("{suffix}", "{tag}", StringComparison.Ordinal);
+
+        if (!string.Equals(migrated, template, StringComparison.Ordinal))
+            Current.NameTemplate = migrated;
     }
 
     /// <summary>
