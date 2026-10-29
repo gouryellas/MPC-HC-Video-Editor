@@ -9056,6 +9056,25 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private List<BookmarkState> CaptureBookmarks() =>
         Session.Bookmarks.Select(BookmarkState.From).ToList();
+    /// <summary>
+    /// Says why a split did not happen, in the bar and over the picture.
+    /// </summary>
+    /// <remarks>
+    /// A toast as well as the status bar, because of where this is pressed
+    /// from. Split time is on the toolbar and in a menu, but it is aimed at
+    /// the playhead — so it is used while watching, with the player in front
+    /// and this window behind it. A refusal written only into a status bar
+    /// nobody can see is a button that did nothing.
+    ///
+    /// Through ShowRefusal, which the hotkey's own refusals use: forced past
+    /// "toasts off" and held long enough to read, for the same reason. The
+    /// setting asks for less noise from an action that worked.
+    /// </remarks>
+    private void RefuseSplit(string reason)
+    {
+        ReportFailure(reason);
+        ShowRefusal("Could not split", reason);
+    }
 
     /// <summary>
     /// Puts a boundary in the cut list wherever the player is.
@@ -9077,14 +9096,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         if (IsBusy)
         {
-            StatusText = "Another operation is running — wait for it to finish.";
+            RefuseSplit("Another operation is running — wait for it to finish.");
             return;
         }
 
         var (playhead, playerDuration) = _mpc.GetPlaybackPosition();
         if (playhead <= 0)
         {
-            ReportFailure("The player is not reporting a position to split at.");
+            RefuseSplit("The player is not reporting a position to split at.");
             return;
         }
 
@@ -9101,17 +9120,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         if (result.Outcome is not (PlayheadSplit.Outcome.Divided or PlayheadSplit.Outcome.Filled))
         {
-            StatusText = result.Outcome switch
+            RefuseSplit(result.Outcome switch
             {
                 PlayheadSplit.Outcome.AlreadySplit =>
-                    $"There is already a cut boundary at {at}",
+                    $"There is already a bookmark boundary at {at}",
                 PlayheadSplit.Outcome.TooShort =>
                     $"Splitting at {at} would leave a piece too short to be a clip",
                 PlayheadSplit.Outcome.OutOfRange =>
                     $"{at} is outside the part of the video that can be marked",
                 _ =>
                     "The video's length is not known yet — try again in a moment"
-            };
+            });
             return;
         }
 
