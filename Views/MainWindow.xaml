@@ -319,6 +319,41 @@
             <Setter Property="FontFamily" Value="Segoe UI Symbol, Segoe UI"/>
         </Style>
 
+        <!-- "Hide seekbar": an eye with a slash through it. Drawn rather than
+             typed, because there is no such character — Unicode has an eye
+             (U+1F441) and a combining overlay, and the pair renders as an eye
+             with a stray mark beside it in most fonts, differently in each.
+             A Path draws the same thing everywhere and takes the menu's own
+             foreground, which the colour emoji fonts ignore.
+
+             Three figures in one geometry: the almond, the pupil, and the
+             slash. Stroked and not filled — one Path has a single Fill for all
+             of its figures, so filling the pupil would fill the eye around it
+             too.
+
+             Sized to the 14 the emoji glyphs beside it are set at, so the icon
+             column does not change width depending on which kind of mark an
+             item happens to use. -->
+        <Style x:Key="HideEyeGlyph" TargetType="Path">
+            <Setter Property="Data" Value="M 1.3,7 C 4,3.6 10,3.6 12.7,7 C 10,10.4 4,10.4 1.3,7 Z
+                                           M 5.6,7 A 1.4,1.4 0 1 1 8.4,7 A 1.4,1.4 0 1 1 5.6,7 Z
+                                           M 2.2,12.2 L 11.8,1.8"/>
+            <Setter Property="Stroke" Value="{DynamicResource MenuBarForeground}"/>
+            <!-- Wider and thinner than it started. At 14 pixels a heavier
+                 stroke closed the pupil into a dot and left the almond and the
+                 slash fighting for the same ink; rendered side by side, this
+                 is the pair that still reads as an eye at the size it is
+                 actually drawn. -->
+            <Setter Property="StrokeThickness" Value="1.0"/>
+            <Setter Property="StrokeStartLineCap" Value="Round"/>
+            <Setter Property="StrokeEndLineCap" Value="Round"/>
+            <Setter Property="Width" Value="14"/>
+            <Setter Property="Height" Value="14"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+        </Style>
+
         <!-- The naming tag currently in use. One of the tag buttons is always
              the true one — including "no tag" — and nothing on the toolbar said
              which, so pressing [done] looked exactly like not pressing it.
@@ -1313,9 +1348,16 @@
                         <TextBlock Text="🔧" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
+                <!-- The same glyph as on the seekbar's own context menu: it is
+                     one item in two places, and nothing is gained by it
+                     looking like two. -->
                 <MenuItem Header="Hide seekbar" IsCheckable="True"
                           IsChecked="{Binding HideSeekbar, Mode=TwoWay}"
-                          ToolTip="Put the seekbar away without losing how it is set up. Everything under Customize seekbar is remembered."/>
+                          ToolTip="Put the seekbar away without losing how it is set up. Everything under Customize seekbar is remembered.">
+                    <MenuItem.Icon>
+                        <Path Style="{StaticResource HideEyeGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <MenuItem Header="Change seekbar colors…" Command="{Binding ChangeSeekbarColorsCommand}"
                           ToolTip="What the seekbar's position bar, border, background, brackets and waveform are painted">
                     <MenuItem.Icon>
@@ -1797,6 +1839,17 @@
                                     <TextBlock Text="🎨" Style="{StaticResource MenuGlyph}"/>
                                 </MenuItem.Icon>
                             </MenuItem>
+                            <!-- Above Reset, with the rest of what can be done
+                                 to the bar. Putting it last left the one
+                                 reversible switch here below the item that
+                                 throws every other setting away. -->
+                            <MenuItem Header="Hide seekbar" IsCheckable="True"
+                                      IsChecked="{Binding HideSeekbar, Mode=TwoWay}"
+                                      ToolTip="Put the seekbar away without losing how it is set up. Bring it back from Options ▸ Hide seekbar.">
+                                <MenuItem.Icon>
+                                    <Path Style="{StaticResource HideEyeGlyph}"/>
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem Header="Reset seekbar" Command="{Binding ResetSeekbarCommand}">
                                 <MenuItem.Icon>
                                     <TextBlock Text="↺" Style="{StaticResource MenuGlyph}"/>
@@ -1812,9 +1865,6 @@
                             <MenuItem Header="Snap brackets to edit points" IsCheckable="True"
                                       IsChecked="{Binding SnapToEditPoints, Mode=TwoWay}"
                                       ToolTip="A bracket dragged near one of the ticks lands exactly on it. Hold Alt while dragging to place it freely."/>
-                            <MenuItem Header="Hide seekbar" IsCheckable="True"
-                                      IsChecked="{Binding HideSeekbar, Mode=TwoWay}"
-                                      ToolTip="Put the seekbar away without losing how it is set up. Bring it back from Options ▸ Hide seekbar."/>
                         </ContextMenu>
                     </Border.ContextMenu>
 
