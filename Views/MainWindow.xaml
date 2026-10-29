@@ -640,6 +640,31 @@
              1.38, and a third of a pixel is not worth a second style. It does
              not depend on how tall the row is, since both the number and the
              box are centered in whatever height the row turns out to have. -->
+        <!-- A bookmark's name where it sits on the same line as its number.
+             Carries the same correction, for the reason the number needs one
+             at all: two text blocks centered separately are centered on their
+             own line boxes, and a line box is not where the ink is. Shifted by
+             the same amount and set at the same size, the two share a baseline
+             and read as one line — which is what they are.
+
+             Trimmed, because a name is as long as somebody typed it. Whichever
+             panel holds this has to give it a bounded width, or the trimming
+             never fires; see the Compact plate for what that costs.
+
+             The tooltip is the whole name. A trimmed one cannot be read any
+             other way. -->
+        <Style x:Key="RowLabelText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource ValueYellow}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            <Setter Property="ToolTip" Value="{Binding Label}"/>
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <TranslateTransform Y="-1.66"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="RowIndexNumber" TargetType="TextBlock">
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="Foreground" Value="{DynamicResource LinkBlue}"/>
@@ -2310,11 +2335,8 @@
                                             <TextBlock DockPanel.Dock="Left" Text="{Binding Index}"
                                                        Style="{StaticResource RowIndexNumber}"
                                                        FontSize="10" Margin="4,0,1,0"/>
-                                            <TextBlock Text="{Binding Label}" FontSize="10" Margin="3,0,0,0"
-                                                       VerticalAlignment="Center"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       ToolTip="{Binding Label}"
-                                                       Foreground="{DynamicResource ValueYellow}"
+                                            <TextBlock Text="{Binding Label}" Style="{StaticResource RowLabelText}"
+                                                       FontSize="10" Margin="3,0,0,0"
                                                        Visibility="{Binding HasLabel, Converter={StaticResource BoolToVis}}"/>
                                         </DockPanel>
                                     </Border>
@@ -2480,22 +2502,32 @@
                                     BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                                     CornerRadius="4">
                                 <StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                        <Button Style="{StaticResource RowQuickSave}"
+                                    <!-- Docked for the same reason the Compact
+                                         plate is: the card is a fixed 206 wide,
+                                         and in a horizontal StackPanel the name
+                                         is measured with unbounded width — so a
+                                         long one never trimmed, it ran out past
+                                         the card's own edge. -->
+                                    <DockPanel Margin="0,0,0,4" LastChildFill="True">
+                                        <Button DockPanel.Dock="Left" Style="{StaticResource RowQuickSave}"
                                                 Margin="0,0,4,0"
                                                 Visibility="{Binding IsValid, Converter={StaticResource BoolToVis}}"
                                                 Command="{Binding DataContext.SplitSingleCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                 CommandParameter="{Binding}"/>
-                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                        <CheckBox DockPanel.Dock="Left" IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                   VerticalAlignment="Center"
                                                   ToolTip="Check this bookmark for the actions that work on a selection"/>
-                                        <TextBlock Text="{Binding Index}" Style="{StaticResource RowIndexNumber}"
+                                        <TextBlock DockPanel.Dock="Left" Text="{Binding Index}"
+                                                   Style="{StaticResource RowIndexNumber}"
                                                    Margin="4,0,0,0"/>
-                                        <TextBlock Text="{Binding Label}" Margin="5,0,0,0" FontSize="11"
-                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                                                   Foreground="{DynamicResource ValueYellow}"
+                                        <!-- No FontSize of its own: it was 11
+                                             against a number at 12, and two
+                                             sizes on one line cannot share a
+                                             baseline however they are aligned. -->
+                                        <TextBlock Text="{Binding Label}" Style="{StaticResource RowLabelText}"
+                                                   Margin="5,0,0,0"
                                                    Visibility="{Binding HasLabel, Converter={StaticResource BoolToVis}}"/>
-                                    </StackPanel>
+                                    </DockPanel>
 
                                     <!-- Two frames, a hairline apart, so the pair
                                          reads as one strip rather than two
