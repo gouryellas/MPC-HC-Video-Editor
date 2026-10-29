@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -98,11 +99,29 @@ public sealed class ToastService : IDisposable
             _holdTimer.Interval = hold ?? HoldDuration;
             _holdTimer.Start();
         }
-        catch
+        catch (Exception ex)
         {
-            // ignored — toast is best-effort
+            // Still swallowed: a notification that cannot be shown is not a
+            // reason to fail the operation that raised it.
+            //
+            // But no longer silent. This catch hid a XamlParseException thrown
+            // by the toast window's own constructor — its drop shadow was
+            // given a Brush where a Color belongs — for the entire life of the
+            // feature. Every caller worked, every call was swallowed, and the
+            // only symptom was that toasts did not exist.
+            //
+            // Once is enough: if the window cannot be built it will fail on
+            // every call, and a line per toast would bury the first one.
+            if (!_faultReported)
+            {
+                _faultReported = true;
+                Debug.Fail("ToastService.Show failed: " + ex);
+            }
         }
     }
+
+    /// <summary>Whether a failure has already been reported; see Show.</summary>
+    private bool _faultReported;
 
     /// <summary>When the last toast went up, for <see cref="ShowUnlessRecent"/>.</summary>
     private DateTime _lastShown = DateTime.MinValue;
