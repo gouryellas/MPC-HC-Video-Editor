@@ -2310,6 +2310,18 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
 
+                                    <!-- The number sits with the check box, as it
+                                         does in every other layout. It used to
+                                         head the stack of text to the right of
+                                         the thumbnail, where it was level with
+                                         the check box only on a row that had
+                                         one line of text: that stack is
+                                         centered, so a second or third line
+                                         pushed the number up and the two marks
+                                         that belong to the same bookmark no
+                                         longer read as a pair. Beside the box
+                                         it is level by construction rather
+                                         than by coincidence. -->
                                     <StackPanel Grid.Column="0" Orientation="Horizontal"
                                                 VerticalAlignment="Center" Margin="0,0,8,0">
                                         <Button Style="{StaticResource RowQuickSave}"
@@ -2320,6 +2332,9 @@
                                         <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                   VerticalAlignment="Center"
                                                   ToolTip="Check this bookmark for the actions that work on a selection"/>
+                                        <TextBlock Text="{Binding Index, StringFormat=[{0}]}" FontWeight="Bold"
+                                                   Margin="4,0,0,0" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource LinkBlue}"/>
                                     </StackPanel>
 
                                     <Border Grid.Column="1" Width="112" Height="63" Margin="0,0,10,0"
@@ -2328,14 +2343,19 @@
                                     </Border>
 
                                     <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                        <!-- The gap between these two is the
+                                             label's right margin rather than
+                                             "open"'s left, so a row with no
+                                             label does not start six pixels in
+                                             from everything below it. The
+                                             number that used to lead this line
+                                             is up beside the check box now. -->
                                         <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="{Binding Index, StringFormat=[{0}]}" FontWeight="Bold"
-                                                       Foreground="{DynamicResource LinkBlue}"/>
-                                            <TextBlock Text="{Binding Label}" Margin="6,0,0,0"
+                                            <TextBlock Text="{Binding Label}" Margin="0,0,6,0"
                                                        TextTrimming="CharacterEllipsis"
                                                        Foreground="{DynamicResource ValueYellow}"
                                                        Visibility="{Binding HasLabel, Converter={StaticResource BoolToVis}}"/>
-                                            <TextBlock Text="open" FontStyle="Italic" Margin="6,0,0,0"
+                                            <TextBlock Text="open" FontStyle="Italic"
                                                        Foreground="{DynamicResource StatusError}"
                                                        Visibility="{Binding IsIncomplete, Converter={StaticResource BoolToVis}}"/>
                                         </StackPanel>
@@ -2483,14 +2503,20 @@
                                      but the storyboards are four of a kind. -->
                                 <Border Width="1" Margin="4,2" Background="{DynamicResource ControlHover}"/>
 
+                                <!-- Left to right in the View menu's order:
+                                     Slides, Compact, Film, Detailed. They are
+                                     the same five choices as that menu, and a
+                                     strip that runs in a different order than
+                                     the list of names for it is two things to
+                                     learn for one choice. -->
                                 <ToggleButton Content="▦" Style="{StaticResource ViewToggle}"
                                               IsChecked="{Binding LayoutIsCards, Mode=TwoWay}"/>
                                 <ToggleButton Content="▩" Style="{StaticResource ViewToggle}"
                                               IsChecked="{Binding LayoutIsContactSheet, Mode=TwoWay}"/>
-                                <ToggleButton Content="▤" Style="{StaticResource ViewToggle}"
-                                              IsChecked="{Binding LayoutIsDetail, Mode=TwoWay}"/>
                                 <ToggleButton Content="▭" Style="{StaticResource ViewToggle}"
                                               IsChecked="{Binding LayoutIsFilmstrip, Mode=TwoWay}"/>
+                                <ToggleButton Content="▤" Style="{StaticResource ViewToggle}"
+                                              IsChecked="{Binding LayoutIsDetail, Mode=TwoWay}"/>
                             </StackPanel>
                         </Grid>
 
