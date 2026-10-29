@@ -133,6 +133,7 @@
                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                 CornerRadius="4" Padding="6" Margin="0,0,0,4"
                 HorizontalAlignment="Left">
+            <Grid>
             <ItemsControl x:Name="PreviewRows">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
@@ -154,6 +155,18 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
+
+            <!-- Stands in for the rows while the bar is hidden, in the same
+                 frame rather than beside it: this box is the toolbar as it
+                 will look, and a row of buttons sitting under a ticked "Hide
+                 toolbar" would be showing something that is not going to be
+                 there. The arrangement is not lost — it is still being
+                 edited, and the list below still drops into it. -->
+            <TextBlock x:Name="HiddenNotice" Visibility="Collapsed"
+                       Text="The toolbar is currently hidden."
+                       Foreground="{DynamicResource TextMuted}" FontStyle="Italic"
+                       Margin="2,6" VerticalAlignment="Center"/>
+            </Grid>
         </Border>
 
         <Grid Grid.Row="2" Margin="0,14,0,0">
@@ -222,6 +235,11 @@
                           Content="No button backgrounds"
                           ToolTip="Show the icons on their own, with no rounded square behind them."
                           Checked="Chrome_Changed" Unchecked="Chrome_Changed"/>
+                <CheckBox x:Name="HideToolbarCheck" VerticalAlignment="Center" Margin="18,0,0,0"
+                          Foreground="{DynamicResource TextPrimary}"
+                          Content="Hide toolbar"
+                          ToolTip="Put the toolbar away. The arrangement is kept, and this box brings it back — as does Options ▸ Hide toolbar."
+                          Checked="Hidden_Changed" Unchecked="Hidden_Changed"/>
             </StackPanel>
 
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">

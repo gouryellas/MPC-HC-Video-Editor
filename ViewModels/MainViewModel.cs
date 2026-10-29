@@ -635,14 +635,27 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void CustomizeToolbar()
     {
+        // How the bar stood when the dialog opened. The settings are not
+        // written while it is open, so this is the only record of what Cancel
+        // has to put back.
+        var wasHidden = HideToolbar;
+
         var dlg = new CustomizeToolbarDialog(ToolbarCatalogue(), ToolbarItems, ToolbarMinimumWidth,
                                              _settings.Current.SmallButtonIcons,
-                                             _settings.Current.FlatButtonIcons)
+                                             _settings.Current.FlatButtonIcons,
+                                             wasHidden)
         {
-            Owner = DialogOwner
+            Owner = DialogOwner,
+            PreviewHidden = PreviewToolbarHidden
         };
 
-        if (dlg.ShowDialog() != true || dlg.Layout is null) return;
+        if (dlg.ShowDialog() != true || dlg.Layout is null)
+        {
+            // Cancelled, so the preview comes back off — as the icon preview
+            // does when Settings is cancelled.
+            PreviewToolbarHidden(wasHidden);
+            return;
+        }
 
         // Written before the layout is applied, not after: ApplyToolbarLayout
         // dresses the returning items from these two, so saving them second
@@ -650,10 +663,36 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // with and quietly discard whichever box was just ticked.
         _settings.Current.SmallButtonIcons = dlg.SmallButtonIcons;
         _settings.Current.FlatButtonIcons = dlg.FlatButtonIcons;
+
+        // Already in force — the box put it there as it was ticked. Set again
+        // through the same path rather than trusted, so the saved file says
+        // what the window shows, and the two menu entries that bind to
+        // HideToolbar hear about it even if the preview never ran.
+        PreviewToolbarHidden(dlg.HideToolbar);
         _settings.Save();
 
         ApplyToolbarLayout(dlg.Layout);
-        StatusText = "Toolbar updated";
+        StatusText = dlg.HideToolbar ? "Toolbar updated and hidden" : "Toolbar updated";
+    }
+
+    /// <summary>
+    /// Shows or hides the real toolbar without writing anything, for the
+    /// Hide toolbar box in the Customize dialog.
+    /// </summary>
+    /// <remarks>
+    /// Writes the in-memory setting rather than going through
+    /// <see cref="HideToolbar"/>, which saves: the dialog can still be
+    /// cancelled, and a preview that had already written itself to disk would
+    /// make Cancel a lie. Whoever opens the dialog restores this on the way
+    /// out; the save path writes the same value through properly.
+    /// </remarks>
+    private void PreviewToolbarHidden(bool hidden)
+    {
+        if (_settings.Current.ShowToolbar == !hidden) return;
+
+        _settings.Current.ShowToolbar = !hidden;
+        OnPropertyChanged(nameof(ShowToolbar));
+        OnPropertyChanged(nameof(HideToolbar));
     }
 
     /// <summary>

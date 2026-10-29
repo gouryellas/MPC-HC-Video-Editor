@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
@@ -38,6 +38,20 @@ public partial class CustomizeToolbarDialog : Window
     /// <summary>Whether the toolbar's buttons should be drawn without chrome.</summary>
     public bool FlatButtonIcons { get; private set; }
 
+    /// <summary>Whether the toolbar should be put away altogether.</summary>
+    public bool HideToolbar { get; private set; }
+
+    /// <summary>
+    /// Called with the new answer whenever the Hide toolbar box is clicked,
+    /// so the real toolbar goes as the box is ticked rather than on Save.
+    /// </summary>
+    /// <remarks>
+    /// The same arrangement the Settings dialog uses for the two appearance
+    /// boxes: the window shows the change, nothing is written, and whoever
+    /// opened this is responsible for putting it back if Cancel is pressed.
+    /// </remarks>
+    public Action<bool>? PreviewHidden { get; set; }
+
     /// <summary>
     /// True while the constructor is filling the checkboxes, so setting
     /// <c>IsChecked</c> does not run the handler against half-built state.
@@ -72,18 +86,23 @@ public partial class CustomizeToolbarDialog : Window
                                   IEnumerable<ToolbarItem> current,
                                   double minimumWidth,
                                   bool smallButtonIcons,
-                                  bool flatButtonIcons)
+                                  bool flatButtonIcons,
+                                  bool hideToolbar)
     {
         InitializeComponent();
 
         _catalogue = catalogue;
         SmallButtonIcons = smallButtonIcons;
         FlatButtonIcons = flatButtonIcons;
+        HideToolbar = hideToolbar;
 
         _loading = true;
         SmallIconsCheck.IsChecked = smallButtonIcons;
         FlatIconsCheck.IsChecked = flatButtonIcons;
+        HideToolbarCheck.IsChecked = hideToolbar;
         _loading = false;
+
+        ShowHiddenNotice();
 
         // The preview is bounded by the width the toolbar can always count on.
         // Padding and the border are not toolbar, so they come off it.
@@ -202,6 +221,29 @@ public partial class CustomizeToolbarDialog : Window
             item.IsCompact = false;
             item.IsFlat = flat;
         }
+    }
+
+    /// <summary>The Hide toolbar box was clicked.</summary>
+    private void Hidden_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+
+        HideToolbar = HideToolbarCheck.IsChecked == true;
+        ShowHiddenNotice();
+
+        // The real toolbar follows at once. Hiding something is the kind of
+        // change that is judged by looking at the window, not by reading a
+        // preview of it.
+        PreviewHidden?.Invoke(HideToolbar);
+    }
+
+    /// <summary>
+    /// Swaps the preview rows for the line that says the bar is away.
+    /// </summary>
+    private void ShowHiddenNotice()
+    {
+        PreviewRows.Visibility = HideToolbar ? Visibility.Collapsed : Visibility.Visible;
+        HiddenNotice.Visibility = HideToolbar ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>Either appearance checkbox was clicked.</summary>
