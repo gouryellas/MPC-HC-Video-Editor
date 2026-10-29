@@ -2864,7 +2864,22 @@
                                                        VerticalAlignment="Center"
                                                        RenderOptions.BitmapScalingMode="HighQuality"
                                                        Visibility="{Binding IsCurrentStep, Converter={StaticResource BoolToVis}}"
-                                                       ToolTip="Working on this bookmark now"/>
+                                                       ToolTip="Working on this bookmark now">
+                                                    <!-- Two pixels down. Centered on the row
+                                                         it read high against the text beside
+                                                         it — the glyph's weight is above its
+                                                         middle, which centering the box it
+                                                         sits in cannot know about.
+
+                                                         A render transform rather than a
+                                                         margin, as the row number uses: a
+                                                         margin is laid out, so it would make
+                                                         the row taller and re-center
+                                                         everything in it. -->
+                                                    <Image.RenderTransform>
+                                                        <TranslateTransform Y="2"/>
+                                                    </Image.RenderTransform>
+                                                </Image>
 
                                                 <!-- Two more, for three in all with the one
                                                      that follows this panel. Every other gap
