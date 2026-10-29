@@ -4121,7 +4121,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         var result = MessageBox.Show(
             "Reset everything?\n\nThis will restart the application. Your " +
-            "settings, recent videos, suffixes, and shortcuts are all " +
+            "settings, recent videos, tags, and shortcuts are all " +
             "preserved (they live in settings.json). Only the current " +
             "session state (loaded video, bookmarks, mid-bookmark) is reset.\n\n" +
             "Any unsaved bookmark changes will be saved to the CSV before " +
@@ -8627,18 +8627,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void AddSuffix()
     {
-        var text = PromptForSuffixText("Add suffix", "Enter suffix text (letters and numbers only, max 50 chars).\n\nIt will be wrapped in brackets in filenames, e.g. [done]", "");
+        var text = PromptForSuffixText("Add tag", "Enter the tag text (letters and numbers only, max 50 chars).\n\nIt will be wrapped in brackets in filenames, e.g. [done]", "");
         if (text == null) return;
 
         if (_settings.AddSuffix(text))
         {
             Suffixes.Add(new SuffixEntry(text));
             UpdateActiveSuffixDisplay();
-            StatusText = $"Suffix added: [{text}]";
+            StatusText = $"Tag added: [{text}]";
         }
         else
         {
-            Notify("That suffix already exists.", "Add suffix",
+            Notify("That tag already exists.", "Add tag",
                 MessageBoxButton.OK, MessageBoxImage.Information);
         }
     }
@@ -8652,12 +8652,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         if (entry == null)
         {
-            Notify("Select a suffix to rename, or use Manage Suffixes.",
-                "Rename suffix", MessageBoxButton.OK, MessageBoxImage.Information);
+            Notify("Select a tag to rename, or use Manage tags.",
+                "Rename tag", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        var text = PromptForSuffixText("Rename suffix",
+        var text = PromptForSuffixText("Rename tag",
             $"New text for:\n{entry.Display}\n\nLetters and numbers only, max 50 chars.",
             entry.Text);
         if (text == null || text == entry.Text) return;
@@ -8666,12 +8666,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             entry.Text = text;
             UpdateActiveSuffixDisplay();
-            StatusText = $"Suffix renamed to: [{text}]";
+            StatusText = $"Tag renamed to: [{text}]";
         }
         else
         {
-            Notify("Could not rename — a suffix with that text already exists.",
-                "Rename suffix", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Notify("Could not rename — a tag with that text already exists.",
+                "Rename tag", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -8684,8 +8684,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         if (entry == null)
         {
-            Notify("Select a suffix to remove, or use Manage Suffixes.",
-                "Remove suffix", MessageBoxButton.OK, MessageBoxImage.Information);
+            Notify("Select a tag to remove, or use Manage tags.",
+                "Remove tag", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -8695,7 +8695,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 string.Equals(s.Text, entry.Text, StringComparison.OrdinalIgnoreCase));
             if (match != null) Suffixes.Remove(match);
             UpdateActiveSuffixDisplay();
-            StatusText = $"Removed suffix: {entry.Display}";
+            StatusText = $"Removed tag: {entry.Display}";
         }
     }
 
@@ -8711,7 +8711,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (_settings.SetActiveSuffix(entry.Text))
         {
             UpdateActiveSuffixDisplay();
-            StatusText = $"Active suffix: {entry.Display}";
+            StatusText = $"Active tag: {entry.Display}";
         }
     }
 
@@ -8754,7 +8754,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         _settings.ReorderSuffixes(Suffixes);
         UpdateActiveSuffixDisplay();
-        StatusText = $"{Suffixes.Count} suffix(es) saved";
+        StatusText = $"{Suffixes.Count} tag(s) saved";
     }
 
     /// <summary>

@@ -1345,21 +1345,15 @@
                      a folder in Explorer and have nothing to do with the
                      quick save shortcuts in the File menu. -->
             </MenuItem>
-            <!-- Suffix menu — manages filename suffixes appended to all video
-                 outputs (merge, split, convert, strip audio, bulk merge).
-                 The first item shows the currently-active suffix; the dynamic
-                 list below lets the user switch by clicking. -->
+            <!-- Options — how the toolbar and the seekbar look. Both sections
+                 repeat what right-clicking the thing itself offers; see each
+                 one's ContextMenu.
+
+                 The naming tags that used to live here have their own menu
+                 now. Three comments describing them were still sitting in
+                 this one, down to a dynamic list and an "Add suffix…" item
+                 that have not been here for releases. -->
             <MenuItem x:Name="OptionsMenu" Header="&#9881; Options">
-                <!-- Not IsEnabled="False", unlike the example line below it: the
-                     MenuItem style grays disabled items to #888888, and this is
-                     the one line here that says which tag is actually in use, so
-                     it stays at full contrast. It has no Command, so it is still
-                     a label — clicking it just closes the menu. -->
-                <!-- Dynamic per-suffix entries inserted here at runtime by
-                     MainWindow.xaml.cs. The active one gets a ✓ prefix;
-                     clicking any entry sets it as active. SuffixListEndSeparator
-                     doubles as the divider before "Add suffix…" — no extra
-                     static separator needed. -->
                 <!-- The way back from a rearranged toolbar. Dragging is
                      discoverable by accident; undoing it is not, so it needs a
                      line somewhere that can be found on purpose. -->
@@ -2665,7 +2659,7 @@
                                              immediately FFmpeg-splits just this clip into
                                              the quick save folder (File ▸ "Quick save: …"),
                                              or next to the source video when that folder is
-                                             unset, using the active suffix. It turns into a
+                                             unset, using the active tag. It turns into a
                                              check mark once the clip has been written —
                                              see the RowQuickSave style. Only shown on
                                              complete (valid) bookmarks. -->

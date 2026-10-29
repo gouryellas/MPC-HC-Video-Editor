@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 
 namespace MpcHcVideoEditor.Dialogs;
 
@@ -92,8 +92,8 @@ public partial class ConflictDialog : Window
         // renaming this to, and where does it land" would lose half its answer
         // at the moment it is being answered.
         var prompt = string.IsNullOrWhiteSpace(_directory)
-            ? "Enter new filename (no extension or suffix):"
-            : $"Enter new filename (no extension or suffix).\nSaving into:  {_directory}";
+            ? "Enter new filename (no extension or tag):"
+            : $"Enter new filename (no extension or tag).\nSaving into:  {_directory}";
 
         var input = new InputDialog("Rename", prompt, current)
         {

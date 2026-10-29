@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using MpcHcVideoEditor.Models;
 
@@ -6,7 +6,7 @@ namespace MpcHcVideoEditor.Helpers;
 
 /// <summary>
 /// Builds an output filename from a pattern such as
-/// <c>{name}_{number2}{suffix}</c>.
+/// <c>{name}_{number2}{tag}</c>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -23,7 +23,7 @@ namespace MpcHcVideoEditor.Helpers;
 public static class NameTemplate
 {
     /// <summary>The default, which reproduces the old behavior exactly.</summary>
-    public const string Default = "{name}{suffix}";
+    public const string Default = "{name}{tag}";
 
     /// <summary>One variable, a worked example of it, and what it means.</summary>
     /// <remarks>
@@ -43,7 +43,7 @@ public static class NameTemplate
     public static readonly IReadOnlyList<TemplateVariable> Variables = new[]
     {
         new TemplateVariable("{name}",     "holiday-2026", "The source video's filename, without its extension."),
-        new TemplateVariable("{suffix}",   "[done]",       "The naming tag currently selected under Options."),
+        new TemplateVariable("{tag}",      "[done]",       "The naming tag currently selected under Tags."),
         new TemplateVariable("{number}",   "3",            "Which clip this is — 1 for the first in the list, 2 for the second."),
         new TemplateVariable("{number2}",  "03",           "The same number written to two digits. Ten clips then sort 01, 02 … 10 instead of 1, 10, 2."),
         new TemplateVariable("{number3}",  "003",          "Three digits, for lists longer than ninety-nine."),
@@ -61,13 +61,13 @@ public static class NameTemplate
     /// </summary>
     public static readonly IReadOnlyList<TemplateVariable> Examples = new[]
     {
-        new TemplateVariable("{name}{suffix}", "holiday-2026[done].mp4",
+        new TemplateVariable("{name}{tag}", "holiday-2026[done].mp4",
             "The default — the source name with the naming tag on the end."),
-        new TemplateVariable("{name}_{number2}{suffix}", "holiday-2026_03[done].mp4",
+        new TemplateVariable("{name}_{number2}{tag}", "holiday-2026_03[done].mp4",
             "Numbered, so a batch of clips stays in order in the folder."),
-        new TemplateVariable("{name}_{start}-{end}{suffix}", "holiday-2026_0-01-23-0-01-45[done].mp4",
+        new TemplateVariable("{name}_{start}-{end}{tag}", "holiday-2026_0-01-23-0-01-45[done].mp4",
             "Timestamped, so each clip says where in the source it came from."),
-        new TemplateVariable("{number2}_{duration}s_{name}{suffix}", "03_22s_holiday-2026[done].mp4",
+        new TemplateVariable("{number2}_{duration}s_{name}{tag}", "03_22s_holiday-2026[done].mp4",
             "Number and length first, for skimming a folder at a glance.")
     };
 
@@ -79,13 +79,19 @@ public static class NameTemplate
     /// clip-specific variables then expand to nothing rather than to a
     /// misleading zero.
     /// </param>
-    public static string Build(string? template, string sourceName, string suffix, Bookmark? bookmark)
+    public static string Build(string? template, string sourceName, string tag, Bookmark? bookmark)
     {
         if (string.IsNullOrWhiteSpace(template)) template = Default;
 
         var sb = new StringBuilder(template);
         sb.Replace("{name}", sourceName);
-        sb.Replace("{suffix}", suffix ?? string.Empty);
+        sb.Replace("{tag}", tag ?? string.Empty);
+
+        // These were called suffixes until the whole program settled on
+        // "tag". Kept working, undocumented, for the same reason {index} is
+        // below: a pattern saved under an earlier release would otherwise
+        // start writing the literal text "{suffix}" into every filename.
+        sb.Replace("{suffix}", tag ?? string.Empty);
         sb.Replace("{date}", DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
 
         if (bookmark is null)
@@ -133,16 +139,16 @@ public static class NameTemplate
     /// What <paramref name="template"/> produces for a made-up clip, for the
     /// live preview in Settings.
     /// </summary>
-    /// <param name="suffix">
+    /// <param name="tag">
     /// The naming tag in force, bracket and all. Passed in rather than made up:
     /// the preview used a hardcoded "[done]" while the row above it promised
-    /// "the naming tag currently selected under Options", so the one line on
+    /// "the naming tag currently selected under Tags", so the one line on
     /// screen showing what files will be called was wrong for anyone who had
     /// picked a different tag.
     /// </param>
-    public static string Preview(string? template, string suffix = "[done]")
+    public static string Preview(string? template, string tag = "[done]")
     {
         var sample = new Bookmark { Index = 3, StartSeconds = 83, EndSeconds = 105 };
-        return Build(template, "holiday-2026", suffix, sample) + ".mp4";
+        return Build(template, "holiday-2026", tag, sample) + ".mp4";
     }
 }

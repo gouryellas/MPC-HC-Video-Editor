@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -108,14 +108,14 @@ public partial class ManageSuffixesDialog : Window
 
     private void Add_Click(object sender, RoutedEventArgs e)
     {
-        var text = PromptForSuffixText("Add suffix",
-            "Enter suffix text (letters and numbers only, max 50 chars).\n\nIt will be wrapped in brackets in filenames, e.g. [done]",
+        var text = PromptForSuffixText("Add tag",
+            "Enter the tag text (letters and numbers only, max 50 chars).\n\nIt will be wrapped in brackets in filenames, e.g. [done]",
             "");
         if (text == null) return;
 
         if (_suffixes.Any(s => string.Equals(s.Text, text, StringComparison.OrdinalIgnoreCase)))
         {
-            MessageBox.Show("That suffix already exists.", "Add suffix",
+            MessageBox.Show("That tag already exists.", "Add tag",
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
@@ -132,8 +132,8 @@ public partial class ManageSuffixesDialog : Window
     {
         if (SuffixList.SelectedItem is not SuffixEntry entry) return;
         var result = MessageBox.Show(
-            $"Remove the suffix \"{entry.Display}\"?",
-            "Remove suffix", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            $"Remove the tag \"{entry.Display}\"?",
+            "Remove tag", MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (result != MessageBoxResult.Yes) return;
         _suffixes.Remove(entry);
     }
@@ -170,7 +170,7 @@ public partial class ManageSuffixesDialog : Window
     {
         if (SuffixList.SelectedItem is not SuffixEntry entry) return;
 
-        var text = PromptForSuffixText("Rename suffix",
+        var text = PromptForSuffixText("Rename tag",
             $"New text for:\n{entry.Display}\n\nLetters and numbers only, max 50 chars.",
             entry.Text);
         if (text == null || text == entry.Text) return;
@@ -179,7 +179,7 @@ public partial class ManageSuffixesDialog : Window
         if (_suffixes.Any(s => s != entry &&
             string.Equals(s.Text, text, StringComparison.OrdinalIgnoreCase)))
         {
-            MessageBox.Show("A suffix with that text already exists.", "Rename suffix",
+            MessageBox.Show("A tag with that text already exists.", "Rename tag",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -202,20 +202,20 @@ public partial class ManageSuffixesDialog : Window
 
             if (string.IsNullOrEmpty(text))
             {
-                MessageBox.Show("Suffix cannot be empty.", title,
+                MessageBox.Show("A tag cannot be empty.", title,
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 continue;
             }
             if (text.Length > 50)
             {
-                MessageBox.Show("Suffix must be 50 characters or fewer.", title,
+                MessageBox.Show("A tag must be 50 characters or fewer.", title,
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 continue;
             }
             if (!text.All(char.IsLetterOrDigit))
             {
                 MessageBox.Show(
-                    "Suffix can only contain letters and numbers (a–z, A–Z, 0–9).\n\nNo spaces, brackets, or special characters.",
+                    "A tag can only contain letters and numbers (a–z, A–Z, 0–9).\n\nNo spaces, brackets, or special characters.",
                     title, MessageBoxButton.OK, MessageBoxImage.Warning);
                 continue;
             }

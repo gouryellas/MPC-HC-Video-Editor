@@ -1347,7 +1347,7 @@ public partial class MainWindow : Window
             {
                 Header = $"[{entry.Text.Replace("_", "__")}]",
                 Icon = MenuGlyph(isActive ? "✓" : "🏷"),
-                ToolTip = $"Click to set [{entry.Text}] as the active suffix",
+                ToolTip = $"Click to set [{entry.Text}] as the active tag",
                 Tag = entry,
                 FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Normal
             };
