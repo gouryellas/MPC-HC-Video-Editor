@@ -5110,63 +5110,44 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanEnterTimeManual))]
     private void EnterTimeManual()
     {
-        const string basePrompt =
-            "Single time = set one bookmark (incomplete)\n" +
-            "Range (1:00 - 2:30) = full bookmark";
-
-        var prompt = basePrompt;
-
         // Seeded in the precise style rather than the reading shown elsewhere:
         // this value is about to be edited by hand, and "00:01:05" has a field
         // to put an hour in. "1:05" does not, and "37s" does not even look
         // like a time you may put a colon in.
         var value = Bookmark.FormatPrecise(Session.CurrentTimeSeconds);
+        string? refusal = null;
 
-        // Loop rather than closing on a bad value: the entry is re-shown with
-        // what went wrong and what is accepted, so the user can correct it or
-        // cancel — deciding for themselves rather than starting over.
+        // Loop rather than closing on a refusal: the entry is re-shown with
+        // what was wrong, so the user can correct it or cancel — deciding for
+        // themselves rather than starting over. Only the reasons below bring
+        // us back here; whether the text is a time at all is settled in the
+        // dialog, as it is typed.
         while (true)
         {
-            var dlg = new InputDialog("Enter time / range", prompt, value);
+            var dlg = new EnterTimeDialog(value, refusal) { Owner = DialogOwner };
             if (dlg.ShowDialog() != true) return;
 
-            value = dlg.Value.Trim();
+            value = dlg.Value;
+            var start = dlg.Parsed.Start;
 
-            // A dash separates a range, but only when it is not a leading
-            // minus on a single value.
-            var dash = value.IndexOfAny(new[] { '-', '–' }, 1);
-            if (dash > 0)
+            if (dlg.Parsed.End is { } end)
             {
-                var left = value[..dash].Trim();
-                var right = value[(dash + 1)..].Trim();
-
-                if (!TryParseFlexibleTime(left, out var start, out var startError))
-                {
-                    prompt = $"{startError}\n\n{TimeFormatHelp}";
-                    continue;
-                }
-                if (!TryParseFlexibleTime(right, out var end, out var endError))
-                {
-                    prompt = $"{endError}\n\n{TimeFormatHelp}";
-                    continue;
-                }
                 if (end <= start)
                 {
-                    prompt = $"The end time ({Bookmark.FormatTime(end)}) must be after the " +
-                             $"start time ({Bookmark.FormatTime(start)}).\n\n{TimeFormatHelp}";
+                    refusal = $"The end time ({Bookmark.FormatTime(end)}) must be after the " +
+                              $"start time ({Bookmark.FormatTime(start)}).";
                     continue;
                 }
                 if (OverlappingCut(start, end) is { } clash)
                 {
-                    prompt = $"That range runs over bookmark {clash.Index} " +
-                             $"({clash.StartDisplay} – {clash.EndDisplay}). Bookmarks cannot " +
-                             $"overlap.\n\n{TimeFormatHelp}";
+                    refusal = $"That range runs over bookmark {clash.Index} " +
+                              $"({clash.StartDisplay} – {clash.EndDisplay}). Bookmarks cannot overlap.";
                     continue;
                 }
                 if (WhyCannotOpenAt(start) is { } backwards)
                 {
-                    prompt = $"{backwards}. Cuts are marked going forwards, so a new one " +
-                             $"has to start at or after the last mark.\n\n{TimeFormatHelp}";
+                    refusal = $"{backwards}. Bookmarks are marked going forwards, so a new one " +
+                              "has to start at or after the last mark.";
                     continue;
                 }
 
@@ -5180,11 +5161,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
             }
             else
             {
-                if (!TryParseFlexibleTime(value, out var start, out var error))
-                {
-                    prompt = $"{error}\n\n{TimeFormatHelp}";
-                    continue;
-                }
                 // A single time is the next timestamp, not necessarily a new
                 // bookmark. With one already open this closes it, exactly as
                 // pressing the hotkey would — typing a time and pressing the
@@ -5197,17 +5173,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 {
                     if (start <= open.StartSeconds)
                     {
-                        prompt = $"{Bookmark.FormatTime(start)} cannot close bookmark {open.Index} — " +
-                                 $"a closing time has to come after its opening time of " +
-                                 $"{open.StartDisplay}.\n\n{TimeFormatHelp}";
+                        refusal = $"{Bookmark.FormatTime(start)} cannot close bookmark {open.Index} — " +
+                                  "a closing time has to come after its opening time of " +
+                                  $"{open.StartDisplay}.";
                         continue;
                     }
 
                     if (OverlappingCut(open.StartSeconds, start, open) is { } inTheWay)
                     {
-                        prompt = $"Closing at {Bookmark.FormatTime(start)} would run over cut " +
-                                 $"{inTheWay.Index} ({inTheWay.StartDisplay} – {inTheWay.EndDisplay}). " +
-                                 $"Cuts cannot overlap.\n\n{TimeFormatHelp}";
+                        refusal = $"Closing at {Bookmark.FormatTime(start)} would run over bookmark " +
+                                  $"{inTheWay.Index} ({inTheWay.StartDisplay} – {inTheWay.EndDisplay}). " +
+                                  "Bookmarks cannot overlap.";
                         continue;
                     }
 
@@ -5216,10 +5192,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 }
                 else
                 {
-                    if (WhyCannotOpenAt(start) is { } refusal)
+                    if (WhyCannotOpenAt(start) is { } refused)
                     {
-                        prompt = $"{refusal}. Cuts are marked going forwards, so a new one has " +
-                                 $"to start at or after the last mark.\n\n{TimeFormatHelp}";
+                        refusal = $"{refused}. Bookmarks are marked going forwards, so a new one has " +
+                                  "to start at or after the last mark.";
                         continue;
                     }
 
@@ -5237,77 +5213,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Session.NotifyDurationChanged();
             return;
         }
-    }
-
-    /// <summary>What the time field accepts, shown when a value is rejected.</summary>
-    private const string TimeFormatHelp =
-        "Accepted formats:\n" +
-        "  90            seconds\n" +
-        "  1:30          minutes:seconds\n" +
-        "  1:02:03       hours:minutes:seconds\n" +
-        "  22s  5m  1h   with a unit\n" +
-        "  1m30s         units combined\n" +
-        "A range is two of those separated by a dash, e.g. 1:00 - 2:30.";
-
-    /// <summary>
-    /// Parses a time, reporting why rather than throwing. Accepts colon form
-    /// (<c>1:02:03</c>), plain seconds, and unit-suffixed values
-    /// (<c>22s</c>, <c>5m</c>, <c>1h</c>, <c>1m30s</c>).
-    /// </summary>
-    private static bool TryParseFlexibleTime(string? input, out double seconds, out string error)
-    {
-        seconds = 0;
-        error = string.Empty;
-
-        var s = (input ?? string.Empty).Trim();
-        if (s.Length == 0)
-        {
-            error = "No time was entered.";
-            return false;
-        }
-
-        // Unit form: any of h / m / s, e.g. "22s", "1m30s", "1h2m3s".
-        var units = Regex.Match(s,
-            @"^\s*(?:(?<h>\d+(?:\.\d+)?)\s*h)?\s*(?:(?<m>\d+(?:\.\d+)?)\s*m)?\s*(?:(?<s>\d+(?:\.\d+)?)\s*s)?\s*$",
-            RegexOptions.IgnoreCase);
-        if (units.Success && (units.Groups["h"].Success || units.Groups["m"].Success || units.Groups["s"].Success))
-        {
-            seconds = Part(units, "h") * 3600 + Part(units, "m") * 60 + Part(units, "s");
-            return true;
-        }
-
-        // Colon form, or bare seconds.
-        var parts = s.Split(':');
-        if (parts.Length > 3)
-        {
-            error = $"\"{s}\" has too many colons.";
-            return false;
-        }
-
-        double total = 0;
-        foreach (var part in parts)
-        {
-            if (!double.TryParse(part.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
-            {
-                error = $"\"{part.Trim()}\" is not a number.";
-                return false;
-            }
-            total = total * 60 + value;
-        }
-
-        if (total < 0)
-        {
-            error = "A time cannot be negative.";
-            return false;
-        }
-
-        seconds = total;
-        return true;
-
-        static double Part(Match m, string name) =>
-            m.Groups[name].Success
-                ? double.Parse(m.Groups[name].Value, CultureInfo.InvariantCulture)
-                : 0;
     }
 
     /// <summary>
