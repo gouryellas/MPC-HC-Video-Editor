@@ -1,4 +1,4 @@
-<Window x:Class="MpcHcVideoEditor.Dialogs.EnterTimeDialog"
+﻿<Window x:Class="MpcHcVideoEditor.Dialogs.EnterTimeDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Enter time or range"
@@ -22,7 +22,7 @@
         <!-- Every example is a link that types itself into the box. Reading
              what a field accepts and then transcribing it by hand is the part
              of a help panel nobody enjoys; one click puts a working value in
-             and the line underneath says what it means. -->
+             and the line above says the field will take it. -->
         <Style x:Key="ExampleLink" TargetType="Hyperlink">
             <Setter Property="Foreground" Value="{DynamicResource LinkBlue}"/>
             <Setter Property="TextDecorations" Value="{x:Null}"/>
@@ -64,7 +64,7 @@
                        Foreground="{DynamicResource StatusError}"/>
         </Border>
 
-        <TextBlock Grid.Row="1" Text="Time, or two times with a dash between them"
+        <TextBlock Grid.Row="1" Text="You may enter a time by itself, or a range of times"
                    FontSize="12" Margin="0,0,0,6"
                    Foreground="{DynamicResource TextSecondary}"/>
 
@@ -76,14 +76,14 @@
                  Padding="6" FontSize="15" FontFamily="Consolas"
                  TextChanged="Input_TextChanged"/>
 
-        <!-- What the program made of it, as it is typed. This is the whole
-             point of the window: every accepted form is a way of saying a
-             number of seconds, and the only question a reader actually has is
-             whether the thing they typed means what they meant. A line that
-             answers it as they type beats any amount of documentation of the
-             forms. -->
+        <!-- Whether what is in the box can be read, as it is typed: Valid or
+             Invalid, and nothing while the box is empty. It used to read the
+             value back in words — "Bookmark from 1:04 to 12:35" — which is a
+             second thing to read on the way to an answer the user already
+             knows, having just typed it. The question this has to settle is
+             whether the field will take it. -->
         <TextBlock Grid.Row="3" x:Name="ReadingText" Margin="0,8,0,0"
-                   FontSize="12" TextWrapping="Wrap"/>
+                   FontSize="12" TextWrapping="Wrap" MinHeight="15"/>
 
         <Border Grid.Row="4" Background="{DynamicResource PanelBackground}"
                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
@@ -121,12 +121,6 @@
                     </TextBlock>
                 </StackPanel>
 
-                <!-- The two things the forms themselves cannot say: what a
-                     bare number means, and what the program does with one
-                     time as against two. -->
-                <TextBlock Margin="0,4,0,0" FontSize="11" TextWrapping="Wrap"
-                           Foreground="{DynamicResource TextMuted}"
-                           Text="A plain number is seconds. One time marks a bookmark — opening a new one, or closing the one that is open. Two times make a finished bookmark in one go."/>
             </StackPanel>
         </Border>
 

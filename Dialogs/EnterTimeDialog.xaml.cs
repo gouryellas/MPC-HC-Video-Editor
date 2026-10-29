@@ -1,9 +1,9 @@
+﻿using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 using MpcHcVideoEditor.Helpers;
-using MpcHcVideoEditor.Models;
 
 namespace MpcHcVideoEditor.Dialogs;
 
@@ -19,9 +19,9 @@ namespace MpcHcVideoEditor.Dialogs;
 /// pressing OK.
 ///
 /// Here the forms are examples that type themselves in, and the line under the
-/// box says what the program understood — so the question "will this do what I
-/// mean" is answered before OK rather than after it. OK is held closed while
-/// the text cannot be read at all.
+/// box says whether the field will take what is in it — so that is settled
+/// before OK rather than by pressing it. OK is held closed while the text
+/// cannot be read at all.
 /// </remarks>
 public partial class EnterTimeDialog : Window
 {
@@ -63,37 +63,59 @@ public partial class EnterTimeDialog : Window
     private void Input_TextChanged(object sender, TextChangedEventArgs e) => UpdateReading();
 
     /// <summary>
-    /// Reads the box and reports what it means, or what is wrong with it.
+    /// Says whether what is in the box can be read, as it is typed.
     /// </summary>
+    /// <remarks>
+    /// One word. It used to read the value back — "Bookmark from 1:04 to
+    /// 12:35" — which is a second thing to read on the way to an answer the
+    /// user already has, having just typed the time themselves. The only
+    /// question this line has to settle is whether the field will take it.
+    ///
+    /// An empty box says nothing rather than "Invalid". Nothing has been typed
+    /// yet, and a field that calls you wrong before you have started is a
+    /// scold rather than a help. The row keeps its height either way, so the
+    /// window does not jump as the first character lands.
+    /// </remarks>
     private void UpdateReading()
     {
         // Runs from the constructor, before the rest of the window exists.
         if (ReadingText is null || OkButton is null) return;
 
-        if (TimeInput.TryParse(InputBox.Text, out var parsed, out var error))
+        if (InputBox.Text.Trim().Length == 0)
+        {
+            ReadingText.Text = string.Empty;
+            OkButton.IsEnabled = false;
+            return;
+        }
+
+        if (TimeInput.TryParse(InputBox.Text, out var parsed, out _))
         {
             Parsed = parsed;
             OkButton.IsEnabled = true;
             ReadingText.Foreground = (Brush)FindResource("StatusOk");
-
-            ReadingText.Text = parsed.End is { } end
-                ? $"Bookmark from {Bookmark.FormatTime(parsed.Start)} to {Bookmark.FormatTime(end)}" +
-                  $"   ·   {TimeInput.Describe(end - parsed.Start)} long"
-                : $"One time at {Bookmark.FormatTime(parsed.Start)}   ·   {TimeInput.Describe(parsed.Start)}";
+            ReadingText.Text = "Valid";
             return;
         }
 
         OkButton.IsEnabled = false;
         ReadingText.Foreground = (Brush)FindResource("StatusError");
-        ReadingText.Text = error;
+        ReadingText.Text = "Invalid";
     }
 
     /// <summary>Puts the clicked example in the box, ready to accept or edit.</summary>
+    /// <remarks>
+    /// The link's own runs, not a TextRange over its content positions. The
+    /// TextRange reads as empty for the first and last link in a row — the
+    /// ones whose content touches the end of the paragraph — so eight of the
+    /// fifteen examples here did nothing at all when clicked, in the exact
+    /// pattern of first-and-last that made it look like particular values
+    /// were unsupported rather than particular positions.
+    /// </remarks>
     private void Example_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Hyperlink link) return;
 
-        var text = new TextRange(link.ContentStart, link.ContentEnd).Text.Trim();
+        var text = string.Concat(link.Inlines.OfType<Run>().Select(r => r.Text)).Trim();
         if (text.Length == 0) return;
 
         InputBox.Text = text;
