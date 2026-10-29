@@ -618,6 +618,39 @@
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
 
+        <!-- The bookmark number at the head of a row, beside the check box.
+             Every layout draws it, so they share the one style rather than
+             repeating three setters and a correction five times.
+
+             About that correction. VerticalAlignment="Center" centers the
+             text's line box, not its ink, and "[2]" is not centered inside its
+             own line box: the brackets hang below the baseline, so the ink
+             sits low in the box that is being centered. Measured at the sizes
+             used here, the square of a check box centers at 42.44 and the
+             number's ink at 44.10 — the number is 1.66 lower, which is plainly
+             visible next to a 13 pixel square.
+
+             Taken out with a RenderTransform rather than a margin, because a
+             margin is laid out: it would make the panel taller and re-center
+             everything in it, absorbing most of its own effect. A render
+             transform moves the drawn glyph and nothing else.
+
+             The offset is a fraction of the font size, so it holds for the
+             one layout that sets a smaller size — at 10 the true figure is
+             1.38, and a third of a pixel is not worth a second style. It does
+             not depend on how tall the row is, since both the number and the
+             box are centered in whatever height the row turns out to have. -->
+        <Style x:Key="RowIndexNumber" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="{DynamicResource LinkBlue}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <TranslateTransform Y="-1.66"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- The nudge arrows flanking each timestamp in the bookmark
              list. Hidden rather than collapsed off-hover: they keep their
              width, so the row reads the same whether or not the pointer is
@@ -2138,9 +2171,8 @@
                                                     <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                               VerticalAlignment="Center"
                                                               ToolTip="Check this bookmark for the actions that work on a selection"/>
-                                                    <TextBlock Text="{Binding Index}" FontWeight="Bold"
-                                                               Margin="4,0,1,0" VerticalAlignment="Center"
-                                                               Foreground="{DynamicResource LinkBlue}"/>
+                                                    <TextBlock Text="{Binding Index}" Style="{StaticResource RowIndexNumber}"
+                                                               Margin="4,0,1,0"/>
                                                 </StackPanel>
                                             </Border>
 
@@ -2237,9 +2269,8 @@
                                             <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                       VerticalAlignment="Center"
                                                       ToolTip="Check this bookmark for the actions that work on a selection"/>
-                                            <TextBlock Text="{Binding Index}" FontSize="10" FontWeight="Bold"
-                                                       Margin="4,0,1,0" VerticalAlignment="Center"
-                                                       Foreground="{DynamicResource LinkBlue}"/>
+                                            <TextBlock Text="{Binding Index}" Style="{StaticResource RowIndexNumber}"
+                                                       FontSize="10" Margin="4,0,1,0"/>
                                         </StackPanel>
                                     </Border>
 
@@ -2332,9 +2363,8 @@
                                         <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                   VerticalAlignment="Center"
                                                   ToolTip="Check this bookmark for the actions that work on a selection"/>
-                                        <TextBlock Text="{Binding Index, StringFormat=[{0}]}" FontWeight="Bold"
-                                                   Margin="4,0,0,0" VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource LinkBlue}"/>
+                                        <TextBlock Text="{Binding Index, StringFormat=[{0}]}" Style="{StaticResource RowIndexNumber}"
+                                                   Margin="4,0,0,0"/>
                                     </StackPanel>
 
                                     <Border Grid.Column="1" Width="112" Height="63" Margin="0,0,10,0"
@@ -2403,9 +2433,8 @@
                                         <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                   VerticalAlignment="Center"
                                                   ToolTip="Check this bookmark for the actions that work on a selection"/>
-                                        <TextBlock Text="{Binding Index, StringFormat=[{0}]}" FontWeight="Bold"
-                                                   Margin="4,0,0,0" VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource LinkBlue}"/>
+                                        <TextBlock Text="{Binding Index, StringFormat=[{0}]}" Style="{StaticResource RowIndexNumber}"
+                                                   Margin="4,0,0,0"/>
                                         <TextBlock Text="{Binding Label}" Margin="5,0,0,0" FontSize="11"
                                                    VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                                                    Foreground="{DynamicResource ValueYellow}"
@@ -2628,7 +2657,7 @@
                                         <CheckBox Grid.Column="1" IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                   ToolTip="Check this bookmark for the actions that work on a selection"
                                                   VerticalAlignment="Center"/>
-                                        <TextBlock Grid.Column="2" Text="{Binding Index, StringFormat=[{0}]}" FontWeight="Bold" Foreground="{DynamicResource LinkBlue}" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding Index, StringFormat=[{0}]}" Style="{StaticResource RowIndexNumber}"/>
 
                                         <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
                                             <!-- Only present while chapter names are in use.
