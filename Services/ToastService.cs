@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -75,6 +75,8 @@ public sealed class ToastService : IDisposable
     {
         if (_disposed || (!Enabled && !force)) return;
 
+        _lastShown = DateTime.UtcNow;
+
         // Never let a cosmetic notification take down the operation that
         // triggered it — a failure here is not worth surfacing to the user.
         try
@@ -100,6 +102,31 @@ public sealed class ToastService : IDisposable
         {
             // ignored — toast is best-effort
         }
+    }
+
+    /// <summary>When the last toast went up, for <see cref="ShowUnlessRecent"/>.</summary>
+    private DateTime _lastShown = DateTime.MinValue;
+
+    /// <summary>
+    /// Shows a toast only if nothing has been shown in the last moment.
+    /// </summary>
+    /// <remarks>
+    /// For the general "that finished" toast, which every operation raises
+    /// from one place. A few operations have something better to say about
+    /// their own ending — a warning that the output does not match the marked
+    /// range, a clip's number and filename — and they say it just before the
+    /// job completes. Without this, the general message would land on top of
+    /// the particular one a fraction of a second later and be the only one
+    /// anybody read.
+    ///
+    /// The specific message wins, because whoever wrote it knew more than this
+    /// does.
+    /// </remarks>
+    public void ShowUnlessRecent(string title, string? detail = null, string icon = "📍",
+                                 TimeSpan? within = null)
+    {
+        if (DateTime.UtcNow - _lastShown < (within ?? TimeSpan.FromSeconds(2))) return;
+        Show(title, detail, icon);
     }
 
     private ToastWindow EnsureWindow()

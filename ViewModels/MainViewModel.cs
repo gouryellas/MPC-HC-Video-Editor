@@ -1666,6 +1666,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // successful operation in the program already reports through.
         Job.Finished += () => FlashStatus(StatusLevel.Ok);
 
+        // And a toast, from the same place and for the same reason. Several
+        // operations said nothing but a line of status text, which is the one
+        // part of this window somebody running an action is least likely to be
+        // looking at — they are watching the player, or the folder the file is
+        // about to appear in.
+        Job.Finished += ToastJobFinished;
+
         // Last, so the opening state is the baseline rather than something
         // half-built: everything above this line is setup, not an edit.
         StartWatchingForHistory();
@@ -4523,6 +4530,34 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>Takes the step marker off every row.</summary>
     private void ClearStep() => MarkStep(null);
+
+    /// <summary>
+    /// Announces a finished operation over whatever is in front.
+    /// </summary>
+    /// <remarks>
+    /// Built from the job panel's own words, so it says what the panel says
+    /// rather than keeping a second set of wordings in step with it.
+    ///
+    /// Through ShowUnlessRecent: a few operations have something better to say
+    /// about their own ending — a warning about the output, a clip's number
+    /// and name — and say it just before completing. Theirs wins.
+    /// </remarks>
+    private void ToastJobFinished()
+    {
+        var headline = Job.Action;
+        if (string.IsNullOrWhiteSpace(headline)) return;
+
+        // CurrentFile is a path for most operations and a folder for the ones
+        // that write several. Either way the last part of it is the useful
+        // half, and the full thing would wrap the toast to three lines.
+        var detail = string.IsNullOrWhiteSpace(Job.CurrentFile)
+            ? null
+            : Path.GetFileName(Job.CurrentFile.TrimEnd(Path.DirectorySeparatorChar));
+
+        if (string.IsNullOrWhiteSpace(detail)) detail = Job.Summary;
+
+        _toast.ShowUnlessRecent(headline, detail, "✅");
+    }
 
     /// <summary>Says something went well, in the bar and on it.</summary>
     private void ReportSuccess(string text)
