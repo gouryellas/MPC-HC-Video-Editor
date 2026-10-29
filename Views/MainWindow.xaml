@@ -1338,9 +1338,20 @@
                         <TextBlock Text="↺" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <!-- Right-clicking the seekbar reaches the same three
-                     commands — see its own ContextMenu — so this is the way
-                     back for whoever only ever looks in Options. -->
+                <!-- The same four items as the seekbar's own right-click menu,
+                     in the same order and worded the same — see its
+                     ContextMenu. Two doors into one room, and a door that
+                     opens onto a different arrangement of the same furniture
+                     is the kind of difference that has to be learned twice.
+
+                     The tooltips live here and only here. An item read in a
+                     menu bar has nothing around it to say what it means,
+                     where the same item right-clicked has the seekbar itself
+                     under the pointer.
+
+                     This is the way back for whoever only ever looks in
+                     Options — and the only way back once the bar is hidden,
+                     since there is then nothing left to right-click. -->
                 <MenuItem Header="Seekbar" Style="{StaticResource MenuSectionHeader}"/>
                 <MenuItem Header="Customize seekbar…" Command="{Binding CustomizeSeekbarCommand}"
                           ToolTip="How a bookmark's start and end are marked on the seekbar, its transparency, and whether the filled bar draws at all. Right-clicking the seekbar opens this too.">
@@ -1348,20 +1359,17 @@
                         <TextBlock Text="🔧" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <!-- The same glyph as on the seekbar's own context menu: it is
-                     one item in two places, and nothing is gained by it
-                     looking like two. -->
-                <MenuItem Header="Hide seekbar" IsCheckable="True"
-                          IsChecked="{Binding HideSeekbar, Mode=TwoWay}"
-                          ToolTip="Put the seekbar away without losing how it is set up. Everything under Customize seekbar is remembered.">
-                    <MenuItem.Icon>
-                        <Path Style="{StaticResource HideEyeGlyph}"/>
-                    </MenuItem.Icon>
-                </MenuItem>
                 <MenuItem Header="Change seekbar colors…" Command="{Binding ChangeSeekbarColorsCommand}"
                           ToolTip="What the seekbar's position bar, border, background, brackets and waveform are painted">
                     <MenuItem.Icon>
                         <TextBlock Text="🎨" Style="{StaticResource MenuGlyph}"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Hide seekbar" IsCheckable="True"
+                          IsChecked="{Binding HideSeekbar, Mode=TwoWay}"
+                          ToolTip="Put the seekbar away without losing how it is set up. Everything under Customize seekbar is remembered; bring it back from Options ▸ Hide seekbar.">
+                    <MenuItem.Icon>
+                        <Path Style="{StaticResource HideEyeGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Reset seekbar" Command="{Binding ResetSeekbarCommand}"
@@ -1829,6 +1837,13 @@
                          only from a menu bar three words away from it. -->
                     <Border.ContextMenu>
                         <ContextMenu>
+                            <!-- These four are word for word the Seekbar
+                                 section of the Options menu, in the same
+                                 order. No tooltips out here: a context menu is
+                                 opened on the thing it acts on, so what each
+                                 item refers to is already under the pointer,
+                                 and the explanations belong where the item is
+                                 read cold instead. -->
                             <MenuItem Header="Customize seekbar…" Command="{Binding CustomizeSeekbarCommand}">
                                 <MenuItem.Icon>
                                     <TextBlock Text="🔧" Style="{StaticResource MenuGlyph}"/>
@@ -1839,13 +1854,8 @@
                                     <TextBlock Text="🎨" Style="{StaticResource MenuGlyph}"/>
                                 </MenuItem.Icon>
                             </MenuItem>
-                            <!-- Above Reset, with the rest of what can be done
-                                 to the bar. Putting it last left the one
-                                 reversible switch here below the item that
-                                 throws every other setting away. -->
                             <MenuItem Header="Hide seekbar" IsCheckable="True"
-                                      IsChecked="{Binding HideSeekbar, Mode=TwoWay}"
-                                      ToolTip="Put the seekbar away without losing how it is set up. Bring it back from Options ▸ Hide seekbar.">
+                                      IsChecked="{Binding HideSeekbar, Mode=TwoWay}">
                                 <MenuItem.Icon>
                                     <Path Style="{StaticResource HideEyeGlyph}"/>
                                 </MenuItem.Icon>
