@@ -2280,21 +2280,43 @@
                                     <!-- Dark plates behind every reading: a frame
                                          can be any colour at all, and white text
                                          straight onto a pale one is unreadable. -->
+                                    <!-- MaxWidth is the tile less this plate's own
+                                         margins, and a DockPanel rather than a
+                                         StackPanel because of it: a horizontal
+                                         StackPanel measures its children with
+                                         unbounded width, so a long name would
+                                         never trim — it would run past the tile
+                                         and be chopped mid-letter by the clip.
+                                         Docked, the name is measured against
+                                         what is actually left over, so it ends
+                                         in an ellipsis instead.
+
+                                         The name only takes the room it needs,
+                                         and a cut without one costs nothing:
+                                         the plate is still as wide as the marks
+                                         in it. -->
                                     <Border HorizontalAlignment="Left" VerticalAlignment="Top"
-                                            Margin="3" Padding="3,1"
+                                            Margin="3" Padding="3,1" MaxWidth="110"
                                             Background="#A0000000" CornerRadius="3">
-                                        <StackPanel Orientation="Horizontal">
-                                            <Button Style="{StaticResource RowQuickSave}"
+                                        <DockPanel LastChildFill="True">
+                                            <Button DockPanel.Dock="Left" Style="{StaticResource RowQuickSave}"
                                                     Margin="0,0,4,0"
                                                     Visibility="{Binding IsValid, Converter={StaticResource BoolToVis}}"
                                                     Command="{Binding DataContext.SplitSingleCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                     CommandParameter="{Binding}"/>
-                                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                            <CheckBox DockPanel.Dock="Left" IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                       VerticalAlignment="Center"
                                                       ToolTip="Check this bookmark for the actions that work on a selection"/>
-                                            <TextBlock Text="{Binding Index}" Style="{StaticResource RowIndexNumber}"
+                                            <TextBlock DockPanel.Dock="Left" Text="{Binding Index}"
+                                                       Style="{StaticResource RowIndexNumber}"
                                                        FontSize="10" Margin="4,0,1,0"/>
-                                        </StackPanel>
+                                            <TextBlock Text="{Binding Label}" FontSize="10" Margin="3,0,0,0"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       ToolTip="{Binding Label}"
+                                                       Foreground="{DynamicResource ValueYellow}"
+                                                       Visibility="{Binding HasLabel, Converter={StaticResource BoolToVis}}"/>
+                                        </DockPanel>
                                     </Border>
 
                                     <Border HorizontalAlignment="Right" VerticalAlignment="Top"
@@ -2314,19 +2336,12 @@
                                     <Border VerticalAlignment="Bottom" Background="#A0000000" Padding="4,1"
                                             Visibility="{Binding IsIncomplete, Converter={StaticResource NotBoolToVis}}">
                                         <StackPanel>
-                                            <!-- The name above the times, on the
-                                                 same plate. A tile this size has
-                                                 no corner left to put it in, and
-                                                 a name is what a cut is called —
-                                                 worth the line it costs on the
-                                                 cuts that have one, and costing
-                                                 nothing on the ones that do
-                                                 not. -->
-                                            <TextBlock Text="{Binding Label}" FontSize="10"
-                                                       HorizontalAlignment="Center"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       Foreground="{DynamicResource ValueYellow}"
-                                                       Visibility="{Binding HasLabel, Converter={StaticResource BoolToVis}}"/>
+                                            <!-- Times only. The name used to sit
+                                                 above them here, which put it at
+                                                 the opposite corner from the
+                                                 number that identifies the same
+                                                 cut; it is up on that plate
+                                                 now. -->
                                             <Grid>
                                                 <TextBlock HorizontalAlignment="Left" FontSize="10"
                                                            FontFamily="Consolas"
@@ -2474,7 +2489,7 @@
                                         <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                   VerticalAlignment="Center"
                                                   ToolTip="Check this bookmark for the actions that work on a selection"/>
-                                        <TextBlock Text="{Binding Index, StringFormat=[{0}]}" Style="{StaticResource RowIndexNumber}"
+                                        <TextBlock Text="{Binding Index}" Style="{StaticResource RowIndexNumber}"
                                                    Margin="4,0,0,0"/>
                                         <TextBlock Text="{Binding Label}" Margin="5,0,0,0" FontSize="11"
                                                    VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
