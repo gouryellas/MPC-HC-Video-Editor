@@ -1305,7 +1305,18 @@
                 <Separator x:Name="RecentStartSeparator" Visibility="Collapsed"/>
                 <!-- Dynamic per-video entries inserted here at runtime -->
                 <Separator x:Name="RecentEndSeparator" Visibility="Collapsed"/>
-                <MenuItem Header="Clear history" Click="ClearRecentList_Click" x:Name="RecentClearItem" IsEnabled="False">
+                <!-- A rule between the videos and the one thing here that is
+                     not one of them, as the Tags menu has before Manage. Not
+                     RecentEndSeparator, which the code-behind keeps collapsed:
+                     that one marks where the list ends for the rebuild, and a
+                     list that rules itself off draws a line under nothing when
+                     it is empty. This one is always drawn, because what it
+                     separates is always there. -->
+                <Separator/>
+                <!-- "Clear", not "Clear history": it sits under the History
+                     menu, below the list it clears. The menu has said the word
+                     once already. -->
+                <MenuItem Header="Clear" Click="ClearRecentList_Click" x:Name="RecentClearItem" IsEnabled="False">
                     <MenuItem.Icon>
                         <TextBlock Text="🗑" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
