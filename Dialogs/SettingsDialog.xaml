@@ -214,7 +214,9 @@
                             <StackPanel>
                                 <TextBlock Text="Chapter names" Style="{StaticResource Heading}"/>
                                 <CheckBox x:Name="UseChapterNamesCheck"
-                                          Content="Use chapter names"/>
+                                          Content="Use chapter names"
+                                          Checked="ChapterNames_Changed"
+                                          Unchecked="ChapterNames_Changed"/>
                                 <TextBlock Style="{StaticResource Hint}"
                                            Text="Names each range as it is created — Chapter 1, Chapter 2, and so on — and shows the name on its row for editing. Rename any of them to whatever you like; renaming one does not disturb the rest, and deleting a range renumbers only the names this program assigned."/>
                                 <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"

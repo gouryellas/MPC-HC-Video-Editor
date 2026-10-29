@@ -8415,10 +8415,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var dlg = new SettingsDialog(_settings.Current, AutoSwitchViews, _ffmpeg)
         {
             Owner = Application.Current?.MainWindow,
-            PreviewToolbarIcons = ApplyToolbarIconStyle
+            PreviewToolbarIcons = ApplyToolbarIconStyle,
+            PreviewChapterNames = PreviewChapterNames
         };
 
-        if (dlg.ShowDialog() != true)
+        var closed = dlg.ShowDialog();
+
+        // Dropped first thing, either way. While it stands, UseChapterNames
+        // answers for the dialog rather than for the settings, and from here
+        // on the settings are the truth again — ApplyChapterNaming below is
+        // what moves the list, and it raises the property itself.
+        EndChapterNamesPreview();
+
+        if (closed != true)
         {
             // Cancelled, so the preview has to come back off. The settings
             // were never written, which makes them the record of how the
@@ -9291,10 +9300,50 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Whether ranges are named. Bound by the row template to show or hide the
-    /// name box, so the column appears the moment the setting is saved.
+    /// What the Settings dialog is showing while it is open, when that is not
+    /// yet what the settings say. Null at every other moment.
     /// </summary>
-    public bool UseChapterNames => _settings.Current.UseChapterNames;
+    private bool? _previewChapterNames;
+
+    /// <summary>
+    /// Whether ranges are named. Bound by the row template to show or hide the
+    /// name box, so the column appears the moment the box is ticked.
+    /// </summary>
+    public bool UseChapterNames => _previewChapterNames ?? _settings.Current.UseChapterNames;
+
+    /// <summary>
+    /// Shows or hides the name column while the Settings dialog is open.
+    /// </summary>
+    /// <remarks>
+    /// The column only. Turning the setting off for real clears every name,
+    /// hand-written ones included, and writes the bookmark file — see
+    /// <see cref="ApplyChapterNaming"/> — and a preview may do none of that,
+    /// because the dialog can still be cancelled and a cleared name is not
+    /// something Cancel could give back.
+    ///
+    /// So the answer is held beside the setting rather than in it, and the
+    /// rows are told to look again. Turning it on previews empty boxes: the
+    /// names are made on Save, by the same path that makes them when the
+    /// setting is changed any other way.
+    /// </remarks>
+    private void PreviewChapterNames(bool on)
+    {
+        if (_previewChapterNames == on) return;
+
+        _previewChapterNames = on;
+        OnPropertyChanged(nameof(UseChapterNames));
+    }
+
+    /// <summary>
+    /// Drops the preview, whichever way the dialog was closed.
+    /// </summary>
+    private void EndChapterNamesPreview()
+    {
+        if (_previewChapterNames is null) return;
+
+        _previewChapterNames = null;
+        OnPropertyChanged(nameof(UseChapterNames));
+    }
 
     /// <summary>The name a range takes when nobody has given it one.</summary>
     private static string DefaultChapterName(int index) => $"Chapter {index}";

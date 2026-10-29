@@ -69,6 +69,24 @@ public partial class SettingsDialog : Window
         PreviewToolbarIcons?.Invoke(SmallIconsCheck.IsChecked == true,
                                     FlatIconsCheck.IsChecked == true);
 
+    /// <summary>
+    /// Called with the new answer whenever "Use chapter names" is clicked, so
+    /// the name column appears and disappears on the list behind this window.
+    /// </summary>
+    /// <remarks>
+    /// Shows the column and nothing else. Turning the setting off for real
+    /// clears every name, hand-written ones included, and writes the bookmark
+    /// file — none of which a preview may do, since this dialog can still be
+    /// cancelled. The names themselves are made and cleared on Save.
+    ///
+    /// Assigned by the caller after construction, which keeps the seeding
+    /// below quiet: it ticks the box while this is still null.
+    /// </remarks>
+    public Action<bool>? PreviewChapterNames { get; init; }
+
+    private void ChapterNames_Changed(object sender, RoutedEventArgs e) =>
+        PreviewChapterNames?.Invoke(UseChapterNamesCheck.IsChecked == true);
+
     public bool SmallButtonIcons { get; private set; }
 
     /// <summary>Whether the toolbar's buttons are drawn without their chrome.</summary>
