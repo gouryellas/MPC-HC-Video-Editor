@@ -2365,18 +2365,12 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
 
-                                    <!-- The number sits with the check box, as it
-                                         does in every other layout. It used to
-                                         head the stack of text to the right of
-                                         the thumbnail, where it was level with
-                                         the check box only on a row that had
-                                         one line of text: that stack is
-                                         centered, so a second or third line
-                                         pushed the number up and the two marks
-                                         that belong to the same bookmark no
-                                         longer read as a pair. Beside the box
-                                         it is level by construction rather
-                                         than by coincidence. -->
+                                    <!-- Save and check only. The number is on the
+                                         frame, as it is in Slides — this is the
+                                         one layout with a thumbnail big enough
+                                         to carry it and a row long enough that
+                                         a number at the far left is a long way
+                                         from the clip it counts. -->
                                     <StackPanel Grid.Column="0" Orientation="Horizontal"
                                                 VerticalAlignment="Center" Margin="0,0,8,0">
                                         <Button Style="{StaticResource RowQuickSave}"
@@ -2387,13 +2381,35 @@
                                         <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                   VerticalAlignment="Center"
                                                   ToolTip="Check this bookmark for the actions that work on a selection"/>
-                                        <TextBlock Text="{Binding Index, StringFormat=[{0}]}" Style="{StaticResource RowIndexNumber}"
-                                                   Margin="4,0,0,0"/>
                                     </StackPanel>
 
                                     <Border Grid.Column="1" Width="112" Height="63" Margin="0,0,10,0"
                                             Background="#FF000000" CornerRadius="2">
-                                        <Image Source="{Binding Thumbnail}" Stretch="Uniform"/>
+                                        <Grid>
+                                            <Image Source="{Binding Thumbnail}" Stretch="Uniform"/>
+
+                                            <!-- The number on the frame, on the
+                                                 same dark plate Slides uses and
+                                                 for the same reason: a frame can
+                                                 be any colour at all, and the
+                                                 plate is what makes the number
+                                                 legible on every one of them
+                                                 rather than on most.
+
+                                                 The plate carries the number
+                                                 alone. Save and check stay out
+                                                 at the head of the row, where
+                                                 this layout has room for them —
+                                                 Slides puts all three on the
+                                                 frame because a card has no
+                                                 row to put them in. -->
+                                            <Border HorizontalAlignment="Left" VerticalAlignment="Top"
+                                                    Margin="4" Padding="3,1"
+                                                    Background="#A0000000" CornerRadius="3">
+                                                <TextBlock Text="{Binding Index}"
+                                                           Style="{StaticResource RowIndexNumber}"/>
+                                            </Border>
+                                        </Grid>
                                     </Border>
 
                                     <StackPanel Grid.Column="2" VerticalAlignment="Center">
