@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 
 namespace MpcHcVideoEditor.Helpers;
 
@@ -34,6 +34,16 @@ public static class ForegroundWindow
 
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    /// <summary>
+    /// The window in front, whoever owns it. Zero when nothing is.
+    /// </summary>
+    /// <remarks>
+    /// For deciding which screen something should appear on. A notification
+    /// belongs over whatever the user is actually looking at, and the
+    /// foreground window is the best available answer to that.
+    /// </remarks>
+    public static IntPtr Handle() => GetForegroundWindow();
 
     /// <summary>
     /// Whether the foreground window belongs to this program.

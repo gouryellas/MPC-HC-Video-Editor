@@ -1562,7 +1562,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         // Toasts appear over MPC-HC's monitor — the hotkey is usually pressed
         // while the player has focus, where the status bar can't be seen.
-        _toast = new ToastService(() => _mpc.FindMpcWindow());
+        // Over whatever is in front, not always over the player. The anchor
+        // only picks the monitor — and with the player on one screen and this
+        // window on another, every toast raised by a button in here was
+        // appearing on the screen the user was not looking at. Which is
+        // indistinguishable from toasts being broken.
+        //
+        // The hotkey case is unchanged: pressed while watching, the player is
+        // the foreground window and the toast lands over it as before.
+        _toast = new ToastService(() =>
+        {
+            var front = ForegroundWindow.Handle();
+            return front != IntPtr.Zero ? front : _mpc.FindMpcWindow();
+        });
 
         // Diagnostic for the input-lag investigation: logs UI-thread stalls to
         // stalls.log next to the exe. Cheap enough to leave running.
