@@ -199,7 +199,7 @@
                                     <TextBlock Text="seconds" Style="{StaticResource Label}" Margin="10,0,0,0"/>
                                 </StackPanel>
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="The toast appears over MPC-HC, where the status bar can't be seen. 0.5 to 10 seconds."/>
+                                           Text="The toast notification is linked to many operations and will be shown for the duration above centered at the top of the screen."/>
 
                                 <CheckBox x:Name="CompletionSoundCheck" Margin="0,12,0,0"
                                           Content="Play a sound when an operation finishes"/>
