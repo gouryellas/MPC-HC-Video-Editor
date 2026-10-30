@@ -1104,8 +1104,9 @@ public partial class MainWindow : Window
 
         // Both stay hidden. They are insertion markers, and they used to show
         // themselves whenever there was a list — which put a rule above it and
-        // another below. The "Viewed" caption introduces the list now, and
-        // nothing else in these menus is ruled off any more.
+        // another below. The list is everything above the rule before Clear,
+        // and a rule above the first entry would be ruling off the top of the
+        // menu — a line with nothing on the far side of it.
         startSep.Visibility = Visibility.Collapsed;
         endSep.Visibility = Visibility.Collapsed;
         if (emptyPlaceholder != null) emptyPlaceholder.Visibility = hasAny ? Visibility.Collapsed : Visibility.Visible;
