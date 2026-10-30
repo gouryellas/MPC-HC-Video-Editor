@@ -111,8 +111,6 @@
                                           SelectionChanged="Theme_Changed"/>
                                 <TextBlock Style="{StaticResource Hint}"
                                            Text="Changes the whole interface immediately, along with the window and notification-area icons. Cancel restores the previous theme."/>
-                                <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
-                                           Text="The icon on the program file itself is fixed when the app is built and cannot follow the theme — only the icons shown while it is running."/>
 
                                 <CheckBox x:Name="FollowSystemThemeCheck" Margin="0,12,0,0"
                                           Checked="FollowSystemTheme_Changed" Unchecked="FollowSystemTheme_Changed"
