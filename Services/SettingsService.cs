@@ -519,6 +519,19 @@ public class AppSettings
     public string SeekbarMarkColor { get; set; } = "theme";
 
     /// <summary>
+    /// What the playhead — the block riding the end of the played region — is
+    /// painted: "theme" or a hex colour.
+    /// </summary>
+    /// <remarks>
+    /// Its own setting rather than sharing the bracket's. The two were one
+    /// colour because a playhead is a mark like a bracket is, which is true of
+    /// what they are and not of what they do: the brackets say where the cuts
+    /// are and the playhead says where you are, and telling those apart at a
+    /// glance is the whole reason to colour either of them.
+    /// </remarks>
+    public string SeekbarPlayheadColor { get; set; } = "theme";
+
+    /// <summary>
     /// What the waveform behind the seekbar is painted: "theme" or a hex
     /// colour. Baked into the rendered picture rather than read live like the
     /// other seekbar colours, so changing it costs one fresh render rather

@@ -722,8 +722,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         s.SeekbarBorderColor = dlg.SeekbarBorderColor;
         s.SeekbarTrackColor = dlg.SeekbarTrackColor;
         s.SeekbarMarkColor = dlg.SeekbarMarkColor;
+        s.SeekbarPlayheadColor = dlg.SeekbarPlayheadColor;
 
-        // Caught before the assignment: unlike the three colours above, this
+        // Caught before the assignment: unlike the four colours above, this
         // one is not a resource an Image repaints from on its own — it is
         // baked into the picture, so a change here means asking ffmpeg to
         // decode the file again rather than just pushing a brush.
@@ -783,6 +784,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         s.SeekbarBorderColor = SeekbarAppearance.FollowTheme;
         s.SeekbarTrackColor = SeekbarAppearance.FollowTheme;
         s.SeekbarMarkColor = SeekbarAppearance.FollowTheme;
+        s.SeekbarPlayheadColor = SeekbarAppearance.FollowTheme;
 
         var waveformColorChanged = s.SeekbarWaveformColor != SeekbarAppearance.FollowTheme;
         s.SeekbarWaveformColor = SeekbarAppearance.FollowTheme;

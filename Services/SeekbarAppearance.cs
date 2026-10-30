@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Media;
 
 namespace MpcHcVideoEditor.Services;
@@ -13,7 +13,7 @@ namespace MpcHcVideoEditor.Services;
 /// families: four brushes, each following the theme until a settings value
 /// says otherwise, pushed into Application.Resources under their own keys —
 /// <c>SeekbarFill</c>, <c>SeekbarBorder</c>, <c>SeekbarTrack</c>,
-/// <c>SeekbarMark</c> — rather than overwriting <c>TimelinePosition</c>,
+/// <c>SeekbarMark</c>, <c>SeekbarPlayhead</c> — rather than overwriting <c>TimelinePosition</c>,
 /// <c>BorderBrush</c> or <c>TimelineTrack</c>, which other controls still
 /// read directly and have no reason to follow a seekbar-only choice.
 ///
@@ -63,6 +63,13 @@ public static class SeekbarAppearance
         resources["SeekbarBorder"] = Frozen(Resolve(settings?.SeekbarBorderColor, theme.BorderBrush));
         resources["SeekbarTrack"] = Frozen(Resolve(settings?.SeekbarTrackColor, theme.TimelineTrack));
         resources["SeekbarMark"] = Frozen(Resolve(settings?.SeekbarMarkColor, DefaultMark));
+
+        // The playhead follows the brackets until it is given a colour of its
+        // own, which is what it was painted before it had a setting — so
+        // nobody's bar changes appearance for having gained the option.
+        resources["SeekbarPlayhead"] = Frozen(Resolve(
+            settings?.SeekbarPlayheadColor,
+            Resolve(settings?.SeekbarMarkColor, DefaultMark)));
     }
 
     private static string Resolve(string? setting, string themeDefault) =>

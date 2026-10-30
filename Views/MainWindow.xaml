@@ -2070,7 +2070,7 @@
                                                      wash crosses a bookmark. -->
                                                 <Border Width="7" Height="26" HorizontalAlignment="Right"
                                                         VerticalAlignment="Center" Margin="0,0,-3.5,0"
-                                                        Background="{DynamicResource SeekbarMark}"
+                                                        Background="{DynamicResource SeekbarPlayhead}"
                                                         BorderBrush="{DynamicResource SeekbarBorder}"
                                                         BorderThickness="1" CornerRadius="0"/>
                                             </Grid>

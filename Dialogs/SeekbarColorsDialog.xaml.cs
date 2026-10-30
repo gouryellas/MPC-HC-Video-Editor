@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
@@ -37,6 +37,7 @@ public partial class SeekbarColorsDialog : Window
     private const string DefaultWaveform = "#8C8C8C";
 
     private string _fill;
+    private string _playhead = SeekbarAppearance.FollowTheme;
     private string _border;
     private string _track;
     private string _mark;
@@ -66,6 +67,9 @@ public partial class SeekbarColorsDialog : Window
     /// <summary>What a bracket, a cut's number and its tick are painted: "theme" or a hex colour.</summary>
     public string SeekbarMarkColor { get; private set; }
 
+    /// <summary>What the playhead is painted: "theme" or a hex colour.</summary>
+    public string SeekbarPlayheadColor { get; private set; }
+
     /// <summary>What the waveform is painted: "theme" or a hex colour.</summary>
     public string SeekbarWaveformColor { get; private set; }
 
@@ -77,6 +81,7 @@ public partial class SeekbarColorsDialog : Window
         _border = current.SeekbarBorderColor;
         _track = current.SeekbarTrackColor;
         _mark = current.SeekbarMarkColor;
+        _playhead = current.SeekbarPlayheadColor;
         _waveform = current.SeekbarWaveformColor;
         _opacity = current.SeekbarOpacity;
         _barEnabled = current.SeekbarBarEnabled;
@@ -85,6 +90,7 @@ public partial class SeekbarColorsDialog : Window
         SeekbarBorderColor = _border;
         SeekbarTrackColor = _track;
         SeekbarMarkColor = _mark;
+        SeekbarPlayheadColor = _playhead;
         SeekbarWaveformColor = _waveform;
 
         Build();
@@ -105,6 +111,8 @@ public partial class SeekbarColorsDialog : Window
             () => _track, v => { _track = v; Repaint(); }));
         Body.Children.Add(ColorPicker("BRACKET COLOR",
             () => _mark, v => { _mark = v; Repaint(); }));
+        Body.Children.Add(ColorPicker("PLAYHEAD COLOR",
+            () => _playhead, v => { _playhead = v; Repaint(); }));
         Body.Children.Add(ColorPicker("WAVEFORM COLOR",
             () => _waveform, v => { _waveform = v; Repaint(); }));
 
@@ -201,7 +209,11 @@ public partial class SeekbarColorsDialog : Window
             _previewWash.Visibility = _barEnabled ? Visibility.Visible : Visibility.Collapsed;
             _previewWash.Width = _barEnabled ? 180 : 0;
             var markFill = Fill(Resolve(_mark, DefaultMark));
-            caret.Background = markFill;
+
+            // The caret in the preview is the playhead. It follows the
+            // bracket colour only while the playhead has none of its own,
+            // which is what the bar itself does.
+            caret.Background = Fill(Resolve(_playhead, Resolve(_mark, DefaultMark)));
             caret.BorderBrush = Fill(Resolve(_border, ThemeService.Current.BorderBrush));
             mark.Foreground = markFill;
 
@@ -328,6 +340,7 @@ public partial class SeekbarColorsDialog : Window
         _border = SeekbarAppearance.FollowTheme;
         _track = SeekbarAppearance.FollowTheme;
         _mark = SeekbarAppearance.FollowTheme;
+        _playhead = SeekbarAppearance.FollowTheme;
         _waveform = SeekbarAppearance.FollowTheme;
 
         Repaint();
@@ -339,6 +352,7 @@ public partial class SeekbarColorsDialog : Window
         SeekbarBorderColor = _border;
         SeekbarTrackColor = _track;
         SeekbarMarkColor = _mark;
+        SeekbarPlayheadColor = _playhead;
         SeekbarWaveformColor = _waveform;
         DialogResult = true;
     }
