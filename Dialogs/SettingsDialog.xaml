@@ -244,7 +244,7 @@
                                     <TextBlock Text="recent videos" Style="{StaticResource Label}" Margin="10,0,0,0"/>
                                 </StackPanel>
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="Shown in the History menu. 1 to 50. Lowering this trims the list on the next launch."/>
+                                           Text="Maximum is 50."/>
                             </StackPanel>
                         </Border>
 
