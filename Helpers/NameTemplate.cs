@@ -32,18 +32,26 @@ public static class NameTemplate
     /// <c>{Binding Name}</c> against one silently shows nothing.
     /// </remarks>
     public sealed record TemplateVariable(string Name, string Example, string Meaning);
-
     /// <summary>
     /// Every variable, with a worked example, for the settings dialog.
     /// </summary>
     /// <remarks>
-    /// Bound to rather than duplicated in XAML, so the list on screen cannot
-    /// drift from the one <see cref="Build"/> actually understands.
+    /// Built per call rather than held as a list, so the tag's example is the
+    /// tag actually in use. It was a fixed "[done]" — the tag this program
+    /// ships with — which read as a statement about what {tag} expands to
+    /// rather than an example, and was simply wrong for anybody who had
+    /// chosen a different one.
+    ///
+    /// Returned rather than bound to, so the dialog cannot drift from what
+    /// <see cref="Build"/> understands.
     /// </remarks>
-    public static readonly IReadOnlyList<TemplateVariable> Variables = new[]
+    /// <param name="tag">
+    /// The active tag, brackets and all, or empty when none is selected.
+    /// </param>
+    public static IReadOnlyList<TemplateVariable> VariablesFor(string tag) => new[]
     {
         new TemplateVariable("{name}",     "holiday-2026", "The source video's filename, without its extension."),
-        new TemplateVariable("{tag}",      "[done]",       "The naming tag currently selected under Tags."),
+        new TemplateVariable("{tag}",      TagExample(tag), "The naming tag currently selected under Tags."),
         new TemplateVariable("{number}",   "3",            "Which clip this is — 1 for the first in the list, 2 for the second."),
         new TemplateVariable("{number2}",  "03",           "The same number written to two digits. Ten clips then sort 01, 02 … 10 instead of 1, 10, 2."),
         new TemplateVariable("{number3}",  "003",          "Three digits, for lists longer than ninety-nine."),
@@ -57,17 +65,29 @@ public static class NameTemplate
     };
 
     /// <summary>
+    /// How the tag reads in the variable list.
+    /// </summary>
+    /// <remarks>
+    /// With no tag selected the expansion really is nothing, and an empty cell
+    /// in a table of examples reads as a row that failed to load rather than
+    /// as an answer. Saying so is the answer.
+    /// </remarks>
+    private static string TagExample(string tag) =>
+        string.IsNullOrWhiteSpace(tag) ? "(nothing)" : tag;
+
+    /// <summary>
     /// Patterns worth starting from, shown under the variable list.
     /// </summary>
-    public static readonly IReadOnlyList<TemplateVariable> Examples = new[]
+    /// <param name="tag">As <see cref="VariablesFor"/> — the tag in use.</param>
+    public static IReadOnlyList<TemplateVariable> ExamplesFor(string tag) => new[]
     {
-        new TemplateVariable("{name}{tag}", "holiday-2026[done].mp4",
+        new TemplateVariable("{name}{tag}", $"holiday-2026{tag}.mp4",
             "The default — the source name with the naming tag on the end."),
-        new TemplateVariable("{name}_{number2}{tag}", "holiday-2026_03[done].mp4",
+        new TemplateVariable("{name}_{number2}{tag}", $"holiday-2026_03{tag}.mp4",
             "Numbered, so a batch of clips stays in order in the folder."),
-        new TemplateVariable("{name}_{start}-{end}{tag}", "holiday-2026_0-01-23-0-01-45[done].mp4",
+        new TemplateVariable("{name}_{start}-{end}{tag}", $"holiday-2026_0-01-23-0-01-45{tag}.mp4",
             "Timestamped, so each clip says where in the source it came from."),
-        new TemplateVariable("{number2}_{duration}s_{name}{tag}", "03_22s_holiday-2026[done].mp4",
+        new TemplateVariable("{number2}_{duration}s_{name}{tag}", $"03_22s_holiday-2026{tag}.mp4",
             "Number and length first, for skimming a folder at a glance.")
     };
 

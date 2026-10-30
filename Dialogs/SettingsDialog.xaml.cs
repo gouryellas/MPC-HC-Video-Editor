@@ -255,8 +255,10 @@ public partial class SettingsDialog : Window
         NormalizeAudioCheck.IsChecked = current.NormalizeAudio;
         FadeSecondsBox.Text = current.FadeSeconds.ToString("0.##", CultureInfo.CurrentCulture);
         NameTemplateBox.Text = NameTemplate;
-        VariableList.ItemsSource = Helpers.NameTemplate.Variables;
-        TemplateExamples.ItemsSource = Helpers.NameTemplate.Examples;
+        // Both lists demonstrate the tag actually in use, not the one this
+        // program ships with.
+        VariableList.ItemsSource = Helpers.NameTemplate.VariablesFor(_activeSuffix);
+        TemplateExamples.ItemsSource = Helpers.NameTemplate.ExamplesFor(_activeSuffix);
         RefreshNameTemplatePreview();
 
         // The saved encoder is selected up front even if it turns out to be
