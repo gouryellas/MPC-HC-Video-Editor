@@ -8704,6 +8704,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             entry.Text = text;
             UpdateActiveSuffixDisplay();
+
+            // The button is keyed on the name; the service has just pointed
+            // the saved layout at the new one, and this redraws the row from
+            // it. See ManageSuffixes for the same pair.
+            BuildToolbar();
             StatusText = $"Tag renamed to: [{text}]";
         }
         else
@@ -8733,6 +8738,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 string.Equals(s.Text, entry.Text, StringComparison.OrdinalIgnoreCase));
             if (match != null) Suffixes.Remove(match);
             UpdateActiveSuffixDisplay();
+
+            // Takes the deleted tag's button off the row with it.
+            BuildToolbar();
             StatusText = $"Removed tag: {entry.Display}";
         }
     }
@@ -8787,11 +8795,33 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ManageSuffixes()
     {
+        // Who was called what on the way in. The dialog edits these entries in
+        // place rather than going through the service, so a rename made in
+        // there never reaches RenameSuffix — and the object identity is the
+        // only thing that tells a rename from a removal followed by an add.
+        var namesBefore = Suffixes.Select(e => (Entry: e, Text: e.Text)).ToList();
+
         var dlg = new ManageSuffixesDialog(Suffixes) { Owner = DialogOwner };
         dlg.ShowDialog();
 
+        // A tag's toolbar button is keyed on the tag's text, so a rename has
+        // to be carried into the saved layout or the key stops matching and
+        // the button silently leaves the toolbar.
+        foreach (var (entry, was) in namesBefore)
+            if (Suffixes.Contains(entry) && !string.Equals(was, entry.Text, StringComparison.Ordinal))
+                _settings.RenameToolbarTag(was, entry.Text);
+
+        // Removals need no such help — the key simply stops matching anything
+        // and the build drops it.
         _settings.ReorderSuffixes(Suffixes);
         UpdateActiveSuffixDisplay();
+
+        // The toolbar is rebuilt from the layout against the catalogue, which
+        // is read from the tag list. Nothing did this when the tags changed:
+        // a deleted tag kept its button until the next launch, and the
+        // Customize dialog went on offering it as something to place.
+        BuildToolbar();
+
         StatusText = $"{Suffixes.Count} tag(s) saved";
     }
 

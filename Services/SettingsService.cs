@@ -1244,9 +1244,28 @@ public class SettingsService
                 ? Current.Suffixes[0].Text
                 : "done";
         }
+
+        // And off the toolbar, which names its tag buttons by the tag. A
+        // layout left pointing at a deleted tag kept drawing the button: the
+        // build drops unknown keys, but nothing rebuilt between the tag going
+        // and the next launch.
+        DropToolbarTag(text);
+
         Save();
         return true;
     }
+
+    /// <summary>
+    /// Takes a tag's button out of the saved toolbar layout.
+    /// </summary>
+    /// <remarks>
+    /// By key, which is how the layout refers to everything — see
+    /// <see cref="AppSettings.ToolbarOrder"/>. Nothing happens if the tag was
+    /// not on the toolbar, which is the common case.
+    /// </remarks>
+    private void DropToolbarTag(string text) =>
+        Current.ToolbarOrder.RemoveAll(
+            k => string.Equals(k, "tag:" + text, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Renames a suffix by its current text (case-insensitive). Returns
@@ -1270,10 +1289,31 @@ public class SettingsService
         if (entry == null) return false;
 
         bool wasActive = string.Equals(Current.ActiveSuffixText, entry.Text, StringComparison.OrdinalIgnoreCase);
+        var previous = entry.Text;
         entry.Text = trimmed;
         if (wasActive) Current.ActiveSuffixText = trimmed;
+
+        // The button carries the name, so the layout has to be renamed with
+        // it. Left alone, the key would stop matching anything and a rename
+        // would quietly take the button off the toolbar.
+        RenameToolbarTag(previous, trimmed);
+
         Save();
         return true;
+    }
+
+    /// <summary>
+    /// Points a tag's toolbar button at its new name.
+    /// </summary>
+    /// <inheritdoc cref="DropToolbarTag"/>
+    public void RenameToolbarTag(string oldText, string newText)
+    {
+        var from = "tag:" + oldText;
+        var to = "tag:" + newText;
+
+        for (int i = 0; i < Current.ToolbarOrder.Count; i++)
+            if (string.Equals(Current.ToolbarOrder[i], from, StringComparison.OrdinalIgnoreCase))
+                Current.ToolbarOrder[i] = to;
     }
 
     /// <summary>
