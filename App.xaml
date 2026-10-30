@@ -4,6 +4,133 @@
              StartupUri="Views/MainWindow.xaml"
              ShutdownMode="OnMainWindowClose">
     <Application.Resources>
-        <!-- Global dark theme overrides can go here -->
+        <!-- Scrollbars, themed.
+
+             Here rather than in a window, because this is the one resource
+             dictionary every window in the program shares: the dialogs are
+             separate windows and would otherwise keep Windows' own white bar
+             while the thing they are scrolling is dark.
+
+             The theme brushes these name are written into this same dictionary
+             by ThemeService at startup and again whenever the theme changes,
+             so DynamicResource is what makes a scrollbar follow a theme picked
+             while the program is running. -->
+
+        <!-- The draggable block. Accent, because the complaint it answers is
+             that it could not be seen: a thumb in a neutral grey is exactly
+             the thing that disappears against a pale track, and the accent is
+             the one colour in every palette picked to stand out.
+
+             Slightly transparent at rest so a long bar does not shout, and
+             solid under the pointer — which also makes it obvious that the
+             part under the cursor is the part that moves. -->
+        <Style x:Key="ScrollThumb" TargetType="Thumb">
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="IsTabStop" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <!-- Transparent border rather than a margin: the gap
+                             between the block and the edge of the bar stays
+                             put while the block itself takes the colour, so
+                             nothing moves when it lights up. -->
+                        <Border x:Name="Block" Background="{DynamicResource Accent}"
+                                CornerRadius="5" Opacity="0.75"
+                                BorderBrush="Transparent" BorderThickness="2"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Block" Property="Opacity" Value="1"/>
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter TargetName="Block" Property="Opacity" Value="1"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- The track either side of the block. Invisible, but not absent:
+             a null background is not a hit-test target, and clicking the
+             track to page up or down is how a scrollbar is used by anyone who
+             does not drag it. -->
+        <Style x:Key="ScrollPageButton" TargetType="RepeatButton">
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="IsTabStop" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RepeatButton">
+                        <Border Background="Transparent"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- No stepper arrows at the ends. The default template has two, and
+             a templated bar that kept them would need four more button styles
+             to stop them being drawn in the system's own chrome — which is
+             the look being replaced. Dragging, clicking the track and the
+             wheel all still work. -->
+        <Style TargetType="ScrollBar">
+            <Setter Property="Background" Value="{DynamicResource PanelBackground}"/>
+            <Setter Property="Width" Value="12"/>
+            <Setter Property="MinWidth" Value="12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid Background="{TemplateBinding Background}">
+                            <!-- IsDirectionReversed, because a vertical track
+                                 counts downwards while its value counts up. -->
+                            <Track x:Name="PART_Track" IsDirectionReversed="True">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="ScrollBar.PageUpCommand"
+                                                  Style="{StaticResource ScrollPageButton}"/>
+                                </Track.DecreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource ScrollThumb}"/>
+                                </Track.Thumb>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="ScrollBar.PageDownCommand"
+                                                  Style="{StaticResource ScrollPageButton}"/>
+                                </Track.IncreaseRepeatButton>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <!-- The horizontal bar is the same parts laid the other way.
+                     Width and Height swap, and the track counts the way its
+                     value does, so the reversal above comes off. -->
+                <Trigger Property="Orientation" Value="Horizontal">
+                    <Setter Property="Width" Value="Auto"/>
+                    <Setter Property="MinWidth" Value="0"/>
+                    <Setter Property="Height" Value="12"/>
+                    <Setter Property="MinHeight" Value="12"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ScrollBar">
+                                <Grid Background="{TemplateBinding Background}">
+                                    <Track x:Name="PART_Track" IsDirectionReversed="False">
+                                        <Track.DecreaseRepeatButton>
+                                            <RepeatButton Command="ScrollBar.PageLeftCommand"
+                                                          Style="{StaticResource ScrollPageButton}"/>
+                                        </Track.DecreaseRepeatButton>
+                                        <Track.Thumb>
+                                            <Thumb Style="{StaticResource ScrollThumb}"/>
+                                        </Track.Thumb>
+                                        <Track.IncreaseRepeatButton>
+                                            <RepeatButton Command="ScrollBar.PageRightCommand"
+                                                          Style="{StaticResource ScrollPageButton}"/>
+                                        </Track.IncreaseRepeatButton>
+                                    </Track>
+                                </Grid>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </Application.Resources>
 </Application>
