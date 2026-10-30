@@ -426,7 +426,7 @@
                                     <TextBlock Text="seconds" Style="{StaticResource Label}" Margin="8,0,0,0"/>
                                 </StackPanel>
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="What the Fade button puts on a bookmark, at both ends, in picture and sound together. The button applies this rather than asking, so fading twenty checked cuts is one click. A fade is capped at half the clip it is on, so a short cut fades as far as it can rather than being refused."/>
+                                           Text="This will determine how long each fade effect will take to complete the task."/>
                             </StackPanel>
                         </Border>
 
