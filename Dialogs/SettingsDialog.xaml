@@ -128,7 +128,7 @@
                                           Checked="ToolbarIcons_Changed" Unchecked="ToolbarIcons_Changed"
                                           Content="No button backgrounds"/>
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="Shows the icons on their own, with no rounded square behind them. Works with or without the labels. The four coloured operation families keep their text colour but lose their fill, so the colours you pick for them stop showing."/>
+                                           Text="The background frame graphic of the buttons will be removed. This includes the background for both small buttons and the otherwise default buttons with text."/>
                             </StackPanel>
                         </Border>
 
