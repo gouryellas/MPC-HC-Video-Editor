@@ -166,7 +166,7 @@ public static class NameTemplate
     /// screen showing what files will be called was wrong for anyone who had
     /// picked a different tag.
     /// </param>
-    public static string Preview(string? template, string tag = "[done]")
+    public static string Preview(string? template, string tag)
     {
         var sample = new Bookmark { Index = 3, StartSeconds = 83, EndSeconds = 105 };
         return Build(template, "holiday-2026", tag, sample) + ".mp4";

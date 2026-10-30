@@ -158,8 +158,17 @@ public partial class SettingsDialog : Window
     /// </summary>
     private readonly FFmpegService? _ffmpeg;
 
-    /// <summary>The active naming tag, bracketed, for the filename preview.</summary>
-    private readonly string _activeSuffix = "[done]";
+    /// <summary>
+    /// The active naming tag, bracketed, for the filename preview and the
+    /// variable list. Empty when no tag is selected.
+    /// </summary>
+    /// <remarks>
+    /// No initial value: the constructor assigns it unconditionally from the
+    /// settings, and the "[done]" that used to sit here was a default that
+    /// could only ever be seen if that assignment stopped happening — which
+    /// is to say, a wrong answer waiting for a mistake.
+    /// </remarks>
+    private readonly string _activeSuffix;
 
     public SettingsDialog(AppSettings current, bool autoSwitchViews, FFmpegService? ffmpeg = null)
     {
