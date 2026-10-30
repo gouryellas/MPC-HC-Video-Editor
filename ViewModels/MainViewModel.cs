@@ -8177,12 +8177,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     break;
                 }
             }
-            StatusText = $"File not found — removed from recent list:\n{path}";
-            Notify(
-                $"This file no longer exists and has been removed from the recent list:\n\n{path}",
-                "Recent video",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            // Reported as the failure it is. Notify writes to the status bar
+            // and nothing else, so clicking a dead entry put a line of text
+            // somewhere the user had no reason to be looking — they had just
+            // clicked a menu item and were waiting for a video to open.
+            //
+            // The bar keeps the whole path, which is what says which copy of a
+            // name has gone; the toast carries the name alone, being four
+            // inches wide.
+            ReportFailure($"File not found — removed from History: {path}");
+            ShowRefusal("Removed from History",
+                        $"{Path.GetFileName(path)} no longer exists, so it has been taken off the list.");
             return;
         }
 
