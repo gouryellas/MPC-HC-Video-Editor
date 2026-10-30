@@ -243,8 +243,6 @@
                                     <TextBox x:Name="MaxHistoryBox" Width="60"/>
                                     <TextBlock Text="recent videos" Style="{StaticResource Label}" Margin="10,0,0,0"/>
                                 </StackPanel>
-                                <TextBlock Style="{StaticResource Hint}"
-                                           Text="Maximum is 50."/>
                             </StackPanel>
                         </Border>
 
