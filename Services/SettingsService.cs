@@ -351,6 +351,17 @@ public class AppSettings
     public bool ToastsEnabled { get; set; } = true;
 
     /// <summary>
+    /// Whether the bookmark hotkey is kept from MPC-HC when the player is the
+    /// window in front.
+    /// </summary>
+    /// <remarks>
+    /// Off by default. The hotkey has always reached the player as well, and
+    /// a bookmark key that is also a player command is a collision the user
+    /// chose and may be relying on — so this is offered rather than assumed.
+    /// </remarks>
+    public bool BlockHotkeyInPlayer { get; set; }
+
+    /// <summary>
     /// Play a short sound when a file operation finishes.
     /// </summary>
     /// <remarks>

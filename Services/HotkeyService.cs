@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -25,6 +25,10 @@ public sealed class HotkeyService : IDisposable
     // Mouse messages we care about
     private const int WM_MBUTTONDOWN = 0x0207;
     private const int WM_XBUTTONDOWN = 0x020B;
+    // The release halves. Swallowing a press without its release leaves the
+    // player holding a button down that was never let go.
+    private const int WM_MBUTTONUP = 0x0208;
+    private const int WM_XBUTTONUP = 0x020C;
     private const int WM_LBUTTONDOWN = 0x0201;
     private const int WM_RBUTTONDOWN = 0x0204;
     // X-button hi-word of wParam: 1 = XButton1, 2 = XButton2
@@ -34,6 +38,8 @@ public sealed class HotkeyService : IDisposable
     // Keyboard messages
     private const int WM_KEYDOWN = 0x0100;
     private const int WM_SYSKEYDOWN = 0x0104;
+    private const int WM_KEYUP = 0x0101;
+    private const int WM_SYSKEYUP = 0x0105;
 
     // Virtual-key codes for modifier keys, used by GetAsyncKeyState.
     private const int VK_SHIFT = 0x10;
@@ -41,6 +47,44 @@ public sealed class HotkeyService : IDisposable
     private const int VK_MENU = 0x12;     // ALT
     private const int VK_LWIN = 0x5B;
     private const int VK_RWIN = 0x5C;
+
+    /// <summary>
+    /// Whether a press this program claims is also handed to the player.
+    /// </summary>
+    /// <remarks>
+    /// A low-level hook sees input before any application does, and returning
+    /// without passing it on ends it there — so the key that marks a bookmark
+    /// need not also do whatever MPC-HC has bound to it.
+    ///
+    /// Only while the player is in front. The hook is global, so swallowing
+    /// unconditionally would take the key out of every program on the machine
+    /// — an editor, a browser, a text box — to solve a problem that only
+    /// exists in one of them.
+    /// </remarks>
+    public bool BlockInPlayer { get; set; }
+
+    /// <summary>
+    /// The player's window, for deciding whether it is the one in front.
+    /// </summary>
+    /// <remarks>
+    /// Handed in rather than looked up here. This is read inside the hook
+    /// callback, which every keystroke on the machine waits behind, and a
+    /// window lookup per press is work that the poll has already done.
+    /// Zero — the player is not running — simply means nothing is swallowed.
+    /// </remarks>
+    public IntPtr PlayerWindow { get; set; }
+
+    /// <summary>
+    /// The press whose release still has to be swallowed, or zero.
+    /// </summary>
+    /// <remarks>
+    /// Held rather than re-tested on the way up, because the test can change
+    /// between the two halves: a press that moved the focus would see its
+    /// release let through, and the player would get an up for a down it
+    /// never saw.
+    /// </remarks>
+    private int _swallowKeyUp;
+    private int _swallowMouseUp;
 
     private IntPtr _mouseHook = IntPtr.Zero;
     private IntPtr _keyboardHook = IntPtr.Zero;
@@ -264,6 +308,23 @@ public sealed class HotkeyService : IDisposable
         _installedKind = HotkeyBinding.HotkeyKind.None;
     }
 
+    /// <summary>
+    /// Whether the press just claimed should stop here rather than reaching
+    /// the player.
+    /// </summary>
+    /// <remarks>
+    /// Two cheap reads and a comparison. This runs inside the hook, where the
+    /// whole callback is budgeted in microseconds — which is why the player's
+    /// window is a field set by the poll rather than a lookup made here.
+    /// </remarks>
+    private bool ShouldSwallow() =>
+        BlockInPlayer
+        && PlayerWindow != IntPtr.Zero
+        && Helpers.ForegroundWindow.Handle() == PlayerWindow;
+
+    /// <summary>What a hook returns to end an event rather than pass it on.</summary>
+    private static readonly IntPtr Swallowed = (IntPtr)1;
+
     private IntPtr MouseHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
         var startTicks = Stopwatch.GetTimestamp();
@@ -310,6 +371,21 @@ public sealed class HotkeyService : IDisposable
             if (msg == WM_MBUTTONDOWN && Binding.Mouse == HotkeyBinding.MouseButtonKind.MButton)
             {
                 FireTriggered();
+                if (ShouldSwallow())
+                {
+                    _swallowMouseUp = WM_MBUTTONUP;
+                    return Swallowed;
+                }
+            }
+            else if (msg == WM_MBUTTONUP && _swallowMouseUp == WM_MBUTTONUP)
+            {
+                _swallowMouseUp = 0;
+                return Swallowed;
+            }
+            else if (msg == WM_XBUTTONUP && _swallowMouseUp == WM_XBUTTONUP)
+            {
+                _swallowMouseUp = 0;
+                return Swallowed;
             }
             else if (msg == WM_XBUTTONDOWN)
             {
@@ -319,10 +395,19 @@ public sealed class HotkeyService : IDisposable
                 //   int mouseData  (contains the X-button number in hi-word)
                 int mouseData = unchecked((int)((long)lParam >> 32));
                 int xButton = (mouseData >> 16) & 0xFFFF;
-                if (xButton == XBUTTON1 && Binding.Mouse == HotkeyBinding.MouseButtonKind.XButton1)
+                var mine =
+                    (xButton == XBUTTON1 && Binding.Mouse == HotkeyBinding.MouseButtonKind.XButton1) ||
+                    (xButton == XBUTTON2 && Binding.Mouse == HotkeyBinding.MouseButtonKind.XButton2);
+
+                if (mine)
+                {
                     FireTriggered();
-                else if (xButton == XBUTTON2 && Binding.Mouse == HotkeyBinding.MouseButtonKind.XButton2)
-                    FireTriggered();
+                    if (ShouldSwallow())
+                    {
+                        _swallowMouseUp = WM_XBUTTONUP;
+                        return Swallowed;
+                    }
+                }
             }
         }
 
@@ -373,9 +458,28 @@ public sealed class HotkeyService : IDisposable
             {
                 ModifierKeys pressed = ReadCurrentModifiers();
                 if (pressed == Binding.Modifiers)
+                {
                     FireTriggered();
+                    if (ShouldSwallow())
+                    {
+                        _swallowKeyUp = vk;
+                        return Swallowed;
+                    }
+                }
             }
         }
+
+        // The release of a press that was swallowed. Matched on the key code
+        // recorded at the time rather than on the binding, so a binding
+        // changed between the two halves cannot strand it.
+        if (nCode >= 0 && _swallowKeyUp != 0 &&
+            (wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP) &&
+            Marshal.ReadInt32(lParam) == _swallowKeyUp)
+        {
+            _swallowKeyUp = 0;
+            return Swallowed;
+        }
+
         return CallNextHookEx(_keyboardHook, nCode, wParam, lParam);
     }
 

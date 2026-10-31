@@ -1189,6 +1189,13 @@
                         <TextBlock Text="⌨" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
+                <!-- Only while the player is the window in front. The hook
+                     this works through sees every keystroke on the machine,
+                     so a key swallowed everywhere would be a cure worse than
+                     the collision. -->
+                <MenuItem Header="Keep it from MPC-HC" IsCheckable="True"
+                          IsChecked="{Binding BlockHotkeyInPlayer, Mode=TwoWay}"
+                          ToolTip="Stop the key reaching MPC-HC as well, so a key that is also a player command only marks a bookmark. Applies while MPC-HC is the window in front; everywhere else the key behaves normally."/>
             </MenuItem>
             <MenuItem Header="&#128278; Bookmarks">
                 <!-- Header carries the live hotkey binding, e.g.

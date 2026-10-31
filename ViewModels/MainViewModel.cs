@@ -991,6 +991,28 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Whether the action toolbar is shown at all.</summary>
     public bool ShowToolbar => _settings.Current.ShowToolbar;
 
+    /// <summary>
+    /// Whether the hotkey stops here rather than also reaching MPC-HC.
+    /// </summary>
+    /// <remarks>
+    /// Only while the player is the window in front — see
+    /// <see cref="HotkeyService.BlockInPlayer"/>. The hook is global, and a
+    /// key taken out of every program on the machine would be a cure worse
+    /// than the collision.
+    /// </remarks>
+    public bool BlockHotkeyInPlayer
+    {
+        get => _settings.Current.BlockHotkeyInPlayer;
+        set
+        {
+            if (_settings.Current.BlockHotkeyInPlayer == value) return;
+            _settings.Current.BlockHotkeyInPlayer = value;
+            _settings.Save();
+            _hotkeys.BlockInPlayer = value;
+            OnPropertyChanged();
+        }
+    }
+
     /// <summary>Whether a dragged bracket snaps to a nearby edit point.</summary>
     public bool SnapToEditPoints
     {
@@ -1811,6 +1833,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _ffmpeg.QualityArgs = _settings.GetQualityArgs();
         _ffmpeg.PreciseCuts = _settings.Current.PreciseCuts;
         _ffmpeg.NormalizeAudio = _settings.Current.NormalizeAudio;
+
+        _hotkeys.BlockInPlayer = _settings.Current.BlockHotkeyInPlayer;
 
         _toast.Enabled = _settings.Current.ToastsEnabled;
         _toast.HoldDuration = TimeSpan.FromSeconds(_settings.Current.ToastSeconds);
@@ -2987,6 +3011,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // up to ten seconds.
         if (IsMpcRunning && !_playerWasRunning) _mpc.InvalidatePlayerSnapshot();
         _playerWasRunning = IsMpcRunning;
+
+        // Kept current here so the hook never has to look it up. The hook runs
+        // ahead of every keystroke on the machine; the poll is already asking
+        // about the player anyway, and being a tick out of date costs nothing
+        // — a player that has only just closed cannot be the window in front.
+        _hotkeys.PlayerWindow = IsMpcRunning ? _mpc.FindMpcWindow() : IntPtr.Zero;
 
         // Focus moves between processes without notifying us, so the view
         // condition is re-evaluated on every tick. It returns immediately when
