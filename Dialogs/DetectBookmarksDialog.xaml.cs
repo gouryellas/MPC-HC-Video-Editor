@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Windows;
@@ -70,17 +70,30 @@ public partial class DetectBookmarksDialog : Window
     /// <summary>Whether the accepted ranges replace the current bookmarks.</summary>
     public bool ReplaceExisting { get; private set; }
 
+    /// <summary>
+    /// Whether dragged brackets should land on the points this scan found.
+    /// </summary>
+    /// <remarks>
+    /// Read whichever way the dialog closes, Cancel included: the scan has
+    /// still run by then and its marks are still kept, so the answer to
+    /// "snap to them" is still live. <see cref="Scanned"/> is read on the same
+    /// terms.
+    /// </remarks>
+    public bool SnapToPoints => SnapCheck.IsChecked == true;
+
     /// <param name="hasExistingBookmarks">
     /// Whether there is a cut list to replace. With none, the question does not
     /// arise — "Replace the bookmarks currently loaded" asked about nothing, and
     /// a scan on a video with an empty list is the ordinary first use of this
     /// window rather than an edge case.
     /// </param>
-    public DetectBookmarksDialog(FFmpegService ffmpeg, string videoPath, bool hasExistingBookmarks = false)
+    public DetectBookmarksDialog(FFmpegService ffmpeg, string videoPath, bool hasExistingBookmarks = false,
+                                 bool snapToPoints = false)
     {
         InitializeComponent();
         _ffmpeg = ffmpeg;
         _videoPath = videoPath;
+        SnapCheck.IsChecked = snapToPoints;
         ResultsList.ItemsSource = _proposals;
         ApplyDefaultsForMode();
 

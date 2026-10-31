@@ -2029,9 +2029,32 @@
                                     <TextBlock Text="🔍" Style="{StaticResource MenuGlyph}"/>
                                 </MenuItem.Icon>
                             </MenuItem>
-                            <MenuItem Header="Snap brackets to edit points" IsCheckable="True"
+                            <!-- Only while a scan has left something to snap
+                                 to. Present at all times it read as a global
+                                 on/off, with nothing saying it belonged to
+                                 the last scan and did nothing without one. -->
+                            <MenuItem IsCheckable="True"
                                       IsChecked="{Binding SnapToEditPoints, Mode=TwoWay}"
-                                      ToolTip="A bracket dragged near one of the ticks lands exactly on it. Hold Alt while dragging to place it freely."/>
+                                      Visibility="{Binding HasSnapPoints, Converter={StaticResource BoolToVis}}">
+                                <MenuItem.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Snap to scanned points" VerticalAlignment="Center"/>
+                                        <Border Margin="8,0,0,0" Width="14" Height="14"
+                                                CornerRadius="7" VerticalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource TextMuted}"
+                                                BorderThickness="1">
+                                            <Border.ToolTip>
+                                                <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                                           Text="Every place the last scan found the video changing is marked along the foot of the bar. With this on, a bracket dragged near one of those marks lands exactly on it — hold Alt while dragging to ignore them. It lasts as long as the marks do: opening another video clears both."/>
+                                            </Border.ToolTip>
+                                            <TextBlock Text="?" FontSize="10" FontWeight="SemiBold"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TextMuted}"/>
+                                        </Border>
+                                    </StackPanel>
+                                </MenuItem.Header>
+                            </MenuItem>
                         </ContextMenu>
                     </Border.ContextMenu>
 

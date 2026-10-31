@@ -935,6 +935,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </remarks>
     public ObservableCollection<double> SnapPoints { get; } = new();
 
+    /// <summary>Whether a scan has left anything to snap to.</summary>
+    /// <remarks>
+    /// What the seekbar menu shows its snap switch on. A switch for a thing
+    /// that cannot happen reads as a setting that is simply off, which is a
+    /// different claim — and the one that made people look for a global
+    /// behaviour rather than one belonging to the last scan.
+    /// </remarks>
+    public bool HasSnapPoints => SnapPoints.Count > 0;
+
     /// <summary>
     /// Whether the seekbar is put away.
     /// </summary>
@@ -1697,6 +1706,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // about to appear in.
         Job.Finished += ToastJobFinished;
 
+        // The seekbar menu shows its snap switch only while there is
+        // something to snap to, so the collection has to say when that
+        // changes — a computed property raises nothing on its own.
+        SnapPoints.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasSnapPoints));
+
         // Last, so the opening state is the baseline rather than something
         // half-built: everything above this line is setup, not an edit.
         StartWatchingForHistory();
@@ -2138,7 +2152,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
             // Both of these describe the file that just went away. Edit points
             // found in one video are meaningless in another, and a card drawn
             // from one would be a frame of the wrong film.
+            // The switch goes with them. It belongs to the scan that filled
+            // these in, and a video that has not been scanned has nothing for
+            // it to mean — leaving it on would be the setting outliving its
+            // subject, which is what made it read as global.
             SnapPoints.Clear();
+            SnapToEditPoints = false;
+
             foreach (var b in Session.Bookmarks) { b.Thumbnail = null; b.ThumbnailEnd = null; }
 
             if (StoryboardView) _ = RefreshStoryboardThumbnailsAsync();
@@ -6832,7 +6852,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         if (string.IsNullOrWhiteSpace(Session.VideoPath)) return;
 
-        var dlg = new DetectBookmarksDialog(_ffmpeg, Session.VideoPath, Session.Bookmarks.Count > 0)
+        var dlg = new DetectBookmarksDialog(_ffmpeg, Session.VideoPath, Session.Bookmarks.Count > 0,
+                                            SnapToEditPoints)
         {
             Owner = Application.Current?.MainWindow,
             Report = s => StatusText = s
@@ -6843,6 +6864,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // paid for a full decode, and where it found the video changing is
         // worth keeping even when none of its proposals were wanted.
         TakeSnapPoints(dlg.Scanned);
+        SnapToEditPoints = dlg.SnapToPoints && HasSnapPoints;
 
         if (!accepted) return;
 
@@ -6941,7 +6963,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         if (string.IsNullOrWhiteSpace(Session.VideoPath)) return;
 
-        var dlg = new DetectBookmarksDialog(_ffmpeg, Session.VideoPath, Session.Bookmarks.Count > 0)
+        var dlg = new DetectBookmarksDialog(_ffmpeg, Session.VideoPath, Session.Bookmarks.Count > 0,
+                                            SnapToEditPoints)
         {
             Owner = Application.Current?.MainWindow,
             Report = s => StatusText = s
@@ -6949,6 +6972,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         dlg.ShowDialog();
 
         TakeSnapPoints(dlg.Scanned);
+
+        // Only if the scan actually left something. Ticking the box and then
+        // finding nothing would otherwise switch on a behaviour with no marks
+        // to act on.
+        SnapToEditPoints = dlg.SnapToPoints && HasSnapPoints;
 
         // The dialog has already said what the scan found. Nothing to add: a
         // second line here would only restate it in different words a moment
