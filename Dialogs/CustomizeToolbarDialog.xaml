@@ -90,26 +90,49 @@
                 <Border Background="{DynamicResource InsetBackground}"
                         BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                         CornerRadius="3" Padding="8,6"
-                        Visibility="{Binding Kind, Converter={StaticResource IsSpacer}}"
-                        ToolTip="A fixed gap between two groups of buttons">
-                    <TextBlock Text="|      |" Foreground="{DynamicResource TextMuted}" FontFamily="Consolas"/>
+                        Visibility="{Binding Kind, Converter={StaticResource IsSpacer}}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="|      |" Foreground="{DynamicResource TextMuted}" FontFamily="Consolas"
+                                   VerticalAlignment="Center"/>
+                        <ContentControl Style="{StaticResource Qmhp}">
+                            <ContentControl.ToolTip>
+                                <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                           Text="A fixed gap between two groups of buttons."/>
+                            </ContentControl.ToolTip>
+                        </ContentControl>
+                    </StackPanel>
                 </Border>
 
                 <Border Background="{DynamicResource InsetBackground}"
                         BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                         CornerRadius="3" Padding="8,6"
-                        Visibility="{Binding Kind, Converter={StaticResource IsExpander}}"
-                        ToolTip="Takes up whatever width is left over">
-                    <TextBlock Text="&lt; --- &gt;" Foreground="{DynamicResource TextMuted}"
-                               FontFamily="Consolas" HorizontalAlignment="Center"/>
+                        Visibility="{Binding Kind, Converter={StaticResource IsExpander}}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&lt; --- &gt;" Foreground="{DynamicResource TextMuted}"
+                                   FontFamily="Consolas" VerticalAlignment="Center"/>
+                        <ContentControl Style="{StaticResource Qmhp}">
+                            <ContentControl.ToolTip>
+                                <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                           Text="Takes up whatever width is left over."/>
+                            </ContentControl.ToolTip>
+                        </ContentControl>
+                    </StackPanel>
                 </Border>
 
                 <Border Background="{DynamicResource InsetBackground}"
                         BorderBrush="{DynamicResource ValueYellow}" BorderThickness="1"
                         CornerRadius="3" Padding="8,6"
-                        Visibility="{Binding Kind, Converter={StaticResource IsRowBreak}}"
-                        ToolTip="Drop this on the toolbar to start another line">
-                    <TextBlock Text="⏎ New row" Foreground="{DynamicResource ValueYellow}"/>
+                        Visibility="{Binding Kind, Converter={StaticResource IsRowBreak}}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="⏎ New row" Foreground="{DynamicResource ValueYellow}"
+                                   VerticalAlignment="Center"/>
+                        <ContentControl Style="{StaticResource Qmhp}">
+                            <ContentControl.ToolTip>
+                                <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                           Text="Drop this on the toolbar to start another line."/>
+                            </ContentControl.ToolTip>
+                        </ContentControl>
+                    </StackPanel>
                 </Border>
             </Grid>
         </DataTemplate>
@@ -228,17 +251,14 @@
                 <CheckBox x:Name="SmallIconsCheck" VerticalAlignment="Center"
                           Foreground="{DynamicResource TextPrimary}"
                           Content="Small button icons"
-                          ToolTip="Draw the toolbar as icons alone, with no labels. The list below stays full-size so the buttons can still be told apart."
                           Checked="Chrome_Changed" Unchecked="Chrome_Changed"/>
                 <CheckBox x:Name="FlatIconsCheck" VerticalAlignment="Center" Margin="18,0,0,0"
                           Foreground="{DynamicResource TextPrimary}"
                           Content="No button backgrounds"
-                          ToolTip="Show the icons on their own, with no rounded square behind them."
                           Checked="Chrome_Changed" Unchecked="Chrome_Changed"/>
                 <CheckBox x:Name="HideToolbarCheck" VerticalAlignment="Center" Margin="18,0,0,0"
                           Foreground="{DynamicResource TextPrimary}"
                           Content="Hide toolbar"
-                          ToolTip="Put the toolbar away. The arrangement is kept, and this box brings it back — as does Options ▸ Hide toolbar."
                           Checked="Hidden_Changed" Unchecked="Hidden_Changed"/>
             </StackPanel>
 

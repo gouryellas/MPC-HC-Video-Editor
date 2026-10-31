@@ -1,9 +1,42 @@
-<Application x:Class="MpcHcVideoEditor.App"
+﻿<Application x:Class="MpcHcVideoEditor.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              StartupUri="Views/MainWindow.xaml"
              ShutdownMode="OnMainWindowClose">
     <Application.Resources>
+        <!-- A question mark that carries an explanation, for the places where
+             one is wanted on demand rather than on the way past.
+
+             A ContentControl whose template is the whole mark, so a use is
+             three lines and the ring is described once. The tooltip goes on
+             the control; Background="Transparent" is what makes the ring a
+             hit-test target rather than only its stroke.
+
+             Menu items in this program wait three seconds before showing a
+             tooltip, so that reading down a menu does not pop panels over the
+             entries below. That delay does not inherit, so a mark inside a
+             header answers at the ordinary speed — which is the point of
+             putting it there. -->
+        <Style x:Key="Qmhp" TargetType="ContentControl">
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContentControl">
+                        <Border Width="14" Height="14" CornerRadius="7"
+                                Background="Transparent"
+                                BorderBrush="{DynamicResource TextMuted}"
+                                BorderThickness="1">
+                            <TextBlock Text="?" FontSize="10" FontWeight="SemiBold"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextMuted}"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Scrollbars, themed.
 
              Here rather than in a window, because this is the one resource

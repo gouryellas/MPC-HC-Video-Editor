@@ -105,7 +105,7 @@
                 <LineBreak/>
                 <Hyperlink x:Name="StopLink" Click="Stop_Click"
                            Foreground="{DynamicResource ValueYellow}"
-                           ToolTip="Turns the startup check off and closes this window">
+                           >
                     <Run Text="Stop checking for new versions"/>
                 </Hyperlink>
                 <Run Text=" — you can turn it back on at any time in Settings ▸ General ▸ Updates, or check by hand from Help ▸ Check for updates."/>

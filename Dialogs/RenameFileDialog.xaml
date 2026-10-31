@@ -55,8 +55,7 @@
                  "remaining" means nothing. -->
             <CheckBox x:Name="ApplyToAllCheck" HorizontalAlignment="Left" Margin="0,0,0,8"
                       Foreground="{DynamicResource TextDim}" Visibility="Collapsed"
-                      ToolTip="Silently apply the suggested correction to every later file that breaks the rules"
-                      Content="Do this for all remaining files"/>
+                          Content="Do this for all remaining files"/>
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Content="Use suggested" Width="120" Margin="4" Click="Suggested_Click" Padding="8,4"/>

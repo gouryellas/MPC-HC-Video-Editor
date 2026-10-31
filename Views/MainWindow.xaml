@@ -836,7 +836,7 @@
                              answer the click, and a save glyph is mostly
                              empty space. -->
                         <Border x:Name="Chrome" Background="Transparent" CornerRadius="3"
-                                ToolTip="Click to save this clip now — goes to the quick save folder, or next to the source video if none is set">
+                                ToolTip="Quick save this row as an independent video clip.">
                             <Image x:Name="Glyph" Stretch="Uniform"
                                    Source="pack://application:,,,/Assets/icons/icon-quick_save.png"
                                    RenderOptions.BitmapScalingMode="HighQuality"/>
@@ -884,8 +884,7 @@
                  up by header meant any change to the wording — a rename, an
                  icon — silently emptied them. -->
             <MenuItem x:Name="FileMenu" Header="&#128193; File">
-                <MenuItem Header="Open…" Command="{Binding OpenFileCommand}"
-                          ToolTip="Open a video file, bookmark CSV, or .pls playlist (auto-detected by extension)">
+                <MenuItem Header="Open…" Command="{Binding OpenFileCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="📂" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
@@ -894,21 +893,40 @@
                      Defaults to the loaded video's own folder and stays that
                      way until the user picks a folder, after which it is
                      pinned for the rest of the session. -->
-                <MenuItem Header="{Binding SaveToFolderDisplay}" Command="{Binding SetSaveToFolderCommand}"
-                          ToolTip="Destination for merge, split, convert, strip audio and bulk merge">
+                <MenuItem  Command="{Binding SetSaveToFolderCommand}">
+                    <MenuItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding SaveToFolderDisplay}" VerticalAlignment="Center"/>
+                            <ContentControl Style="{StaticResource Qmhp}">
+                                <ContentControl.ToolTip>
+                                    <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                               Text="All actions that create a file will be saved here, unless chosen differently during the action."/>
+                                </ContentControl.ToolTip>
+                            </ContentControl>
+                        </StackPanel>
+                    </MenuItem.Header>
                     <MenuItem.Icon>
                         <TextBlock Text="💾" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Quick save" Style="{StaticResource MenuSectionHeader}"/>
-                <MenuItem Header="{Binding QuickSaveFolderDisplay}" Command="{Binding SetQuickSaveFolderCommand}"
-                          ToolTip="Destination for the one-click save button on each bookmark row">
+                <MenuItem  Command="{Binding SetQuickSaveFolderCommand}">
+                    <MenuItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding QuickSaveFolderDisplay}" VerticalAlignment="Center"/>
+                            <ContentControl Style="{StaticResource Qmhp}">
+                                <ContentControl.ToolTip>
+                                    <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                               Text="The quick save feature - the small blue save icon next to bookmarks - creates a video of that single bookmark that is saved here."/>
+                                </ContentControl.ToolTip>
+                            </ContentControl>
+                        </StackPanel>
+                    </MenuItem.Header>
                     <MenuItem.Icon>
                         <TextBlock Text="⚡" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Add quick save shortcut…" Command="{Binding AddQuickSaveShortcutCommand}"
-                          ToolTip="Pick a folder to add to the quick save shortcut list above">
+                <MenuItem Header="Add quick save shortcut…" Command="{Binding AddQuickSaveShortcutCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="➕" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
@@ -925,14 +943,12 @@
                      configure, and it is only useful just after something has
                      been written. Disabled until there is a file to show. -->
                 <MenuItem Header="Program" Style="{StaticResource MenuSectionHeader}"/>
-                <MenuItem Header="Settings…" Command="{Binding OpenSettingsCommand}"
-                          ToolTip="Output format, view switching, and what happens to source files after an operation">
+                <MenuItem Header="Settings…" Command="{Binding OpenSettingsCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="⚙" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Reset everything…" Command="{Binding ResetEverythingCommand}"
-                          ToolTip="Restart the application (settings, history, naming tags, and shortcuts are preserved)">
+                <MenuItem Header="Reset everything…" Command="{Binding ResetEverythingCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="♻" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
@@ -964,11 +980,21 @@
                      command, so this one no longer undoes a step when clicked.
                      The first row in the list does exactly that, and Ctrl+Z is
                      untouched. -->
-                <MenuItem Header="{Binding UndoEditHeader}"
-                          ItemsSource="{Binding HistoryEntries}"
+                <MenuItem ItemsSource="{Binding HistoryEntries}"
                           IsEnabled="{Binding HasHistory}"
                           InputGestureText="Ctrl+Z"
                           ToolTip="Every change to the bookmarks still on the stack, newest first. Click one to jump straight to it, however many steps away it is.">
+                    <MenuItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding UndoEditHeader}" VerticalAlignment="Center"/>
+                            <ContentControl Style="{StaticResource Qmhp}">
+                                <ContentControl.ToolTip>
+                                    <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                               Text="Undoes the action and every action before it in the list, if others exist."/>
+                                </ContentControl.ToolTip>
+                            </ContentControl>
+                        </StackPanel>
+                    </MenuItem.Header>
                     <MenuItem.Icon>
                         <TextBlock Text="↶" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
@@ -1019,8 +1045,7 @@
                 <!-- Not gated like the modifiers further down: a crop needs a
                      picture and nothing else, so with no video loaded it asks
                      for one and with no cuts it offers the whole video. -->
-                <MenuItem Header="Crop…" Command="{Binding CropSelectedCommand}"
-                          ToolTip="Draw the part of the frame to keep — on the chosen bookmarks, or on a whole video">
+                <MenuItem Header="Crop…" Command="{Binding CropSelectedCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="⬚" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
@@ -1036,8 +1061,18 @@
 
 
                 <MenuItem Header="Audio" Style="{StaticResource MenuSectionHeader}"/>
-                <MenuItem Header="Strip audio…" Command="{Binding StripAudioCommand}"
-                          ToolTip="Pulls the sound out of files you pick: an MP3 of the audio, a silent copy of the video, or both. The file you pick is not changed.">
+                <MenuItem Command="{Binding StripAudioCommand}">
+                    <MenuItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Strip audio…" VerticalAlignment="Center"/>
+                            <ContentControl Style="{StaticResource Qmhp}">
+                                <ContentControl.ToolTip>
+                                    <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                               Text="Removes audio. Choose if you want a separate audio and video file, create only an audio file, or create only a silenced video."/>
+                                </ContentControl.ToolTip>
+                            </ContentControl>
+                        </StackPanel>
+                    </MenuItem.Header>
                     <MenuItem.Icon>
                         <TextBlock Text="🔊" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
@@ -1045,8 +1080,7 @@
 
 
                 <MenuItem Header="Images" Style="{StaticResource MenuSectionHeader}"/>
-                <MenuItem Header="Save the frame on screen…" Command="{Binding SaveCurrentFrameCommand}"
-                          ToolTip="Write the frame MPC-HC is showing to a PNG at its own size. The time is part of the filename, so a run of them does not collide.">
+                <MenuItem Header="Save the frame on screen…" Command="{Binding SaveCurrentFrameCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="📷" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
@@ -1059,15 +1093,14 @@
                         <TextBlock Text="▦" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Export bookmarks as GIF / WebP…" Command="{Binding ExportAnimationCommand}"
-                          ToolTip="Write each checked bookmark as an animated GIF or WebP, with no sound. Asks for the frame rate and width, which are what decide the size.">
+                <MenuItem Header="Export bookmarks as GIF / WebP…" Command="{Binding ExportAnimationCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="🎞" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <!-- Target format is the CommandParameter, so picking one is a
                      single gesture rather than a menu click then a dialog. -->
-                <MenuItem Header="Image conversion" ToolTip="Convert image files to another format">
+                <MenuItem Header="Image conversion">
                     <MenuItem.Icon>
                         <TextBlock Text="🖼" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
@@ -1101,8 +1134,7 @@
                             <TextBlock Text="🖼" Style="{StaticResource MenuGlyph}"/>
                         </MenuItem.Icon>
                     </MenuItem>
-                    <MenuItem Header="To ICO…"  Command="{Binding ConvertImagesCommand}" CommandParameter="ico"
-                              ToolTip="Scaled to 256px if larger — the ICO format cannot express more">
+                    <MenuItem Header="To ICO…"  Command="{Binding ConvertImagesCommand}" CommandParameter="ico">
                         <MenuItem.Icon>
                             <TextBlock Text="🖼" Style="{StaticResource MenuGlyph}"/>
                         </MenuItem.Icon>
@@ -1119,8 +1151,7 @@
                         <TextBlock Text="📐" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Image info…" Command="{Binding ShowImageInfoCommand}"
-                          ToolTip="What a picture says about itself: size, camera, and whether it carries where it was taken">
+                <MenuItem Header="Image info…" Command="{Binding ShowImageInfoCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="ℹ" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
@@ -1132,8 +1163,7 @@
                      row when nothing is checked — the same rule as the toolbar
                      buttons, which is said here once rather than four times. -->
                 <MenuItem Header="Clip effects" Style="{StaticResource MenuSectionHeader}"/>
-                <MenuItem Header="Flip" Command="{Binding ToggleFlipCommand}"
-                          ToolTip="Acts on the checked bookmarks, or the highlighted row when nothing is checked">
+                <MenuItem Header="Flip" Command="{Binding ToggleFlipCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="↕" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
@@ -1151,20 +1181,17 @@
                 <!-- Three answers to one question, so they sit together. Each
                      sets its own mode outright; pressing the one a selection
                      is already in takes the fades off. -->
-                <MenuItem Header="Fade" Command="{Binding ToggleFadeCommand}"
-                          ToolTip="Fade both ends, over the length set in Settings ▸ Output">
+                <MenuItem Header="Fade" Command="{Binding ToggleFadeCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="◐" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Fade in" Command="{Binding FadeInCommand}"
-                          ToolTip="Fade the start only — the end stays hard">
+                <MenuItem Header="Fade in" Command="{Binding FadeInCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="◐" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Fade out" Command="{Binding FadeOutCommand}"
-                          ToolTip="Fade the end only — the start stays hard">
+                <MenuItem Header="Fade out" Command="{Binding FadeOutCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="◐" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
@@ -1183,8 +1210,7 @@
                 <MenuItem Header="Current" Style="{StaticResource MenuSectionHeader}"/>
                 <MenuItem Header="{Binding HotkeyDisplay}" IsEnabled="False"/>
                 <MenuItem Header="Set" Style="{StaticResource MenuSectionHeader}"/>
-                <MenuItem Header="Change keybind…" Command="{Binding SetTimestampHotkeyCommand}"
-                          ToolTip="Pick a mouse button or capture a keyboard combination">
+                <MenuItem Header="Change keybind…" Command="{Binding SetTimestampHotkeyCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="⌨" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
@@ -1249,78 +1275,132 @@
                         <TextBlock Text="⌨" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Split time" Command="{Binding SplitAtPlayheadCommand}"
-                          ToolTip="Puts a boundary wherever the player is now. Inside a bookmark it divides it in two; in a gap between bookmarks it fills the gap in.">
+                <MenuItem Command="{Binding SplitAtPlayheadCommand}">
+                    <MenuItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Split time" VerticalAlignment="Center"/>
+                            <ContentControl Style="{StaticResource Qmhp}">
+                                <ContentControl.ToolTip>
+                                    <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                               Text="Splits the time at the playhead block position on the seekbar."/>
+                                </ContentControl.ToolTip>
+                            </ContentControl>
+                        </StackPanel>
+                    </MenuItem.Header>
                     <MenuItem.Icon>
                         <TextBlock Text="✂" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Edit" Style="{StaticResource MenuSectionHeader}"/>
-                <MenuItem Header="Edit bookmarks" Command="{Binding EditBookmarksCommand}"
-                          ToolTip="Open the bookmark CSV in a text editor — changes are picked up when this window regains focus">
+                <MenuItem Command="{Binding EditBookmarksCommand}">
+                    <MenuItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Edit bookmarks" VerticalAlignment="Center"/>
+                            <ContentControl Style="{StaticResource Qmhp}">
+                                <ContentControl.ToolTip>
+                                    <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                               Text="Open the CSV file in a text editor. It will update in real-time."/>
+                                </ContentControl.ToolTip>
+                            </ContentControl>
+                        </StackPanel>
+                    </MenuItem.Header>
                     <MenuItem.Icon>
                         <TextBlock Text="✎" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Export bookmarks…" Command="{Binding ExportCutListCommand}"
-                          ToolTip="Write the bookmarks as a CSV, as YouTube chapter headings, or as an EDL. Timings and names only — speed, rotation, crop and fades are not carried.">
+                <MenuItem Command="{Binding ExportCutListCommand}">
+                    <MenuItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Export bookmarks…" VerticalAlignment="Center"/>
+                            <ContentControl Style="{StaticResource Qmhp}">
+                                <ContentControl.ToolTip>
+                                    <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                               Text="Exports bookmarks as a CSV, EDL, or Youtube chapters."/>
+                                </ContentControl.ToolTip>
+                            </ContentControl>
+                        </StackPanel>
+                    </MenuItem.Header>
                     <MenuItem.Icon>
                         <TextBlock Text="↗" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Export as chapters…" Command="{Binding ExportChaptersCommand}"
-                          ToolTip="Writes the video out once with the bookmarks as chapter marks, instead of cutting it into separate clips">
+                <MenuItem Command="{Binding ExportChaptersCommand}">
+                    <MenuItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Export as chapters…" VerticalAlignment="Center"/>
+                            <ContentControl Style="{StaticResource Qmhp}">
+                                <ContentControl.ToolTip>
+                                    <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                               Text="Exports the bookmarks as chapters that video players reference to label and jump around with."/>
+                                </ContentControl.ToolTip>
+                            </ContentControl>
+                        </StackPanel>
+                    </MenuItem.Header>
                     <MenuItem.Icon>
                         <TextBlock Text="🔖" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Import bookmarks…" Command="{Binding ImportCutListCommand}"
-                          ToolTip="Read bookmarks written by another tool. The format is worked out from the contents, not the file name.">
+                <MenuItem Command="{Binding ImportCutListCommand}">
+                    <MenuItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Import bookmarks…" VerticalAlignment="Center"/>
+                            <ContentControl Style="{StaticResource Qmhp}">
+                                <ContentControl.ToolTip>
+                                    <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                               Text="Supports CSV, EDL, and Youtube chapters, but you can import any file type with 'all files' and it will try to find bookmarks by reading the content as opposed to just extension."/>
+                                </ContentControl.ToolTip>
+                            </ContentControl>
+                        </StackPanel>
+                    </MenuItem.Header>
                     <MenuItem.Icon>
                         <TextBlock Text="↙" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Delete" Style="{StaticResource MenuSectionHeader}"/>
-                <MenuItem Header="Undo last bookmark" Command="{Binding UndoLastBookmarkCommand}"
-                          ToolTip="Remove the most recently added bookmark from the GUI and CSV">
+                <MenuItem Header="Undo last bookmark" Command="{Binding UndoLastBookmarkCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="⎌" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Delete bookmarks" Command="{Binding DeleteBookmarksCommand}"
-                          ToolTip="Delete the bookmark file from disk">
+                <MenuItem Header="Delete bookmarks" Command="{Binding DeleteBookmarksCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="🗑" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Remove selected bookmarks" Command="{Binding DeleteSelectedCommand}"
-                          ToolTip="Remove the checked bookmarks from the list and from the bookmark file. With nothing checked it removes the highlighted row.">
+                <MenuItem Header="Remove selected bookmarks" Command="{Binding DeleteSelectedCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="🗑" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Play" Style="{StaticResource MenuSectionHeader}"/>
-                <MenuItem Header="Play all bookmarks" Command="{Binding PlayAllCommand}"
-                          ToolTip="Seek MPC-HC to each bookmark and play it for its full duration, sequentially">
+                <MenuItem Header="Play all bookmarks" Command="{Binding PlayAllCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="▶" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Play selected bookmarks" Command="{Binding PlaySelectedCommand}"
-                          ToolTip="Same as Play all, but only the bookmarks you've checked">
+                <MenuItem Header="Play selected bookmarks" Command="{Binding PlaySelectedCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="▶" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="{Binding SelectAllMenuHeader}" Command="{Binding ToggleSelectAllCommand}"
-                          ToolTip="Check every bookmark, or clear them all">
+                <MenuItem Header="{Binding SelectAllMenuHeader}" Command="{Binding ToggleSelectAllCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="{Binding SelectAllMenuGlyph}" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Search" Style="{StaticResource MenuSectionHeader}"/>
-                <MenuItem Header="Scan for bookmarks…" Command="{Binding DetectBookmarksCommand}"
-                          ToolTip="Scans the video for silence, black frames or scene cuts and proposes bookmarks you can review before accepting">
+                <MenuItem Command="{Binding DetectBookmarksCommand}">
+                    <MenuItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Scan for bookmarks…" VerticalAlignment="Center"/>
+                            <ContentControl Style="{StaticResource Qmhp}">
+                                <ContentControl.ToolTip>
+                                    <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                               Text="Attempts automatic bookmark creation. May not succeed."/>
+                                </ContentControl.ToolTip>
+                            </ContentControl>
+                        </StackPanel>
+                    </MenuItem.Header>
                     <MenuItem.Icon>
                         <TextBlock Text="🔍" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
@@ -1359,22 +1439,30 @@
                 <MenuItem Header="(no playlist folder set)" IsEnabled="False" x:Name="PlaylistEmptyPlaceholder"/>
                 <Separator x:Name="PlaylistEndSeparator" Visibility="Collapsed"/>
                 <MenuItem Header="Directory" Style="{StaticResource MenuSectionHeader}"/>
-                <MenuItem Header="{Binding PlaylistFolderDisplay}" Command="{Binding SetPlaylistFolderCommand}"
-                          ToolTip="Folder scanned for playlists (.pls, .m3u8)">
+                <MenuItem  Command="{Binding SetPlaylistFolderCommand}">
+                    <MenuItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding PlaylistFolderDisplay}" VerticalAlignment="Center"/>
+                            <ContentControl Style="{StaticResource Qmhp}">
+                                <ContentControl.ToolTip>
+                                    <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                               Text="Folder scanned for playlists (.pls, .m3u8)."/>
+                                </ContentControl.ToolTip>
+                            </ContentControl>
+                        </StackPanel>
+                    </MenuItem.Header>
                     <MenuItem.Icon>
                         <TextBlock Text="📁" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Manage" Style="{StaticResource MenuSectionHeader}"/>
-                <MenuItem Header="Load playlist…" Click="LoadPlaylist_Click"
-                          ToolTip="Load a .pls playlist — subsequent Add-to-playlist actions route to it directly">
+                <MenuItem Header="Load playlist…" Click="LoadPlaylist_Click">
                     <MenuItem.Icon>
                         <TextBlock Text="📂" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Unload playlist" Click="ClearLoadedPlaylist_Click"
-                          IsEnabled="{Binding HasLoadedPlaylist}"
-                          ToolTip="Forget the currently-loaded playlist — Add-to-playlist will prompt again">
+                          IsEnabled="{Binding HasLoadedPlaylist}">
                     <MenuItem.Icon>
                         <TextBlock Text="✕" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
@@ -1392,15 +1480,25 @@
                     </MenuItem.Icon>
                 </MenuItem>
                 <Separator/>
-                <MenuItem Header="Refresh playlists" Click="RefreshPlaylists_Click"
-                          IsEnabled="{Binding HasPlaylistFiles}"
-                          ToolTip="Re-read the playlist folder and rebuild this menu">
+                <MenuItem Click="RefreshPlaylists_Click"
+                          IsEnabled="{Binding HasPlaylistFiles}">
+                    <MenuItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Refresh playlists" VerticalAlignment="Center"/>
+                            <ContentControl Style="{StaticResource Qmhp}">
+                                <ContentControl.ToolTip>
+                                    <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                               Text="Reads the playlist folder again."/>
+                                </ContentControl.ToolTip>
+                            </ContentControl>
+                        </StackPanel>
+                    </MenuItem.Header>
                     <MenuItem.Icon>
                         <TextBlock Text="⟳" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
             </MenuItem>
-            <MenuItem Header="&#128336; History" x:Name="RecentMenuItem" ToolTip="Recently played videos">
+            <MenuItem Header="&#128336; History" x:Name="RecentMenuItem">
                 <!-- "(empty)", not "(no recent videos)": the menu it stands
                      in is called History. -->
                 <MenuItem Header="(empty)" IsEnabled="False" x:Name="RecentEmptyPlaceholder"/>
@@ -1460,14 +1558,12 @@
                      discoverable by accident; undoing it is not, so it needs a
                      line somewhere that can be found on purpose. -->
                 <MenuItem Header="Toolbar" Style="{StaticResource MenuSectionHeader}"/>
-                <MenuItem Header="Customize toolbar…" Command="{Binding CustomizeToolbarCommand}"
-                          ToolTip="Choose which buttons are on the toolbar and how they are arranged. Right-clicking the toolbar opens this too.">
+                <MenuItem Header="Customize toolbar…" Command="{Binding CustomizeToolbarCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="🔧" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Change button colors…" Command="{Binding ChangeButtonColorsCommand}"
-                          ToolTip="What each kind of operation is painted: video, audio, images, and the rest">
+                <MenuItem Header="Change button colors…" Command="{Binding ChangeButtonColorsCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="🎨" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
@@ -1480,14 +1576,12 @@
                      This is also the only way back once the bar is hidden,
                      since there is then nothing left to right-click. -->
                 <MenuItem Header="Hide toolbar" IsCheckable="True"
-                          IsChecked="{Binding HideToolbar, Mode=TwoWay}"
-                          ToolTip="Put the toolbar away without losing how it is set up. The buttons, their order and their colours are all remembered; bring it back from Options ▸ Hide toolbar.">
+                          IsChecked="{Binding HideToolbar, Mode=TwoWay}">
                     <MenuItem.Icon>
                         <Path Style="{StaticResource HideEyeGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Reset toolbar" Command="{Binding ResetToolbarOrderCommand}"
-                          ToolTip="Put the buttons across the top back in the order the program ships with. Drag a button onto another to rearrange them.">
+                <MenuItem Header="Reset toolbar" Command="{Binding ResetToolbarOrderCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="↺" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
@@ -1507,27 +1601,23 @@
                      Options — and the only way back once the bar is hidden,
                      since there is then nothing left to right-click. -->
                 <MenuItem Header="Seekbar" Style="{StaticResource MenuSectionHeader}"/>
-                <MenuItem Header="Customize seekbar…" Command="{Binding CustomizeSeekbarCommand}"
-                          ToolTip="How a bookmark's start and end are marked on the seekbar, its transparency, and whether the filled bar draws at all. Right-clicking the seekbar opens this too.">
+                <MenuItem Header="Customize seekbar…" Command="{Binding CustomizeSeekbarCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="🔧" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Change seekbar colors…" Command="{Binding ChangeSeekbarColorsCommand}"
-                          ToolTip="What the seekbar's position bar, border, background, brackets and waveform are painted">
+                <MenuItem Header="Change seekbar colors…" Command="{Binding ChangeSeekbarColorsCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="🎨" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Hide seekbar" IsCheckable="True"
-                          IsChecked="{Binding HideSeekbar, Mode=TwoWay}"
-                          ToolTip="Put the seekbar away without losing how it is set up. Everything under Customize seekbar is remembered; bring it back from Options ▸ Hide seekbar.">
+                          IsChecked="{Binding HideSeekbar, Mode=TwoWay}">
                     <MenuItem.Icon>
                         <Path Style="{StaticResource HideEyeGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Reset seekbar" Command="{Binding ResetSeekbarCommand}"
-                          ToolTip="Put the seekbar's colors, transparency and bracket style back the way the program ships with.">
+                <MenuItem Header="Reset seekbar" Command="{Binding ResetSeekbarCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="↺" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
@@ -1617,14 +1707,12 @@
                         <TextBlock Text="ℹ" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Check for updates" Command="{Binding CheckForUpdatesCommand}"
-                          ToolTip="Ask GitHub whether a newer release has been published. Works whether or not the startup check is turned on.">
+                <MenuItem Header="Check for updates" Command="{Binding CheckForUpdatesCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="⟳" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Licenses" Command="{Binding ShowAboutCommand}"
-                          ToolTip="License terms for this app and the components it uses">
+                <MenuItem Header="Licenses" Command="{Binding ShowAboutCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="📄" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
@@ -1636,8 +1724,7 @@
                         <TextBlock Text="🔗" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Report an issue" Command="{Binding OpenIssuesCommand}"
-                          ToolTip="Open the issue tracker in your browser">
+                <MenuItem Header="Report an issue" Command="{Binding OpenIssuesCommand}">
                     <MenuItem.Icon>
                         <TextBlock Text="🐞" Style="{StaticResource MenuGlyph}"/>
                     </MenuItem.Icon>
@@ -1969,8 +2056,7 @@
                 <TextBlock Grid.Column="0" Text="{Binding CurrentTimeDisplay}" VerticalAlignment="Bottom"
                            HorizontalAlignment="Right" TextAlignment="Right"
                            FontFamily="Consolas" FontSize="13" FontWeight="SemiBold" Margin="0,0,10,0"
-                           Foreground="{DynamicResource AccentBright}"
-                           ToolTip="Where the player is now"/>
+                           Foreground="{DynamicResource AccentBright}"/>
 
                 <!-- One rectangular bar holding everything. The marks used to be
                      a separate strip floating above the track, which read as two
@@ -2023,8 +2109,7 @@
                                 </MenuItem.Icon>
                             </MenuItem>
                             <Separator/>
-                            <MenuItem Header="Scan for bookmarks…" Command="{Binding ScanEditPointsCommand}"
-                                      ToolTip="Look for where the video actually changes — silence, black frames or scene cuts — and mark each with a tick on the bar. Nothing is added to the cut list.">
+                            <MenuItem Header="Scan for bookmarks…" Command="{Binding ScanEditPointsCommand}">
                                 <MenuItem.Icon>
                                     <TextBlock Text="🔍" Style="{StaticResource MenuGlyph}"/>
                                 </MenuItem.Icon>
@@ -2167,8 +2252,7 @@
                                                 DurationSeconds="{Binding Session.VideoDurationSeconds}"
                                                 BracketStyle="{Binding SeekbarBracketStyle}"
                                                 MarkBrush="{DynamicResource SeekbarMark}"
-                                                SnapPoints="{Binding SnapPoints}"
-                                                ToolTip="Where the bookmarks fall — a bracket at each end of every range, with the bookmark's number between them and a tick when it is checked. A bookmark still waiting for its closing timestamp shows an opening bracket on its own. Drag a bracket to resize the cut."/>
+                                                SnapPoints="{Binding SnapPoints}"/>
                     </Grid>
                 </Border>
 
@@ -2209,8 +2293,7 @@
                 <TextBlock Grid.Column="2" Text="{Binding DurationDisplay}" VerticalAlignment="Bottom"
                            HorizontalAlignment="Left" TextAlignment="Left"
                            FontFamily="Consolas" FontSize="13" FontWeight="SemiBold" Margin="10,0,0,0"
-                           Foreground="{DynamicResource AccentBright}"
-                           ToolTip="How long the video runs"/>
+                           Foreground="{DynamicResource AccentBright}"/>
             </Grid>
 
             <Grid Grid.Row="2">
@@ -2313,8 +2396,7 @@
                                                             Command="{Binding DataContext.SplitSingleCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                             CommandParameter="{Binding}"/>
                                                     <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                              VerticalAlignment="Center"
-                                                              ToolTip="Check this bookmark for the actions that work on a selection"/>
+                                                              VerticalAlignment="Center"/>
                                                     <TextBlock Text="{Binding Index}" Style="{StaticResource RowIndexNumber}"
                                                                Margin="4,0,1,0"/>
                                                 </StackPanel>
@@ -2428,8 +2510,7 @@
                                                     Command="{Binding DataContext.SplitSingleCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                     CommandParameter="{Binding}"/>
                                             <CheckBox DockPanel.Dock="Left" IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                      VerticalAlignment="Center"
-                                                      ToolTip="Check this bookmark for the actions that work on a selection"/>
+                                                      VerticalAlignment="Center"/>
                                             <TextBlock DockPanel.Dock="Left" Text="{Binding Index}"
                                                        Style="{StaticResource RowIndexNumber}"
                                                        FontSize="10" Margin="4,0,1,0"/>
@@ -2514,8 +2595,7 @@
                                                 Command="{Binding DataContext.SplitSingleCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                 CommandParameter="{Binding}"/>
                                         <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                  VerticalAlignment="Center"
-                                                  ToolTip="Check this bookmark for the actions that work on a selection"/>
+                                                  VerticalAlignment="Center"/>
                                     </StackPanel>
 
                                     <Border Grid.Column="1" Width="112" Height="63" Margin="0,0,10,0"
@@ -2583,8 +2663,7 @@
                                                    Width="14" Height="14" Margin="6,0,0,0"
                                                    VerticalAlignment="Center"
                                                    RenderOptions.BitmapScalingMode="HighQuality"
-                                                   Visibility="{Binding IsCurrentStep, Converter={StaticResource BoolToVis}}"
-                                                   ToolTip="Working on this bookmark now">
+                                                   Visibility="{Binding IsCurrentStep, Converter={StaticResource BoolToVis}}">
                                                 <Image.RenderTransform>
                                                     <TranslateTransform Y="2"/>
                                                 </Image.RenderTransform>
@@ -2604,8 +2683,7 @@
 
                                     <TextBlock Grid.Column="3" Text="{Binding SpeedShortDisplay}"
                                                VerticalAlignment="Center" Margin="10,0,2,0"
-                                               Foreground="{DynamicResource LinkBlue}"
-                                               ToolTip="{Binding SpeedDisplay, StringFormat=Plays at {0} when saved}"/>
+                                               Foreground="{DynamicResource LinkBlue}"/>
                                 </Grid>
                             </Border>
                         </DataTemplate>
@@ -2633,8 +2711,7 @@
                                                 Command="{Binding DataContext.SplitSingleCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                 CommandParameter="{Binding}"/>
                                         <CheckBox DockPanel.Dock="Left" IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                  VerticalAlignment="Center"
-                                                  ToolTip="Check this bookmark for the actions that work on a selection"/>
+                                                  VerticalAlignment="Center"/>
                                         <TextBlock DockPanel.Dock="Left" Text="{Binding Index}"
                                                    Style="{StaticResource RowIndexNumber}"
                                                    Margin="4,0,0,0"/>
@@ -2789,8 +2866,7 @@
                                  being outside the list entirely, does not. -->
                             <CheckBox Grid.Column="1" IsThreeState="False"
                                       IsChecked="{Binding AllBookmarksSelected, Mode=TwoWay}"
-                                      VerticalAlignment="Center" Margin="2,0,0,0"
-                                      ToolTip="Check every bookmark, or clear them all"/>
+                                      VerticalAlignment="Center" Margin="2,0,0,0"/>
                         </Grid>
 
                         <!-- Both views live here, one of them collapsed. A Grid
@@ -2868,7 +2944,6 @@
                                              need a real range filter for one themselves; see
                                              Bookmark.IsSelected. -->
                                         <CheckBox Grid.Column="1" IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                  ToolTip="Check this bookmark for the actions that work on a selection"
                                                   VerticalAlignment="Center"/>
                                         <TextBlock Grid.Column="2" Text="{Binding Index, StringFormat=[{0}]}" Style="{StaticResource RowIndexNumber}"/>
 
@@ -2898,8 +2973,7 @@
                                                          Foreground="{DynamicResource TextPrimary}"
                                                          BorderBrush="{DynamicResource BorderBrush}"
                                                          VerticalAlignment="Center"
-                                                         VerticalContentAlignment="Center"
-                                                         ToolTip="This bookmark's name. Used as the chapter title when exporting chapters. Rename it to anything; renaming one does not disturb the others."/>
+                                                         VerticalContentAlignment="Center"/>
                                             </StackPanel>
 
                                             <!-- [1] < 4s > - < 12s > (8s), one space between each
@@ -2909,8 +2983,7 @@
                                                  was previously the only way to make it. -->
                                             <TextBlock Style="{StaticResource RowGap}"/>
                                             <Button Content="&lt;" Style="{StaticResource NudgeStartBack}"
-                                                    Click="NudgeArrow_Click" Tag="start-"
-                                                    ToolTip="Move the start one second earlier"/>
+                                                    Click="NudgeArrow_Click" Tag="start-"/>
                                             <TextBlock Style="{StaticResource RowGap}"/>
                                             <!-- Centered like everything else in the row. Without
                                                  this a TextBlock stretches to the row's full
@@ -2929,8 +3002,7 @@
                                             </TextBlock>
                                             <TextBlock Style="{StaticResource RowGap}"/>
                                             <Button Content="&gt;" Style="{StaticResource NudgeStartForward}"
-                                                    Click="NudgeArrow_Click" Tag="start+"
-                                                    ToolTip="Move the start one second later"/>
+                                                    Click="NudgeArrow_Click" Tag="start+"/>
 
                                             <!-- Everything past the opening timestamp belongs to a
                                                  range, and an open bookmark has not got one. It
@@ -2946,8 +3018,7 @@
                                                 <TextBlock Style="{StaticResource RowGap}"/>
 
                                                 <Button Content="&lt;" Style="{StaticResource NudgeEndBack}"
-                                                        Click="NudgeArrow_Click" Tag="end-"
-                                                        ToolTip="Move the end one second earlier"/>
+                                                        Click="NudgeArrow_Click" Tag="end-"/>
                                                 <TextBlock Style="{StaticResource RowGap}"/>
                                                 <TextBlock VerticalAlignment="Center"
                                                            ToolTip="Click to seek MPC-HC to this time">
@@ -2959,12 +3030,10 @@
                                                 </TextBlock>
                                                 <TextBlock Style="{StaticResource RowGap}"/>
                                                 <Button Content="&gt;" Style="{StaticResource NudgeEndForward}"
-                                                        Click="NudgeArrow_Click" Tag="end+"
-                                                        ToolTip="Move the end one second later"/>
+                                                        Click="NudgeArrow_Click" Tag="end+"/>
 
                                                 <TextBlock Style="{StaticResource RowGap}"/>
-                                                <TextBlock Text="{Binding EffectiveDurationDisplay, StringFormat=({0})}" Foreground="{DynamicResource ValueGreen}" VerticalAlignment="Center"
-                                                           ToolTip="How long the saved clip will run — the marked range at this clip's speed"/>
+                                                <TextBlock Text="{Binding EffectiveDurationDisplay, StringFormat=({0})}" Foreground="{DynamicResource ValueGreen}" VerticalAlignment="Center"/>
 
                                                 <!-- Which clip the running operation is on,
                                                      moving down the list as it works. Here,
@@ -2986,8 +3055,7 @@
                                                        Width="14" Height="14" Margin="6,0,0,0"
                                                        VerticalAlignment="Center"
                                                        RenderOptions.BitmapScalingMode="HighQuality"
-                                                       Visibility="{Binding IsCurrentStep, Converter={StaticResource BoolToVis}}"
-                                                       ToolTip="Working on this bookmark now">
+                                                       Visibility="{Binding IsCurrentStep, Converter={StaticResource BoolToVis}}">
                                                     <!-- Two pixels down. Centered on the row
                                                          it read high against the text beside
                                                          it — the glyph's weight is above its
@@ -3046,8 +3114,7 @@
 
                                         <Slider Grid.Column="5" Minimum="0.25" Maximum="2.0" TickFrequency="0.25"
                                                 IsSnapToTickEnabled="True" Value="{Binding Speed, Mode=TwoWay}"
-                                                VerticalAlignment="Center" Width="80"
-                                                ToolTip="{Binding SpeedDisplay, StringFormat=Plays at {0} when saved — drag to change}"/>
+                                                VerticalAlignment="Center" Width="80"/>
 
                                         <!-- The short reading — "normal", "1.5x" — rather
                                              than the spelled-out one, which needs a column
@@ -3056,8 +3123,7 @@
                                         <TextBlock Grid.Column="6" Text="{Binding SpeedShortDisplay}"
                                                    Foreground="{DynamicResource LinkBlue}"
                                                    VerticalAlignment="Center" HorizontalAlignment="Right"
-                                                   Margin="6,0,0,0"
-                                                   ToolTip="{Binding DurationDisplay, StringFormat=Marked range is {0} of the source}"/>
+                                                   Margin="6,0,0,0"/>
                                     </Grid>
                                 </DataTemplate>
                             </ListView.ItemTemplate>
