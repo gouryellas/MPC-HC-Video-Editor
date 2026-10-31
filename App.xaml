@@ -8,9 +8,18 @@
              one is wanted on demand rather than on the way past.
 
              A ContentControl whose template is the whole mark, so a use is
-             three lines and the ring is described once. The tooltip goes on
-             the control; Background="Transparent" is what makes the ring a
-             hit-test target rather than only its stroke.
+             three lines and the disc is described once.
+
+             Filled in the accent, with the glyph in whatever that theme puts
+             on top of it. It was a ring in TextMuted — the same grey the
+             MenuItem style greys disabled items with — so a mark on a
+             perfectly live item read as switched off. The accent is the one
+             colour in every palette chosen to stand out, and OnAccent is the
+             one chosen to be legible against it, so the pair works in every
+             theme without a second decision.
+
+             Brightening on hover rather than changing shape: the mark is
+             small enough that a size change would shift the words beside it.
 
              Menu items in this program wait three seconds before showing a
              tooltip, so that reading down a menu does not pop panels over the
@@ -24,14 +33,30 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ContentControl">
-                        <Border Width="14" Height="14" CornerRadius="7"
-                                Background="Transparent"
-                                BorderBrush="{DynamicResource TextMuted}"
-                                BorderThickness="1">
+                        <Border x:Name="Disc" Width="14" Height="14" CornerRadius="7"
+                                Background="{DynamicResource Accent}">
                             <TextBlock Text="?" FontSize="10" FontWeight="SemiBold"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       Foreground="{DynamicResource TextMuted}"/>
+                                       Foreground="{DynamicResource OnAccent}"/>
                         </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Disc" Property="Background"
+                                        Value="{DynamicResource AccentBright}"/>
+                            </Trigger>
+
+                            <!-- A disabled item's mark goes grey with it.
+                                 IsEnabled is coerced down the tree, so a mark
+                                 inside a disabled MenuItem is itself disabled
+                                 without being told — and an accent disc left
+                                 bright on a greyed-out line would be the one
+                                 thing on it still claiming to be live. -->
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Disc" Property="Background"
+                                        Value="{DynamicResource TextMuted}"/>
+                                <Setter TargetName="Disc" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>

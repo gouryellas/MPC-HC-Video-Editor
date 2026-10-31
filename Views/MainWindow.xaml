@@ -1234,28 +1234,16 @@
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="Prevent duplicate MPC-HC keybind"
                                        VerticalAlignment="Center"/>
-                            <!-- A ring rather than a bare "?", which at this
-                                 size reads as punctuation belonging to the
-                                 line it follows. -->
-                            <Border Margin="8,0,0,0" Width="14" Height="14"
-                                    CornerRadius="7" VerticalAlignment="Center"
-                                    Background="Transparent"
-                                    BorderBrush="{DynamicResource TextMuted}"
-                                    BorderThickness="1">
-                                <!-- A wrapping block rather than a bare
-                                     string. A string tooltip is laid out on
-                                     one line however long it is, and this one
-                                     is three sentences — it would cross the
-                                     screen. -->
-                                <Border.ToolTip>
-                                    <TextBlock MaxWidth="320" TextWrapping="Wrap"
+                            <!-- A wrapping block rather than a bare string:
+                                 a string tooltip is laid out on one line
+                                 however long it is, and this one is three
+                                 sentences. -->
+                            <ContentControl Style="{StaticResource Qmhp}">
+                                <ContentControl.ToolTip>
+                                    <TextBlock MaxWidth="330" TextWrapping="Wrap"
                                                Text="If the same keybind exists for an action in MPC-HC, then checking this will cause that keybind to be ignored so that only the bookmark keybind is sent."/>
-                                </Border.ToolTip>
-                                <TextBlock Text="?" FontSize="10" FontWeight="SemiBold"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"
-                                           Foreground="{DynamicResource TextMuted}"/>
-                            </Border>
+                                </ContentControl.ToolTip>
+                            </ContentControl>
                         </StackPanel>
                     </MenuItem.Header>
                 </MenuItem>
@@ -2124,19 +2112,12 @@
                                 <MenuItem.Header>
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="Snap to scanned points" VerticalAlignment="Center"/>
-                                        <Border Margin="8,0,0,0" Width="14" Height="14"
-                                                CornerRadius="7" VerticalAlignment="Center"
-                                                Background="Transparent"
-                                                BorderBrush="{DynamicResource TextMuted}"
-                                                BorderThickness="1">
-                                            <Border.ToolTip>
+                                        <ContentControl Style="{StaticResource Qmhp}">
+                                            <ContentControl.ToolTip>
                                                 <TextBlock MaxWidth="330" TextWrapping="Wrap"
                                                            Text="Every place the last scan found the video changing is marked along the foot of the bar. With this on, a bracket dragged near one of those marks lands exactly on it — hold Alt while dragging to ignore them. It lasts as long as the marks do: opening another video clears both."/>
-                                            </Border.ToolTip>
-                                            <TextBlock Text="?" FontSize="10" FontWeight="SemiBold"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                       Foreground="{DynamicResource TextMuted}"/>
-                                        </Border>
+                                            </ContentControl.ToolTip>
+                                        </ContentControl>
                                     </StackPanel>
                                 </MenuItem.Header>
                             </MenuItem>
