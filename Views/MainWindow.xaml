@@ -1192,10 +1192,47 @@
                 <!-- Only while the player is the window in front. The hook
                      this works through sees every keystroke on the machine,
                      so a key swallowed everywhere would be a cure worse than
-                     the collision. -->
-                <MenuItem Header="Keep it from MPC-HC" IsCheckable="True"
-                          IsChecked="{Binding BlockHotkeyInPlayer, Mode=TwoWay}"
-                          ToolTip="Stop the key reaching MPC-HC as well, so a key that is also a player command only marks a bookmark. Applies while MPC-HC is the window in front; everywhere else the key behaves normally."/>
+                     the collision.
+
+                     The explanation hangs off a question mark rather than the
+                     item, so it appears on being asked for rather than on the
+                     way past. Menu items here wait three seconds before
+                     showing a tooltip — long enough that reading down a menu
+                     does not pop panels over the entries below — and a mark
+                     whose whole purpose is to be hovered should answer at
+                     once. The tooltip is on the mark, which is not a
+                     MenuItem, so it keeps the ordinary delay. -->
+                <MenuItem IsCheckable="True"
+                          IsChecked="{Binding BlockHotkeyInPlayer, Mode=TwoWay}">
+                    <MenuItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Prevent duplicate MPC-HC keybind"
+                                       VerticalAlignment="Center"/>
+                            <!-- A ring rather than a bare "?", which at this
+                                 size reads as punctuation belonging to the
+                                 line it follows. -->
+                            <Border Margin="8,0,0,0" Width="14" Height="14"
+                                    CornerRadius="7" VerticalAlignment="Center"
+                                    Background="Transparent"
+                                    BorderBrush="{DynamicResource TextMuted}"
+                                    BorderThickness="1">
+                                <!-- A wrapping block rather than a bare
+                                     string. A string tooltip is laid out on
+                                     one line however long it is, and this one
+                                     is three sentences — it would cross the
+                                     screen. -->
+                                <Border.ToolTip>
+                                    <TextBlock MaxWidth="320" TextWrapping="Wrap"
+                                               Text="If the same keybind exists for an action in MPC-HC, then checking this will cause that keybind to be ignored so that only the bookmark keybind is sent."/>
+                                </Border.ToolTip>
+                                <TextBlock Text="?" FontSize="10" FontWeight="SemiBold"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextMuted}"/>
+                            </Border>
+                        </StackPanel>
+                    </MenuItem.Header>
+                </MenuItem>
             </MenuItem>
             <MenuItem Header="&#128278; Bookmarks">
                 <!-- Header carries the live hotkey binding, e.g.
