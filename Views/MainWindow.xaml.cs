@@ -952,18 +952,21 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// The picture beside a menu entry built in code.
+    /// The icon beside a menu entry built in code, by file stem.
     /// </summary>
     /// <remarks>
-    /// The same MenuGlyph style the entries written in the XAML use, so the
-    /// generated ones are not the only items in a menu with an empty icon
-    /// column — which is what made the dynamic lists look like a different
-    /// program. A fresh TextBlock per call: a visual belongs to one parent, and
-    /// one instance shared between menu items would appear in whichever was
-    /// built last.
+    /// A fresh Image per call, for the reason MenuGlyph makes a fresh
+    /// TextBlock: a visual belongs to one parent, so one instance shared
+    /// between entries would appear in whichever was built last.
+    ///
+    /// The bitmap itself is not decoded again each time — WPF caches by URI —
+    /// so the cost of a call is the element, not the picture.
     /// </remarks>
-    private TextBlock MenuGlyph(string glyph) =>
-        new() { Text = glyph, Style = (Style)FindResource("MenuGlyph") };
+    private Image MenuIcon(string name) => new()
+    {
+        Source = new BitmapImage(new Uri($"pack://application:,,,/Assets/icons/icon-{name}.png")),
+        Style = (Style)FindResource("MenuIcon")
+    };
 
     /// <summary>
     /// Builds a quick save shortcut entry for the File menu. Header is the
@@ -980,15 +983,15 @@ public partial class MainWindow : Window
             // and all. It is an icon, so it is in the icon slot now, where it
             // lines up with every other entry in the menu.
             Header = header,
-            Icon = MenuGlyph("📁"),
+            Icon = MenuIcon("menu-folder"),
             ToolTip = entry.Path,
             Tag = entry
         };
 
-        var set = new MenuItem { Header = "Set", Icon = MenuGlyph("⚡"), ToolTip = $"Quick save to {entry.Path}" };
+        var set = new MenuItem { Header = "Set", Icon = MenuIcon("menu-set"), ToolTip = $"Quick save to {entry.Path}" };
         set.Click += (_, _) => _vm?.SetQuickSaveShortcutCommand.Execute(entry);
 
-        var remove = new MenuItem { Header = "Remove", Icon = MenuGlyph("🗑") };
+        var remove = new MenuItem { Header = "Remove", Icon = MenuIcon("menu-x") };
         remove.Click += (_, _) => _vm?.RemoveQuickSaveShortcutCommand.Execute(entry);
 
         parent.Items.Add(set);
@@ -1008,26 +1011,26 @@ public partial class MainWindow : Window
         var parent = new MenuItem
         {
             Header = header,
-            Icon = MenuGlyph("📁"),
+            Icon = MenuIcon("menu-folder"),
             ToolTip = entry.Path,
             Tag = entry
         };
 
-        var open = new MenuItem { Header = "Open", Icon = MenuGlyph("📂"), Tag = entry };
+        var open = new MenuItem { Header = "Open", Icon = MenuIcon("menu-folder_open"), Tag = entry };
         open.Click += (_, e) =>
         {
             e.Handled = true;
             _vm?.OpenShortcutCommand.Execute(entry);
         };
 
-        var rename = new MenuItem { Header = "Rename…", Icon = MenuGlyph("✎"), Tag = entry };
+        var rename = new MenuItem { Header = "Rename…", Icon = MenuIcon("edit_bookmarks"), Tag = entry };
         rename.Click += (_, e) =>
         {
             e.Handled = true;
             _vm?.RenameShortcutCommand.Execute(entry);
         };
 
-        var remove = new MenuItem { Header = "Remove", Icon = MenuGlyph("🗑"), Tag = entry };
+        var remove = new MenuItem { Header = "Remove", Icon = MenuIcon("menu-x"), Tag = entry };
         remove.Click += (_, e) =>
         {
             e.Handled = true;
@@ -1132,7 +1135,7 @@ public partial class MainWindow : Window
         var parent = new MenuItem
         {
             Header = $"{position}.  {fileName}",
-            Icon = MenuGlyph("🎬"),
+            Icon = MenuIcon("menu-video_history"),
             ToolTip = path,
             Tag = path
         };
@@ -1146,14 +1149,14 @@ public partial class MainWindow : Window
         // handler opens the video. Remove took the entry off the list and then
         // opened the video it had just removed; Open ran the open twice. The
         // playlist entries carry the same note for the same reason.
-        var open = new MenuItem { Header = "Open", Icon = MenuGlyph("📂"), Tag = path };
+        var open = new MenuItem { Header = "Open", Icon = MenuIcon("menu-folder_open"), Tag = path };
         open.Click += (_, e) =>
         {
             e.Handled = true;
             _vm?.OpenRecentVideoCommand.Execute(path);
         };
 
-        var remove = new MenuItem { Header = "Remove from list", Icon = MenuGlyph("🗑"), Tag = path };
+        var remove = new MenuItem { Header = "Remove from list", Icon = MenuIcon("menu-x"), Tag = path };
         remove.Click += (_, e) =>
         {
             e.Handled = true;
@@ -1324,7 +1327,7 @@ public partial class MainWindow : Window
         var noneItem = new MenuItem
         {
             Header = "[no tag]",
-            Icon = MenuGlyph(noneActive ? "✓" : "🏷"),
+            Icon = MenuIcon(noneActive ? "check_mark" : "menu-naming_tag"),
             ToolTip = "Write output under the source's own name, with no tag added. " +
                       "Saved beside the source that means the same filename, so you will be " +
                       "asked whether to replace it.",
@@ -1360,7 +1363,7 @@ public partial class MainWindow : Window
             var item = new MenuItem
             {
                 Header = $"[{entry.Text.Replace("_", "__")}]",
-                Icon = MenuGlyph(isActive ? "✓" : "🏷"),
+                Icon = MenuIcon(isActive ? "check_mark" : "menu-naming_tag"),
                 ToolTip = $"Click to set [{entry.Text}] as the active tag",
                 Tag = entry,
                 FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Normal
@@ -1492,7 +1495,7 @@ public partial class MainWindow : Window
             // swallows a single underscore as an access-key marker — without
             // doubling them, "my_videos.pls" shows up as "myvideos.pls".
             Header = $"{plsName.Replace("_", "__")} ({entryCount})",
-            Icon = MenuGlyph(isLoaded ? "✔" : "📋"),
+            Icon = MenuIcon(isLoaded ? "check_mark" : "menu-playlists"),
             ToolTip = isLoaded ? plsPath + "  — loaded" : plsPath,
             Tag = plsPath
         };
@@ -1500,7 +1503,7 @@ public partial class MainWindow : Window
         // Action items first — at the top of the submenu so they're always
         // reachable without scrolling past a long list of video entries.
         // View playlist content (shell-execute the .pls in default handler)
-        var openFile = new MenuItem { Header = "View playlist content", Icon = MenuGlyph("👁"), Tag = plsPath };
+        var openFile = new MenuItem { Header = "View playlist content", Icon = MenuIcon("edit_bookmarks"), Tag = plsPath };
         openFile.Click += (_, e) =>
         {
             e.Handled = true;
@@ -1512,7 +1515,7 @@ public partial class MainWindow : Window
         // video to playlist" without prompting. Distinct from "Open
         // playlist file" which just shell-executes the .pls in the user's
         // default player without remembering it.
-        var loadThis = new MenuItem { Header = "Load this playlist", Icon = MenuGlyph("📂"), Tag = plsPath };
+        var loadThis = new MenuItem { Header = "Load this playlist", Icon = MenuIcon("menu-folder_open"), Tag = plsPath };
         loadThis.Click += (_, e) =>
         {
             e.Handled = true;
@@ -1534,7 +1537,7 @@ public partial class MainWindow : Window
         // Bound rather than assigned, because these items are built when the
         // playlist list changes and a video can be loaded long afterwards —
         // a value set once here would be stale by the time it mattered.
-        var addCurrent = new MenuItem { Header = "Add current video", Icon = MenuGlyph("➕"), Tag = plsPath };
+        var addCurrent = new MenuItem { Header = "Add current video", Icon = MenuIcon("menu-plus"), Tag = plsPath };
         if (_vm is not null)
         {
             addCurrent.SetBinding(UIElement.IsEnabledProperty,
@@ -1562,7 +1565,7 @@ public partial class MainWindow : Window
         var relocate = new MenuItem
         {
             Header = "Find moved files…",
-            Icon = MenuGlyph("🔍"),
+            Icon = MenuIcon("detect_cuts"),
             Tag = plsPath,
             ToolTip = "Searches a folder you choose for the files of entries that are confirmed " +
                       "gone, and repoints the playlist at them instead of removing them."
@@ -1577,7 +1580,7 @@ public partial class MainWindow : Window
         var removeMissing = new MenuItem
         {
             Header = "Remove missing entries",
-            Icon = MenuGlyph("🧹"),
+            Icon = MenuIcon("menu-x"),
             Tag = plsPath,
             ToolTip = "Removes entries whose file is gone and whose drive is connected — " +
                       "immediately, without asking. Entries on a disconnected drive cannot " +
@@ -1591,7 +1594,7 @@ public partial class MainWindow : Window
         parent.Items.Add(removeMissing);
 
         // Delete playlist
-        var delete = new MenuItem { Header = "Delete playlist…", Icon = MenuGlyph("🗑"), Tag = plsPath };
+        var delete = new MenuItem { Header = "Delete playlist…", Icon = MenuIcon("menu-x"), Tag = plsPath };
         delete.Click += (_, e) =>
         {
             e.Handled = true;
@@ -1679,7 +1682,7 @@ public partial class MainWindow : Window
         var parent = new MenuItem
         {
             Header = $"{index}.  {fileName}{suffix}",
-            Icon = MenuGlyph("🎬"),
+            Icon = MenuIcon("menu-video_history"),
             ToolTip = entry.Status == PlaylistEntryStatus.Unknown
                 ? $"{videoPath}\n\n{DriveAvailability.RootOf(videoPath)} is not connected — " +
                   "whether this file still exists is unknown."
@@ -1707,7 +1710,7 @@ public partial class MainWindow : Window
         // Handled = true on every child click stops the bubbling.
         if (fileExists)
         {
-            var open = new MenuItem { Header = "Open", Icon = MenuGlyph("📂"), Tag = videoPath };
+            var open = new MenuItem { Header = "Open", Icon = MenuIcon("menu-folder_open"), Tag = videoPath };
             open.Click += (_, e) =>
             {
                 e.Handled = true;
@@ -1720,7 +1723,7 @@ public partial class MainWindow : Window
         // entry that cannot currently be verified — that is the user's call to
         // make. What changed is that the bulk action no longer makes it for
         // them on the strength of a disconnected drive.
-        var remove = new MenuItem { Header = "Remove", Icon = MenuGlyph("🗑"), Tag = (plsPath, index) };
+        var remove = new MenuItem { Header = "Remove", Icon = MenuIcon("menu-x"), Tag = (plsPath, index) };
         remove.Click += (_, e) =>
         {
             e.Handled = true;

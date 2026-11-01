@@ -4,6 +4,19 @@
              StartupUri="Views/MainWindow.xaml"
              ShutdownMode="OnMainWindowClose">
     <Application.Resources>
+        <!-- The picture in a menu item's icon column.
+
+             Sized to the 16 the column is built for, and HighQuality because
+             the art is 50px being drawn at 16 — the default scaler leaves
+             that visibly crunchy. Here rather than in a window because the
+             dialogs draw menu icons too. -->
+        <Style x:Key="MenuIcon" TargetType="Image">
+            <Setter Property="Width" Value="16"/>
+            <Setter Property="Height" Value="16"/>
+            <Setter Property="Stretch" Value="Uniform"/>
+            <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality"/>
+        </Style>
+
         <!-- A question mark that carries an explanation, for the places where
              one is wanted on demand rather than on the way past.
 
