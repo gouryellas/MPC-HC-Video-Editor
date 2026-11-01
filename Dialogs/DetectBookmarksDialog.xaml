@@ -171,8 +171,7 @@
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="Snap brackets to the points found"
                                VerticalAlignment="Center"/>
-                    <ContentControl Style="{StaticResource Qmhp}"
-                                    Background="{DynamicResource WindowBackground}">
+                    <ContentControl Style="{StaticResource Qmhp}">
                         <ContentControl.ToolTip>
                             <TextBlock MaxWidth="330" TextWrapping="Wrap"
                                        Text="Every place this scan found the video changing is marked along the foot of the seekbar. With this on, a bracket dragged near one of those marks lands exactly on it — hold Alt while dragging to ignore them. It lasts as long as the marks do: opening another video clears both."/>

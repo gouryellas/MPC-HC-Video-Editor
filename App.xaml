@@ -52,21 +52,22 @@
              one is wanted on demand rather than on the way past.
 
              A ContentControl whose template is the whole mark, so a use is
-             three lines and the disc is described once.
+             three lines and the mark is described once.
 
-             A 10px disc in TextSecondary — the same ink as the words beside
-             it, one shade down — with the "?" cut out of it so the surface
-             shows through. No colour of its own at all, which is the point:
-             an accent-filled disc was a fleck of the theme's orange, cyan or
-             indigo sitting in the middle of a line of text, and at 14px it
-             was the loudest thing in the menu.
+             Just the glyph. It has been a ringed mark, an accent-filled disc
+             and a disc with the mark cut out of it; each time the disc was
+             the thing that drew the eye, and the disc is the part that means
+             nothing. A bare "?" beside a label reads as punctuation belonging
+             to it, which is what it is.
 
-             Because the mark is a hole rather than a glyph, the surface it
-             is cut out of has to be named. Foreground is the ink of the disc,
-             Background is what shows through it. The default pair suits a
-             menu item; the dialogs set Background to whatever they are
-             actually drawn on, since in a dark theme the menus are light
-             while the panels behind them are not.
+             No colour and no weight of its own. Foreground is left unset so
+             it inherits from whatever it sits in, which does the right thing
+             twice over: a live menu item hands down MenuBarForeground, so the
+             mark is as dark as the words beside it, and the MenuItem style
+             drops its Foreground to TextSecondary when the item goes dead, so
+             the mark greys with the line without being told. The dialogs hand
+             down their own text colour the same way — which matters, because
+             in a dark theme the menus are pale and the panels are not.
 
              No hover state. The mark does not do anything when clicked — it
              is there to be pointed at, and the tooltip appearing is the
@@ -85,46 +86,15 @@
              default, and IsEnabled is coerced down the tree, so without this
              the mark went quiet at the only moment it was worth hovering. -->
         <Style x:Key="Qmhp" TargetType="ContentControl">
-            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="Margin" Value="6,0,0,0"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="Focusable" Value="False"/>
             <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
-            <Setter Property="Background" Value="{DynamicResource MenuBarBackground}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ContentControl">
-                        <Border x:Name="Disc" Width="10" Height="10" CornerRadius="5"
-                                Background="{TemplateBinding Foreground}">
-                            <TextBlock Text="?" FontSize="8" FontWeight="SemiBold"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       Foreground="{TemplateBinding Background}"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <!-- A disabled item's mark fades with it. IsEnabled
-                                 is coerced down the tree, so a mark inside a
-                                 disabled MenuItem is itself disabled without
-                                 being told — and a disc left at full strength
-                                 on a greyed-out line would be the one thing on
-                                 it still claiming to be live.
-
-                                 The same colour at reduced strength, rather
-                                 than a swap to TextMuted. TextMuted is tuned
-                                 to sit on a theme's panels, and the menus run
-                                 the other way — pale in the dark themes — so
-                                 against a menu bar it carries *more* contrast
-                                 than TextSecondary, not less (3.4 against 2.3
-                                 in Graphite). Swapping to it made a dead mark
-                                 bolder than a live one, and only the opacity
-                                 that came with it hid that.
-
-                                 Not fainter than this: the tooltip now answers
-                                 while disabled, so the mark has to stay worth
-                                 aiming at. -->
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Disc" Property="Opacity" Value="0.55"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
+                        <TextBlock Text="?" FontWeight="SemiBold"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
