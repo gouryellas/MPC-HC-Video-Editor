@@ -76,11 +76,19 @@
              tooltip, so that reading down a menu does not pop panels over the
              entries below. That delay does not inherit, so a mark inside a
              header answers at the ordinary speed — which is the point of
-             putting it there. -->
+             putting it there.
+
+             ShowOnDisabled, because twelve of the fourteen marks in the menus
+             sit on items that go grey when there is nothing to act on — and a
+             greyed-out item is exactly when someone wants to know what it
+             would have done. WPF suppresses tooltips on disabled elements by
+             default, and IsEnabled is coerced down the tree, so without this
+             the mark went quiet at the only moment it was worth hovering. -->
         <Style x:Key="Qmhp" TargetType="ContentControl">
             <Setter Property="Margin" Value="8,0,0,0"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="Focusable" Value="False"/>
+            <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
             <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
             <Setter Property="Background" Value="{DynamicResource MenuBarBackground}"/>
             <Setter Property="Template">
@@ -93,16 +101,28 @@
                                        Foreground="{TemplateBinding Background}"/>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <!-- A disabled item's mark goes grey with it.
-                                 IsEnabled is coerced down the tree, so a mark
-                                 inside a disabled MenuItem is itself disabled
-                                 without being told — and a disc left at full
-                                 strength on a greyed-out line would be the
-                                 one thing on it still claiming to be live. -->
+                            <!-- A disabled item's mark fades with it. IsEnabled
+                                 is coerced down the tree, so a mark inside a
+                                 disabled MenuItem is itself disabled without
+                                 being told — and a disc left at full strength
+                                 on a greyed-out line would be the one thing on
+                                 it still claiming to be live.
+
+                                 The same colour at reduced strength, rather
+                                 than a swap to TextMuted. TextMuted is tuned
+                                 to sit on a theme's panels, and the menus run
+                                 the other way — pale in the dark themes — so
+                                 against a menu bar it carries *more* contrast
+                                 than TextSecondary, not less (3.4 against 2.3
+                                 in Graphite). Swapping to it made a dead mark
+                                 bolder than a live one, and only the opacity
+                                 that came with it hid that.
+
+                                 Not fainter than this: the tooltip now answers
+                                 while disabled, so the mark has to stay worth
+                                 aiming at. -->
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Disc" Property="Background"
-                                        Value="{DynamicResource TextMuted}"/>
-                                <Setter TargetName="Disc" Property="Opacity" Value="0.45"/>
+                                <Setter TargetName="Disc" Property="Opacity" Value="0.55"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
