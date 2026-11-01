@@ -932,8 +932,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
             _settings.Save();
             OnPropertyChanged();
 
-            // The bar's own visibility reads the positive form.
+            // The bar's own visibility reads the positive form, and the menu
+            // entry's words change with it.
             OnPropertyChanged(nameof(ShowSeekbar));
+            OnPropertyChanged(nameof(HideSeekbarHeader));
         }
     }
 
@@ -959,13 +961,41 @@ public partial class MainViewModel : ObservableObject, IDisposable
             _settings.Save();
             OnPropertyChanged();
 
-            // The bar's own visibility reads the positive form.
+            // The bar's own visibility reads the positive form, and the menu
+            // entry's words change with it.
             OnPropertyChanged(nameof(ShowToolbar));
+            OnPropertyChanged(nameof(HideToolbarHeader));
         }
     }
 
     /// <summary>Whether the action toolbar is shown at all.</summary>
     public bool ShowToolbar => _settings.Current.ShowToolbar;
+
+    /// <summary>
+    /// What the toolbar's hide entry offers to do, as opposed to what the bar
+    /// is doing now.
+    /// </summary>
+    /// <remarks>
+    /// The entry was a checkable one and the tick carried the state. A checked
+    /// MenuItem draws its tick where its icon goes, so an eye that changed
+    /// with the state would have been invisible in one of the two states it
+    /// exists to distinguish — and the eye is the better teller of the two.
+    ///
+    /// So the eye says how the bar stands and these words say what pressing
+    /// will do. Between them nothing is left to infer.
+    /// </remarks>
+    public string HideToolbarHeader => HideToolbar ? "Show toolbar" : "Hide toolbar";
+
+    /// <inheritdoc cref="HideToolbarHeader"/>
+    public string HideSeekbarHeader => HideSeekbar ? "Show seekbar" : "Hide seekbar";
+
+    /// <summary>Puts the toolbar away, or brings it back.</summary>
+    [RelayCommand]
+    private void ToggleToolbar() => HideToolbar = !HideToolbar;
+
+    /// <summary>Puts the seekbar away, or brings it back.</summary>
+    [RelayCommand]
+    private void ToggleSeekbar() => HideSeekbar = !HideSeekbar;
 
     /// <summary>
     /// Whether the hotkey stops here rather than also reaching MPC-HC.

@@ -1547,7 +1547,7 @@
                 <MenuItem Header="Customize toolbar…" Command="{Binding CustomizeToolbarCommand}">
                     <MenuItem.Icon>
                         <Image Style="{StaticResource MenuIcon}"
-                               Source="pack://application:,,,/Assets/icons/icon-menu-customize_bars.png"/>
+                               Source="pack://application:,,,/Assets/icons/icon-settings.png"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Change button colors…" Command="{Binding ChangeButtonColorsCommand}">
@@ -1563,11 +1563,10 @@
 
                      This is also the only way back once the bar is hidden,
                      since there is then nothing left to right-click. -->
-                <MenuItem Header="Hide toolbar" IsCheckable="True"
-                          IsChecked="{Binding HideToolbar, Mode=TwoWay}">
+                <MenuItem Header="{Binding HideToolbarHeader}"
+                          Command="{Binding ToggleToolbarCommand}">
                     <MenuItem.Icon>
-                        <Image Style="{StaticResource MenuIcon}"
-                               Source="pack://application:,,,/Assets/icons/icon-menu-hide_bars.png"/>
+                        <Image Style="{StaticResource ToolbarEye}"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Reset toolbar" Command="{Binding ResetToolbarOrderCommand}">
@@ -1594,7 +1593,7 @@
                 <MenuItem Header="Customize seekbar…" Command="{Binding CustomizeSeekbarCommand}">
                     <MenuItem.Icon>
                         <Image Style="{StaticResource MenuIcon}"
-                               Source="pack://application:,,,/Assets/icons/icon-menu-customize_bars.png"/>
+                               Source="pack://application:,,,/Assets/icons/icon-settings.png"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Change seekbar colors…" Command="{Binding ChangeSeekbarColorsCommand}">
@@ -1603,11 +1602,10 @@
                                Source="pack://application:,,,/Assets/icons/icon-menu-change_colors.png"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Hide seekbar" IsCheckable="True"
-                          IsChecked="{Binding HideSeekbar, Mode=TwoWay}">
+                <MenuItem Header="{Binding HideSeekbarHeader}"
+                          Command="{Binding ToggleSeekbarCommand}">
                     <MenuItem.Icon>
-                        <Image Style="{StaticResource MenuIcon}"
-                               Source="pack://application:,,,/Assets/icons/icon-menu-hide_bars.png"/>
+                        <Image Style="{StaticResource SeekbarEye}"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Reset seekbar" Command="{Binding ResetSeekbarCommand}">
@@ -1921,7 +1919,7 @@
                         <MenuItem Header="Customize toolbar…" Command="{Binding CustomizeToolbarCommand}">
                             <MenuItem.Icon>
                                 <Image Style="{StaticResource MenuIcon}"
-                                       Source="pack://application:,,,/Assets/icons/icon-menu-customize_bars.png"/>
+                                       Source="pack://application:,,,/Assets/icons/icon-settings.png"/>
                             </MenuItem.Icon>
                         </MenuItem>
                         <MenuItem Header="Change button colors…" Command="{Binding ChangeButtonColorsCommand}">
@@ -1930,11 +1928,10 @@
                                        Source="pack://application:,,,/Assets/icons/icon-menu-change_colors.png"/>
                             </MenuItem.Icon>
                         </MenuItem>
-                        <MenuItem Header="Hide toolbar" IsCheckable="True"
-                                  IsChecked="{Binding HideToolbar, Mode=TwoWay}">
+                        <MenuItem Header="{Binding HideToolbarHeader}"
+                                  Command="{Binding ToggleToolbarCommand}">
                             <MenuItem.Icon>
-                                <Image Style="{StaticResource MenuIcon}"
-                               Source="pack://application:,,,/Assets/icons/icon-menu-hide_bars.png"/>
+                                <Image Style="{StaticResource ToolbarEye}"/>
                             </MenuItem.Icon>
                         </MenuItem>
                         <MenuItem Header="Reset toolbar" Command="{Binding ResetToolbarOrderCommand}">
@@ -2119,7 +2116,7 @@
                             <MenuItem Header="Customize seekbar…" Command="{Binding CustomizeSeekbarCommand}">
                                 <MenuItem.Icon>
                                     <Image Style="{StaticResource MenuIcon}"
-                                           Source="pack://application:,,,/Assets/icons/icon-menu-customize_bars.png"/>
+                                           Source="pack://application:,,,/Assets/icons/icon-settings.png"/>
                                 </MenuItem.Icon>
                             </MenuItem>
                             <MenuItem Header="Change seekbar colors…" Command="{Binding ChangeSeekbarColorsCommand}">
@@ -2128,11 +2125,10 @@
                                            Source="pack://application:,,,/Assets/icons/icon-menu-change_colors.png"/>
                                 </MenuItem.Icon>
                             </MenuItem>
-                            <MenuItem Header="Hide seekbar" IsCheckable="True"
-                                      IsChecked="{Binding HideSeekbar, Mode=TwoWay}">
+                            <MenuItem Header="{Binding HideSeekbarHeader}"
+                                      Command="{Binding ToggleSeekbarCommand}">
                                 <MenuItem.Icon>
-                                    <Image Style="{StaticResource MenuIcon}"
-                               Source="pack://application:,,,/Assets/icons/icon-menu-hide_bars.png"/>
+                                    <Image Style="{StaticResource SeekbarEye}"/>
                                 </MenuItem.Icon>
                             </MenuItem>
                             <MenuItem Header="Reset seekbar" Command="{Binding ResetSeekbarCommand}">

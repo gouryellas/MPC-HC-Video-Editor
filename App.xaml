@@ -17,6 +17,37 @@
             <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality"/>
         </Style>
 
+        <!-- The eye beside Hide toolbar and Hide seekbar, which says which
+             way the bar currently stands rather than what the click will do —
+             the words beside it say that.
+
+             Two styles rather than one with a parameter, because a Style
+             cannot take one: each names the property it watches. Both are
+             here rather than in the window, since the right-click menus are
+             in their own visual trees but inherit the same DataContext.
+
+             These items used to be checkable, and the tick was the state.
+             A checked MenuItem draws the tick in place of its icon, so an
+             eye that changed with the state would have been invisible in one
+             of the two states it exists to tell apart. -->
+        <Style x:Key="ToolbarEye" TargetType="Image" BasedOn="{StaticResource MenuIcon}">
+            <Setter Property="Source" Value="pack://application:,,,/Assets/icons/icon-eye_show.png"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HideToolbar}" Value="True">
+                    <Setter Property="Source" Value="pack://application:,,,/Assets/icons/icon-eye_hide.png"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="SeekbarEye" TargetType="Image" BasedOn="{StaticResource MenuIcon}">
+            <Setter Property="Source" Value="pack://application:,,,/Assets/icons/icon-eye_show.png"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HideSeekbar}" Value="True">
+                    <Setter Property="Source" Value="pack://application:,,,/Assets/icons/icon-eye_hide.png"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
         <!-- A question mark that carries an explanation, for the places where
              one is wanted on demand rather than on the way past.
 
