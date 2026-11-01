@@ -94,7 +94,8 @@
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="|      |" Foreground="{DynamicResource TextMuted}" FontFamily="Consolas"
                                    VerticalAlignment="Center"/>
-                        <ContentControl Style="{StaticResource Qmhp}">
+                        <ContentControl Style="{StaticResource Qmhp}"
+                                        Background="{DynamicResource InsetBackground}">
                             <ContentControl.ToolTip>
                                 <TextBlock MaxWidth="330" TextWrapping="Wrap"
                                            Text="A fixed gap between two groups of buttons."/>
@@ -110,7 +111,8 @@
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&lt; --- &gt;" Foreground="{DynamicResource TextMuted}"
                                    FontFamily="Consolas" VerticalAlignment="Center"/>
-                        <ContentControl Style="{StaticResource Qmhp}">
+                        <ContentControl Style="{StaticResource Qmhp}"
+                                        Background="{DynamicResource InsetBackground}">
                             <ContentControl.ToolTip>
                                 <TextBlock MaxWidth="330" TextWrapping="Wrap"
                                            Text="Takes up whatever width is left over."/>
@@ -126,7 +128,8 @@
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="⏎ New row" Foreground="{DynamicResource ValueYellow}"
                                    VerticalAlignment="Center"/>
-                        <ContentControl Style="{StaticResource Qmhp}">
+                        <ContentControl Style="{StaticResource Qmhp}"
+                                        Background="{DynamicResource InsetBackground}">
                             <ContentControl.ToolTip>
                                 <TextBlock MaxWidth="330" TextWrapping="Wrap"
                                            Text="Drop this on the toolbar to start another line."/>

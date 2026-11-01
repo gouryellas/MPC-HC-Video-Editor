@@ -54,16 +54,23 @@
              A ContentControl whose template is the whole mark, so a use is
              three lines and the disc is described once.
 
-             Filled in the accent, with the glyph in whatever that theme puts
-             on top of it. It was a ring in TextMuted — the same grey the
-             MenuItem style greys disabled items with — so a mark on a
-             perfectly live item read as switched off. The accent is the one
-             colour in every palette chosen to stand out, and OnAccent is the
-             one chosen to be legible against it, so the pair works in every
-             theme without a second decision.
+             A 10px disc in TextSecondary — the same ink as the words beside
+             it, one shade down — with the "?" cut out of it so the surface
+             shows through. No colour of its own at all, which is the point:
+             an accent-filled disc was a fleck of the theme's orange, cyan or
+             indigo sitting in the middle of a line of text, and at 14px it
+             was the loudest thing in the menu.
 
-             Brightening on hover rather than changing shape: the mark is
-             small enough that a size change would shift the words beside it.
+             Because the mark is a hole rather than a glyph, the surface it
+             is cut out of has to be named. Foreground is the ink of the disc,
+             Background is what shows through it. The default pair suits a
+             menu item; the dialogs set Background to whatever they are
+             actually drawn on, since in a dark theme the menus are light
+             while the panels behind them are not.
+
+             No hover state. The mark does not do anything when clicked — it
+             is there to be pointed at, and the tooltip appearing is the
+             response.
 
              Menu items in this program wait three seconds before showing a
              tooltip, so that reading down a menu does not pop panels over the
@@ -74,27 +81,24 @@
             <Setter Property="Margin" Value="8,0,0,0"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+            <Setter Property="Background" Value="{DynamicResource MenuBarBackground}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ContentControl">
-                        <Border x:Name="Disc" Width="14" Height="14" CornerRadius="7"
-                                Background="{DynamicResource Accent}">
-                            <TextBlock Text="?" FontSize="10" FontWeight="SemiBold"
+                        <Border x:Name="Disc" Width="10" Height="10" CornerRadius="5"
+                                Background="{TemplateBinding Foreground}">
+                            <TextBlock Text="?" FontSize="8" FontWeight="SemiBold"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       Foreground="{DynamicResource OnAccent}"/>
+                                       Foreground="{TemplateBinding Background}"/>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Disc" Property="Background"
-                                        Value="{DynamicResource AccentBright}"/>
-                            </Trigger>
-
                             <!-- A disabled item's mark goes grey with it.
                                  IsEnabled is coerced down the tree, so a mark
                                  inside a disabled MenuItem is itself disabled
-                                 without being told — and an accent disc left
-                                 bright on a greyed-out line would be the one
-                                 thing on it still claiming to be live. -->
+                                 without being told — and a disc left at full
+                                 strength on a greyed-out line would be the
+                                 one thing on it still claiming to be live. -->
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Disc" Property="Background"
                                         Value="{DynamicResource TextMuted}"/>
