@@ -1459,7 +1459,7 @@
                           ToolTip="{Binding AddToPlaylistToolTip}">
                     <MenuItem.Icon>
                         <Image Style="{StaticResource MenuIcon}"
-                               Source="pack://application:,,,/Assets/icons/icon-to_playlist.png"/>
+                               Source="pack://application:,,,/Assets/icons/icon-menu-plus.png"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <Separator/>

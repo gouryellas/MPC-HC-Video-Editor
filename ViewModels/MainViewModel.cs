@@ -334,7 +334,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         new() { Key = "image-info", Group = "Actions", Label = "ℹ Image info", Icon = "ℹ", IconFile = "icon-image_info", Command = ShowImageInfoCommand },
         new() { Key = "thumbnails", Group = "Actions", Label = "▦ Save thumbnails", Icon = "▦", IconFile = "icon-save_thumbnails", Command = SaveThumbnailsCommand },
         new() { Key = "export-chapters", Group = "Actions", Label = "🔖 Chapters", Icon = "🔖", IconFile = "icon-chapters", Command = ExportChaptersCommand },
-        new() { Key = "add-to-playlist", Group = "Playlist", Label = "➕ To playlist", Icon = "➕", IconFile = "icon-to_playlist", Command = AddCurrentToPlaylistCommand },
+        // icon-menu-plus rather than icon-to_playlist, which is also a plus
+        // and drawn differently — two shapes and two greens for the one idea.
+        new() { Key = "add-to-playlist", Group = "Playlist", Label = "➕ To playlist", Icon = "➕", IconFile = "icon-menu-plus", Command = AddCurrentToPlaylistCommand },
 
         // The fillers. Each is a real entry in the layout; only their drawing is
         // particular to the Customize dialog.

@@ -54,11 +54,10 @@
              A ContentControl whose template is the whole mark, so a use is
              three lines and the mark is described once.
 
-             Just the glyph. It has been a ringed mark, an accent-filled disc
-             and a disc with the mark cut out of it; each time the disc was
-             the thing that drew the eye, and the disc is the part that means
-             nothing. A bare "?" beside a label reads as punctuation belonging
-             to it, which is what it is.
+             A "?" inside a hairline ring. The ring is outline only — what
+             made the earlier filled versions shout was the fill, not the
+             shape, and a one-pixel circle in the same ink as the glyph reads
+             as a frame around it rather than a blob beside the words.
 
              No colour and no weight of its own. Foreground is left unset so
              it inherits from whatever it sits in, which does the right thing
@@ -93,8 +92,17 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ContentControl">
-                        <TextBlock Text="?" FontWeight="SemiBold"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <!-- Transparent rather than unset: a null background is
+                             not a hit-test target, so the middle of the ring
+                             would be a hole the pointer falls through and the
+                             tooltip would only answer from the stroke itself. -->
+                        <Border Width="13" Height="13" CornerRadius="6.5"
+                                BorderThickness="1" Background="Transparent"
+                                BorderBrush="{TemplateBinding Foreground}"
+                                SnapsToDevicePixels="True">
+                            <TextBlock Text="?" FontSize="9" FontWeight="SemiBold"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
