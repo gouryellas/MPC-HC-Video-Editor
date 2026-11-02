@@ -1555,10 +1555,9 @@ public partial class MainWindow : Window
         // confirmation behind it: this runs on the click and reports to the
         // status bar, matching the per-entry Remove below.
         //
-        // Deliberately never grayed out, either: knowing in advance whether
-        // anything is missing means a File.Exists per entry, and doing that on
-        // every menu rebuild is exactly the stat storm the lazy submenu avoids.
-        // Clicking it when nothing is gone simply says so afterwards.
+        // Deliberately never grayed out: clicking it when nothing is gone
+        // simply says so afterwards. The count in its header arrives with the
+        // submenu rather than with the menu — see where it is filled in below.
         // Offered above removal deliberately: a file that is not where the
         // playlist says has usually been moved, not deleted, and finding it
         // again is almost always the better answer than dropping the entry.
@@ -1624,15 +1623,36 @@ public partial class MainWindow : Window
             populated = true;
 
             List<PlaylistEntry> entries;
+            bool classified;
             try
             {
                 entries = _vm != null
                     ? _vm.ClassifyPlaylistEntriesForMenu(plsPath)
                     : new List<PlaylistEntry>();
+                classified = _vm != null;
             }
             catch
             {
                 entries = new List<PlaylistEntry>();
+                classified = false;
+            }
+
+            // How many "Remove missing entries" would actually take out, said
+            // on the item itself. The number costs nothing here: classifying
+            // the entries for the list below already asked the disk about each
+            // one, and this is the same answer counted. Asking any earlier
+            // would mean a File.Exists per entry on every rebuild of the
+            // Playlist menu, which is the stat storm the lazy submenu exists
+            // to avoid — so the item carries no count until its own submenu
+            // opens, which is also the first moment anyone can see it.
+            //
+            // Missing only. An entry on a disconnected drive has not been
+            // checked and will not be touched, so counting it here would
+            // promise a removal that is never going to happen.
+            if (classified)
+            {
+                var goneCount = entries.Count(e => e.Status == PlaylistEntryStatus.Missing);
+                removeMissing.Header = $"Remove missing entries ({goneCount})";
             }
 
             parent.Items.Remove(placeholder);
