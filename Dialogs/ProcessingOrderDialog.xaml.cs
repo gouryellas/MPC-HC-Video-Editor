@@ -25,8 +25,7 @@ public partial class ProcessingOrderDialog : Window
     private readonly bool _useNames;
 
     /// <summary>
-    /// The order chosen, or null for none — which is both what Clear produces
-    /// and what an empty box produces.
+    /// The order chosen, or null for none — which is what an empty box means.
     /// </summary>
     public IReadOnlyList<Bookmark>? Order { get; private set; }
 
@@ -46,8 +45,6 @@ public partial class ProcessingOrderDialog : Window
             ? "There is one clip, numbered 1."
             : $"Clips 1 to {cuts.Count}, each exactly once.";
 
-        ClearButton.IsEnabled = current is { Count: > 0 };
-
         if (current is { Count: > 0 })
             OrderBox.Text = string.Join(", ", current.Select(b => b.Index));
 
@@ -66,9 +63,11 @@ public partial class ProcessingOrderDialog : Window
     {
         var text = OrderBox.Text;
 
-        // An empty box is not an error — it is the same answer as Clear, and
-        // saying "nothing entered" in red at somebody who has just emptied the
-        // field on purpose is scolding them for it.
+        // An empty box is not an error — it is how the order is removed from
+        // here, and saying "nothing entered" in red at somebody who has just
+        // emptied the field on purpose is scolding them for it. There was a
+        // No order button beside Save doing the same job; clearing the box
+        // and saving is the same gesture with one less thing to explain.
         if (string.IsNullOrWhiteSpace(text))
         {
             ReadingLine.Text = "No order — the clips will run in the order they appear in the video.";
@@ -116,12 +115,6 @@ public partial class ProcessingOrderDialog : Window
         if (!ProcessingOrderInput.TryParse(OrderBox.Text, _cuts, out var order, out _)) return;
 
         Order = order;
-        DialogResult = true;
-    }
-
-    private void Clear_Click(object sender, RoutedEventArgs e)
-    {
-        Order = null;
         DialogResult = true;
     }
 }
