@@ -22,6 +22,7 @@ namespace MpcHcVideoEditor.Dialogs;
 public partial class ProcessingOrderDialog : Window
 {
     private readonly IReadOnlyList<Bookmark> _cuts;
+    private readonly bool _useNames;
 
     /// <summary>
     /// The order chosen, or null for none — which is both what Clear produces
@@ -29,11 +30,18 @@ public partial class ProcessingOrderDialog : Window
     /// </summary>
     public IReadOnlyList<Bookmark>? Order { get; private set; }
 
-    public ProcessingOrderDialog(IReadOnlyList<Bookmark> cuts, IReadOnlyList<Bookmark>? current)
+    /// <param name="useNames">
+    /// Whether the cuts are being named, so the read-back can say which clip
+    /// each number is rather than only where it comes in the run. Off, the
+    /// names are either absent or not what the user is reading the list by.
+    /// </param>
+    public ProcessingOrderDialog(
+        IReadOnlyList<Bookmark> cuts, IReadOnlyList<Bookmark>? current, bool useNames)
     {
         InitializeComponent();
 
         _cuts = cuts;
+        _useNames = useNames;
         AvailableLine.Text = cuts.Count == 1
             ? "There is one clip, numbered 1."
             : $"Clips 1 to {cuts.Count}, each exactly once.";
@@ -77,15 +85,24 @@ public partial class ProcessingOrderDialog : Window
             return;
         }
 
-        // The numbers alone, as a sequence. Spelling each clip out with its
-        // start time read as a second set of numbers to check against the
-        // first, which is work the line was supposed to save. What it is for
-        // is the shape of the run — the separators are gone, the clips are in
-        // the order they will go, and the line being green says it parsed.
-        ReadingLine.Text = string.Join("  →  ", order.Select(b => $"#{b.Index}"));
+        // The numbers, and the names beside them when the cuts are named.
+        // A name is what the user is picking clips by in that state, so it is
+        // the thing worth confirming; a start time is not — it read as a
+        // second set of numbers to check against the first, which is the work
+        // the line was supposed to save.
+        ReadingLine.Text = string.Join("  →  ", order.Select(Describe));
         ReadingLine.Foreground = (System.Windows.Media.Brush)FindResource("StatusOk");
         SaveButton.IsEnabled = true;
     }
+
+    /// <summary>One clip in the read-back: its number, and its name if named.</summary>
+    /// <remarks>
+    /// A named clip with no name of its own falls back to the number alone
+    /// rather than to a gap — the cuts are named from the moment the setting
+    /// is on, but one can lose its name to a hand-edited CSV.
+    /// </remarks>
+    private string Describe(Bookmark b) =>
+        _useNames && b.HasLabel ? $"#{b.Index} {b.Label}" : $"#{b.Index}";
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {

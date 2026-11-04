@@ -9020,7 +9020,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var cuts = Session.Bookmarks.Where(b => b.IsValid).ToList();
         if (cuts.Count < 2) return;
 
-        var dlg = new Dialogs.ProcessingOrderDialog(cuts, _processingOrder)
+        var dlg = new Dialogs.ProcessingOrderDialog(cuts, _processingOrder, UseChapterNames)
         {
             Owner = DialogOwner
         };
