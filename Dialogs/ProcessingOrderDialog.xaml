@@ -36,11 +36,10 @@
                  BorderBrush="{DynamicResource BorderBrush}"
                  TextChanged="OrderBox_TextChanged"/>
 
-        <!-- What the box currently means, read back as the clips it names, or
-             why it does not mean anything yet. The box takes commas, spaces or
-             both, so saying what was understood is more use than a format
-             rule nobody reads. MinHeight keeps the dialog from jumping as this
-             line appears and disappears. -->
+        <!-- The run as it was understood, or why it was not. The box takes
+             commas, spaces or both, so reading the sequence back tidily is
+             more use than a format rule nobody reads. MinHeight keeps the
+             dialog from jumping as this line changes. -->
         <TextBlock x:Name="ReadingLine" MinHeight="32" FontSize="11" TextWrapping="Wrap"
                    Margin="0,6,0,0"/>
 

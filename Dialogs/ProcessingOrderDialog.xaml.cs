@@ -77,16 +77,15 @@ public partial class ProcessingOrderDialog : Window
             return;
         }
 
-        // Read back as the clips themselves, not as the numbers that were just
-        // typed. Echoing the input proves nothing; naming the clips it lands on
-        // is what catches a number that was meant to be a different one.
-        ReadingLine.Text = string.Join("  →  ", order.Select(Describe));
+        // The numbers alone, as a sequence. Spelling each clip out with its
+        // start time read as a second set of numbers to check against the
+        // first, which is work the line was supposed to save. What it is for
+        // is the shape of the run — the separators are gone, the clips are in
+        // the order they will go, and the line being green says it parsed.
+        ReadingLine.Text = string.Join("  →  ", order.Select(b => $"#{b.Index}"));
         ReadingLine.Foreground = (System.Windows.Media.Brush)FindResource("StatusOk");
         SaveButton.IsEnabled = true;
     }
-
-    private static string Describe(Bookmark b) =>
-        b.HasLabel ? $"{b.Index}. {b.Label}" : $"{b.Index}. {b.StartDisplay}";
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
