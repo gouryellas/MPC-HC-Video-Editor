@@ -2921,7 +2921,12 @@
                                   Background="Transparent" BorderThickness="0"
                                   Foreground="{DynamicResource TextBody}"
                                   Visibility="{Binding StoryboardView, Converter={StaticResource NotBoolToVis}}"
-                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                  AllowDrop="True"
+                                  PreviewMouseLeftButtonDown="Cuts_PreviewMouseLeftButtonDown"
+                                  PreviewMouseMove="Cuts_PreviewMouseMove"
+                                  DragOver="Cuts_DragOver"
+                                  Drop="Cuts_Drop">
                             <ListView.ItemContainerStyle>
                                 <Style TargetType="ListViewItem">
                                     <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
@@ -3184,7 +3189,12 @@
                                   Background="Transparent" BorderThickness="0"
                                   Foreground="{DynamicResource TextBody}"
                                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                  PreviewMouseWheel="Storyboard_PreviewMouseWheel">
+                                  PreviewMouseWheel="Storyboard_PreviewMouseWheel"
+                                  AllowDrop="True"
+                                  PreviewMouseLeftButtonDown="Cuts_PreviewMouseLeftButtonDown"
+                                  PreviewMouseMove="Cuts_PreviewMouseMove"
+                                  DragOver="Cuts_DragOver"
+                                  Drop="Cuts_Drop">
                             <ListView.ItemContainerStyle>
                                 <Style TargetType="ListViewItem">
                                     <Setter Property="Padding" Value="0"/>

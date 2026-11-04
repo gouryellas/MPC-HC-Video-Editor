@@ -1081,13 +1081,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </remarks>
     private void AdoptOrderRulesFrom(string csvPath)
     {
-        var manual = !string.IsNullOrEmpty(csvPath) && _bookmarks.IsManualOrder(csvPath);
+        // The rows as well as the marker. A file can be out of order without
+        // declaring it — one written by a build from before the marker existed,
+        // or rearranged by hand in a text editor, which is a perfectly
+        // reasonable way to reorder cuts. Going by the marker alone would leave
+        // the editor enforcing the forward rules on a list that already breaks
+        // them, and would add the marker on the next save without ever having
+        // said so.
+        var manual = !string.IsNullOrEmpty(csvPath) &&
+                     (_bookmarks.IsManualOrder(csvPath) ||
+                      BookmarkService.IsOutOfTimeOrder(Session.Bookmarks));
 
         if (manual == _temporaryReorder) return;
 
         _temporaryReorder = manual;
         OnPropertyChanged(nameof(ReorderActive));
-        RefreshNudgeLimits();
 
         if (manual && !ReorderMode)
             ShowInfo(
@@ -1117,6 +1125,73 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ReorderActive ? cuts.ToList() : cuts.OrderBy(b => b.StartSeconds).ToList();
 
     /// <summary>
+    /// Moves a cut to another place in the list, as a row dragged onto another
+    /// row. Returns true when the list actually changed.
+    /// </summary>
+    /// <remarks>
+    /// Renumbering is what makes the move visible: the row numbers are the
+    /// list's order written down, and the automatic chapter names are derived
+    /// from them, so a cut dragged to the top becomes 1 and is named for it.
+    /// A name the user typed is theirs and survives the move — that is
+    /// <see cref="Renumber"/>'s rule, not a new one here.
+    ///
+    /// The save is what commits the new order to the file, and the file writes
+    /// itself as reordered or not from the rows it is given — so a cut dragged
+    /// out of time order converts the file, and a cut dragged back into it
+    /// converts the file back.
+    /// </remarks>
+    public bool MoveBookmark(Bookmark moved, int to)
+    {
+        var from = Session.Bookmarks.IndexOf(moved);
+        if (from < 0 || to < 0 || to >= Session.Bookmarks.Count || from == to) return false;
+
+        Session.Bookmarks.Move(from, to);
+        Renumber();
+        NoteOrderMayHaveChanged();
+
+        Session.NotifyDurationChanged();
+        if (IsBookmarkFileLoaded) SaveBookmarks();
+
+        StatusText = $"Moved cut to position {to + 1}";
+        return true;
+    }
+
+    /// <summary>
+    /// Called after anything that could have left the list out of time order —
+    /// a bracket dragged past a neighbour, an arrow nudged past one, a row
+    /// moved. Turns reordering on for this video the moment the list stops
+    /// running forwards, and says so once.
+    /// </summary>
+    /// <remarks>
+    /// The check is on the list rather than on the gesture, because a drag that
+    /// crosses a neighbour and comes back has changed nothing, and a drag that
+    /// looks harmless can still be the one that tips the order over.
+    ///
+    /// Said once per video rather than once per move: the second clip dragged
+    /// out of order is no more a conversion than the first was, and the file is
+    /// already converted by then. Unloading the video arms it again, so a new
+    /// video gets its own warning — which is what makes this a thing the user
+    /// keeps being told rather than a thing they dismissed once in 2026.
+    ///
+    /// Nothing at all when the setting is on. Somebody who has turned
+    /// reordering on permanently has already answered this question.
+    /// </remarks>
+    private void NoteOrderMayHaveChanged()
+    {
+        if (ReorderActive) return;
+        if (!BookmarkService.IsOutOfTimeOrder(Session.Bookmarks)) return;
+
+        _temporaryReorder = true;
+        OnPropertyChanged(nameof(ReorderActive));
+
+        ShowInfo(
+            "This will convert this file to a re-order type bookmark.\n\n" +
+            "This mode will be on temporarily until the video file is unloaded. If you wish " +
+            "to turn on re-order permanently, you may do so under Bookmarks ▸ Reorder mode.",
+            "Re-ordered bookmarks");
+    }
+
+    /// <summary>
     /// Puts the order rules back when the video they were lifted for goes.
     /// </summary>
     private void ClearTemporaryReorder()
@@ -1141,12 +1216,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
             _settings.Save();
             OnPropertyChanged();
             OnPropertyChanged(nameof(ReorderActive));
-
-            // The nudge arrows are shown from limits the view model pushes into
-            // each bookmark, and those limits have just changed for every row
-            // at once. Without this the arrows a cut gained — or lost — would
-            // not appear until something else moved a timestamp.
-            RefreshNudgeLimits();
         }
     }
 
@@ -9264,6 +9333,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             NotifyCollectionChangedAction.Add => "add",
             NotifyCollectionChangedAction.Remove => "delete",
             NotifyCollectionChangedAction.Reset => "replace the cuts",
+            NotifyCollectionChangedAction.Move => "the order",
             _ => "edit the cuts"
         });
     }
@@ -10538,36 +10608,26 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var duration = Session.VideoDurationSeconds;
         var cap = duration > 0 ? duration - NudgeGapSeconds : double.PositiveInfinity;
 
-        // Reordering takes the neighbours out of it: either end may go
-        // anywhere in the video, and the only fence left is the cut's own
-        // other end, which is not a neighbour rule but the definition of a
-        // cut. Written as a null neighbour rather than a separate pair of
-        // branches, so the two ends are still described in one place.
-        var ordered = ReorderActive
-            ? new List<Bookmark>()
-            : Session.Bookmarks.OrderBy(x => x.StartSeconds).ToList();
-        var index = ordered.IndexOf(b);
-
+        // No neighbours in it. A cut's ends used to be fenced by the cuts
+        // either side, which kept the list running forwards by making the
+        // other arrangement unreachable. Reaching it is now allowed outright —
+        // the list says so afterwards, and the editor converts the file rather
+        // than refusing the move.
+        //
+        // What is left is not an ordering rule: a cut's two ends cannot cross,
+        // because a cut has to be long enough to be a cut, and neither end may
+        // leave the video.
         double floor, ceiling;
 
         if (movingStart)
         {
-            var previous = index > 0 ? ordered[index - 1] : null;
-
-            // The cut before's own end, reachable exactly — or its start when it
-            // is still open, which is the whole of the instant it occupies.
-            floor = previous is null
-                ? 0
-                : previous.IsValid ? previous.EndSeconds : previous.StartSeconds;
-
+            floor = 0;
             ceiling = b.IsValid ? Math.Min(cap, b.EndSeconds - NudgeGapSeconds) : cap;
         }
         else
         {
-            var next = index >= 0 && index < ordered.Count - 1 ? ordered[index + 1] : null;
-
             floor = b.StartSeconds + NudgeGapSeconds;
-            ceiling = next is null ? cap : Math.Min(cap, next.StartSeconds);
+            ceiling = cap;
         }
 
         // Ceiling(floor) and Floor(ceiling): rounding each bound inwards to a
@@ -10608,29 +10668,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var duration = Session.VideoDurationSeconds;
         var cap = duration > 0 ? duration - gap : double.PositiveInfinity;
 
-        // Empty while reordering, for the reason given in NudgeRange: no
-        // neighbours means no fences, and a bracket goes where it is dropped.
-        var ordered = ReorderActive
-            ? new List<Bookmark>()
-            : Session.Bookmarks.OrderBy(x => x.StartSeconds).ToList();
-        var index = ordered.IndexOf(b);
-
+        // No neighbours, for the reason given in NudgeRange: a bracket goes
+        // where it is dropped, and the only fences left are the cut's own
+        // other end and the two ends of the video.
         if (movingStart)
-        {
-            var previous = index > 0 ? ordered[index - 1] : null;
-            var floor = previous is null
-                ? 0
-                : previous.IsValid ? previous.EndSeconds : previous.StartSeconds;
-            var ceiling = b.IsValid ? Math.Min(cap, b.EndSeconds - gap) : cap;
-            return (floor, ceiling);
-        }
-        else
-        {
-            var next = index >= 0 && index < ordered.Count - 1 ? ordered[index + 1] : null;
-            var floor = b.StartSeconds + gap;
-            var ceiling = next is null ? cap : Math.Min(cap, next.StartSeconds);
-            return (floor, ceiling);
-        }
+            return (0, b.IsValid ? Math.Min(cap, b.EndSeconds - gap) : cap);
+
+        return (b.StartSeconds + gap, cap);
     }
 
     /// <summary>
@@ -10652,6 +10696,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         if (movingStart) b.StartSeconds = clamped;
         else b.EndSeconds = clamped;
+
+        // Before the save, so the file is written under the right rules: the
+        // order marker is decided from the rows at the moment they go out.
+        NoteOrderMayHaveChanged();
 
         Session.NotifyDurationChanged();
         if (IsBookmarkFileLoaded) SaveBookmarks();
@@ -10733,6 +10781,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         if (movingStart) b.StartSeconds = proposed;
         else b.EndSeconds = proposed;
+
+        NoteOrderMayHaveChanged();
 
         Session.NotifyDurationChanged();
         if (IsBookmarkFileLoaded) SaveBookmarks();

@@ -2056,6 +2056,119 @@ public partial class MainWindow : Window
     }
 
     // ------------------------------------------------------------------
+    // Dragging a cut to another place in the list
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Where the press that might become a drag started, and what was under it.
+    /// </summary>
+    private Point _cutDragStart;
+    private Bookmark? _cutDragging;
+
+    private const string CutDragFormat = "MpcHcVideoEditor.Bookmark";
+
+    /// <summary>
+    /// Controls that own the drag themselves, and must not have it taken from
+    /// them by the row underneath.
+    /// </summary>
+    /// <remarks>
+    /// A row is not a label with a handle on it — it carries a tick box, a
+    /// quick-save button, four nudge arrows, an editable name and a speed
+    /// slider, and the slider in particular is dragged in exactly the gesture
+    /// that would otherwise pick the row up. Pressing on any of these starts
+    /// nothing, so each keeps the gesture it was already using.
+    /// </remarks>
+    private static bool OwnsItsOwnDrag(DependencyObject? from)
+    {
+        for (var node = from; node is not null; node = VisualTreeHelper.GetParent(node))
+        {
+            if (node is Slider
+                     or System.Windows.Controls.Primitives.ButtonBase
+                     or System.Windows.Controls.Primitives.TextBoxBase
+                     or System.Windows.Controls.Primitives.Thumb) return true;
+
+            // Stop at the row. Anything above it is the list, and the list is
+            // what the drag is for.
+            if (node is ListViewItem) return false;
+        }
+
+        return false;
+    }
+
+    private void Cuts_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _cutDragging = null;
+
+        if (e.OriginalSource is not DependencyObject source) return;
+        if (OwnsItsOwnDrag(source)) return;
+
+        var container = ItemsControl.ContainerFromElement((ItemsControl)sender, source) as FrameworkElement;
+        if (container?.DataContext is not Bookmark cut) return;
+
+        _cutDragStart = e.GetPosition(null);
+        _cutDragging = cut;
+    }
+
+    private void Cuts_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_cutDragging is null) return;
+
+        if (e.LeftButton != MouseButtonState.Pressed)
+        {
+            _cutDragging = null;
+            return;
+        }
+
+        // Past the system's own threshold, so a click that wobbles stays a
+        // click. Selecting a row and dragging one are the same gesture up to
+        // this point.
+        var now = e.GetPosition(null);
+        if (Math.Abs(now.X - _cutDragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(now.Y - _cutDragStart.Y) < SystemParameters.MinimumVerticalDragDistance)
+            return;
+
+        var dragged = _cutDragging;
+        _cutDragging = null;
+
+        try
+        {
+            DragDrop.DoDragDrop((DependencyObject)sender,
+                                new DataObject(CutDragFormat, dragged),
+                                DragDropEffects.Move);
+        }
+        catch
+        {
+            // A drag abandoned mid-gesture — the list is untouched.
+        }
+    }
+
+    private void Cuts_DragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(CutDragFormat)
+            ? DragDropEffects.Move
+            : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void Cuts_Drop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(CutDragFormat)) return;
+        if (e.Data.GetData(CutDragFormat) is not Bookmark dragged) return;
+        if (e.OriginalSource is not DependencyObject source) return;
+
+        var container = ItemsControl.ContainerFromElement((ItemsControl)sender, source) as FrameworkElement;
+        if (container?.DataContext is not Bookmark target) return;
+
+        var to = _vm?.Session.Bookmarks.IndexOf(target) ?? -1;
+        if (to < 0) return;
+
+        if (_vm?.MoveBookmark(dragged, to) == true)
+            _vm.SelectedBookmark = dragged;
+
+        e.Handled = true;
+    }
+
+    // ------------------------------------------------------------------
     // Committing a chapter name
     // ------------------------------------------------------------------
 
