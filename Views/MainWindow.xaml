@@ -1225,6 +1225,22 @@
                 </MenuItem>
             </MenuItem>
             <MenuItem Header="Bookmarks">
+                <MenuItem Header="Behavior" Style="{StaticResource MenuSectionHeader}"/>
+                <MenuItem IsCheckable="True"
+                          IsChecked="{Binding ReorderMode, Mode=TwoWay}">
+                    <MenuItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Reorder mode" VerticalAlignment="Center"/>
+                            <ContentControl Style="{StaticResource Qmhp}">
+                                <ContentControl.ToolTip>
+                                    <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                               Text="This mode will allow you to drag bookmark times to any position — even if they are out of order. Bookmarks may also be set behind ones already marked, and may overlap each other."/>
+                                </ContentControl.ToolTip>
+                            </ContentControl>
+                        </StackPanel>
+                    </MenuItem.Header>
+                </MenuItem>
+
                 <!-- Header carries the live hotkey binding, e.g.
                      "Set timestamp: MButton". Bound to SetTimestampMenuLabel. -->
                 <MenuItem Header="Time" Style="{StaticResource MenuSectionHeader}"/>

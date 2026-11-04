@@ -496,6 +496,21 @@ public class AppSettings
     public bool SnapToEditPoints { get; set; } = true;
 
     /// <summary>
+    /// Whether the rules that keep cuts running forwards are lifted.
+    /// </summary>
+    /// <remarks>
+    /// Normally a cut may not open behind the latest mark or inside another
+    /// one, and a bracket stops where its neighbour begins. With this on, a
+    /// mark can be put anywhere and a bracket dragged anywhere — cuts may sit
+    /// out of order, and may overlap.
+    ///
+    /// Off by default, because those rules are what stops an ordinary session
+    /// producing a list nobody meant to make. This is a mode to turn on for a
+    /// particular piece of work, not a better set of defaults.
+    /// </remarks>
+    public bool ReorderMode { get; set; } = false;
+
+    /// <summary>
     /// Whether the cut list is shown as a grid of thumbnails rather than rows.
     /// </summary>
     public bool StoryboardView { get; set; }

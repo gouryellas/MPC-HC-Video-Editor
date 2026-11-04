@@ -1034,6 +1034,122 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Reordering turned on for this video only, because the bookmark file
+    /// loaded for it is already in an order somebody chose.
+    /// </summary>
+    /// <remarks>
+    /// A reordered file read under the forward rules would be a list of
+    /// complaints about an arrangement that was deliberate, and the first
+    /// bracket dragged would be clamped back into line. Rather than refuse the
+    /// file or quietly change a saved preference, the rules lift for as long as
+    /// that file is open and the user is told it happened.
+    ///
+    /// Cleared when the video is unloaded — see <see cref="ClearTemporaryReorder"/>.
+    /// </remarks>
+    private bool _temporaryReorder;
+
+    /// <summary>
+    /// Whether the rules that keep cuts running forwards are lifted right now,
+    /// by the setting or for this video alone.
+    /// </summary>
+    /// <remarks>
+    /// Read by the three places that enforce them: <see cref="WhyCannotOpenAt"/>,
+    /// which refuses a new mark behind the last one or inside a cut, and
+    /// <see cref="NudgeRange"/> and <see cref="GetBracketDragRange"/>, which
+    /// fence each end of a cut against its neighbours — and by the operations
+    /// that have to decide between the list's order and the video's. Nothing
+    /// else changes: a cut still has to be long enough to be a cut, and still
+    /// has to fit inside the video.
+    /// </remarks>
+    public bool ReorderActive => ReorderMode || _temporaryReorder;
+
+    /// <summary>
+    /// Takes the order rules from a bookmark file that has just been read.
+    /// </summary>
+    /// <remarks>
+    /// A file that declares itself reordered lifts them for as long as it is
+    /// open; any other file puts them back. Both halves matter — a normal file
+    /// opened after a reordered one is an ordinary list again, and leaving the
+    /// rules off for it would mean one odd file disarmed the editor for the
+    /// rest of the session.
+    ///
+    /// Says so only when it changes something, and only when the setting is not
+    /// already on. Bookmark files are re-read whenever the window is activated
+    /// and the file on disk has moved on, so a message on every read would
+    /// arrive again every time the user came back to the window.
+    /// </remarks>
+    private void AdoptOrderRulesFrom(string csvPath)
+    {
+        var manual = !string.IsNullOrEmpty(csvPath) && _bookmarks.IsManualOrder(csvPath);
+
+        if (manual == _temporaryReorder) return;
+
+        _temporaryReorder = manual;
+        OnPropertyChanged(nameof(ReorderActive));
+        RefreshNudgeLimits();
+
+        if (manual && !ReorderMode)
+            ShowInfo(
+                "This is a re-ordered style bookmark and bookmark re-ordering is not enabled.\n\n" +
+                "This mode will be on temporarily until the current video file is unloaded in " +
+                "the editor. If you wish to turn on re-order mode permanently, you may do so " +
+                "under Bookmarks ▸ Reorder mode.",
+                "Re-ordered bookmarks");
+    }
+
+    /// <summary>
+    /// The order an operation should take these cuts in.
+    /// </summary>
+    /// <remarks>
+    /// While reordering, the list's own order — that is the whole point of
+    /// having rearranged it, and an operation that quietly re-sorted would
+    /// make the arrangement decorative. Otherwise time order, which for an
+    /// ordinary list is the same order the rows are already in and which
+    /// protects against the one case that is not: a cut marked from the player
+    /// is appended to the list and only sorted when the file is written.
+    ///
+    /// Everything that consumes several cuts at once goes through here, so
+    /// merging, playing all and playing the ticked ones can never disagree
+    /// about what "first" means.
+    /// </remarks>
+    private List<Bookmark> InOperationOrder(IEnumerable<Bookmark> cuts) =>
+        ReorderActive ? cuts.ToList() : cuts.OrderBy(b => b.StartSeconds).ToList();
+
+    /// <summary>
+    /// Puts the order rules back when the video they were lifted for goes.
+    /// </summary>
+    private void ClearTemporaryReorder()
+    {
+        if (!_temporaryReorder) return;
+
+        _temporaryReorder = false;
+        OnPropertyChanged(nameof(ReorderActive));
+    }
+
+    /// <summary>
+    /// Whether the rules that keep cuts running forwards are lifted by the
+    /// setting, rather than for one video.
+    /// </summary>
+    public bool ReorderMode
+    {
+        get => _settings.Current.ReorderMode;
+        set
+        {
+            if (_settings.Current.ReorderMode == value) return;
+            _settings.Current.ReorderMode = value;
+            _settings.Save();
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(ReorderActive));
+
+            // The nudge arrows are shown from limits the view model pushes into
+            // each bookmark, and those limits have just changed for every row
+            // at once. Without this the arrows a cut gained — or lost — would
+            // not appear until something else moved a timestamp.
+            RefreshNudgeLimits();
+        }
+    }
+
     /// <summary>Whether the cuts are shown as thumbnail cards rather than rows.</summary>
     public bool StoryboardView
     {
@@ -2987,6 +3103,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (DateTime.UtcNow < _loadGraceUntilUtc) return;
 
         _lastLoadedPath = string.Empty;
+        ClearTemporaryReorder();
         Session.VideoPath = string.Empty;
         Session.CsvPath = string.Empty;
         IsBookmarkFileLoaded = false;
@@ -3208,6 +3325,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (File.Exists(csvPath))
             foreach (var b in _bookmarks.LoadFromCsv(csvPath))
                 Session.Bookmarks.Add(b);
+
+        AdoptOrderRulesFrom(File.Exists(csvPath) ? csvPath : string.Empty);
 
         // The list and the file agree as of now; say so, or the first time this
         // window is activated it re-reads a file nobody has touched and throws
@@ -3849,7 +3968,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanPlayAll))]
     private async Task PlayAllAsync()
     {
-        var cuts = Session.Bookmarks.Where(b => b.IsValid).OrderBy(b => b.StartSeconds).ToList();
+        var cuts = InOperationOrder(Session.Bookmarks.Where(b => b.IsValid));
         if (cuts.Count == 0)
         {
             StatusText = "No valid bookmarks to play — complete at least one bookmark first.";
@@ -4018,9 +4137,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanPlaySelected))]
     private async Task PlaySelectedAsync()
     {
-        var cuts = Session.Bookmarks.Where(b => b.IsSelected && b.IsValid)
-                                    .OrderBy(b => b.StartSeconds)
-                                    .ToList();
+        var cuts = InOperationOrder(Session.Bookmarks.Where(b => b.IsSelected && b.IsValid));
         if (cuts.Count == 0)
         {
             StatusText = "No valid selected bookmarks — check at least one bookmark first.";
@@ -4456,6 +4573,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
             b.Index = i++;
             Session.Bookmarks.Add(b);
         }
+
+        // Edited outside the program, a file can gain or lose its order marker
+        // between reads — rearranging the rows by hand in a text editor is a
+        // perfectly reasonable way to reorder them.
+        AdoptOrderRulesFrom(csv);
+
         Session.NotifyDurationChanged();
         StatusText = $"Reloaded {loaded.Count} bookmark(s) from disk";
     }
@@ -5353,8 +5476,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         var haveSource = !string.IsNullOrEmpty(Session.VideoPath) && File.Exists(Session.VideoPath);
 
-        var toMerge = Session.Bookmarks.Where(b => b.IsSelected && b.IsValid).ToList();
-        if (toMerge.Count == 0) toMerge = Session.Bookmarks.Where(b => b.IsValid).ToList();
+        var toMerge = InOperationOrder(Session.Bookmarks.Where(b => b.IsSelected && b.IsValid));
+        if (toMerge.Count == 0) toMerge = InOperationOrder(Session.Bookmarks.Where(b => b.IsValid));
 
         // Nothing to work from in the current session — merge arbitrary files.
         if (!haveSource || toMerge.Count == 0)
@@ -5485,8 +5608,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanSplitSelected))]
     private async Task SplitSelectedAsync()
     {
-        var toSplit = Session.Bookmarks.Where(b => b.IsSelected && b.IsValid).ToList();
-        if (toSplit.Count == 0) toSplit = Session.Bookmarks.Where(b => b.IsValid).ToList();
+        var toSplit = InOperationOrder(Session.Bookmarks.Where(b => b.IsSelected && b.IsValid));
+        if (toSplit.Count == 0) toSplit = InOperationOrder(Session.Bookmarks.Where(b => b.IsValid));
         if (toSplit.Count == 0) { Notify("No valid bookmarks."); return; }
 
         // Straight into "Save to", like every other action. This used to make a
@@ -7050,7 +7173,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanExportCutList))]
     private async Task ExportCutList()
     {
-        var usable = Session.Bookmarks.Where(b => b.IsValid).ToList();
+        var usable = InOperationOrder(Session.Bookmarks.Where(b => b.IsValid));
         if (usable.Count == 0)
         {
             ReportFailure("No complete cuts to export.");
@@ -7256,7 +7379,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanExportChapters))]
     private async Task ExportChapters()
     {
-        var usable = Session.Bookmarks.Where(b => b.IsValid).ToList();
+        // The one operation that does not follow a reordered list. A chapter
+        // marks a position in the video being written, so chapter two cannot
+        // begin before chapter one — a file that said otherwise would be
+        // malformed rather than reordered, and players disagree about what to
+        // do with one. The clips are not being rearranged here, only labelled
+        // where they already sit.
+        var usable = Session.Bookmarks.Where(b => b.IsValid)
+                                      .OrderBy(b => b.StartSeconds)
+                                      .ToList();
         if (usable.Count == 0 || string.IsNullOrWhiteSpace(Session.VideoPath))
         {
             StatusText = "Need a video and at least one complete bookmark.";
@@ -8097,6 +8228,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         RefreshBookmarksFileDisplay();
         Session.NotifyDurationChanged();
         RememberBookmarkFile();
+        AdoptOrderRulesFrom(csvPath);
 
         // Opening a bookmark file replaces the list wholesale — see the note in
         // LoadVideoAsync for why that has to be the end of the history.
@@ -9865,8 +9997,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanSplitSelected))]
     private async Task ExportAnimationAsync()
     {
-        var cuts = Session.Bookmarks.Where(b => b.IsSelected && b.IsValid).ToList();
-        if (cuts.Count == 0) cuts = Session.Bookmarks.Where(b => b.IsValid).ToList();
+        var cuts = InOperationOrder(Session.Bookmarks.Where(b => b.IsSelected && b.IsValid));
+        if (cuts.Count == 0) cuts = InOperationOrder(Session.Bookmarks.Where(b => b.IsValid));
         if (cuts.Count == 0) { Notify("No complete cuts to export."); return; }
 
         var outDir = ResolveSaveToDirectory();
@@ -10335,6 +10467,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </remarks>
     private string? WhyCannotOpenAt(double time)
     {
+        // Reordering lifts both answers below. Being behind the last mark or
+        // inside another cut are the two things it exists to permit, so there
+        // is nothing left here to refuse.
+        if (ReorderActive) return null;
+
         if (CutContaining(time) is { } inside)
             return $"{Bookmark.FormatTime(time)} is inside cut {inside.Index} " +
                    $"({inside.StartDisplay} – {inside.EndDisplay})";
@@ -10401,7 +10538,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var duration = Session.VideoDurationSeconds;
         var cap = duration > 0 ? duration - NudgeGapSeconds : double.PositiveInfinity;
 
-        var ordered = Session.Bookmarks.OrderBy(x => x.StartSeconds).ToList();
+        // Reordering takes the neighbours out of it: either end may go
+        // anywhere in the video, and the only fence left is the cut's own
+        // other end, which is not a neighbour rule but the definition of a
+        // cut. Written as a null neighbour rather than a separate pair of
+        // branches, so the two ends are still described in one place.
+        var ordered = ReorderActive
+            ? new List<Bookmark>()
+            : Session.Bookmarks.OrderBy(x => x.StartSeconds).ToList();
         var index = ordered.IndexOf(b);
 
         double floor, ceiling;
@@ -10464,7 +10608,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var duration = Session.VideoDurationSeconds;
         var cap = duration > 0 ? duration - gap : double.PositiveInfinity;
 
-        var ordered = Session.Bookmarks.OrderBy(x => x.StartSeconds).ToList();
+        // Empty while reordering, for the reason given in NudgeRange: no
+        // neighbours means no fences, and a bracket goes where it is dropped.
+        var ordered = ReorderActive
+            ? new List<Bookmark>()
+            : Session.Bookmarks.OrderBy(x => x.StartSeconds).ToList();
         var index = ordered.IndexOf(b);
 
         if (movingStart)

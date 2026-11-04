@@ -208,7 +208,25 @@ public class BookmarkService
         if (!string.IsNullOrWhiteSpace(owner))
             sb.AppendLine(VideoHeaderPrefix + owner);
 
-        foreach (var b in bookmarks.OrderBy(x => x.StartSeconds))
+        // Sorted, unless the rows are deliberately not sorted.
+        //
+        // Writing in time order is what makes an ordinary file ordinary: the
+        // list is built by marking cuts as the video plays, so sorting it costs
+        // nothing and a file anybody opens in a text editor reads in the order
+        // it will play. A reordered list is the one case where the order on
+        // screen is information, and sorting it on the way out would throw that
+        // away every time the file was written.
+        //
+        // Decided from the rows rather than from the editor's mode, so a list
+        // that is in time order is written plainly even when reordering is
+        // switched on — the marker then always means what it says.
+        var rows = bookmarks as IList<Bookmark> ?? bookmarks.ToList();
+        var manual = IsOutOfTimeOrder(rows);
+
+        if (manual)
+            sb.AppendLine(OrderHeaderPrefix + ManualOrderValue);
+
+        foreach (var b in manual ? rows : rows.OrderBy(x => x.StartSeconds).ToList())
         {
             if (b.IsIncomplete)
             {
@@ -266,6 +284,84 @@ public class BookmarkService
     public const string VideoHeaderPrefix = "#video=";
 
     /// <summary>
+    /// Marks a file whose rows are in an order somebody chose, rather than in
+    /// the order the clips occur in the video.
+    /// </summary>
+    /// <remarks>
+    /// Written only when the rows actually are out of time order — see
+    /// <see cref="IsOutOfTimeOrder"/>. A list that happens to be in time order
+    /// is an ordinary bookmark file and is written as one, whatever mode it was
+    /// saved under: the marker describes the contents, not the editor that
+    /// produced them, so a file never claims a freedom it is not using.
+    ///
+    /// Its purpose on the way back in is to say "do not check these against the
+    /// forward rules" — a reordered file read by an editor enforcing them would
+    /// be a list of complaints about an arrangement that was deliberate.
+    ///
+    /// A '#' line is skipped by every build's loader, so a reordered file still
+    /// opens in 5.6 and before. It opens as a list in the same odd order, which
+    /// is the best an older build can do and better than refusing it.
+    /// </remarks>
+    public const string OrderHeaderPrefix = "#order=";
+
+    /// <summary>The one value <see cref="OrderHeaderPrefix"/> is given.</summary>
+    public const string ManualOrderValue = "manual";
+
+    /// <summary>
+    /// Whether these rows run backwards at any point, and so describe an order
+    /// somebody chose rather than the order the video plays in.
+    /// </summary>
+    /// <remarks>
+    /// Compares starts only. An end is fenced to its own start on every path
+    /// that can set one, so a list whose starts climb is in time order whatever
+    /// its ends are doing.
+    /// </remarks>
+    public static bool IsOutOfTimeOrder(IEnumerable<Bookmark> bookmarks)
+    {
+        var previous = double.NegativeInfinity;
+
+        foreach (var b in bookmarks)
+        {
+            if (b.StartSeconds < previous) return true;
+            previous = b.StartSeconds;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether a file on disk declares itself reordered.
+    /// </summary>
+    public bool IsManualOrder(string csvPath)
+    {
+        try
+        {
+            if (!File.Exists(csvPath)) return false;
+
+            foreach (var raw in TextFile.ReadAllLines(csvPath))
+            {
+                var line = raw.Trim();
+                if (line.Length == 0) continue;
+
+                // The headers are the top of the file and nothing else begins
+                // with '#', so the first row that is not one ends the search.
+                if (!line.StartsWith('#')) return false;
+
+                if (line.StartsWith(OrderHeaderPrefix, StringComparison.OrdinalIgnoreCase))
+                    return string.Equals(line[OrderHeaderPrefix.Length..].Trim(),
+                                         ManualOrderValue, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+        catch
+        {
+            // Unreadable here means unreadable when it is loaded a moment
+            // later, where the failure is reported properly.
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// The video a bookmark file belongs to, or null for a file that does not
     /// say — one written before the header existed, or dragged in from the old
     /// next-to-the-video layout.
@@ -281,12 +377,18 @@ public class BookmarkService
                 var line = raw.Trim();
                 if (line.Length == 0) continue;
 
-                // Present or absent, the header is the first thing in the file.
-                // Stopping at the first row keeps this to one decision rather
-                // than a scan of every line.
-                return line.StartsWith(VideoHeaderPrefix, StringComparison.OrdinalIgnoreCase)
-                    ? line[VideoHeaderPrefix.Length..].Trim()
-                    : null;
+                if (line.StartsWith(VideoHeaderPrefix, StringComparison.OrdinalIgnoreCase))
+                    return line[VideoHeaderPrefix.Length..].Trim();
+
+                // Another header above this one. Skip it rather than giving up:
+                // the video header used to be the only one in the file and this
+                // stopped at the first line because of that, which would now
+                // report no owner for any file carrying an order marker too.
+                if (line.StartsWith('#')) continue;
+
+                // A bookmark row. The headers are all above these, so there is
+                // no video header to find.
+                return null;
             }
         }
         catch
