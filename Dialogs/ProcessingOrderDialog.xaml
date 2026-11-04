@@ -1,0 +1,57 @@
+<Window x:Class="MpcHcVideoEditor.Dialogs.ProcessingOrderDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Processing order"
+        SizeToContent="Height" Width="440"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource ControlBackground}" ResizeMode="NoResize"
+        ShowInTaskbar="False">
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextBody}"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Margin" Value="6,0,0,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+    </Window.Resources>
+
+    <StackPanel Margin="16">
+        <TextBlock TextWrapping="Wrap" Margin="0,0,0,10"
+                   Text="Type the clip numbers in the order the operations should run them. Merging, playing and exporting will follow this order instead of the order the clips appear in the video."/>
+
+        <!-- Which numbers are available, so the box can be filled in without
+             going back to the list to count rows. -->
+        <TextBlock x:Name="AvailableLine" FontSize="11" Margin="0,0,0,4"
+                   Foreground="{DynamicResource TextMuted}"/>
+
+        <TextBox x:Name="OrderBox" FontFamily="Consolas" FontSize="14" Padding="6,4"
+                 Background="{DynamicResource InsetBackground}"
+                 Foreground="{DynamicResource TextPrimary}"
+                 BorderBrush="{DynamicResource BorderBrush}"
+                 TextChanged="OrderBox_TextChanged"/>
+
+        <!-- What the box currently means, read back as the clips it names, or
+             why it does not mean anything yet. The box takes commas, spaces or
+             both, so saying what was understood is more use than a format
+             rule nobody reads. MinHeight keeps the dialog from jumping as this
+             line appears and disappears. -->
+        <TextBlock x:Name="ReadingLine" MinHeight="32" FontSize="11" TextWrapping="Wrap"
+                   Margin="0,6,0,0"/>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button x:Name="ClearButton" Content="No order" Click="Clear_Click"
+                    ToolTip="Run the clips in the order they appear in the video"/>
+            <Button Content="Cancel" IsCancel="True"/>
+            <Button x:Name="SaveButton" Content="Save" Click="Save_Click" IsDefault="True"
+                    Background="{DynamicResource PrimaryButton}"
+                    BorderBrush="{DynamicResource PrimaryButtonBorder}"
+                    Foreground="{DynamicResource OnAccent}"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

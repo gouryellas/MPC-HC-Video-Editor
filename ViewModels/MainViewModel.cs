@@ -2243,6 +2243,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         DeleteBookmarksCommand.NotifyCanExecuteChanged();
         EnterTimeManualCommand.NotifyCanExecuteChanged();
         DeleteSelectedCommand.NotifyCanExecuteChanged();
+        SetProcessingOrderManualCommand.NotifyCanExecuteChanged();
         // All four share CanToggleFlip. Notifying only the first left Rotate
         // and Mute stuck in the state they were evaluated in at startup —
         // disabled, since nothing was selected then — so neither button ever
@@ -2987,6 +2988,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (DateTime.UtcNow < _loadGraceUntilUtc) return;
 
         _lastLoadedPath = string.Empty;
+        ClearProcessingOrder("the video was unloaded");
         Session.VideoPath = string.Empty;
         Session.CsvPath = string.Empty;
         IsBookmarkFileLoaded = false;
@@ -3849,7 +3851,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanPlayAll))]
     private async Task PlayAllAsync()
     {
-        var cuts = Session.Bookmarks.Where(b => b.IsValid).OrderBy(b => b.StartSeconds).ToList();
+        var cuts = InOperationOrder(Session.Bookmarks.Where(b => b.IsValid));
         if (cuts.Count == 0)
         {
             StatusText = "No valid bookmarks to play — complete at least one bookmark first.";
@@ -4018,9 +4020,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanPlaySelected))]
     private async Task PlaySelectedAsync()
     {
-        var cuts = Session.Bookmarks.Where(b => b.IsSelected && b.IsValid)
-                                    .OrderBy(b => b.StartSeconds)
-                                    .ToList();
+        var cuts = InOperationOrder(Session.Bookmarks.Where(b => b.IsSelected && b.IsValid));
         if (cuts.Count == 0)
         {
             StatusText = "No valid selected bookmarks — check at least one bookmark first.";
@@ -5353,8 +5353,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         var haveSource = !string.IsNullOrEmpty(Session.VideoPath) && File.Exists(Session.VideoPath);
 
-        var toMerge = Session.Bookmarks.Where(b => b.IsSelected && b.IsValid).ToList();
-        if (toMerge.Count == 0) toMerge = Session.Bookmarks.Where(b => b.IsValid).ToList();
+        var toMerge = InOperationOrder(Session.Bookmarks.Where(b => b.IsSelected && b.IsValid));
+        if (toMerge.Count == 0) toMerge = InOperationOrder(Session.Bookmarks.Where(b => b.IsValid));
 
         // Nothing to work from in the current session — merge arbitrary files.
         if (!haveSource || toMerge.Count == 0)
@@ -5485,8 +5485,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanSplitSelected))]
     private async Task SplitSelectedAsync()
     {
-        var toSplit = Session.Bookmarks.Where(b => b.IsSelected && b.IsValid).ToList();
-        if (toSplit.Count == 0) toSplit = Session.Bookmarks.Where(b => b.IsValid).ToList();
+        var toSplit = InOperationOrder(Session.Bookmarks.Where(b => b.IsSelected && b.IsValid));
+        if (toSplit.Count == 0) toSplit = InOperationOrder(Session.Bookmarks.Where(b => b.IsValid));
         if (toSplit.Count == 0) { Notify("No valid bookmarks."); return; }
 
         // Straight into "Save to", like every other action. This used to make a
@@ -7050,7 +7050,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanExportCutList))]
     private async Task ExportCutList()
     {
-        var usable = Session.Bookmarks.Where(b => b.IsValid).ToList();
+        var usable = InOperationOrder(Session.Bookmarks.Where(b => b.IsValid));
         if (usable.Count == 0)
         {
             ReportFailure("No complete cuts to export.");
@@ -7256,7 +7256,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanExportChapters))]
     private async Task ExportChapters()
     {
-        var usable = Session.Bookmarks.Where(b => b.IsValid).ToList();
+        // The one operation a processing order does not touch. A chapter marks
+        // a position in the video being written, so chapter two cannot begin
+        // before chapter one — a file saying otherwise would be malformed
+        // rather than reordered. Nothing is being rearranged here anyway; the
+        // clips are only being labelled where they already sit.
+        var usable = Session.Bookmarks.Where(b => b.IsValid)
+                                      .OrderBy(b => b.StartSeconds)
+                                      .ToList();
         if (usable.Count == 0 || string.IsNullOrWhiteSpace(Session.VideoPath))
         {
             StatusText = "Need a video and at least one complete bookmark.";
@@ -8962,6 +8969,141 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     // ------------------------------------------------------------------
+    // Processing order
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// The sequence the operations should take the cuts in, or null for the
+    /// order they occur in the video.
+    /// </summary>
+    /// <remarks>
+    /// Held beside the cuts rather than in them. The list on screen, the
+    /// bookmark file and the rules about where a cut may begin are all
+    /// untouched by this — a cut is still where it is, and clip 3 is still
+    /// clip 3. The only thing that reads this is
+    /// <see cref="InOperationOrder"/>, and the only thing it changes is which
+    /// clip an operation reaches first.
+    ///
+    /// The cuts themselves rather than their numbers. A number means nothing
+    /// once the list has moved underneath it, and the <em>point</em> of holding
+    /// references is that a stale order cannot quietly come to mean a different
+    /// arrangement — at worst it refers to a cut that is gone, which
+    /// <see cref="ClearProcessingOrder"/> deals with outright.
+    ///
+    /// Not saved anywhere. It lasts as long as the video is loaded.
+    /// </remarks>
+    private IReadOnlyList<Bookmark>? _processingOrder;
+
+    /// <summary>Whether an order has been set.</summary>
+    public bool HasProcessingOrder => _processingOrder is { Count: > 0 };
+
+    /// <summary>
+    /// The order as the row numbers that describe it — "3, 1, 2, 6, 5, 4".
+    /// </summary>
+    public string ProcessingOrderDisplay =>
+        _processingOrder is null ? string.Empty
+                                 : string.Join(", ", _processingOrder.Select(b => b.Index));
+
+    /// <summary>The order as it stands, for the dialog that edits it.</summary>
+    public IReadOnlyList<Bookmark>? ProcessingOrder => _processingOrder;
+
+    /// <summary>Whether there are enough cuts for an order to mean anything.</summary>
+    private bool CanSetProcessingOrder() => Session.Bookmarks.Count(b => b.IsValid) > 1;
+
+    [RelayCommand(CanExecute = nameof(CanSetProcessingOrder))]
+    private void SetProcessingOrderManual()
+    {
+        // Complete cuts only, and numbered as they are numbered on screen. An
+        // incomplete bookmark is not something an operation can run, so asking
+        // where it should come in the running order would be asking about
+        // nothing.
+        var cuts = Session.Bookmarks.Where(b => b.IsValid).ToList();
+        if (cuts.Count < 2) return;
+
+        var dlg = new Dialogs.ProcessingOrderDialog(cuts, _processingOrder)
+        {
+            Owner = DialogOwner
+        };
+
+        if (dlg.ShowDialog() != true) return;
+
+        SetProcessingOrder(dlg.Order);
+    }
+
+    /// <summary>Takes the order away, from the strip on the main window.</summary>
+    [RelayCommand]
+    private void DropProcessingOrder() => SetProcessingOrder(null);
+
+    /// <summary>Puts an order in place, or takes it away when given nothing.</summary>
+    public void SetProcessingOrder(IReadOnlyList<Bookmark>? order)
+    {
+        _processingOrder = order is { Count: > 0 } ? order.ToList() : null;
+        NotifyProcessingOrderChanged();
+
+        StatusText = HasProcessingOrder
+            ? $"Operations will run in the order {ProcessingOrderDisplay}"
+            : "Operations will run in the order the clips appear in the video";
+    }
+
+    /// <summary>
+    /// Drops the order, because the list it described has changed underneath
+    /// it or the video it belonged to has gone.
+    /// </summary>
+    /// <remarks>
+    /// Any change at all, rather than an attempt to patch the order up. A cut
+    /// added or deleted moves every row number after it, so an order that
+    /// survived would still read "3, 1, 2" while meaning something else
+    /// entirely — and an arrangement that silently comes to mean the wrong
+    /// thing once is one nobody can trust afterwards. Set it again; it is six
+    /// keystrokes.
+    /// </remarks>
+    private void ClearProcessingOrder(string why)
+    {
+        if (!HasProcessingOrder) return;
+
+        _processingOrder = null;
+        NotifyProcessingOrderChanged();
+        StatusText = $"Processing order cleared — {why}";
+    }
+
+    private void NotifyProcessingOrderChanged()
+    {
+        OnPropertyChanged(nameof(HasProcessingOrder));
+        OnPropertyChanged(nameof(ProcessingOrderDisplay));
+        OnPropertyChanged(nameof(ProcessingOrder));
+    }
+
+    /// <summary>
+    /// The order an operation should take these cuts in.
+    /// </summary>
+    /// <remarks>
+    /// With no order set, the order they occur in the video — which for an
+    /// ordinary list is the order the rows are already in, and which covers the
+    /// one case where it is not: a cut marked from the player is appended to
+    /// the list and only sorted when the file is written.
+    ///
+    /// With an order set, that order, narrowed to whichever cuts the operation
+    /// is actually running over. Merge and the two Play commands work on the
+    /// ticked cuts, so an order of 3, 1, 2 with only 1 and 3 ticked runs 3 then
+    /// 1 — the sequence is kept and the rest simply are not there.
+    ///
+    /// Anything the order does not mention goes on the end in time order,
+    /// which cannot happen while the order is a complete one but costs nothing
+    /// to be right about.
+    /// </remarks>
+    private List<Bookmark> InOperationOrder(IEnumerable<Bookmark> cuts)
+    {
+        var running = cuts as IList<Bookmark> ?? cuts.ToList();
+
+        if (_processingOrder is null)
+            return running.OrderBy(b => b.StartSeconds).ToList();
+
+        var ordered = _processingOrder.Where(running.Contains).ToList();
+        ordered.AddRange(running.Except(ordered).OrderBy(b => b.StartSeconds));
+        return ordered;
+    }
+
+    // ------------------------------------------------------------------
     // Undo / redo
     // ------------------------------------------------------------------
 
@@ -9126,6 +9268,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
             if (e.NewItems != null)
                 foreach (Bookmark b in e.NewItems) WatchBookmark(b);
         }
+
+        // The order describes the list it was set against, and the list has
+        // just changed shape. A move is the one change that leaves every cut
+        // still present, and nothing in this program moves them.
+        if (e.Action != NotifyCollectionChangedAction.Move)
+            ClearProcessingOrder(e.Action == NotifyCollectionChangedAction.Reset
+                ? "the cuts were replaced"
+                : "the cuts changed");
 
         RecordChange(e.Action switch
         {
@@ -9865,8 +10015,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanSplitSelected))]
     private async Task ExportAnimationAsync()
     {
-        var cuts = Session.Bookmarks.Where(b => b.IsSelected && b.IsValid).ToList();
-        if (cuts.Count == 0) cuts = Session.Bookmarks.Where(b => b.IsValid).ToList();
+        var cuts = InOperationOrder(Session.Bookmarks.Where(b => b.IsSelected && b.IsValid));
+        if (cuts.Count == 0) cuts = InOperationOrder(Session.Bookmarks.Where(b => b.IsValid));
         if (cuts.Count == 0) { Notify("No complete cuts to export."); return; }
 
         var outDir = ResolveSaveToDirectory();
