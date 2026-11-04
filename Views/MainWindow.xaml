@@ -3350,7 +3350,7 @@
                                     Visibility="{Binding Session.HasVideo, Converter={StaticResource NotBoolToVis}}"
                                     ToolTip="Open a video">
                                 <Image Style="{StaticResource MenuIcon}"
-                                       Source="pack://application:,,,/Assets/icons/icon-folder-empty.png"/>
+                                       Source="pack://application:,,,/Assets/icons/icon-folder-video_open.png"/>
                             </Button>
                         </StackPanel>
                         <!-- Red for the placeholder, the same as the two fields
