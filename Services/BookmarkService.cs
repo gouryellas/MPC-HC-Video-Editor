@@ -316,14 +316,23 @@ public class BookmarkService
     /// that can set one, so a list whose starts climb is in time order whatever
     /// its ends are doing.
     /// </remarks>
-    public static bool IsOutOfTimeOrder(IEnumerable<Bookmark> bookmarks)
+    public static bool IsOutOfTimeOrder(IEnumerable<Bookmark> bookmarks) =>
+        IsOutOfTimeOrder(bookmarks.Select(b => b.StartSeconds));
+
+    /// <inheritdoc cref="IsOutOfTimeOrder(IEnumerable{Bookmark})"/>
+    /// <remarks>
+    /// Over the start times alone, so the same question can be asked of a list
+    /// of <see cref="Models.BookmarkState"/> — which is what the undo stack and
+    /// <see cref="PlayheadSplit"/> work in.
+    /// </remarks>
+    public static bool IsOutOfTimeOrder(IEnumerable<double> starts)
     {
         var previous = double.NegativeInfinity;
 
-        foreach (var b in bookmarks)
+        foreach (var start in starts)
         {
-            if (b.StartSeconds < previous) return true;
-            previous = b.StartSeconds;
+            if (start < previous) return true;
+            previous = start;
         }
 
         return false;
