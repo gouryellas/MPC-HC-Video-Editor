@@ -1273,7 +1273,7 @@
                     </MenuItem.Header>
                     <MenuItem.Icon>
                         <Image Style="{StaticResource MenuIcon}"
-                               Source="pack://application:,,,/Assets/icons/icon-menu-set.png"/>
+                               Source="pack://application:,,,/Assets/icons/icon-menu-re_order.png"/>
                     </MenuItem.Icon>
                 </MenuItem>
 
