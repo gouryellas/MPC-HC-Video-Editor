@@ -306,7 +306,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         new() { Key = "strip-audio", Group = "Actions", Label = "🔊 Strip audio", Icon = "🔊", IconFile = "icon-strip_audio", Command = StripAudioCommand },
 
         // Everything else worth a button.
-        new() { Key = "open-file", Group = "File", Label = "📂 Open video", Icon = "📂", IconFile = "icon-open_video", Command = OpenFileCommand },
+        new() { Key = "open-file", Group = "File", Label = "📂 Open video", Icon = "📂", IconFile = "icon-folder-empty", Command = OpenFileCommand },
         new() { Key = "settings", Group = "File", Label = "⚙ Settings", Icon = "⚙", IconFile = "icon-settings", Command = OpenSettingsCommand },
         new() { Key = "undo-edit", Group = "Edit", Label = "↶ Undo", Icon = "↶", IconFile = "icon-undo", Command = UndoEditCommand },
         new() { Key = "redo-edit", Group = "Edit", Label = "↷ Redo", Icon = "↷", IconFile = "icon-redo", Command = RedoEditCommand },
@@ -713,23 +713,59 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void CustomizeSeekbar()
     {
+        var wasHidden = HideSeekbar;
+
         var dlg = new CustomizeSeekbarDialog(_settings.Current)
         {
-            Owner = DialogOwner
+            Owner = DialogOwner,
+            PreviewHidden = PreviewSeekbarHidden
         };
 
-        if (dlg.ShowDialog() != true) return;
+        if (dlg.ShowDialog() != true)
+        {
+            // Cancelled, so the preview comes back off — the same way the
+            // toolbar's does.
+            PreviewSeekbarHidden(wasHidden);
+            return;
+        }
 
         var s = _settings.Current;
         s.SeekbarBracketStyle = dlg.BracketStyle;
         s.SeekbarOpacity = dlg.SeekbarOpacity;
         s.SeekbarBarEnabled = dlg.SeekbarBarEnabled;
+
+        // Already in force — the box put it there as it was ticked. Set again
+        // through the same path rather than trusted, so the saved file says
+        // what the window shows, and the menu entries bound to HideSeekbar
+        // hear about it even if the preview never ran.
+        PreviewSeekbarHidden(dlg.HideSeekbar);
         _settings.Save();
 
         OnPropertyChanged(nameof(SeekbarBracketStyle));
         OnPropertyChanged(nameof(SeekbarOpacity));
         OnPropertyChanged(nameof(SeekbarBarEnabled));
-        StatusText = "Seekbar updated";
+        StatusText = dlg.HideSeekbar ? "Seekbar updated and hidden" : "Seekbar updated";
+    }
+
+    /// <summary>
+    /// Shows or hides the real seekbar without writing anything, for the
+    /// Hide seekbar box in the Customize dialog.
+    /// </summary>
+    /// <remarks>
+    /// Writes the in-memory setting rather than going through
+    /// <see cref="HideSeekbar"/>, which saves: the dialog can still be
+    /// cancelled, and a preview that had already written itself to disk would
+    /// make Cancel a lie. The caller restores this on the way out; the save
+    /// path writes the same value through properly.
+    /// </remarks>
+    private void PreviewSeekbarHidden(bool hidden)
+    {
+        if (_settings.Current.ShowSeekbar == !hidden) return;
+
+        _settings.Current.ShowSeekbar = !hidden;
+        OnPropertyChanged(nameof(ShowSeekbar));
+        OnPropertyChanged(nameof(HideSeekbar));
+        OnPropertyChanged(nameof(HideSeekbarHeader));
     }
 
     /// <summary>

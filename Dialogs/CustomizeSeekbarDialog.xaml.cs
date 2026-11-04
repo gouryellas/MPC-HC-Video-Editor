@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -25,10 +26,13 @@ public partial class CustomizeSeekbarDialog : Window
     private SeekbarBracketStyle _chosen;
     private double _opacity;
     private bool _barEnabled;
+    private bool _hidden;
 
     private readonly Dictionary<SeekbarBracketStyle, RadioButton> _radios = new();
     private Slider _opacitySlider = null!;
     private CheckBox _barEnabledCheck = null!;
+    private CheckBox _hiddenCheck = null!;
+    private FrameworkElement _styleSection = null!;
 
     /// <summary>The style to store, once the dialog returns true.</summary>
     public SeekbarBracketStyle BracketStyle { get; private set; }
@@ -39,6 +43,21 @@ public partial class CustomizeSeekbarDialog : Window
     /// <summary>Whether the filled position bar draws at all.</summary>
     public bool SeekbarBarEnabled { get; private set; }
 
+    /// <summary>Whether the seekbar is put away entirely.</summary>
+    public bool HideSeekbar { get; private set; }
+
+    /// <summary>
+    /// Shows or hides the real seekbar as the box is ticked, without writing
+    /// anything.
+    /// </summary>
+    /// <remarks>
+    /// The same arrangement the toolbar's Customize window uses: hiding
+    /// something is judged by looking at the window, not by reading a preview
+    /// of it. Nothing is saved — the dialog can still be cancelled, and the
+    /// caller puts this back on the way out.
+    /// </remarks>
+    public Action<bool>? PreviewHidden { get; set; }
+
     public CustomizeSeekbarDialog(AppSettings current)
     {
         InitializeComponent();
@@ -46,18 +65,24 @@ public partial class CustomizeSeekbarDialog : Window
         _chosen = current.SeekbarBracketStyle;
         _opacity = current.SeekbarOpacity;
         _barEnabled = current.SeekbarBarEnabled;
+        _hidden = !current.ShowSeekbar;
 
         BracketStyle = _chosen;
         SeekbarOpacity = _opacity;
         SeekbarBarEnabled = _barEnabled;
+        HideSeekbar = _hidden;
 
         foreach (var option in Options)
             Rows.Children.Add(Row(option));
 
+        _styleSection = Rows;
+
         Extras.Children.Add(OpacityControl());
         Extras.Children.Add(BarEnabledControl());
+        Extras.Children.Add(HiddenControl());
 
         Repaint();
+        ShowHiddenNotice();
     }
 
     private UIElement Row((SeekbarBracketStyle Style, string Name, string Glyph, string Description) option)
@@ -202,6 +227,86 @@ public partial class CustomizeSeekbarDialog : Window
         return panel;
     }
 
+    /// <summary>The box that puts the whole bar away.</summary>
+    /// <remarks>
+    /// Last, and after a rule, because it is not a choice about how the bar
+    /// looks — it is a choice about whether the rest of this window applies at
+    /// all. Sitting it among the appearance options would have read as one
+    /// more of them.
+    /// </remarks>
+    private UIElement HiddenControl()
+    {
+        var panel = new StackPanel { Margin = new Thickness(0, 16, 0, 0) };
+
+        panel.Children.Add(new Border
+        {
+            Height = 1,
+            Background = ThemeService.Brush(nameof(ThemePalette.BorderBrush)),
+            Margin = new Thickness(0, 0, 0, 14)
+        });
+
+        var check = _hiddenCheck = new CheckBox
+        {
+            Content = "Hide seekbar",
+            IsChecked = _hidden,
+            Foreground = ThemeService.Brush(nameof(ThemePalette.TextPrimary)),
+            Cursor = System.Windows.Input.Cursors.Hand
+        };
+
+        check.Checked += (_, _) => HiddenChanged(true);
+        check.Unchecked += (_, _) => HiddenChanged(false);
+
+        panel.Children.Add(check);
+
+        panel.Children.Add(_hiddenNotice = new TextBlock
+        {
+            Text = "The seekbar is currently hidden, so nothing above applies. " +
+                   "It can also be brought back from the seekbar's section of the Options menu.",
+            Foreground = ThemeService.Brush(nameof(ThemePalette.TextSecondary)),
+            FontSize = 11,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(22, 2, 0, 0)
+        });
+
+        return panel;
+    }
+
+    private TextBlock _hiddenNotice = null!;
+
+    private void HiddenChanged(bool hidden)
+    {
+        _hidden = hidden;
+        ShowHiddenNotice();
+
+        // The real bar follows at once.
+        PreviewHidden?.Invoke(hidden);
+    }
+
+    /// <summary>
+    /// Greys the appearance options out while the bar is away, and says why.
+    /// </summary>
+    /// <remarks>
+    /// Greyed rather than hidden. The settings still exist and still take
+    /// effect the moment the bar comes back, so removing them would be saying
+    /// they had been lost; dimming them says they are not in use.
+    /// </remarks>
+    private void ShowHiddenNotice()
+    {
+        _hiddenNotice.Visibility = _hidden ? Visibility.Visible : Visibility.Collapsed;
+
+        _styleSection.IsEnabled = !_hidden;
+        _styleSection.Opacity = _hidden ? 0.4 : 1.0;
+
+        foreach (var child in Extras.Children.OfType<UIElement>())
+        {
+            // Not the box that did the hiding.
+            if (ReferenceEquals(child, Extras.Children[^1])) continue;
+
+            child.IsEnabled = !_hidden;
+            child.Opacity = _hidden ? 0.4 : 1.0;
+        }
+    }
+
     private void Repaint()
     {
         foreach (var (style, radio) in _radios)
@@ -221,6 +326,10 @@ public partial class CustomizeSeekbarDialog : Window
         _opacitySlider.Value = _opacity * 100;
         _barEnabledCheck.IsChecked = _barEnabled;
 
+        // The bar comes back with everything else. Reset puts the seekbar the
+        // way the program ships it, and the program ships it visible.
+        _hiddenCheck.IsChecked = false;
+
         Repaint();
     }
 
@@ -229,6 +338,7 @@ public partial class CustomizeSeekbarDialog : Window
         BracketStyle = _chosen;
         SeekbarOpacity = _opacity;
         SeekbarBarEnabled = _barEnabled;
+        HideSeekbar = _hidden;
         DialogResult = true;
     }
 
