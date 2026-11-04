@@ -80,10 +80,8 @@ public static class PlayheadSplit
     }
 
     /// <param name="Cuts">
-    /// The whole list as it should now be — in time order for a list that
-    /// arrived in time order, and otherwise in the order it arrived in, with
-    /// the divided cut replaced where it stood. Empty for any outcome other
-    /// than <see cref="Outcome.Divided"/> or <see cref="Outcome.Filled"/>.
+    /// The whole list as it should now be, in order. Empty for any outcome
+    /// other than <see cref="Outcome.Divided"/> or <see cref="Outcome.Filled"/>.
     /// </param>
     /// <param name="Added">How many bookmarks the list gained.</param>
     public sealed record Result(Outcome Outcome, List<BookmarkState> Cuts, int Added);
@@ -192,55 +190,17 @@ public static class PlayheadSplit
 
     /// <summary>
     /// The list with <paramref name="replaced"/> swapped for
-    /// <paramref name="pieces"/>, leaving every other cut where it was.
+    /// <paramref name="pieces"/>, back in time order.
     /// </summary>
-    /// <remarks>
-    /// An ordinary list is sorted, as it always was: the pieces land in time
-    /// order with everything else, which for a list already in time order is
-    /// the same list with one cut become two.
-    ///
-    /// A list somebody has put in an order of their own is spliced instead.
-    /// Sorting that one would have quietly undone the arrangement — a single
-    /// split throwing away every move the user had made, with nothing said and
-    /// only the undo stack to get it back.
-    ///
-    /// The two halves of a divided cut take its place, in the order they play,
-    /// so a split is always a cut becoming two where it stood. A gap turned
-    /// into a bookmark has no place to take, and goes on the end — which is
-    /// where a bookmark set from the player goes too.
-    /// </remarks>
     private static List<BookmarkState> Rebuild(
         IReadOnlyList<BookmarkState> cuts, Region replaced, IEnumerable<BookmarkState> pieces)
     {
-        var added = pieces.ToList();
+        var rebuilt = cuts.Where(c => !ReferenceEquals(c, replaced.Cut)).ToList();
+        rebuilt.AddRange(pieces);
 
-        if (!BookmarkService.IsOutOfTimeOrder(cuts.Select(c => c.StartSeconds)))
-        {
-            var sorted = cuts.Where(c => !ReferenceEquals(c, replaced.Cut)).ToList();
-            sorted.AddRange(added);
-
-            // Incomplete cuts sort by where they start, like everything else:
-            // their end is not a time, so ordering on it would put them first.
-            return sorted.OrderBy(c => c.StartSeconds).ToList();
-        }
-
-        var rebuilt = new List<BookmarkState>(cuts.Count + added.Count);
-        var spliced = false;
-
-        foreach (var cut in cuts)
-        {
-            if (replaced.Cut is not null && ReferenceEquals(cut, replaced.Cut))
-            {
-                rebuilt.AddRange(added);
-                spliced = true;
-                continue;
-            }
-
-            rebuilt.Add(cut);
-        }
-
-        if (!spliced) rebuilt.AddRange(added);
-        return rebuilt;
+        // Incomplete cuts sort by where they start, like everything else: their
+        // end is not a time, so ordering on it would put them first.
+        return rebuilt.OrderBy(c => c.StartSeconds).ToList();
     }
 
     /// <summary>

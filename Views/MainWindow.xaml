@@ -1225,22 +1225,6 @@
                 </MenuItem>
             </MenuItem>
             <MenuItem Header="Bookmarks">
-                <MenuItem Header="Behavior" Style="{StaticResource MenuSectionHeader}"/>
-                <MenuItem IsCheckable="True"
-                          IsChecked="{Binding ReorderMode, Mode=TwoWay}">
-                    <MenuItem.Header>
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Reorder mode" VerticalAlignment="Center"/>
-                            <ContentControl Style="{StaticResource Qmhp}">
-                                <ContentControl.ToolTip>
-                                    <TextBlock MaxWidth="330" TextWrapping="Wrap"
-                                               Text="This mode will allow you to drag bookmark times to any position — even if they are out of order. Bookmarks may also be set behind ones already marked, and may overlap each other."/>
-                                </ContentControl.ToolTip>
-                            </ContentControl>
-                        </StackPanel>
-                    </MenuItem.Header>
-                </MenuItem>
-
                 <!-- Header carries the live hotkey binding, e.g.
                      "Set timestamp: MButton". Bound to SetTimestampMenuLabel. -->
                 <MenuItem Header="Time" Style="{StaticResource MenuSectionHeader}"/>
@@ -2921,12 +2905,7 @@
                                   Background="Transparent" BorderThickness="0"
                                   Foreground="{DynamicResource TextBody}"
                                   Visibility="{Binding StoryboardView, Converter={StaticResource NotBoolToVis}}"
-                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                  AllowDrop="True"
-                                  PreviewMouseLeftButtonDown="Cuts_PreviewMouseLeftButtonDown"
-                                  PreviewMouseMove="Cuts_PreviewMouseMove"
-                                  DragOver="Cuts_DragOver"
-                                  Drop="Cuts_Drop">
+                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                             <ListView.ItemContainerStyle>
                                 <Style TargetType="ListViewItem">
                                     <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
@@ -3189,12 +3168,7 @@
                                   Background="Transparent" BorderThickness="0"
                                   Foreground="{DynamicResource TextBody}"
                                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                  PreviewMouseWheel="Storyboard_PreviewMouseWheel"
-                                  AllowDrop="True"
-                                  PreviewMouseLeftButtonDown="Cuts_PreviewMouseLeftButtonDown"
-                                  PreviewMouseMove="Cuts_PreviewMouseMove"
-                                  DragOver="Cuts_DragOver"
-                                  Drop="Cuts_Drop">
+                                  PreviewMouseWheel="Storyboard_PreviewMouseWheel">
                             <ListView.ItemContainerStyle>
                                 <Style TargetType="ListViewItem">
                                     <Setter Property="Padding" Value="0"/>
