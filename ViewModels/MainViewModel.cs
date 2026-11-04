@@ -5405,11 +5405,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 StatusText = p.Message;
                 Job.Report(p.Message, p.Percent);
 
-                // Current is the segment being cut, counted against the list
-                // handed over just below — so it indexes that list and not the
-                // session's, which may hold rows this run is not touching.
-                if (p.Current >= 0 && p.Current < toMerge.Count)
-                    MarkStep(toMerge[p.Current]);
+                // ItemIndex is the segment being cut, counted against the
+                // list handed over just below — so it indexes that list and
+                // not the session's, which may hold rows this run is not
+                // touching. Absent once the cutting is done and the join has
+                // started, which is no longer any one cut's turn.
+                if (p.ItemIndex is { } segment && segment >= 0 && segment < toMerge.Count)
+                    MarkStep(toMerge[segment]);
             });
             await _ffmpeg.MergeBookmarksAsync(Session.VideoPath, outPath, toMerge, progress, default, format);
 

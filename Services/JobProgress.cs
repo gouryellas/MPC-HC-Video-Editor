@@ -138,6 +138,7 @@ public partial class JobProgress : ObservableObject
     {
         OnPropertyChanged(nameof(PercentDisplay));
         OnPropertyChanged(nameof(PercentFraction));
+        Reestimate(value);
         UpdateClock();
     }
 
@@ -164,6 +165,8 @@ public partial class JobProgress : ObservableObject
         Percent = 0;
         ElapsedDisplay = "0:00";
         RemainingDisplay = "—";
+        _remainingSeconds = null;
+        _lastCountdownAt = TimeSpan.Zero;
         _clock.Restart();
         _tick.Start();
         IsRunning = true;
@@ -317,30 +320,105 @@ public partial class JobProgress : ObservableObject
     /// by startup cost and swings wildly enough to be worse than nothing.
     /// </summary>
     /// <remarks>
-    /// Called both on the half-second tick and whenever the percentage moves.
-    /// The tick is what makes elapsed real time; the percentage is what makes
-    /// the estimate respond to a job that has just sped up or slowed down
-    /// rather than waiting out the rest of the second.
+    /// A countdown, not a recomputed projection.
     ///
-    /// Remaining grows while a job is stalled, which is not a fault: with the
-    /// percentage still and the clock running, the rate so far really has
-    /// fallen, and a figure that froze alongside the work would be claiming
-    /// the job was still on schedule.
+    /// It used to divide elapsed time by the percentage on every tick, which
+    /// made it count <em>upwards</em> for most of a job's life. The percentage
+    /// arrives in steps — one per segment, or one per whole percent out of
+    /// ffmpeg — and between two steps the elapsed time grows while the
+    /// percentage does not, so "time at this rate" grows with it. The figure
+    /// rose steadily, dropped when the bar moved, and rose again: an estimate
+    /// that is wrong in a different direction every second is worse than no
+    /// estimate, because it still looks like information.
+    ///
+    /// So the remaining time is held as a number that the clock walks down in
+    /// real time, and each step of the percentage corrects it. The correction
+    /// is blended rather than applied outright — a single slow segment should
+    /// bend the estimate, not replace it — and it is allowed to walk the
+    /// figure back up, which is how a job that genuinely slows down tells the
+    /// truth about it. What it cannot do any more is grow simply because
+    /// nothing has happened yet.
     /// </remarks>
     private void UpdateClock()
     {
         var elapsed = _clock.Elapsed;
         ElapsedDisplay = Format(elapsed);
 
-        if (Percent < 3 || !_clock.IsRunning)
+        if (!_clock.IsRunning || _remainingSeconds is not { } left)
         {
             RemainingDisplay = "—";
             return;
         }
 
-        var total = elapsed.TotalSeconds * 100.0 / Percent;
-        var left = TimeSpan.FromSeconds(Math.Max(0, total - elapsed.TotalSeconds));
-        RemainingDisplay = Format(left);
+        // Walked down by real time since the last tick rather than by the
+        // tick interval, so a dispatcher that ran late does not leave the
+        // countdown behind the clock beside it.
+        var now = _clock.Elapsed;
+        var step = (now - _lastCountdownAt).TotalSeconds;
+        _lastCountdownAt = now;
+
+        left = Math.Max(0, left - Math.Max(0, step));
+        _remainingSeconds = left;
+
+        // An estimate that has run out while the job is still going is an
+        // estimate that was wrong, and "0:00" on a job that is plainly still
+        // working is the same useless figure as one that climbs — it just
+        // lies in the other direction. Held back until the percentage moves
+        // and gives the countdown something new to go on.
+        RemainingDisplay = left <= 0 ? "—" : Format(TimeSpan.FromSeconds(left));
+    }
+
+    /// <summary>
+    /// Where the countdown stands, in seconds, or null while there is not yet
+    /// enough of a job behind us to say.
+    /// </summary>
+    private double? _remainingSeconds;
+
+    /// <summary>When the countdown was last walked down.</summary>
+    private TimeSpan _lastCountdownAt;
+
+    /// <summary>
+    /// Re-estimates from the rate so far, each time the percentage moves.
+    /// </summary>
+    /// <remarks>
+    /// Withheld below 3%, where the figure is dominated by startup cost and
+    /// swings wildly enough to be worse than nothing — and at 100%, where
+    /// what is left is the part no percentage was ever tracking.
+    ///
+    /// Withheld for the first couple of seconds too, and that guard matters
+    /// more than the percentage one. The first estimate is the only one not
+    /// blended with anything, so it sets where the countdown starts — and a
+    /// percentage that arrives while the clock still reads almost nothing
+    /// divides by almost nothing and anchors the whole job at "0:00". It then
+    /// takes a third of the error off per step to climb back out, which is
+    /// several steps of a job claiming to be finished.
+    ///
+    /// Blended at a third thereafter, which is enough for a job that has
+    /// genuinely changed pace to be believed within a few steps and not so
+    /// much that one slow segment throws the figure.
+    /// </remarks>
+    private static readonly TimeSpan MinimumEvidence = TimeSpan.FromSeconds(2);
+
+    private void Reestimate(double value)
+    {
+        if (!_clock.IsRunning) return;
+
+        if (value < 3 || value >= 100)
+        {
+            if (value < 3) _remainingSeconds = null;
+            return;
+        }
+
+        if (_clock.Elapsed < MinimumEvidence) return;
+
+        var elapsed = _clock.Elapsed.TotalSeconds;
+        var estimate = elapsed * (100.0 - value) / value;
+
+        _remainingSeconds = _remainingSeconds is { } current
+            ? current * 2.0 / 3.0 + estimate / 3.0
+            : estimate;
+
+        _lastCountdownAt = _clock.Elapsed;
     }
 
     private static string Format(TimeSpan t) =>

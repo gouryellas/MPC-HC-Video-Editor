@@ -20,6 +20,20 @@ public class FFmpegProgressEventArgs : EventArgs
     /// Optional — most callers already display a file name of their own.
     /// </summary>
     public string? File { get; init; }
+
+    /// <summary>
+    /// Which item of the caller's own list this step is working on, counted
+    /// from zero, when the operation is walking one.
+    /// </summary>
+    /// <remarks>
+    /// Its own field because <see cref="Current"/> is half of a fraction and
+    /// cannot be both. A multi-step operation reports a percentage spanning
+    /// steps of different sizes, so Current stopped being a count of items the
+    /// moment the percentage stopped being items-done-over-items — and
+    /// anything reading it as an index was then indexing with a percentage.
+    /// </remarks>
+    public int? ItemIndex { get; init; }
+
     public double Percent => Total > 0 ? (double)Current / Total * 100 : 0;
 }
 
@@ -1167,6 +1181,14 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
             var segmentFiles = new List<string>();
             var total = bookmarks.Count;
 
+            // How much of the bar the cutting gets, leaving the rest for the
+            // join. The split is not even, because the two steps are not: a
+            // container that takes H.264 as it stands joins by copying the
+            // video and re-encoding only the audio, which is quick beside the
+            // cutting — while one that cannot encodes the whole output again,
+            // and that is the larger half of the work by far.
+            var segmentShare = format.CanCopyH264 ? 80.0 : 45.0;
+
             // Asked once, for the whole run: every segment comes from the same
             // file, so the answer cannot differ between them.
             var streams = await ListStreamsAsync(inputVideo, ct);
@@ -1186,8 +1208,9 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
                 progress?.Report(new FFmpegProgressEventArgs
                 {
                     Message = $"Processing segment {i + 1}/{total}",
-                    Current = i,
-                    Total = total
+                    Current = (int)(i / (double)total * segmentShare),
+                    Total = 100,
+                    ItemIndex = i
                 });
 
                 var segmentPath = Path.Combine(tempDir, $"segment{i + 1:D3}.mp4");
@@ -1221,11 +1244,15 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
             await File.WriteAllLinesAsync(concatList,
                 segmentFiles.Select(f => $"file '{f.Replace("'", "'\\''")}'"), ct);
 
+            var joining = format.CanCopyH264
+                ? "Concatenating segments…"
+                : $"Encoding to {format.Key.ToUpperInvariant()}…";
+
             progress?.Report(new FFmpegProgressEventArgs
             {
-                Message = format.CanCopyH264 ? "Concatenating segments…" : $"Encoding to {format.Key.ToUpperInvariant()}…",
-                Current = total,
-                Total = total
+                Message = joining,
+                Current = (int)segmentShare,
+                Total = 100
             });
 
             // Segments are already H.264/AAC, whether they were copied or
@@ -1268,12 +1295,45 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
             var concatArgs = $"-hide_banner -y {spinArg}-f concat -safe 0 -i \"{concatList}\" " +
                              $"{joinMapping}{outputArgs} \"{outputPath}\"";
 
-            await RunAsync(concatArgs, null, ct);
-
             // What was asked for, at the speed each clip will actually play.
+            // Computed before the join rather than after it, because it is
+            // also how long the join has to work through — which is what
+            // turns ffmpeg's running time into a percentage.
             var expected = bookmarks
                 .Where(b => b.IsValid)
                 .Sum(b => (b.EndSeconds - b.StartSeconds) / (Math.Abs(b.Speed) < 0.01 ? 1.0 : b.Speed));
+
+            // The join reports into the share of the bar the segments left
+            // for it. Run blind, it sat at 100% saying "Concatenating" for
+            // however long the join took — which on a re-encoding container
+            // is most of the operation, and which reads as a hang.
+            //
+            // RunAsync measures the join against the output's own length and
+            // reports 0–100 of itself; this maps that onto what is left.
+            var joinProgress = progress is null ? null : new Progress<FFmpegProgressEventArgs>(e =>
+            {
+                var withinJoin = e.Total > 0 ? e.Current / (double)e.Total : 0;
+
+                progress.Report(new FFmpegProgressEventArgs
+                {
+                    // ffmpeg's own wording is about encoding a timeline, which
+                    // says nothing here: the segments are already cut and this
+                    // is the step that joins them.
+                    Message = joining,
+                    Current = (int)(segmentShare + withinJoin * (100 - segmentShare)),
+                    Total = 100
+                });
+            });
+
+            await RunAsync(concatArgs, joinProgress, ct, expected);
+
+            progress?.Report(new FFmpegProgressEventArgs
+            {
+                Message = "Checking the output…",
+                Current = 100,
+                Total = 100
+            });
+
             await VerifyOutputAsync(outputPath, expected, ct);
             await VerifyAudioSyncAsync(outputPath);
 
