@@ -2912,18 +2912,38 @@
                                            FontWeight="SemiBold" Margin="0,0,8,0"
                                            Foreground="{DynamicResource TextMuted}"/>
 
-                                <!-- Clickable, and the tooltip says so: the
+                                <!-- What the next operation will actually run,
+                                     which is the order narrowed to the ticked
+                                     cuts. The strip is read to answer "what
+                                     happens if I press Merge now", and an
+                                     order of 3, 1, 2 shown in full while only
+                                     cut 1 is ticked answers a question nobody
+                                     asked.
+
+                                     The whole order follows in brackets when
+                                     the ticks have shortened it, so the thing
+                                     that was set is still legible from the
+                                     thing that will run.
+
+                                     Clickable, and the tooltip says so: the
                                      numbers are what somebody wants to change
                                      when they are looking at them. -->
                                 <Button Command="{Binding SetProcessingOrderManualCommand}"
                                         HorizontalAlignment="Left" Cursor="Hand"
                                         Background="Transparent" BorderThickness="0" Padding="0"
                                         ToolTip="Change the processing order">
-                                    <TextBlock Text="{Binding ProcessingOrderDisplay}"
-                                               VerticalAlignment="Center"
-                                               FontFamily="Consolas" FontSize="12"
-                                               TextTrimming="CharacterEllipsis"
-                                               Foreground="{DynamicResource Accent}"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding ProcessingRunDisplay}"
+                                                   VerticalAlignment="Center"
+                                                   FontFamily="Consolas" FontSize="12"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Foreground="{DynamicResource Accent}"/>
+                                        <TextBlock VerticalAlignment="Center" Margin="8,0,0,0"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource TextMuted}"
+                                                   Text="{Binding ProcessingOrderDisplay, StringFormat='of {0}'}"
+                                                   Visibility="{Binding ProcessingOrderIsNarrowed, Converter={StaticResource BoolToVis}}"/>
+                                    </StackPanel>
                                 </Button>
                             </DockPanel>
                         </Border>

@@ -2244,6 +2244,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         EnterTimeManualCommand.NotifyCanExecuteChanged();
         DeleteSelectedCommand.NotifyCanExecuteChanged();
         SetProcessingOrderManualCommand.NotifyCanExecuteChanged();
+        NotifyProcessingRunChanged();
         // All four share CanToggleFlip. Notifying only the first left Rotate
         // and Mute stuck in the state they were evaluated in at startup —
         // disabled, since nothing was selected then — so neither button ever
@@ -8998,11 +8999,46 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public bool HasProcessingOrder => _processingOrder is { Count: > 0 };
 
     /// <summary>
-    /// The order as the row numbers that describe it — "3, 1, 2, 6, 5, 4".
+    /// The whole order as the row numbers that describe it — "3, 1, 2, 6, 5, 4"
+    /// — whatever is ticked.
     /// </summary>
     public string ProcessingOrderDisplay =>
         _processingOrder is null ? string.Empty
                                  : string.Join(", ", _processingOrder.Select(b => b.Index));
+
+    /// <summary>
+    /// What the next operation would actually run, in the order it would run
+    /// it: the order narrowed to the ticked cuts, or the whole of it when
+    /// none are ticked.
+    /// </summary>
+    /// <remarks>
+    /// The same two rules the operations themselves follow — ticked cuts, or
+    /// everything when the boxes are empty — so the strip on the main window
+    /// is not a record of what was typed but a statement of what will happen.
+    /// Tick cut 1 of an order of 3, 1, 2 and it says "1"; tick 1 and 3 and it
+    /// says "3, 1".
+    /// </remarks>
+    public string ProcessingRunDisplay
+    {
+        get
+        {
+            if (_processingOrder is null) return string.Empty;
+
+            var ticked = Session.Bookmarks.Where(b => b.IsSelected && b.IsValid).ToList();
+            var running = ticked.Count > 0
+                ? ticked
+                : Session.Bookmarks.Where(b => b.IsValid).ToList();
+
+            return string.Join(", ", InOperationOrder(running).Select(b => b.Index));
+        }
+    }
+
+    /// <summary>
+    /// Whether the ticks have narrowed the order to less than all of it, so
+    /// the strip can say what the rest of it was.
+    /// </summary>
+    public bool ProcessingOrderIsNarrowed =>
+        HasProcessingOrder && ProcessingRunDisplay != ProcessingOrderDisplay;
 
     /// <summary>The order as it stands, for the dialog that edits it.</summary>
     public IReadOnlyList<Bookmark>? ProcessingOrder => _processingOrder;
@@ -9071,6 +9107,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasProcessingOrder));
         OnPropertyChanged(nameof(ProcessingOrderDisplay));
         OnPropertyChanged(nameof(ProcessingOrder));
+        NotifyProcessingRunChanged();
+    }
+
+    /// <summary>
+    /// The run has changed without the order having changed — a box ticked or
+    /// cleared. Called from <see cref="RefreshCommandStates"/>, which is
+    /// already what a tick raises.
+    /// </summary>
+    private void NotifyProcessingRunChanged()
+    {
+        OnPropertyChanged(nameof(ProcessingRunDisplay));
+        OnPropertyChanged(nameof(ProcessingOrderIsNarrowed));
     }
 
     /// <summary>
