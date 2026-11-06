@@ -341,6 +341,24 @@ public class MpcHcService
     /// zeroes so the caller can tell "the player is at the start" from "nobody
     /// answered" and fall through to reading the window instead.
     /// </remarks>
+    /// <summary>
+    /// Whether the last position came from the Web Interface, and so is good
+    /// to the millisecond rather than to the second.
+    /// </summary>
+    /// <remarks>
+    /// The two sources are not equally good. The Web Interface reports
+    /// milliseconds; the status bar is read as text and says whole seconds, so
+    /// a position taken from it can be most of a second away from where the
+    /// player actually is. That makes no difference to a bookmark, whose times
+    /// are whole seconds anyway — but it decides which frame a still comes
+    /// from, and there are twenty-odd of those in a second.
+    ///
+    /// False until a position has been asked for, and false whenever the
+    /// answer did not come from the Web Interface — including when no player
+    /// answered at all.
+    /// </remarks>
+    public bool PositionIsPrecise { get; private set; }
+
     private (double Current, double Duration)? WebPlaybackPosition()
     {
         var snapshot = _webFile;
@@ -566,7 +584,13 @@ public class MpcHcService
     public (double CurrentSeconds, double DurationSeconds) GetPlaybackPosition()
     {
         BeginWebFileProbe();
-        if (WebPlaybackPosition() is { } fromWeb) return fromWeb;
+        if (WebPlaybackPosition() is { } fromWeb)
+        {
+            PositionIsPrecise = true;
+            return fromWeb;
+        }
+
+        PositionIsPrecise = false;
 
         var hwnd = FindMpcWindow();
         if (hwnd == IntPtr.Zero) return (0, 0);

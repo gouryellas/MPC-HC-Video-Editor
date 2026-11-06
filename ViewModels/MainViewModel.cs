@@ -10402,6 +10402,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var (live, _) = _mpc.GetPlaybackPosition();
         var seconds = live > 0 ? live : Session.CurrentTimeSeconds;
 
+        // Only when it is off. With the Web Interface answering, the position
+        // is good to the millisecond and there is nothing to warn about —
+        // saying so anyway would be a caption on every frame anybody saves.
+        var vague = !_mpc.PositionIsPrecise;
+
         // Spaces and colons are not filename material; the spoken form with the
         // gaps closed up reads as a time and survives as a name — "1m35s".
         var stamp = Bookmark.FormatSpoken(seconds).Replace(" ", "");
@@ -10431,8 +10436,23 @@ public partial class MainViewModel : ObservableObject, IDisposable
             }
 
             await File.WriteAllBytesAsync(outPath, png);
-            StatusText = $"Saved {Path.GetFileName(outPath)}";
-            _toast.Show("Frame saved", Path.GetFileName(outPath));
+
+            // The seek is now exact to the frame, so the only thing left that
+            // can put a still on the wrong one is the position it was given.
+            // Read off the status bar that is whole seconds, which is twenty
+            // frames or more — worth saying once a frame is in somebody's
+            // hand and not matching what they were looking at.
+            var note = vague
+                ? "MPC-HC's Web Interface is off, so the time came from its status " +
+                  "bar and is only good to the second — the frame may not be the one " +
+                  "on screen. Settings ▸ Player turns it on."
+                : null;
+
+            StatusText = note is null
+                ? $"Saved {Path.GetFileName(outPath)}"
+                : $"Saved {Path.GetFileName(outPath)} — approximate, see the note";
+
+            _toast.Show("Frame saved", note ?? Path.GetFileName(outPath));
         }
         catch (Exception ex)
         {
