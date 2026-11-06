@@ -10417,7 +10417,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         try
         {
-            var png = await _ffmpeg.ExtractFrameAsync(video, seconds, height: 0);
+            // snapToFrame, because this one is judged against the picture
+            // the player is showing: anything else is visibly the wrong
+            // moment. The thumbnails do without it — they are taken at cut
+            // starts nobody is comparing frame by frame, and each would cost
+            // its own ffprobe.
+            var png = await _ffmpeg.ExtractFrameAsync(video, seconds, height: 0, snapToFrame: true);
             if (png is null || png.Length == 0)
             {
                 StatusText = "That frame could not be read";

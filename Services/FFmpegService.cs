@@ -2155,9 +2155,15 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
     /// is the one that cut will produce rather than the one in the file. Null
     /// for the frame as it sits.
     /// </param>
+    /// <param name="snapToFrame">
+    /// Take the frame the time falls <em>inside</em> rather than the next one
+    /// to begin. Costs one ffprobe, so it is for the single frame somebody
+    /// asked for by eye rather than for a wall of thumbnails.
+    /// </param>
     public async Task<byte[]?> ExtractFrameAsync(
         string videoPath, double seconds, int height = 76,
-        Bookmark? orientLike = null, CancellationToken ct = default)
+        Bookmark? orientLike = null, CancellationToken ct = default,
+        bool snapToFrame = false)
     {
         if (string.IsNullOrWhiteSpace(videoPath) || !File.Exists(videoPath)) return null;
         if (seconds < 0) seconds = 0;
@@ -2178,12 +2184,53 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
 
         if (height > 0) filters.Add($"scale=-2:{height}");
 
-        var timestamp = seconds.ToString("0.###", CultureInfo.InvariantCulture);
+        if (snapToFrame)
+            seconds = await SnapToFrameAsync(videoPath, seconds, ct).ConfigureAwait(false);
+
+        // Six decimals, and rounded down. Three was a millisecond, which is
+        // coarser than a frame at any rate — and rounding to nearest could
+        // round a time *up* past the frame it was asked for, which is the
+        // same off-by-one this whole seek is trying to avoid.
+        var timestamp = Math.Floor(seconds * 1_000_000) / 1_000_000;
+        var stamp = timestamp.ToString("0.######", CultureInfo.InvariantCulture);
         var vf = filters.Count > 0 ? $"-vf \"{string.Join(",", filters)}\" " : string.Empty;
-        var args = $"-hide_banner -loglevel error -ss {timestamp} -i \"{videoPath}\" " +
+        var args = $"-hide_banner -loglevel error -ss {stamp} -i \"{videoPath}\" " +
                    $"-frames:v 1 {vf}-f image2pipe -c:v png -";
 
         return await PipePngAsync(args, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Moves a time back onto the frame it falls inside.
+    /// </summary>
+    /// <remarks>
+    /// <c>-ss T</c> hands back the first frame at or after T, and the player
+    /// is showing the last frame at or before it. Those are the same frame
+    /// only when T lands exactly on a frame boundary, which a position read
+    /// off a running player almost never does — so a frame saved at 0.42s of
+    /// a 25fps video came back as the frame at 0.44s, one ahead of the
+    /// picture on screen. Asking for the start of the frame that contains T
+    /// makes the two agree.
+    ///
+    /// The epsilon is for a time that is already on a boundary and has picked
+    /// up a rounding error on its way here: 0.44 × 25 computes as 11.000000000000002
+    /// and floors correctly, but the error can land either side, and without
+    /// the nudge the other side would quantise a frame too far back.
+    ///
+    /// Returns the time unchanged when the rate cannot be read, which is the
+    /// old behaviour — a frame near the right one beats no frame at all.
+    /// </remarks>
+    private async Task<double> SnapToFrameAsync(string videoPath, double seconds, CancellationToken ct)
+    {
+        var (_, fps) = await GetFrameRateRationalAsync(videoPath).ConfigureAwait(false);
+        if (fps <= 0 || double.IsNaN(fps) || double.IsInfinity(fps)) return seconds;
+
+        ct.ThrowIfCancellationRequested();
+
+        var frame = Math.Floor(seconds * fps + 1e-6);
+        if (frame < 0) return 0;
+
+        return frame / fps;
     }
 
     /// <summary>
