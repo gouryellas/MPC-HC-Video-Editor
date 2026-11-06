@@ -10399,13 +10399,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        var (live, _) = _mpc.GetPlaybackPosition();
+        // Asked fresh rather than taken from the poll's cache, which is
+        // allowed to be five seconds old — fine for a figure being redrawn
+        // several times a second, badly wrong for one about to decide which
+        // frame gets written to disk.
+        var (live, _, precise) = await _mpc.GetFreshPositionAsync();
         var seconds = live > 0 ? live : Session.CurrentTimeSeconds;
 
         // Only when it is off. With the Web Interface answering, the position
         // is good to the millisecond and there is nothing to warn about —
         // saying so anyway would be a caption on every frame anybody saves.
-        var vague = !_mpc.PositionIsPrecise;
+        var vague = !precise;
 
         // Spaces and colons are not filename material; the spoken form with the
         // gaps closed up reads as a time and survives as a name — "1m35s".

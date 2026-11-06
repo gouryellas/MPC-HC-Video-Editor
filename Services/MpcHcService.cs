@@ -359,6 +359,52 @@ public class MpcHcService
     /// </remarks>
     public bool PositionIsPrecise { get; private set; }
 
+    /// <summary>
+    /// Asks the player where it is right now, rather than reading the cached
+    /// answer the background probe left behind.
+    /// </summary>
+    /// <remarks>
+    /// The ordinary path is deliberately cached: the probe runs about once a
+    /// second and an answer is accepted for up to five, which is right for a
+    /// position that is being redisplayed several times a second and wrong for
+    /// one that is about to be acted on. Saving a frame while the video plays
+    /// took whatever the last probe happened to have left — up to five seconds
+    /// behind the picture, and on an unlucky tick exactly that.
+    ///
+    /// Short timeout, because this is on the path of a button press. Falls
+    /// back to the cached reading, which is what it would have used anyway.
+    /// </remarks>
+    public async Task<(double Current, double Duration, bool Precise)> GetFreshPositionAsync(
+        CancellationToken ct = default)
+    {
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(600);
+
+            var html = await _webHttp
+                .GetStringAsync($"http://127.0.0.1:{WebInterfacePort}/variables.html", timeout.Token)
+                .ConfigureAwait(false);
+
+            var position = ReadMilliseconds(html, "position");
+            var duration = ReadMilliseconds(html, "duration");
+
+            if (duration > 0)
+            {
+                PositionIsPrecise = true;
+                return (position, duration, true);
+            }
+        }
+        catch
+        {
+            // Interface off, wrong port, or simply slow. Either way the cached
+            // path below is the answer, and it says for itself how good it is.
+        }
+
+        var (current, length) = GetPlaybackPosition();
+        return (current, length, PositionIsPrecise);
+    }
+
     private (double Current, double Duration)? WebPlaybackPosition()
     {
         var snapshot = _webFile;

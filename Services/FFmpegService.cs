@@ -2223,7 +2223,17 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
     private async Task<double> SnapToFrameAsync(string videoPath, double seconds, CancellationToken ct)
     {
         var (_, fps) = await GetFrameRateRationalAsync(videoPath).ConfigureAwait(false);
-        if (fps <= 0 || double.IsNaN(fps) || double.IsInfinity(fps)) return seconds;
+
+        // Bounded, for the reason spelled out where the merge reads the same
+        // number: r_frame_rate is the lowest rate that can represent every
+        // timestamp exactly, not the rate the clip plays at, and a file with
+        // one irregular timestamp reports hundreds. A grid built on a fiction
+        // puts the frame somewhere else entirely, which is worse than the
+        // off-by-one this is here to fix — so an implausible rate means no
+        // snapping rather than a snap to nowhere.
+        if (fps <= 0 || fps > MaxPlausibleFrameRate ||
+            double.IsNaN(fps) || double.IsInfinity(fps))
+            return seconds;
 
         ct.ThrowIfCancellationRequested();
 
