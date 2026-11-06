@@ -2185,7 +2185,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         if (height > 0) filters.Add($"scale=-2:{height}");
 
         if (snapToFrame)
-            seconds = await SnapToFrameAsync(videoPath, seconds, ct).ConfigureAwait(false);
+            seconds = await FrameStartAtAsync(videoPath, seconds, ct).ConfigureAwait(false);
 
         // Six decimals, and rounded down. Three was a millisecond, which is
         // coarser than a frame at any rate — and rounding to nearest could
@@ -2201,46 +2201,99 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
     }
 
     /// <summary>
-    /// Moves a time back onto the frame it falls inside.
+    /// The start of the frame that is on screen at <paramref name="seconds"/>.
     /// </summary>
     /// <remarks>
-    /// <c>-ss T</c> hands back the first frame at or after T, and the player
-    /// is showing the last frame at or before it. Those are the same frame
-    /// only when T lands exactly on a frame boundary, which a position read
-    /// off a running player almost never does — so a frame saved at 0.42s of
-    /// a 25fps video came back as the frame at 0.44s, one ahead of the
-    /// picture on screen. Asking for the start of the frame that contains T
-    /// makes the two agree.
+    /// <c>-ss T</c> hands back the first frame at or after T, and the player is
+    /// showing the last frame at or before it. Those are the same frame only
+    /// when T lands exactly on a frame boundary, which a position read off a
+    /// running player almost never does — so a still came back one frame ahead
+    /// of the picture it was taken from.
     ///
-    /// The epsilon is for a time that is already on a boundary and has picked
-    /// up a rounding error on its way here: 0.44 × 25 computes as 11.000000000000002
-    /// and floors correctly, but the error can land either side, and without
-    /// the nudge the other side would quantise a frame too far back.
+    /// The frame times are read from the file rather than worked out from the
+    /// frame rate. There is no frame rate to work them out from: ffprobe's
+    /// r_frame_rate is the lowest rate that can represent every timestamp
+    /// exactly rather than the rate anything plays at, and a variable-rate file
+    /// — a screen capture, a phone video — has no grid at all. Measured against
+    /// one whose frames land on 0, .04, .08, .12, .20, .36, .44, .60, .80, a
+    /// grid built on its claimed 25fps put the still at 1.160 for a position of
+    /// 0.90: a quarter of a second into the future, from a fix meant to move it
+    /// back by one frame.
     ///
-    /// Returns the time unchanged when the rate cannot be read, which is the
-    /// old behaviour — a frame near the right one beats no frame at all.
+    /// One ffprobe over a second or two either side, not a pass over the file:
+    /// -read_intervals seeks in and reads a span, so the cost does not grow
+    /// with the length of the video.
+    ///
+    /// Returns the time unchanged when nothing can be read, which is the old
+    /// behaviour — a frame near the right one beats no frame at all.
     /// </remarks>
-    private async Task<double> SnapToFrameAsync(string videoPath, double seconds, CancellationToken ct)
+    private async Task<double> FrameStartAtAsync(string videoPath, double seconds, CancellationToken ct)
     {
-        var (_, fps) = await GetFrameRateRationalAsync(videoPath).ConfigureAwait(false);
+        // Far enough back to contain the frame in progress even when frames are
+        // sparse, and short enough that reading it is not noticeable.
+        const double LookBehindSeconds = 2.0;
+        const double LookAheadSeconds = 1.0;
 
-        // Bounded, for the reason spelled out where the merge reads the same
-        // number: r_frame_rate is the lowest rate that can represent every
-        // timestamp exactly, not the rate the clip plays at, and a file with
-        // one irregular timestamp reports hundreds. A grid built on a fiction
-        // puts the frame somewhere else entirely, which is worse than the
-        // off-by-one this is here to fix — so an implausible rate means no
-        // snapping rather than a snap to nowhere.
-        if (fps <= 0 || fps > MaxPlausibleFrameRate ||
-            double.IsNaN(fps) || double.IsInfinity(fps))
+        var from = Math.Max(0, seconds - LookBehindSeconds);
+
+        // A generous margin past the moment wanted, because -read_intervals
+        // stops reading well before the end it is given: asked for 0 to 0.8 of
+        // a 25fps clip it returns nothing past 0.640, so a tight margin leaves
+        // out the very frame being looked for and the one before it is taken
+        // instead. Reading a little too far costs nothing — the extra frames
+        // are past the moment wanted and ignored below.
+        var to = seconds + LookAheadSeconds;
+
+        var args = $"-v error -select_streams v:0 " +
+                   $"-read_intervals {from.ToString("0.###", CultureInfo.InvariantCulture)}" +
+                   $"%{to.ToString("0.###", CultureInfo.InvariantCulture)} " +
+                   $"-show_entries frame=best_effort_timestamp_time " +
+                   $"-of csv=p=0 \"{videoPath}\"";
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = _ffprobePath,
+                Arguments = args,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var p = Process.Start(psi);
+            if (p is null) return seconds;
+
+            var output = await p.StandardOutput.ReadToEndAsync(ct).ConfigureAwait(false);
+            await p.WaitForExitAsync(ct).ConfigureAwait(false);
+            if (p.ExitCode != 0) return seconds;
+
+            // The last frame to have started by then. The epsilon is for a
+            // position that is already on a boundary and has picked up a
+            // rounding error between the player and here — without it, a
+            // timestamp a millionth of a second light would take the frame
+            // before the one being displayed.
+            var best = double.NaN;
+
+            foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                // csv=p=0 still writes a trailing comma for a single field.
+                var text = line.Trim().TrimEnd(',');
+
+                if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var at))
+                    continue;
+
+                if (at <= seconds + 1e-6 && (double.IsNaN(best) || at > best))
+                    best = at;
+            }
+
+            return double.IsNaN(best) ? seconds : best;
+        }
+        catch
+        {
             return seconds;
-
-        ct.ThrowIfCancellationRequested();
-
-        var frame = Math.Floor(seconds * fps + 1e-6);
-        if (frame < 0) return 0;
-
-        return frame / fps;
+        }
     }
 
     /// <summary>
