@@ -10424,6 +10424,59 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         StatusText = $"Saving the frame at {Bookmark.FormatTime(seconds)}…";
 
+        // The player first. It is displaying the frame, so asking it to write
+        // that frame cannot pick the wrong one — where ffmpeg has to be told a
+        // time and then agree about which frame covers it, and a disagreement
+        // either way puts a different picture on disk.
+        //
+        // What the player will not do is put the file where this program's
+        // settings say, or name it after the tag in use. So it writes into its
+        // own snapshot folder and the file is moved here afterwards, which
+        // keeps the accuracy and the naming both.
+        try
+        {
+            if (await _mpc.SaveDisplayedFrameAsync() is { } fromPlayer)
+            {
+                // The player writes PNG or JPEG as its own settings say, and
+                // the name chosen above assumed PNG. Take the extension from
+                // what actually arrived rather than renaming a JPEG to .png,
+                // which would be a file that lies about what is in it.
+                var landing = outPath;
+                var ext = Path.GetExtension(fromPlayer);
+
+                if (!string.IsNullOrEmpty(ext) &&
+                    !ext.Equals(Path.GetExtension(outPath), StringComparison.OrdinalIgnoreCase))
+                {
+                    var renamed = await ResolveOutputPathAsync(Path.ChangeExtension(outPath, ext));
+                    if (renamed is null)
+                    {
+                        // Cancelled at the conflict prompt. The player's own
+                        // file is left where it put it rather than deleted —
+                        // it is a frame somebody asked for either way.
+                        StatusText = $"Frame left in the player's snapshot folder as {Path.GetFileName(fromPlayer)}";
+                        return;
+                    }
+
+                    landing = renamed;
+                }
+
+                File.Move(fromPlayer, landing, overwrite: false);
+                StatusText = $"Saved {Path.GetFileName(landing)}";
+                _toast.Show("Frame saved", Path.GetFileName(landing));
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            // The player wrote a frame and it could not be moved — a locked
+            // destination, a folder that has gone. Said rather than silently
+            // retried through ffmpeg, which would write a second file and
+            // leave the first behind in the player's folder.
+            StatusText = "The frame could not be saved";
+            ShowError(ex.Message, "Could not save the frame");
+            return;
+        }
+
         try
         {
             // snapToFrame, because this one is judged against the picture

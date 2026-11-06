@@ -99,6 +99,71 @@ public static class MpcHcConfig
         return null;
     }
 
+    /// <summary>
+    /// Where the player writes the stills it saves itself, or null when it has
+    /// never been told and is therefore using its own default.
+    /// </summary>
+    /// <remarks>
+    /// Read from the same two places as the Web Interface settings and in the
+    /// same order, for the same reason: a portable copy keeps its settings
+    /// beside itself and never touches the registry, so a stale key left by an
+    /// earlier installed copy must not win.
+    ///
+    /// MPC-HC calls this SnapShotPath. An empty value means it has not been
+    /// set, which the player treats as "ask me every time" — and a player that
+    /// asks is no use to something driving it, so that reads as null here too.
+    /// </remarks>
+    public static string? SnapshotFolder(string? playerExePath = null)
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(playerExePath);
+            if (!string.IsNullOrEmpty(dir))
+            {
+                foreach (var ini in IniCandidates(playerExePath!, dir))
+                {
+                    if (!File.Exists(ini)) continue;
+
+                    var values = ReadIniSection(ini, "Settings");
+                    if (values.TryGetValue("SnapShotPath", out var fromIni) &&
+                        !string.IsNullOrWhiteSpace(fromIni))
+                        return fromIni.Trim().Trim('"');
+                }
+            }
+        }
+        catch
+        {
+            // Unreadable ini — fall through to the registry.
+        }
+
+        foreach (var path in RegistryPaths)
+        {
+            try
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(path);
+                if (key?.GetValue("SnapShotPath") is string value && value.Trim().Length > 0)
+                    return value.Trim();
+            }
+            catch
+            {
+                // Denied or malformed key — try the next candidate.
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The .ini files a player of this name might keep beside it.</summary>
+    private static IEnumerable<string> IniCandidates(string exePath, string dir) =>
+        new[]
+        {
+            Path.Combine(dir, Path.GetFileNameWithoutExtension(exePath) + ".ini"),
+            Path.Combine(dir, "mpc-hc64.ini"),
+            Path.Combine(dir, "mpc-hc.ini"),
+            Path.Combine(dir, "mpc-be64.ini"),
+            Path.Combine(dir, "mpc-be.ini")
+        }.Distinct(StringComparer.OrdinalIgnoreCase);
+
     private static MpcHcWebConfig? FromRegistry()
     {
         foreach (var path in RegistryPaths)
