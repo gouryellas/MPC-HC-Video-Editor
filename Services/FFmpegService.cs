@@ -2201,6 +2201,42 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
     }
 
     /// <summary>
+    /// What the stream calls its first instant. Zero for most files, and not
+    /// zero for a capture that opens part-way into a timeline.
+    /// </summary>
+    private async Task<double> StreamStartTimeAsync(string videoPath, CancellationToken ct)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = _ffprobePath,
+                Arguments = $"-v error -select_streams v:0 -show_entries stream=start_time " +
+                            $"-of default=noprint_wrappers=1:nokey=1 \"{videoPath}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var p = Process.Start(psi);
+            if (p is null) return 0;
+
+            var text = await p.StandardOutput.ReadToEndAsync(ct).ConfigureAwait(false);
+            await p.WaitForExitAsync(ct).ConfigureAwait(false);
+
+            return double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var at)
+                   && at > 0
+                ? at
+                : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>
     /// The start of the frame that is on screen at <paramref name="seconds"/>.
     /// </summary>
     /// <remarks>
@@ -2234,7 +2270,16 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         const double LookBehindSeconds = 2.0;
         const double LookAheadSeconds = 1.0;
 
-        var from = Math.Max(0, seconds - LookBehindSeconds);
+        // The player counts from the start of playback; the file's timestamps
+        // count from whatever the stream says it starts at, which is not
+        // always zero — a capture can open at 10.000 and run up from there.
+        // Comparing the two directly finds no frame at or before the moment
+        // wanted and quietly gives up, so the offset is added going in and
+        // taken off coming out.
+        var origin = await StreamStartTimeAsync(videoPath, ct).ConfigureAwait(false);
+        var wanted = seconds + origin;
+
+        var from = Math.Max(0, wanted - LookBehindSeconds);
 
         // A generous margin past the moment wanted, because -read_intervals
         // stops reading well before the end it is given: asked for 0 to 0.8 of
@@ -2242,7 +2287,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         // out the very frame being looked for and the one before it is taken
         // instead. Reading a little too far costs nothing — the extra frames
         // are past the moment wanted and ignored below.
-        var to = seconds + LookAheadSeconds;
+        var to = wanted + LookAheadSeconds;
 
         var args = $"-v error -select_streams v:0 " +
                    $"-read_intervals {from.ToString("0.###", CultureInfo.InvariantCulture)}" +
@@ -2284,11 +2329,11 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
                 if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var at))
                     continue;
 
-                if (at <= seconds + 1e-6 && (double.IsNaN(best) || at > best))
+                if (at <= wanted + 1e-6 && (double.IsNaN(best) || at > best))
                     best = at;
             }
 
-            return double.IsNaN(best) ? seconds : best;
+            return double.IsNaN(best) ? seconds : Math.Max(0, best - origin);
         }
         catch
         {
