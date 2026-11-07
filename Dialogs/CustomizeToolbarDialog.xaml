@@ -91,48 +91,24 @@
                         BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                         CornerRadius="3" Padding="8,6"
                         Visibility="{Binding Kind, Converter={StaticResource IsSpacer}}">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="|      |" Foreground="{DynamicResource TextMuted}" FontFamily="Consolas"
-                                   VerticalAlignment="Center"/>
-                        <ContentControl Style="{StaticResource Qmhp}">
-                            <ContentControl.ToolTip>
-                                <TextBlock MaxWidth="330" TextWrapping="Wrap"
-                                           Text="A fixed gap between two groups of buttons."/>
-                            </ContentControl.ToolTip>
-                        </ContentControl>
-                    </StackPanel>
+                    <TextBlock Text="|      |" Foreground="{DynamicResource TextMuted}" FontFamily="Consolas"
+                               VerticalAlignment="Center"/>
                 </Border>
 
                 <Border Background="{DynamicResource InsetBackground}"
                         BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                         CornerRadius="3" Padding="8,6"
                         Visibility="{Binding Kind, Converter={StaticResource IsExpander}}">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="&lt; --- &gt;" Foreground="{DynamicResource TextMuted}"
-                                   FontFamily="Consolas" VerticalAlignment="Center"/>
-                        <ContentControl Style="{StaticResource Qmhp}">
-                            <ContentControl.ToolTip>
-                                <TextBlock MaxWidth="330" TextWrapping="Wrap"
-                                           Text="Takes up whatever width is left over."/>
-                            </ContentControl.ToolTip>
-                        </ContentControl>
-                    </StackPanel>
+                    <TextBlock Text="&lt; --- &gt;" Foreground="{DynamicResource TextMuted}"
+                               FontFamily="Consolas" VerticalAlignment="Center"/>
                 </Border>
 
                 <Border Background="{DynamicResource InsetBackground}"
                         BorderBrush="{DynamicResource ValueYellow}" BorderThickness="1"
                         CornerRadius="3" Padding="8,6"
                         Visibility="{Binding Kind, Converter={StaticResource IsRowBreak}}">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="⏎ New row" Foreground="{DynamicResource ValueYellow}"
-                                   VerticalAlignment="Center"/>
-                        <ContentControl Style="{StaticResource Qmhp}">
-                            <ContentControl.ToolTip>
-                                <TextBlock MaxWidth="330" TextWrapping="Wrap"
-                                           Text="Drop this on the toolbar to start another line."/>
-                            </ContentControl.ToolTip>
-                        </ContentControl>
-                    </StackPanel>
+                    <TextBlock Text="⏎ New row" Foreground="{DynamicResource ValueYellow}"
+                               VerticalAlignment="Center"/>
                 </Border>
             </Grid>
         </DataTemplate>

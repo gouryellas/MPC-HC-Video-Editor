@@ -48,29 +48,37 @@
             </Style.Triggers>
         </Style>
 
-        <!-- A question mark that carries an explanation, for the places where
-             one is wanted on demand rather than on the way past.
+        <!-- The mark beside a label whose tooltip carries the explanation,
+             for the places where one is wanted on demand rather than on the
+             way past.
 
-             A ContentControl whose template is the whole mark, so a use is
-             three lines and the mark is described once.
+             A raised asterisk, in the theme's accent. Both halves of that
+             matter.
 
-             A "?" inside a hairline ring. The ring is outline only — what
-             made the earlier filled versions shout was the fill, not the
-             shape, and a one-pixel circle in the same ink as the glyph reads
-             as a frame around it rather than a blob beside the words.
+             Raised, because that is what a footnote reference is, and a
+             footnote reference is exactly what this is: a mark saying there
+             is more to read about the thing beside it. Centuries of print
+             have already taught everybody what it means, so nothing has to
+             explain the explainer. Raised by hand rather than by WPF's
+             Superscript alignment, which lifts less and gives no say in how
+             much.
 
-             No colour and no weight of its own. Foreground is left unset so
-             it inherits from whatever it sits in, which does the right thing
-             twice over: a live menu item hands down MenuBarForeground, so the
-             mark is as dark as the words beside it, and the MenuItem style
-             drops its Foreground to TextSecondary when the item goes dead, so
-             the mark greys with the line without being told. The dialogs hand
-             down their own text colour the same way — which matters, because
-             in a dark theme the menus are pale and the panels are not.
+             The accent, because the previous version inherited the colour of
+             whatever it sat in — and on a row whose own text is muted, so was
+             the mark. It disappeared completely on the Customize toolbar
+             cards. The accent is the one colour every palette picks to stand
+             out, so it cannot vanish into a surface nobody thought about.
 
-             No hover state. The mark does not do anything when clicked — it
-             is there to be pointed at, and the tooltip appearing is the
-             response.
+             The heavy asterisk rather than the plain one. The plain * is
+             typographically a superscript already and sits high before any
+             lifting, which leaves it clipping the line above; and it is a
+             thin, spindly shape that loses its form at this size. U+2731 is
+             a solid six-pointed star, vertically centred, which keeps its
+             shape small and only has to be lifted into place.
+
+             It has been a ringed ?, a filled accent disc, a disc with the
+             mark cut out of it, and a plain ?. Every one of those drew the
+             eye to the container rather than the mark.
 
              Menu items in this program wait three seconds before showing a
              tooltip, so that reading down a menu does not pop panels over the
@@ -78,30 +86,46 @@
              header answers at the ordinary speed — which is the point of
              putting it there.
 
-             ShowOnDisabled, because twelve of the fourteen marks in the menus
-             sit on items that go grey when there is nothing to act on — and a
+             ShowOnDisabled, because twelve of the marks in the menus sit on
+             items that go grey when there is nothing to act on — and a
              greyed-out item is exactly when someone wants to know what it
              would have done. WPF suppresses tooltips on disabled elements by
              default, and IsEnabled is coerced down the tree, so without this
              the mark went quiet at the only moment it was worth hovering. -->
         <Style x:Key="Qmhp" TargetType="ContentControl">
-            <Setter Property="Margin" Value="6,0,0,0"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="Focusable" Value="False"/>
             <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
+            <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ContentControl">
-                        <!-- Transparent rather than unset: a null background is
-                             not a hit-test target, so the middle of the ring
-                             would be a hole the pointer falls through and the
-                             tooltip would only answer from the stroke itself. -->
-                        <Border Width="13" Height="13" CornerRadius="6.5"
-                                BorderThickness="1" Background="Transparent"
-                                BorderBrush="{TemplateBinding Foreground}"
-                                SnapsToDevicePixels="True">
-                            <TextBlock Text="?" FontSize="9" FontWeight="SemiBold"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <!-- The padding is the point of this Border, and the
+                             Transparent with it: a mark eight pixels across
+                             is a very small thing to hit, and a null
+                             background is not a hit-test target at all. This
+                             gives the pointer a few pixels of grace either
+                             side without putting anything on screen.
+
+                             The margin lives here rather than on the style so
+                             that the padding does not add to it — six pixels
+                             of gap, of which four are catchable. -->
+                        <Border Background="Transparent"
+                                Margin="2,0,0,0" Padding="4,2,4,2">
+                            <TextBlock Text="&#x2731;" FontSize="8"
+                                       FontWeight="SemiBold"
+                                       Foreground="{TemplateBinding Foreground}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center">
+                                <TextBlock.RenderTransform>
+                                    <!-- Lifted into the footnote position.
+                                         A RenderTransform rather than a
+                                         margin: a margin is laid out, so it
+                                         would push the row taller by exactly
+                                         the amount the mark was raised. -->
+                                    <TranslateTransform Y="-3"/>
+                                </TextBlock.RenderTransform>
+                            </TextBlock>
                         </Border>
                     </ControlTemplate>
                 </Setter.Value>
