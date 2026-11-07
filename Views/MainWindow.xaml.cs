@@ -1554,18 +1554,31 @@ public partial class MainWindow : Window
         // also the entry that took over the screen — so there was no way to
         // say "send additions here" without being moved off whatever you
         // were watching. Open all, directly above, is how you play it.
+        //
+        // On the playlist that is already loaded this becomes Unload, because
+        // Load was an entry that did nothing there: clicking it set the thing
+        // it was already set to, and the only clue was the tick on the parent.
+        // One slot, naming whichever of the two is available — which also
+        // puts unloading where it is looked for, on the playlist being
+        // unloaded, rather than only on the Playlists menu where it reads as
+        // a general command and gives no sign of which one it would drop.
         var loadThis = new MenuItem
         {
-            Header = "Load this playlist",
-            Icon = MenuIcon("menu-folder_open"),
+            Header = isLoaded ? "Unload this playlist" : "Load this playlist",
+            Icon = MenuIcon(isLoaded ? "menu-x" : "menu-folder_open"),
             Tag = plsPath,
-            ToolTip = "Makes this the playlist that \"Add current video\" and \"+ to playlist\" " +
-                      "write to. Does not open anything in the player."
+            ToolTip = isLoaded
+                ? "Stops this being the playlist that \"Add current video\" and \"+ to playlist\" " +
+                  "write to, so they ask which again. The playlist itself is left alone."
+                : "Makes this the playlist that \"Add current video\" and \"+ to playlist\" " +
+                  "write to. Does not open anything in the player."
         };
         loadThis.Click += (_, e) =>
         {
             e.Handled = true;
-            _vm?.LoadPlaylistCommand.Execute(plsPath);
+
+            if (isLoaded) _vm?.ClearLoadedPlaylistCommand.Execute(null);
+            else _vm?.LoadPlaylistCommand.Execute(plsPath);
         };
         parent.Items.Add(loadThis);
 

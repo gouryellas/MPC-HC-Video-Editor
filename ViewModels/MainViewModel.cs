@@ -2813,6 +2813,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // "Clear loaded playlist" is gated on the loaded playlist having
         // entries, which means re-reading the .pls.
         RefreshPlaylistState();
+
+        // And rebuild the Playlists menu, because which playlist is loaded is
+        // drawn into it: the tick marking the loaded one, and the entry that
+        // reads Load or Unload depending on whether it is. Both are decided
+        // when the menu is built, and nothing here used to ask for a rebuild
+        // — so loading a playlist left the tick on whichever one had it
+        // before, until some unrelated change to a playlist file happened to
+        // trigger one.
+        //
+        // Safe to raise from a property setter: the handlers rebuild menus
+        // and re-read the folder, and none of them sets this property back.
+        PlaylistsChanged?.Invoke();
     }
 
     /// <summary>
