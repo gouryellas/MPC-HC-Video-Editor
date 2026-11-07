@@ -5144,6 +5144,62 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// Sends every video a playlist still has to the player as one playlist,
+    /// starting on the first.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from "Load this playlist", which is about this program: that
+    /// one makes the playlist the target of everything here that fills it,
+    /// and hands the .pls to the player. This one is about the player, and
+    /// does not change which playlist is loaded.
+    ///
+    /// The entries are passed individually rather than as the playlist file,
+    /// so the ones whose files are gone are left out — handing over the .pls
+    /// puts them in the player's list too, where they are dead rows that
+    /// stop playback when it reaches them.
+    ///
+    /// The first one is also bound to this window's session, the same way
+    /// loading a playlist does, since it is the video about to be on screen.
+    /// </remarks>
+    [RelayCommand]
+    private async Task OpenAllInPlaylist(string? plsPath)
+    {
+        if (string.IsNullOrWhiteSpace(plsPath) || !File.Exists(plsPath))
+        {
+            StatusText = "Playlist file not found.";
+            return;
+        }
+
+        var entries = _playlists.ReadEntries(plsPath);
+        var present = entries.Where(File.Exists).ToList();
+
+        if (present.Count == 0)
+        {
+            StatusText = entries.Count == 0
+                ? $"{Path.GetFileName(plsPath)} is empty — nothing to open"
+                : $"None of the {entries.Count} files in {Path.GetFileName(plsPath)} were found";
+            return;
+        }
+
+        if (!_mpc.LaunchVideos(present))
+        {
+            StatusText = "Could not start the player.";
+            return;
+        }
+
+        var missing = entries.Count - present.Count;
+        StatusText = $"Opened {present.Count} video(s) from {Path.GetFileName(plsPath)}" +
+                     (missing > 0 ? $" ({missing} missing, skipped)" : "");
+
+        await Task.Delay(500);
+        _mpc.BringToFront();
+
+        // Metadata only — LoadVideoAsync launches nothing, so there is no
+        // second launch racing the one above.
+        await LoadVideoAsync(present[0]);
+    }
+
+    /// <summary>
     /// Plays the first entry of a playlist that still exists on disk, skipping
     /// missing ones, and loads it as the current video.
     /// </summary>

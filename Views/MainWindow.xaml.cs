@@ -1547,6 +1547,26 @@ public partial class MainWindow : Window
         };
         parent.Items.Add(loadThis);
 
+        // Open all — the whole playlist into the player, first one playing.
+        //
+        // Beside "Load this playlist" because the two are easily confused and
+        // the tooltips are where the difference is spelled out: that one is
+        // about this program, this one is about the player.
+        var openAll = new MenuItem
+        {
+            Header = "Open all",
+            Icon = MenuIcon("play_all"),
+            Tag = plsPath,
+            ToolTip = "Sends every video this playlist still has to MPC-HC as one playlist " +
+                      "and starts the first. Entries whose file is gone are left out."
+        };
+        openAll.Click += (_, e) =>
+        {
+            e.Handled = true;
+            _vm?.OpenAllInPlaylistCommand.Execute(plsPath);
+        };
+        parent.Items.Add(openAll);
+
         // Add current video to this playlist.
         //
         // Enabled only when there is a video to add. The command already refused

@@ -886,6 +886,62 @@ public class MpcHcService
     }
 
     /// <summary>
+    /// Opens several files at once, as one playlist in the player, starting
+    /// on the first.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// MPC-HC takes any number of files on its command line and builds a
+    /// playlist out of them. That is better than handing it a .pls, because
+    /// what is passed here is a list the caller has already filtered — a
+    /// playlist file carries its missing entries along with the rest, and
+    /// the player has no way to know they were not wanted.
+    /// </para>
+    /// <para>
+    /// Falls back to <see cref="LaunchVideo"/> with the first file when the
+    /// command line would be too long to pass. Windows caps it at 32767
+    /// characters, and a long enough playlist of long enough paths really
+    /// does reach that — at which point a truncated command line is not a
+    /// shorter playlist, it is a quoting error. The cap here is deliberately
+    /// under the limit, since the executable's own path and the quoting are
+    /// part of the same budget.
+    /// </para>
+    /// <para>
+    /// No shell-execute fallback for the multi-file case: shell-execute
+    /// opens one file, and silently playing the first of twenty would look
+    /// like the other nineteen had been loaded. A caller that gets
+    /// <c>false</c> can say so.
+    /// </para>
+    /// </remarks>
+    /// <returns><c>true</c> if a launch was attempted.</returns>
+    public bool LaunchVideos(IReadOnlyList<string> paths)
+    {
+        if (paths is null || paths.Count == 0) return false;
+        if (paths.Count == 1) return LaunchVideo(paths[0]);
+
+        var exe = FindMpcExecutable();
+        if (exe is null) return LaunchVideo(paths[0]);
+
+        var arguments = string.Join(" ", paths.Select(p => $"\"{p}\""));
+        if (arguments.Length + exe.Length + 8 > 32000) return LaunchVideo(paths[0]);
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = exe,
+                Arguments = arguments,
+                UseShellExecute = false
+            });
+            return true;
+        }
+        catch
+        {
+            return LaunchVideo(paths[0]);
+        }
+    }
+
+    /// <summary>
     /// Reads the Web Interface settings out of the player's own configuration,
     /// or returns <c>null</c> when they cannot be found.
     /// </summary>
