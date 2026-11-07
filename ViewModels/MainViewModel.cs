@@ -10411,9 +10411,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // saying so anyway would be a caption on every frame anybody saves.
         var vague = !precise;
 
+        // The frame that will actually be saved, resolved before the name is
+        // built from it. The two used to be worked out separately: the picture
+        // came from the frame covering the position and the name came from the
+        // position itself, rounded to the nearest second — so a still taken at
+        // 5.6s was written to disk as "6s" while showing the middle of the
+        // fifth second. The picture was right and the name was not.
+        var frameAt = await _ffmpeg.FrameStartAtAsync(video, seconds);
+
         // Spaces and colons are not filename material; the spoken form with the
         // gaps closed up reads as a time and survives as a name — "1m35s".
-        var stamp = Bookmark.FormatSpoken(seconds).Replace(" ", "");
+        //
+        // Floored, not rounded. A name is a label for the moment the picture
+        // comes from, and rounding it up names a moment the picture is not
+        // from — the second it says has not begun yet.
+        var stamp = Bookmark.FormatSpoken(Math.Floor(frameAt)).Replace(" ", "");
 
         var candidate = Path.Combine(
             ResolveSaveToDirectory() is { Length: > 0 } dir ? dir : Path.GetDirectoryName(video) ?? "",
@@ -10422,7 +10434,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var outPath = await ResolveOutputPathAsync(candidate);
         if (outPath == null) return;
 
-        StatusText = $"Saving the frame at {Bookmark.FormatTime(seconds)}…";
+        StatusText = $"Saving the frame at {Bookmark.FormatTime(frameAt)}…";
 
         try
         {
@@ -10431,11 +10443,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
             // moment. The thumbnails do without it — they are taken at cut
             // starts nobody is comparing frame by frame, and each would cost
             // its own ffprobe.
-            var png = await _ffmpeg.ExtractFrameAsync(video, seconds, height: 0, snapToFrame: true);
+            // Already the start of a frame, so no snapping: doing it twice
+            // would be a second ffprobe for an answer already in hand.
+            var png = await _ffmpeg.ExtractFrameAsync(video, frameAt, height: 0);
             if (png is null || png.Length == 0)
             {
                 StatusText = "That frame could not be read";
-                Notify($"No frame could be read at {Bookmark.FormatTime(seconds)}.");
+                Notify($"No frame could be read at {Bookmark.FormatTime(frameAt)}.");
                 return;
             }
 

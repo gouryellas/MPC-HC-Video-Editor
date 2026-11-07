@@ -2263,7 +2263,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
     /// Returns the time unchanged when nothing can be read, which is the old
     /// behaviour — a frame near the right one beats no frame at all.
     /// </remarks>
-    private async Task<double> FrameStartAtAsync(string videoPath, double seconds, CancellationToken ct)
+    public async Task<double> FrameStartAtAsync(string videoPath, double seconds, CancellationToken ct = default)
     {
         // Far enough back to contain the frame in progress even when frames are
         // sparse, and short enough that reading it is not noticeable.
@@ -2314,12 +2314,26 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
             await p.WaitForExitAsync(ct).ConfigureAwait(false);
             if (p.ExitCode != 0) return seconds;
 
-            // The last frame to have started by then. The epsilon is for a
-            // position that is already on a boundary and has picked up a
-            // rounding error between the player and here — without it, a
-            // timestamp a millionth of a second light would take the frame
-            // before the one being displayed.
+            // The frame whose own time is closest to the moment asked for,
+            // rather than the last one to have started by then.
+            //
+            // "The last one started" is what the picture on screen literally
+            // is, and it was still wrong, because the clock the player reports
+            // is not the clock it is drawing from. Paused out of playback,
+            // MPC-HC has already presented the next frame while its position
+            // still reads short of it — measured at 33.588 with frame 672 on
+            // screen, whose own time is 33.600. The last frame at or before
+            // 33.588 is 33.550: one behind the picture. The first at or after
+            // is one ahead whenever the clock does not lag, which it does not
+            // after a seek — asked for 10.000 the player answers exactly
+            // 10.000.
+            //
+            // Nearest is right in both cases, and is the only rule that is.
+            // The lag is a fraction of a frame — a quarter of one at 20fps —
+            // so the frame it belongs to is the closer of the two whichever
+            // side of the boundary the clock happens to sit.
             var best = double.NaN;
+            var closest = double.MaxValue;
 
             foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
             {
@@ -2329,8 +2343,15 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
                 if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var at))
                     continue;
 
-                if (at <= wanted + 1e-6 && (double.IsNaN(best) || at > best))
+                var distance = Math.Abs(at - wanted);
+
+                // Strictly closer, so a tie falls to the earlier frame — which
+                // is the one on screen at an exact midpoint.
+                if (distance < closest)
+                {
+                    closest = distance;
                     best = at;
+                }
             }
 
             return double.IsNaN(best) ? seconds : Math.Max(0, best - origin);
