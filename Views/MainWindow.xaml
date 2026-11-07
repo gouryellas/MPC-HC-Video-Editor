@@ -8,6 +8,7 @@
         xmlns:vm="clr-namespace:MpcHcVideoEditor.ViewModels"
         xmlns:helpers="clr-namespace:MpcHcVideoEditor.Helpers"
         xmlns:services="clr-namespace:MpcHcVideoEditor.Services"
+        xmlns:models="clr-namespace:MpcHcVideoEditor.Models"
         Title="MPC-HC Video Editor"
         Icon="pack://application:,,,/Assets/app.ico"
         Height="780" Width="1100"
@@ -2848,6 +2849,309 @@
                                 </StackPanel>
                             </Border>
                         </DataTemplate>
+
+                        <!-- ============================================
+                             The merge list: the same five views, for whole
+                             files being joined rather than cuts being made.
+
+                             Five templates rather than one panel shown over
+                             whichever view is up, because the view is a
+                             standing preference and an operation is not: a
+                             list that ignored it would be the one thing in
+                             this window that looked the same in all five
+                             modes, which reads as a panel that forgot where
+                             it was.
+
+                             They borrow what they can. StepFrame is the same
+                             style the cut storyboard uses, keyed off the same
+                             IsCurrentStep name, so the yellow frame means the
+                             same thing in both — this is the one being worked
+                             on now. The index, the plates and the sizes are
+                             the cut templates' own, so the two sets sit at
+                             the same scale and a merge does not visibly
+                             resize the area it appears in.
+
+                             What they drop is everything that acts on a cut:
+                             no checkbox, no quick save, no speed menu. These
+                             rows are a report on work already under way, and
+                             there is nothing to select or to do to them.
+                             ============================================ -->
+
+                        <!-- The tick, the step mark, or nothing. One template
+                             for all five views, because the three states have
+                             to be told apart the same way everywhere. -->
+                        <DataTemplate x:Key="MergeStateMark">
+                            <TextBlock FontSize="12" FontWeight="Bold" VerticalAlignment="Center"
+                                       HorizontalAlignment="Center" Width="13">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <!-- Waiting is a middle dot in the
+                                             muted colour: something has to
+                                             hold the column's width, or the
+                                             names below the current row shift
+                                             sideways as the marker passes. -->
+                                        <Setter Property="Text" Value="·"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding State}"
+                                                         Value="{x:Static models:MergeFileState.Preparing}">
+                                                <Setter Property="Text" Value="▶"/>
+                                                <Setter Property="Foreground" Value="{StaticResource StepTracker}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding State}"
+                                                         Value="{x:Static models:MergeFileState.Merged}">
+                                                <Setter Property="Text" Value="✓"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource ValueGreen}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </DataTemplate>
+
+                        <!-- The name, struck through once its segment is
+                             written. Struck rather than merely dimmed: dim is
+                             also what "waiting" looks like, and the two states
+                             are on screen together. -->
+                        <Style x:Key="MergeFileName" TargetType="TextBlock">
+                            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                            <Setter Property="VerticalAlignment" Value="Center"/>
+                            <Setter Property="Foreground" Value="{DynamicResource TextBody}"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding State}"
+                                             Value="{x:Static models:MergeFileState.Preparing}">
+                                    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding State}"
+                                             Value="{x:Static models:MergeFileState.Merged}">
+                                    <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+                                    <Setter Property="TextDecorations" Value="Strikethrough"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+
+                        <!-- The black box a frame sits in, and the yellow
+                             frame around the current one. Separate from the
+                             cut storyboard's StepFrame only in that it also
+                             carries the background and the clip: those are
+                             repeated on four templates here. -->
+                        <Style x:Key="MergeFrame" TargetType="Border" BasedOn="{StaticResource StepFrame}">
+                            <Setter Property="Background" Value="#FF000000"/>
+                            <Setter Property="CornerRadius" Value="2"/>
+                            <Setter Property="ClipToBounds" Value="True"/>
+                        </Style>
+
+                        <!-- Rows. -->
+                        <DataTemplate x:Key="MergeRows">
+                            <Grid Margin="0,1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="22"/>
+                                    <ColumnDefinition Width="26"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <ContentControl Grid.Column="0" Focusable="False"
+                                                ContentTemplate="{StaticResource MergeStateMark}"
+                                                Content="{Binding}"/>
+                                <TextBlock Grid.Column="1" Text="{Binding Index}"
+                                           Style="{StaticResource RowIndexNumber}"
+                                           HorizontalAlignment="Right" Margin="0,0,6,0"/>
+                                <TextBlock Grid.Column="2" Text="{Binding FileName}"
+                                           ToolTip="{Binding FullPath}"
+                                           Style="{StaticResource MergeFileName}"/>
+                                <TextBlock Grid.Column="3" Text="{Binding DurationDisplay}"
+                                           FontFamily="Consolas" FontSize="11" Margin="8,0,2,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource ValueGreen}"/>
+                            </Grid>
+                        </DataTemplate>
+
+                        <!-- Cards. The same 168 the cut card is, so switching
+                             between a merge and a cut list does not change how
+                             many fit on a line. -->
+                        <DataTemplate x:Key="MergeCards">
+                            <Border Width="168" Padding="6"
+                                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                    CornerRadius="4">
+                                <StackPanel>
+                                    <Border Height="88" Style="{StaticResource MergeFrame}">
+                                        <Grid>
+                                            <Image Source="{Binding Thumbnail}" Stretch="Uniform"/>
+                                            <Border HorizontalAlignment="Left" VerticalAlignment="Top"
+                                                    Margin="4" Padding="3,1"
+                                                    Background="#A0000000" CornerRadius="3">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <ContentControl Focusable="False"
+                                                                    ContentTemplate="{StaticResource MergeStateMark}"
+                                                                    Content="{Binding}"/>
+                                                    <TextBlock Text="{Binding Index}"
+                                                               Style="{StaticResource RowIndexNumber}"
+                                                               Margin="3,0,1,0"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+
+                                    <TextBlock Text="{Binding FileName}" FontSize="11" Margin="0,5,0,0"
+                                               HorizontalAlignment="Center"
+                                               ToolTip="{Binding FullPath}"
+                                               Style="{StaticResource MergeFileName}"/>
+                                    <TextBlock Text="{Binding DurationDisplay}" FontFamily="Consolas"
+                                               FontSize="11" HorizontalAlignment="Center"
+                                               Foreground="{DynamicResource ValueGreen}"/>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+
+                        <!-- Contact sheet. Everything on the tile, as the cut
+                             version does it: the mark and the number top left,
+                             the name and the length along the foot. -->
+                        <DataTemplate x:Key="MergeContactSheet">
+                            <Border Width="116" Height="66" Style="{StaticResource MergeFrame}">
+                                <Grid>
+                                    <Image Source="{Binding Thumbnail}" Stretch="Uniform"/>
+
+                                    <Border HorizontalAlignment="Left" VerticalAlignment="Top"
+                                            Margin="3" Padding="3,1"
+                                            Background="#A0000000" CornerRadius="3">
+                                        <StackPanel Orientation="Horizontal">
+                                            <ContentControl Focusable="False"
+                                                            ContentTemplate="{StaticResource MergeStateMark}"
+                                                            Content="{Binding}"/>
+                                            <TextBlock Text="{Binding Index}"
+                                                       Style="{StaticResource RowIndexNumber}"
+                                                       Margin="3,0,1,0"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Docked, not stacked: a horizontal
+                                         StackPanel measures with unbounded
+                                         width, so a long name would run past
+                                         the tile instead of trimming. The cut
+                                         template learned this the hard way. -->
+                                    <Border VerticalAlignment="Bottom" Margin="2" Padding="3,1"
+                                            Background="#A0000000" CornerRadius="3">
+                                        <DockPanel LastChildFill="True">
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding DurationDisplay}"
+                                                       FontFamily="Consolas" FontSize="10" Margin="4,0,0,0"
+                                                       Foreground="{DynamicResource ValueGreen}"/>
+                                            <TextBlock Text="{Binding FileName}" FontSize="10"
+                                                       ToolTip="{Binding FullPath}"
+                                                       Style="{StaticResource MergeFileName}"/>
+                                        </DockPanel>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+
+                        <!-- Detail. The one layout with room to say the state
+                             in words rather than only as a mark. -->
+                        <DataTemplate x:Key="MergeDetail">
+                            <Grid Margin="2,3">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="22"/>
+                                    <ColumnDefinition Width="26"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <ContentControl Grid.Column="0" Focusable="False"
+                                                ContentTemplate="{StaticResource MergeStateMark}"
+                                                Content="{Binding}"/>
+                                <TextBlock Grid.Column="1" Text="{Binding Index}"
+                                           Style="{StaticResource RowIndexNumber}"
+                                           HorizontalAlignment="Right" Margin="0,0,6,0"/>
+
+                                <Border Grid.Column="2" Width="112" Height="63" Margin="0,0,10,0"
+                                        Style="{StaticResource MergeFrame}">
+                                    <Image Source="{Binding Thumbnail}" Stretch="Uniform"/>
+                                </Border>
+
+                                <StackPanel Grid.Column="3" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding FileName}" FontSize="13"
+                                               ToolTip="{Binding FullPath}"
+                                               Style="{StaticResource MergeFileName}"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                        <TextBlock Text="{Binding DurationDisplay}" FontFamily="Consolas"
+                                                   FontSize="11" Foreground="{DynamicResource ValueGreen}"/>
+                                        <TextBlock Text="·" Margin="5,0" FontSize="11"
+                                                   Foreground="{DynamicResource TextMuted}"/>
+                                        <TextBlock Text="{Binding StateDisplay}" FontSize="11">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding State}"
+                                                                     Value="{x:Static models:MergeFileState.Preparing}">
+                                                            <Setter Property="Foreground" Value="{StaticResource StepTracker}"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding State}"
+                                                                     Value="{x:Static models:MergeFileState.Merged}">
+                                                            <Setter Property="Foreground" Value="{DynamicResource ValueGreen}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+
+                        <!-- Filmstrip. Two frames, as the cut version has: for
+                             a whole file those are its opening and its closing
+                             frame, which is a more useful pair than the same
+                             frame twice. A file too short to have two distinct
+                             ones simply shows the first in both. -->
+                        <DataTemplate x:Key="MergeFilmstrip">
+                            <Border Width="206" Padding="6"
+                                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                    CornerRadius="4">
+                                <StackPanel>
+                                    <DockPanel Margin="0,0,0,4" LastChildFill="True">
+                                        <ContentControl DockPanel.Dock="Left" Focusable="False"
+                                                        ContentTemplate="{StaticResource MergeStateMark}"
+                                                        Content="{Binding}"/>
+                                        <TextBlock DockPanel.Dock="Left" Text="{Binding Index}"
+                                                   Style="{StaticResource RowIndexNumber}"
+                                                   Margin="3,0,0,0"/>
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding DurationDisplay}"
+                                                   FontFamily="Consolas" FontSize="11" Margin="5,0,0,0"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource ValueGreen}"/>
+                                        <TextBlock Text="{Binding FileName}" FontSize="12" Margin="5,0,0,0"
+                                                   ToolTip="{Binding FullPath}"
+                                                   Style="{StaticResource MergeFileName}"/>
+                                    </DockPanel>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="2"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Height="54"
+                                                Style="{StaticResource MergeFrame}"
+                                                CornerRadius="2,0,0,2">
+                                            <Image Source="{Binding Thumbnail}" Stretch="Uniform"/>
+                                        </Border>
+                                        <Border Grid.Column="2" Height="54"
+                                                Style="{StaticResource MergeFrame}"
+                                                CornerRadius="0,2,2,0">
+                                            <!-- A file too short to have a
+                                                 distinct closing frame is given
+                                                 its opening one here, by the
+                                                 view model — so this shows a
+                                                 strip rather than a frame
+                                                 beside a black box. -->
+                                            <Image Stretch="Uniform"
+                                                   Source="{Binding EndThumbnail}"/>
+                                        </Border>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
                     </Border.Resources>
 
                     <DockPanel>
@@ -2870,9 +3174,23 @@
                              sitting over. The View menu still carries all five
                              for whoever looks there first. -->
                         <Grid DockPanel.Dock="Top" Margin="4,2,4,8">
+                            <!-- Hidden while a merge of whole files is on
+                                 screen. The count is of cuts, and during that
+                                 operation there are none — so it sat there
+                                 reading "Bookmarks: 0" directly above a list
+                                 of ten files, looking like the list's own
+                                 caption contradicting it.
+
+                                 Only the count goes. The switcher beside it
+                                 stays, because the merge list is drawn in
+                                 whichever of the five views is chosen and
+                                 changing your mind halfway through a long
+                                 merge is exactly when you would want to. -->
                             <TextBlock Text="{Binding CompletePairCount, StringFormat='Bookmarks: {0}'}"
                                        VerticalAlignment="Center"
-                                       FontWeight="SemiBold" Foreground="{DynamicResource TextDim}"/>
+                                       FontWeight="SemiBold" Foreground="{DynamicResource TextDim}"
+                                       Visibility="{Binding MergeListVisible,
+                                                    Converter={StaticResource NotBoolToVis}}"/>
 
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                 <ToggleButton Content="☰" Style="{StaticResource ViewToggle}"
@@ -3325,6 +3643,114 @@
                                 </Style>
                             </ListView.Style>
                         </ListView>
+
+                        <!-- The merge list, over both of them.
+
+                             Last in the Grid, so it paints over whichever cut
+                             view is up, and opaque rather than translucent:
+                             during a merge of whole files there are no cuts
+                             behind it to see, and a see-through panel over an
+                             empty list looks like a rendering fault.
+
+                             Over rather than instead of, because the cut views
+                             carry the selection and the scroll position of
+                             whatever was loaded before the merge, and covering
+                             them leaves both exactly as they were when the
+                             list comes down a few seconds later.
+
+                             It comes down with the progress panel. Nothing here
+                             knows that — the view model drops MergeListVisible
+                             when the job stops running, which is after the
+                             finished bar has held. -->
+                        <Border Background="{DynamicResource PanelBackground}"
+                                Visibility="{Binding MergeListVisible, Converter={StaticResource BoolToVis}}">
+                            <DockPanel>
+                                <!-- The same shape as the cut list's own
+                                     caption line: what this is on the left,
+                                     the reading on the right. -->
+                                <DockPanel DockPanel.Dock="Top" Margin="4,0,4,6" LastChildFill="False">
+                                    <TextBlock DockPanel.Dock="Left" Text="MERGING FILES"
+                                               FontSize="12" FontWeight="SemiBold"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextSecondary}"/>
+                                    <TextBlock DockPanel.Dock="Left" Text="{Binding MergeStepDisplay}"
+                                               FontSize="12" Margin="8,0,0,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource Accent}"/>
+
+                                    <!-- Blank until the probes have found
+                                         something to add up, rather than
+                                         showing a total of nothing. -->
+                                    <TextBlock DockPanel.Dock="Right"
+                                               Text="{Binding MergeTotalDisplay, StringFormat='total {0}'}"
+                                               FontSize="12" FontFamily="Consolas"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextMuted}"
+                                               Visibility="{Binding MergeTotalDisplay,
+                                                            Converter={StaticResource NonEmptyToVis}}"/>
+                                </DockPanel>
+
+                                <!-- An ItemsControl, not a ListView: there is
+                                     nothing here to select. A ListView would
+                                     give every row a selection highlight and a
+                                     focus rectangle for a list that cannot be
+                                     acted on, and the one row worth picking
+                                     out is already picked out by the step
+                                     mark. -->
+                                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled">
+                                    <ItemsControl ItemsSource="{Binding MergeFiles}">
+                                        <ItemsControl.Style>
+                                            <Style TargetType="ItemsControl">
+                                                <!-- Rows is the default and
+                                                     also what Detail uses, so
+                                                     only the three picture
+                                                     layouts override it. -->
+                                                <Setter Property="ItemTemplate" Value="{StaticResource MergeRows}"/>
+                                                <Setter Property="ItemsPanel" Value="{StaticResource StoryboardStack}"/>
+                                                <Style.Triggers>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding StoryboardView}" Value="True"/>
+                                                            <Condition Binding="{Binding StoryboardLayout}"
+                                                                       Value="{x:Static services:StoryboardLayout.Cards}"/>
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="ItemTemplate" Value="{StaticResource MergeCards}"/>
+                                                        <Setter Property="ItemsPanel" Value="{StaticResource StoryboardWrap}"/>
+                                                    </MultiDataTrigger>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding StoryboardView}" Value="True"/>
+                                                            <Condition Binding="{Binding StoryboardLayout}"
+                                                                       Value="{x:Static services:StoryboardLayout.ContactSheet}"/>
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="ItemTemplate" Value="{StaticResource MergeContactSheet}"/>
+                                                        <Setter Property="ItemsPanel" Value="{StaticResource StoryboardWrap}"/>
+                                                    </MultiDataTrigger>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding StoryboardView}" Value="True"/>
+                                                            <Condition Binding="{Binding StoryboardLayout}"
+                                                                       Value="{x:Static services:StoryboardLayout.Detail}"/>
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="ItemTemplate" Value="{StaticResource MergeDetail}"/>
+                                                    </MultiDataTrigger>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding StoryboardView}" Value="True"/>
+                                                            <Condition Binding="{Binding StoryboardLayout}"
+                                                                       Value="{x:Static services:StoryboardLayout.Filmstrip}"/>
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="ItemTemplate" Value="{StaticResource MergeFilmstrip}"/>
+                                                        <Setter Property="ItemsPanel" Value="{StaticResource StoryboardWrap}"/>
+                                                    </MultiDataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ItemsControl.Style>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </DockPanel>
+                        </Border>
                         </Grid>
                     </DockPanel>
                 </Border>

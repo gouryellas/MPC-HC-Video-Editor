@@ -1750,6 +1750,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // about to appear in.
         Job.Finished += ToastJobFinished;
 
+        // The merge list goes when the progress panel goes, which is what ties
+        // the two together without a timer of its own: CompleteAsync holds the
+        // finished bar up for a few seconds and then drops IsRunning, and a
+        // cancelled or failed job drops it at once through End. Both are the
+        // right moment for the list to leave, and neither needs this to know
+        // which happened.
+        Job.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(JobProgress.IsRunning) && !Job.IsRunning)
+                ClearMergeList();
+        };
+
         // The seekbar menu shows its snap switch only while there is
         // something to snap to, so the collection has to say when that
         // changes — a computed property raises nothing on its own.
@@ -5162,6 +5174,147 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// The files a merge of whole files is working through, in the order they
+    /// will be joined. Empty at every other moment.
+    /// </summary>
+    /// <remarks>
+    /// Shown in place of the cut list. A merge of arbitrary files is the one
+    /// operation in the program with no loaded video behind it, so the area
+    /// that normally shows what is being worked on was blank for exactly the
+    /// job whose inputs are hardest to remember — ten files picked from a
+    /// folder, with nothing on screen afterwards saying which ten.
+    /// </remarks>
+    public ObservableCollection<MergeFileItem> MergeFiles { get; } = new();
+
+    [ObservableProperty] private bool _mergeListVisible;
+
+    /// <summary>Which file of how many, for the list's own header.</summary>
+    [ObservableProperty] private string _mergeStepDisplay = string.Empty;
+
+    /// <summary>
+    /// The lengths added up — what the merged file will run to, near enough.
+    /// Blank until enough of the probes have come back to be worth showing.
+    /// </summary>
+    [ObservableProperty] private string _mergeTotalDisplay = string.Empty;
+
+    /// <summary>
+    /// Puts the merge list up, with the durations and frames still to come.
+    /// </summary>
+    private void BeginMergeList(IReadOnlyList<string> files)
+    {
+        MergeFiles.Clear();
+
+        for (int i = 0; i < files.Count; i++)
+            MergeFiles.Add(new MergeFileItem(i + 1, files[i]));
+
+        MergeStepDisplay = $"0 of {files.Count}";
+        MergeTotalDisplay = string.Empty;
+        MergeListVisible = true;
+    }
+
+    /// <summary>
+    /// Takes it down and lets go of the frames it was holding.
+    /// </summary>
+    private void ClearMergeList()
+    {
+        if (!MergeListVisible && MergeFiles.Count == 0) return;
+
+        MergeListVisible = false;
+        MergeFiles.Clear();
+        MergeStepDisplay = string.Empty;
+        MergeTotalDisplay = string.Empty;
+    }
+
+    /// <summary>
+    /// Fills in each file's length and frames while the merge runs.
+    /// </summary>
+    /// <remarks>
+    /// Alongside the merge rather than before it, because none of it is
+    /// needed to start one: a list that appears immediately and fills in over
+    /// the next few seconds is better than a merge that waits on twenty
+    /// ffmpeg runs it does not need. The merge is already running by the time
+    /// this is called.
+    ///
+    /// The second frame is only read for the filmstrip, which is the one
+    /// layout that shows two. Everything else would be paying for a picture
+    /// it never draws.
+    ///
+    /// Swallowed per file rather than per batch: a single unreadable input
+    /// should cost that row its picture, not cost the other nine theirs. The
+    /// merge itself will fail on that file soon enough and say so properly.
+    /// </remarks>
+    private async Task FillMergeListAsync(IReadOnlyList<MergeFileItem> items, bool wantFrames)
+    {
+        foreach (var item in items)
+        {
+            try
+            {
+                item.DurationSeconds = await _ffmpeg.GetDurationAsync(item.FullPath);
+            }
+            catch (Exception ex)
+            {
+                Helpers.Diagnostics.Swallowed("MergeList.Duration", ex);
+            }
+
+            // Recomputed as each one lands, so the header counts up rather
+            // than staying blank until the last probe returns.
+            var known = items.Where(i => i.DurationSeconds > 0).ToList();
+            if (known.Count > 0)
+                MergeTotalDisplay = Bookmark.FormatTime(known.Sum(i => i.DurationSeconds));
+
+            if (!wantFrames) continue;
+
+            try
+            {
+                // A second in, not at zero: the first frame of a clip is
+                // routinely black, a fade, or a slate, and a list of ten black
+                // boxes says nothing about which file is which.
+                item.Thumbnail = await _thumbnails.GetAsync(item.FullPath, 1.0);
+
+                if (StoryboardLayout == StoryboardLayout.Filmstrip)
+                {
+                    // The opening frame stands in when the file is too short
+                    // to have a closing one worth reading — a strip of two
+                    // frames beats a frame beside an empty box, and the
+                    // alternative is a fallback rule written in the template
+                    // where it is much harder to see.
+                    item.EndThumbnail = item.DurationSeconds > 2
+                        ? await _thumbnails.GetAsync(item.FullPath,
+                                                     Math.Max(1.0, item.DurationSeconds - 1.0))
+                          ?? item.Thumbnail
+                        : item.Thumbnail;
+                }
+            }
+            catch (Exception ex)
+            {
+                Helpers.Diagnostics.Swallowed("MergeList.Thumbnail", ex);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Moves the step marker to the file being prepared, and ticks off the
+    /// ones behind it.
+    /// </summary>
+    /// <remarks>
+    /// Driven by the index ConcatFilesAsync already reports. On the final join
+    /// that index is the file count, which is past the end of the list — and
+    /// that is exactly right: the join is nobody's turn, and everything before
+    /// it is done.
+    /// </remarks>
+    private void MarkMergeStep(int preparing)
+    {
+        for (int i = 0; i < MergeFiles.Count; i++)
+            MergeFiles[i].State = i < preparing ? MergeFileState.Merged
+                                : i == preparing ? MergeFileState.Preparing
+                                : MergeFileState.Waiting;
+
+        MergeStepDisplay = preparing >= MergeFiles.Count
+            ? $"joining {MergeFiles.Count}"
+            : $"{preparing + 1} of {MergeFiles.Count}";
+    }
+
+    /// <summary>
     /// The "any" arm of Merge: pick two or more files and join them. Same
     /// work Bulk merge does, reached automatically when there is no loaded
     /// video with cuts to merge instead.
@@ -5197,6 +5350,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IsBusy = true; ProgressPercent = 0; StatusText = "Merging…";
         Job.Begin("Merging files", fileCount);
         Job.SetFile(0, Path.GetFileName(ofd.FileNames[0]));
+
+        // After Job.Begin, so the handler watching IsRunning cannot see the
+        // list go up and the panel still down and clear it again.
+        BeginMergeList(ofd.FileNames);
+
+        // Not awaited: the merge should not wait on pictures it does not need.
+        // Faulted rather than discarded, for the reason JobProgress.Complete
+        // gives — an unobserved task is how a throw stays invisible.
+        _ = FillMergeListAsync(MergeFiles.ToList(), StoryboardView)
+            .ContinueWith(t => Helpers.Diagnostics.Swallowed("MergeList.Fill", t.Exception!),
+                          TaskContinuationOptions.OnlyOnFaulted);
+
         var completed = false;
         try
         {
@@ -5217,6 +5382,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 // files.Count.
                 Job.SetFile(p.Current, p.File ?? outName);
                 Job.Report(p.Message, p.Percent);
+
+                // The same index, read as a position in the file list rather
+                // than as a fraction. Safe here in a way it would not be
+                // elsewhere: this operation's steps are its files, so Current
+                // really is both.
+                MarkMergeStep(p.Current);
             });
             await _ffmpeg.ConcatFilesAsync(ofd.FileNames, outPath, progress);
 
