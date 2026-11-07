@@ -93,3 +93,27 @@ Get-ChildItem publish\portable -Force | Where-Object { $_.Name -in 'settings.jso
 ```
 
 Anything that command prints is yours and does not belong in a public download.
+
+## Tests
+
+```
+dotnet test Tests
+```
+
+Thirty-nine of them, in four seconds. They need `ffmpeg.exe` and
+`ffprobe.exe`, which are found beside the test assembly, in
+`publish\portable`, or in an `ffmpeg` subfolder of any parent directory — so a
+checkout that has published once already has what they need.
+
+The fixture videos are built by ffmpeg on the first run and cached under
+`%TEMP%\mve-test-fixtures`. Delete that folder to rebuild them. Each one exists
+to break a particular assumption: evenly spaced frames, frames at irregular
+intervals behind a container claiming otherwise, a stream whose clock starts
+late, and one carrying an edit list. Every frame's brightness encodes its own
+index, so a test can say which frame came back rather than a person comparing
+two stills.
+
+**The test project is excluded from the application's compile** by
+`<Compile Remove="Tests\**" />` — the SDK globs `**/*.cs` and would otherwise
+build the tests into the .exe, the same trap described above for a nested copy
+of the sources.

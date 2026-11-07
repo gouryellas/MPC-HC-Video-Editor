@@ -36,6 +36,17 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The tests live in the repository but are their own project. The SDK
+         globs **/*.cs and excludes only bin and obj, so without this every
+         test file would be compiled into the application as well — the same
+         trap BUILD.md warns about for a nested copy of the sources. -->
+    <Compile Remove="Tests\**" />
+    <None Remove="Tests\**" />
+    <Page Remove="Tests\**" />
+    <Resource Remove="Tests\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
     <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.122" />
   </ItemGroup>
