@@ -2314,26 +2314,28 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
             await p.WaitForExitAsync(ct).ConfigureAwait(false);
             if (p.ExitCode != 0) return seconds;
 
-            // The frame whose own time is closest to the moment asked for,
-            // rather than the last one to have started by then.
+            // The first frame to begin at or after the moment asked for.
             //
-            // "The last one started" is what the picture on screen literally
-            // is, and it was still wrong, because the clock the player reports
-            // is not the clock it is drawing from. Paused out of playback,
-            // MPC-HC has already presented the next frame while its position
-            // still reads short of it — measured at 33.588 with frame 672 on
-            // screen, whose own time is 33.600. The last frame at or before
-            // 33.588 is 33.550: one behind the picture. The first at or after
-            // is one ahead whenever the clock does not lag, which it does not
-            // after a seek — asked for 10.000 the player answers exactly
-            // 10.000.
+            // Which is what a plain seek already does, and the reason this
+            // does it too is the filename: the name has to say which frame
+            // was saved, and that means knowing its time rather than the
+            // position that led to it.
             //
-            // Nearest is right in both cases, and is the only rule that is.
-            // The lag is a fraction of a frame — a quarter of one at 20fps —
-            // so the frame it belongs to is the closer of the two whichever
-            // side of the boundary the clock happens to sit.
+            // The rule was arrived at by measurement, having been wrong twice.
+            // The clock MPC-HC reports is not the clock it draws from: paused,
+            // it has already presented a frame while its position still reads
+            // short of that frame's own time — by 12ms on one file, 41ms on
+            // another, and never by more than the gap between two frames.
+            // After a seek there is no lag at all; asked for 10.000 it answers
+            // exactly 10.000.
+            //
+            // So the displayed frame is always the next one to begin at or
+            // after the reported position, and never the last one to have
+            // begun before it. Taking the last gave a frame behind the picture
+            // whenever the clock lagged; taking the nearest did too, whenever
+            // it lagged by more than half a frame, which 41ms of a 50ms frame
+            // does.
             var best = double.NaN;
-            var closest = double.MaxValue;
 
             foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
             {
@@ -2343,14 +2345,25 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
                 if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var at))
                     continue;
 
-                var distance = Math.Abs(at - wanted);
-
-                // Strictly closer, so a tie falls to the earlier frame — which
-                // is the one on screen at an exact midpoint.
-                if (distance < closest)
-                {
-                    closest = distance;
+                // The epsilon is for a position already sitting on a frame,
+                // carrying a rounding error from its trip through the player
+                // and the web interface. Without it a timestamp a millionth of
+                // a second light would skip to the frame after the one shown.
+                if (at >= wanted - 1e-6 && (double.IsNaN(best) || at < best))
                     best = at;
+            }
+
+            // Past the last frame — the end of the file. The final frame is
+            // the one on screen there, and it is better than giving up.
+            if (double.IsNaN(best))
+            {
+                foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var text = line.Trim().TrimEnd(',');
+
+                    if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var at) &&
+                        (double.IsNaN(best) || at > best))
+                        best = at;
                 }
             }
 
