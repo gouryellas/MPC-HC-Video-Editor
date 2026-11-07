@@ -1535,15 +1535,26 @@ public partial class MainWindow : Window
         parent.Items.Add(openFile);
 
         // Load this playlist — make it the active target for "Add current
-        // video to playlist" without prompting. Distinct from "Open
-        // playlist file" which just shell-executes the .pls in the user's
-        // default player without remembering it.
-        var loadThis = new MenuItem { Header = "Load this playlist", Icon = MenuIcon("menu-folder_open"), Tag = plsPath };
+        // video" and the toolbar's "+ to playlist", without prompting for
+        // which playlist each time.
+        //
+        // Touches the player not at all. It used to start playback as well,
+        // which made the one entry whose whole job is to set a preference
+        // also the entry that took over the screen — so there was no way to
+        // say "send additions here" without being moved off whatever you
+        // were watching. Open all, directly above, is how you play it.
+        var loadThis = new MenuItem
+        {
+            Header = "Load this playlist",
+            Icon = MenuIcon("menu-folder_open"),
+            Tag = plsPath,
+            ToolTip = "Makes this the playlist that \"Add current video\" and \"+ to playlist\" " +
+                      "write to. Does not open anything in the player."
+        };
         loadThis.Click += (_, e) =>
         {
             e.Handled = true;
-            // Loading also starts playback at the first entry that still exists.
-            _vm?.LoadPlaylistAndPlayCommand.Execute(plsPath);
+            _vm?.LoadPlaylistCommand.Execute(plsPath);
         };
         parent.Items.Add(loadThis);
 
@@ -1841,8 +1852,13 @@ public partial class MainWindow : Window
     /// opens a file picker so the user can browse for any .pls file
     /// (not just ones in the configured playlist folder).
     /// </summary>
+    /// <remarks>
+    /// The same action as each playlist's own "Load this playlist", reached
+    /// through a picker instead, so it does the same thing and no more:
+    /// it sets which playlist additions go to, and opens nothing.
+    /// </remarks>
     private void LoadPlaylist_Click(object sender, RoutedEventArgs e)
-        => _vm?.LoadPlaylistAndPlayCommand.Execute(null);
+        => _vm?.LoadPlaylistCommand.Execute(null);
 
     /// <summary>
     /// Handler for Playlist → "Clear loaded playlist". Delegates to

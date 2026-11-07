@@ -5125,25 +5125,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Loads a playlist and starts playing it. Wired to Playlist ▸ "Load
-    /// playlist…" and to each playlist's "Load this playlist" sub-item.
-    /// </summary>
-    [RelayCommand]
-    private async Task LoadPlaylistAndPlay(string? plsPath)
-    {
-        var before = LoadedPlaylistPath;
-        LoadPlaylist(plsPath);
-
-        // LoadPlaylist prompts when given null, and refuses an empty playlist,
-        // so re-read what it settled on rather than assuming it took.
-        var loaded = LoadedPlaylistPath;
-        if (string.IsNullOrEmpty(loaded) || !File.Exists(loaded)) return;
-        if (loaded == before && plsPath == null) return;
-
-        await PlayFirstAvailableAsync(loaded);
-    }
-
-    /// <summary>
     /// Sends every video a playlist still has to the player as one playlist,
     /// starting on the first.
     /// </summary>
@@ -8504,14 +8485,24 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Loads a .pls playlist file as the "active" playlist — subsequent
-    /// "Add current video to playlist" actions route to it directly
-    /// without prompting the user to pick. Also shell-executes the .pls
-    /// so the user's default player opens the playlist and starts
-    /// playback of its first entry. The loaded playlist is NOT persisted
-    /// across app restarts; it survives until cleared, deleted, or the
-    /// app exits.
+    /// Makes a playlist the active one, so that "Add current video to
+    /// playlist" and the toolbar's "+ to playlist" write to it without
+    /// asking which. Opens nothing.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Deliberately touches the player not at all. This used to shell-execute
+    /// the .pls on its way past, and later to hand it to MPC-HC and start the
+    /// first entry — which made the one action whose entire purpose is to set
+    /// a preference also the action that took over the screen. There was then
+    /// no way to say "send additions here" without being moved off whatever
+    /// was playing. Playing a playlist is Open all's job.
+    /// </para>
+    /// <para>
+    /// Not persisted across restarts: it survives until cleared, replaced,
+    /// deleted, or the app exits.
+    /// </para>
+    /// </remarks>
     [RelayCommand]
     private void LoadPlaylist(string? plsPath)
     {
@@ -8545,8 +8536,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // it.
         //
         // What that refusal was really protecting was playback, and playback
-        // still checks for itself — see PlayFirstAvailableAsync, which says
-        // so rather than starting nothing silently.
+        // is no longer reached from here at all — Open all and a dropped .pls
+        // each check for themselves and say so rather than starting nothing
+        // silently.
         var entries = _playlists.ReadEntries(plsPath);
 
         LoadedPlaylistPath = plsPath;
@@ -8562,10 +8554,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             _ => $"Loaded playlist: {Path.GetFileName(plsPath)} ({entries.Count} files)"
         };
 
-        // Deliberately does NOT launch anything. This used to shell-execute the
-        // .pls, and the caller then launched the first entry as well — two
-        // launches racing, which is why the player showed one video, stalled,
-        // then swapped to the whole list. LoadPlaylistAndPlay owns launching.
+        // Nothing is launched from here. See the remarks above.
     }
 
     /// <summary>
