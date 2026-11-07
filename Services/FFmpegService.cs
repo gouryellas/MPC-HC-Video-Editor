@@ -1499,7 +1499,8 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         bool reencode = PreciseCuts || NormalizeAudio || b.IsMuted || vf.Count > 0;
 
         var sb = new StringBuilder();
-        sb.Append($"-hide_banner -y -fflags +igndts -ss {start} -to {end} -i \"{input}\" ");
+        sb.Append($"-hide_banner -y -fflags +igndts -ss {start} -to {end} " +
+                  $"{AsThePlayerReadsIt}-i \"{input}\" ");
 
         if (vf.Count > 0)
             sb.Append($"-vf \"{string.Join(",", vf)}\" ");
@@ -1666,7 +1667,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
                 // effort spent here buys nothing. Routed through the chosen
                 // encoder all the same, since x264's presets mean nothing to a
                 // GPU encoder.
-                var args = $"-hide_banner -y -i \"{files[i]}\" " +
+                var args = $"-hide_banner -y {AsThePlayerReadsIt}-i \"{files[i]}\" " +
                            $"-c:v {VideoCodec} {VideoEncoders.QualityArgsFor(Encoder, EncodingQuality.Fast)} " +
                            $"{scaleArgs}{rateArgs}-pix_fmt yuv420p -c:a aac -ar 48000 -ac 2 \"{seg}\"";
                 await RunAsync(args, null, ct);
