@@ -767,6 +767,32 @@ public class SettingsService
     }
 
     /// <summary>
+    /// Reads one candidate settings file. False when it is absent, unreadable,
+    /// or not settings — leaving <see cref="Current"/> untouched so the caller
+    /// can try the next one.
+    /// </summary>
+    private bool TryLoadFrom(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return false;
+
+            var json = File.ReadAllText(path);
+            if (string.IsNullOrWhiteSpace(json)) return false;
+
+            var loaded = JsonSerializer.Deserialize<AppSettings>(json, _jsonOptions);
+            if (loaded is null) return false;
+
+            Current = loaded;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Seeds settings from the %APPDATA% copy when there are none beside the
     /// executable.
     /// </summary>
@@ -800,18 +826,26 @@ public class SettingsService
 
     public void Load()
     {
-        try
+        // Tried in order: the real file, then the spare, then defaults.
+        //
+        // The spare used to be reached only when the real file was missing,
+        // which is the one case it cannot help with the most: a file that is
+        // present but will not parse was read as "corrupt, start fresh", and
+        // the next thing the user changed wrote those fresh defaults over the
+        // spare. One bad read, and both copies were gone.
+        _loadedFromDefaults = true;
+
+        if (TryLoadFrom(_path)) _loadedFromDefaults = false;
+        else if (TryLoadFrom(_backupPath))
         {
-            if (File.Exists(_path))
-            {
-                var json = File.ReadAllText(_path);
-                Current = JsonSerializer.Deserialize<AppSettings>(json, _jsonOptions) ?? new AppSettings();
-            }
+            _loadedFromDefaults = false;
+
+            // Put the good copy back where it belongs, so the next save is
+            // not writing into a file that is still unreadable.
+            try { WriteAtomic(_path, JsonSerializer.Serialize(Current, _jsonOptions)); }
+            catch { /* the settings are loaded; where they live can wait */ }
         }
-        catch
-        {
-            Current = new AppSettings();
-        }
+        else Current = new AppSettings();
 
         // Normalize the output container up front: a settings file written by
         // an older build has no key at all, and a hand-edited one may name a
@@ -917,11 +951,83 @@ public class SettingsService
             ClampNumericSettings();
 
             var json = JsonSerializer.Serialize(Current, _jsonOptions);
-            File.WriteAllText(_path, json);
+            WriteAtomic(_path, json);
 
-            WriteBackup(json);
+            // Only from a save that worked, and only from settings that were
+            // themselves loaded rather than defaulted. The backup is the last
+            // copy of everything the user has configured, and overwriting it
+            // from a state that came out of a failed load is how a single bad
+            // read turns into a permanent loss.
+            if (!_loadedFromDefaults) WriteBackup(json);
+
+            _saveFailed = false;
         }
-        catch { /* ignore */ }
+        catch (Exception ex)
+        {
+            // Said once. A folder that is read-only, full, or held open by
+            // something else fails every time — and settings live in memory
+            // for the session, so without this the program behaves perfectly
+            // all day and comes back tomorrow with nothing kept.
+            if (!_saveFailed)
+            {
+                _saveFailed = true;
+                SaveFailed?.Invoke(ex.Message);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Raised the first time a save fails, with the reason. Nothing is raised
+    /// again until one succeeds.
+    /// </summary>
+    public event Action<string>? SaveFailed;
+
+    /// <summary>Whether the last save attempt failed.</summary>
+    private bool _saveFailed;
+
+    /// <summary>
+    /// Whether <see cref="Load"/> ended up with defaults rather than with
+    /// something it read.
+    /// </summary>
+    private bool _loadedFromDefaults;
+
+    /// <summary>
+    /// Writes a file so that it is either entirely the old contents or
+    /// entirely the new ones, never half of each.
+    /// </summary>
+    /// <remarks>
+    /// File.WriteAllText is not one operation: it opens the file, truncates it
+    /// to nothing, and then writes. Anything that interrupts the gap — a
+    /// crash, the power, a scanner holding the handle, a full disk — leaves a
+    /// settings.json that exists and will not parse. That is worse than no
+    /// file at all, because the backup is only restored when the file is
+    /// missing, so a torn one is read as "present but broken", quietly
+    /// replaced with defaults, and the backup overwritten from those defaults
+    /// the next time anything is changed.
+    ///
+    /// Writing beside it and renaming avoids the gap: the rename is atomic on
+    /// NTFS, so a reader sees one version or the other.
+    ///
+    /// Flushed to disk before the rename rather than trusting the close. A
+    /// rename that completes while the contents are still in the write cache
+    /// is the same torn file by another route, just a rarer one.
+    /// </remarks>
+    private static void WriteAtomic(string path, string contents)
+    {
+        var temp = path + ".tmp";
+
+        using (var stream = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
+        using (var writer = new StreamWriter(stream))
+        {
+            writer.Write(contents);
+            writer.Flush();
+            stream.Flush(flushToDisk: true);
+        }
+
+        // Replace keeps the destination's attributes and is atomic; it needs
+        // the destination to exist, which it does not on the very first save.
+        if (File.Exists(path)) File.Replace(temp, path, null);
+        else File.Move(temp, path);
     }
 
     /// <summary>

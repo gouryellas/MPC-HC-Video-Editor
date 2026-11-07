@@ -1620,6 +1620,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // services immediately below.
         _settings = new SettingsService();
 
+        // Settings are held in memory for the session, so a folder that is
+        // read-only or full lets the program behave perfectly all day and come
+        // back tomorrow having kept nothing. Said once, when it first happens,
+        // rather than on every one of the twenty-odd things that save.
+        _settings.SaveFailed += reason => ShowError(
+            "Your settings could not be written to disk, so anything changed this " +
+            "session will be lost when the program closes.\n\n" + reason,
+            "Settings could not be saved");
+
         _ffmpeg = new FFmpegService(_settings.Current.FfmpegFolder);
         _thumbnails = new ThumbnailService(_ffmpeg);
         _mpc = new MpcHcService();
