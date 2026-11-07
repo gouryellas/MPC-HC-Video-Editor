@@ -761,9 +761,20 @@ public partial class MainWindow : Window
     /// by extension, matching File ▸ Open…
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Every path is handed over, not just the first. A handful of pictures
     /// dropped together is one question about all of them; for everything else
     /// the ViewModel still takes the first and ignores the rest.
+    /// </para>
+    /// <para>
+    /// Posted rather than run here. The command is async, but an async method
+    /// runs synchronously up to its first real await — and both the picture
+    /// drop and the playlist drop raise a dialog before reaching one. A modal
+    /// dialog opened inside this handler holds the drop open, and the program
+    /// that supplied the files stays blocked in its own drag loop behind a
+    /// question it cannot see. Letting the handler return first ends the drag
+    /// and leaves the dialog ours to show.
+    /// </para>
     /// </remarks>
     private void Window_Drop(object sender, DragEventArgs e)
     {
@@ -771,7 +782,7 @@ public partial class MainWindow : Window
         if (e.Data.GetData(DataFormats.FileDrop) is not string[] { Length: > 0 } paths) return;
 
         e.Handled = true;
-        _vm.OpenDroppedFilesCommand.Execute(paths);
+        Dispatcher.BeginInvoke(new Action(() => _vm.OpenDroppedFilesCommand.Execute(paths)));
     }
 
     /// <summary>Guards <see cref="MainWindow_Loaded"/> against running twice.</summary>

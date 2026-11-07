@@ -5083,8 +5083,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Handles a file dropped on the window. Dispatches by extension the same
     /// way File ▸ Open… does: a video plays and loads its sibling CSV, a CSV
-    /// loads as the bookmark set, a .pls loads and starts playing.
+    /// loads as the bookmark set, and a playlist becomes the active one and
+    /// offers to play itself.
     /// </summary>
+    /// <remarks>
+    /// Every playlist extension the rest of the program reads, not only .pls.
+    /// An .m3u8 dropped here used to fall through to the video case and be
+    /// handed to the player as though it were a video — which is how the one
+    /// format the file picker lists alongside .pls behaved differently from
+    /// it for no stated reason.
+    /// </remarks>
     [RelayCommand]
     private async Task OpenDroppedFile(string? path)
     {
@@ -5103,8 +5111,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 break;
 
             case ".pls":
-                LoadPlaylist(path);
-                await PlayFirstAvailableAsync(path);
+            case ".m3u":
+            case ".m3u8":
+                await OpenDroppedPlaylistAsync(path);
                 break;
 
             default:
@@ -5131,16 +5140,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <remarks>
     /// Distinct from "Load this playlist", which is about this program: that
     /// one makes the playlist the target of everything here that fills it,
-    /// and hands the .pls to the player. This one is about the player, and
-    /// does not change which playlist is loaded.
-    ///
-    /// The entries are passed individually rather than as the playlist file,
-    /// so the ones whose files are gone are left out — handing over the .pls
-    /// puts them in the player's list too, where they are dead rows that
-    /// stop playback when it reaches them.
-    ///
-    /// The first one is also bound to this window's session, the same way
-    /// loading a playlist does, since it is the video about to be on screen.
+    /// and opens nothing. This one is about the player, and does not change
+    /// which playlist is loaded.
     /// </remarks>
     [RelayCommand]
     private async Task OpenAllInPlaylist(string? plsPath)
@@ -5151,6 +5152,28 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        await OpenPlaylistInPlayerAsync(plsPath);
+    }
+
+    /// <summary>
+    /// Hands a playlist's surviving videos to the player as one playlist and
+    /// starts the first, reporting what it found.
+    /// </summary>
+    /// <remarks>
+    /// The entries go over individually rather than as the playlist file, so
+    /// the ones whose files are gone are left out — handing over the .pls
+    /// puts them in the player's list too, where they are dead rows that
+    /// stop playback when it reaches them.
+    ///
+    /// The first one is also bound to this window's session, since it is the
+    /// video about to be on screen.
+    ///
+    /// Shared by Open all and by a dropped playlist, so the two cannot drift
+    /// into opening the same playlist two different ways.
+    /// </remarks>
+    /// <returns>Whether anything was opened.</returns>
+    private async Task<bool> OpenPlaylistInPlayerAsync(string plsPath)
+    {
         var entries = _playlists.ReadEntries(plsPath);
         var present = entries.Where(File.Exists).ToList();
 
@@ -5159,13 +5182,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
             StatusText = entries.Count == 0
                 ? $"{Path.GetFileName(plsPath)} is empty — nothing to open"
                 : $"None of the {entries.Count} files in {Path.GetFileName(plsPath)} were found";
-            return;
+            return false;
         }
 
         if (!_mpc.LaunchVideos(present))
         {
             StatusText = "Could not start the player.";
-            return;
+            return false;
         }
 
         var missing = entries.Count - present.Count;
@@ -5178,36 +5201,56 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // Metadata only — LoadVideoAsync launches nothing, so there is no
         // second launch racing the one above.
         await LoadVideoAsync(present[0]);
+        return true;
     }
 
     /// <summary>
-    /// Plays the first entry of a playlist that still exists on disk, skipping
-    /// missing ones, and loads it as the current video.
+    /// Handles a playlist dropped on the window: loads it as the active
+    /// playlist, then offers to open it in the player as well.
     /// </summary>
-    private async Task PlayFirstAvailableAsync(string plsPath)
+    /// <remarks>
+    /// Dropping used to start playback outright, on the reading that dropping
+    /// a file means "open this". For a playlist that reading is ambiguous in
+    /// a way it is not for a video: a playlist is both something to watch and
+    /// something to file videos into, and the drop says nothing about which
+    /// was meant. So the unambiguous half happens — it becomes the active
+    /// playlist, which is the thing that cannot be undone by waiting — and
+    /// the half that takes over the screen is put as a question.
+    ///
+    /// Only asked when there is something to open. A playlist that is empty,
+    /// or whose files have all moved, has already said so in the status line,
+    /// and a dialog offering to play nothing is a dialog with one real
+    /// answer.
+    ///
+    /// Defaults to Yes, unlike the destructive confirmations elsewhere: the
+    /// cost of a wrong Enter here is a player window, not a deleted file.
+    /// </remarks>
+    private async Task OpenDroppedPlaylistAsync(string plsPath)
     {
-        var entries = _playlists.ReadEntries(plsPath);
-        var first = entries.FirstOrDefault(File.Exists);
+        LoadPlaylist(plsPath);
 
-        if (first == null)
-        {
-            StatusText = entries.Count == 0
-                ? $"{Path.GetFileName(plsPath)} is empty"
-                : $"No playable entries in {Path.GetFileName(plsPath)}";
-            return;
-        }
+        // Re-read rather than assume: LoadPlaylist refuses a path it cannot
+        // find, and it is the one that decides whether the load took.
+        if (!string.Equals(LoadedPlaylistPath, plsPath, StringComparison.OrdinalIgnoreCase)) return;
 
-        // Hand the player the playlist itself, once, so the whole list ends up
-        // in its playlist and it starts on the first entry. Launching the first
-        // video instead would leave the player holding a single file.
-        _mpc.LaunchVideo(plsPath);
-        await Task.Delay(500);
-        _mpc.BringToFront();
+        var playable = _playlists.ReadEntries(plsPath).Count(File.Exists);
+        if (playable == 0) return;
 
-        // Then bind our own session to that first entry. LoadVideoAsync only
-        // reads metadata — it launches nothing, so there is no second launch
-        // to race the one above.
-        await LoadVideoAsync(first);
+        var name = Path.GetFileName(plsPath);
+        var question = $"{name} is now the active playlist — \"Add current video\" and " +
+                       $"\"+ to playlist\" will write to it.\n\n" +
+                       $"Also open its {playable} video(s) in MPC-HC?";
+
+        var owner = DialogOwner;
+        var answer = owner is not null
+            ? MessageBox.Show(owner, question, "Playlist loaded",
+                              MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.Yes)
+            : MessageBox.Show(question, "Playlist loaded",
+                              MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.Yes);
+
+        if (answer != MessageBoxResult.Yes) return;
+
+        await OpenPlaylistInPlayerAsync(plsPath);
     }
 
     /// <summary>
