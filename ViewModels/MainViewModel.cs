@@ -7972,6 +7972,95 @@ public partial class MainViewModel : ObservableObject, IDisposable
         PlaylistsChanged?.Invoke();
     }
 
+    /// <summary>
+    /// Picks videos and appends them to one named playlist.
+    /// </summary>
+    /// <remarks>
+    /// The missing half of creating a playlist. Until this existed the only
+    /// way to put anything in one was "Add current video", a file at a time,
+    /// with each file having to be loaded into the editor first — so a new
+    /// playlist began life empty and stayed that way unless you were willing
+    /// to open twenty videos in turn.
+    ///
+    /// The picker is multi-select for the same reason: filling a playlist is
+    /// not a thing anybody does one file at a time by choice.
+    ///
+    /// Order is the order the dialog hands back, which is the folder's
+    /// sort order rather than the order they were clicked — the common case
+    /// is selecting a run of files that already sort the way they should.
+    /// Duplicates are dropped by AddFiles, so adding a folder twice tops the
+    /// playlist up rather than doubling it.
+    /// </remarks>
+    [RelayCommand]
+    private void AddFilesToPlaylistNamed(string? plsPath)
+    {
+        if (string.IsNullOrWhiteSpace(plsPath))
+        {
+            StatusText = "No playlist selected.";
+            return;
+        }
+        if (!File.Exists(plsPath))
+        {
+            StatusText = "Playlist file not found.";
+            PlaylistsChanged?.Invoke();
+            return;
+        }
+
+        var ofd = new OpenFileDialog
+        {
+            Filter = "Video Files|*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.webm;*.m4v;*.ts;*.mpg;*.mpeg|All Files|*.*",
+            Multiselect = true,
+            Title = $"Add files to {Path.GetFileName(plsPath)}",
+
+            // Opens where the playlist's own entries live rather than at
+            // whatever folder was last used for something unrelated. A
+            // playlist is almost always topped up from the folder it already
+            // draws on.
+            InitialDirectory = PlaylistHomeFolder(plsPath)
+        };
+
+        if (ofd.ShowDialog() != true) return;
+
+        // Counted before and after rather than from the selection, because
+        // AddFiles drops the ones already listed — "added 9" when one of the
+        // ten was already there would be wrong, and silently so.
+        var before = _playlists.ReadEntries(plsPath).Count;
+        _playlists.AddFiles(plsPath, ofd.FileNames);
+        var added = _playlists.ReadEntries(plsPath).Count - before;
+
+        var skipped = ofd.FileNames.Length - added;
+        StatusText = added == 0
+            ? $"Already in {Path.GetFileName(plsPath)} — nothing added"
+            : $"Added {added} file(s) → {Path.GetFileName(plsPath)}" +
+              (skipped > 0 ? $" ({skipped} already there)" : "");
+
+        PlaylistsChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// The folder a playlist's files come from, for seeding a picker: the
+    /// folder of its first entry that still exists, or the playlist's own
+    /// folder when it has none.
+    /// </summary>
+    private string PlaylistHomeFolder(string plsPath)
+    {
+        try
+        {
+            var entry = _playlists.ReadEntries(plsPath).FirstOrDefault(File.Exists);
+            var folder = entry is null ? null : Path.GetDirectoryName(entry);
+
+            if (!string.IsNullOrEmpty(folder) && Directory.Exists(folder)) return folder;
+        }
+        catch (Exception ex)
+        {
+            // A seeded starting folder is a convenience. Failing to work one
+            // out is not a reason to refuse to open the picker at all.
+            Helpers.Diagnostics.Swallowed("Playlist.HomeFolder", ex);
+        }
+
+        return Path.GetDirectoryName(plsPath) ?? string.Empty;
+    }
+
     [RelayCommand]
     private void SetQuickSaveFolder()
     {
@@ -8390,22 +8479,32 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        // A playlist with nothing playable in it is not worth loading — every
-        // action that follows would have nothing to act on.
+        // An empty playlist loads. It used to be refused here, on the grounds
+        // that there was nothing to act on — but loading is what makes a
+        // playlist the target of everything that fills it, so refusing the
+        // empty ones made a newly created playlist impossible to load and
+        // impossible to add to, which is the state every playlist starts in.
+        // A playlist whose files have all moved is the same case: it is still
+        // the one being worked on, and "Find moved files" is reached through
+        // it.
+        //
+        // What that refusal was really protecting was playback, and playback
+        // still checks for itself — see PlayFirstAvailableAsync, which says
+        // so rather than starting nothing silently.
         var entries = _playlists.ReadEntries(plsPath);
-        if (entries.Count == 0)
-        {
-            StatusText = $"{Path.GetFileName(plsPath)} is empty — nothing to load";
-            return;
-        }
-        if (!entries.Any(File.Exists))
-        {
-            StatusText = $"{Path.GetFileName(plsPath)} has no videos that still exist — nothing to load";
-            return;
-        }
 
         LoadedPlaylistPath = plsPath;
-        StatusText = $"Loaded playlist: {Path.GetFileName(plsPath)}";
+
+        var present = entries.Count(File.Exists);
+        StatusText = entries.Count switch
+        {
+            0 => $"Loaded empty playlist: {Path.GetFileName(plsPath)} — use Add files to fill it",
+            _ when present == 0 =>
+                $"Loaded playlist: {Path.GetFileName(plsPath)} — none of its {entries.Count} files were found",
+            _ when present < entries.Count =>
+                $"Loaded playlist: {Path.GetFileName(plsPath)} ({present} of {entries.Count} files found)",
+            _ => $"Loaded playlist: {Path.GetFileName(plsPath)} ({entries.Count} files)"
+        };
 
         // Deliberately does NOT launch anything. This used to shell-execute the
         // .pls, and the caller then launched the first entry as well — two

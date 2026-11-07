@@ -1573,6 +1573,27 @@ public partial class MainWindow : Window
         };
         parent.Items.Add(addCurrent);
 
+        // Add files — pick several at once, from anywhere.
+        //
+        // Never gated, unlike the entry above it: this one needs nothing
+        // loaded, which is the point of it. A playlist created a moment ago
+        // had no way to be filled except by opening each video in the editor
+        // first and adding them one at a time.
+        var addFiles = new MenuItem
+        {
+            Header = "Add files…",
+            Icon = MenuIcon("menu-plus"),
+            Tag = plsPath,
+            ToolTip = "Pick one or more videos to append to this playlist. " +
+                      "Files already listed are skipped."
+        };
+        addFiles.Click += (_, e) =>
+        {
+            e.Handled = true;
+            _vm?.AddFilesToPlaylistNamedCommand.Execute(plsPath);
+        };
+        parent.Items.Add(addFiles);
+
         // Drops entries whose files are gone, then rebuilds so the list and the
         // header count reflect it. No ellipsis in the header and no
         // confirmation behind it: this runs on the click and reports to the
