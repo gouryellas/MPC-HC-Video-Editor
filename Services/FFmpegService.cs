@@ -962,7 +962,7 @@ public class FFmpegService
             ? MappingFor(streams, format.Extension, viaMp4Segments: false) + "-c:v copy -c:a copy"
             : VideoFormats.ApplyEncoder(format, VideoCodec, QualityArgs);
 
-        var args = $"-hide_banner -y -fflags +igndts -i \"{inputPath}\" {normalize}" +
+        var args = $"-hide_banner -y -fflags +igndts {AsThePlayerReadsIt}-i \"{inputPath}\" {normalize}" +
                    $"{codecs} \"{outputPath}\"";
 
         // Probe first so the progress bar has something to divide by.
@@ -994,7 +994,7 @@ public class FFmpegService
         var crop = $"crop=trunc(in_w*{Frac(width)}/2)*2:trunc(in_h*{Frac(height)}/2)*2:" +
                    $"trunc(in_w*{Frac(x)}/2)*2:trunc(in_h*{Frac(y)}/2)*2";
 
-        var args = $"-hide_banner -y -fflags +igndts -i \"{inputPath}\" " +
+        var args = $"-hide_banner -y -fflags +igndts {AsThePlayerReadsIt}-i \"{inputPath}\" " +
                    $"-vf \"{crop}\" -c:v {VideoCodec} {QualityArgs} -pix_fmt yuv420p " +
                    $"-c:a copy \"{outputPath}\"";
 
@@ -1050,7 +1050,7 @@ public class FFmpegService
         string args;
         if (webp)
         {
-            args = $"-hide_banner -y -fflags +igndts -ss {start} -to {end} -i \"{inputPath}\" " +
+            args = $"-hide_banner -y -fflags +igndts -ss {start} -to {end} {AsThePlayerReadsIt}-i \"{inputPath}\" " +
                    $"-an -vf \"{string.Join(",", vf)}\" " +
                    $"-c:v libwebp_anim -lossless 0 -q:v 75 -compression_level 5 -loop 0 " +
                    $"\"{outputPath}\"";
@@ -1065,7 +1065,7 @@ public class FFmpegService
                         ",split[s0][s1];[s0]palettegen=stats_mode=diff[p];" +
                         "[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle";
 
-            args = $"-hide_banner -y -fflags +igndts -ss {start} -to {end} -i \"{inputPath}\" " +
+            args = $"-hide_banner -y -fflags +igndts -ss {start} -to {end} {AsThePlayerReadsIt}-i \"{inputPath}\" " +
                    $"-an -vf \"{chain}\" -loop 0 \"{outputPath}\"";
         }
 
@@ -1101,7 +1101,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
 
     // Optional map so files with no audio don't hard-fail on the map itself
     var args = $"-hide_banner -y -fflags +igndts " +
-               $"-i \"{inputPath}\" " +
+               $"{AsThePlayerReadsIt}-i \"{inputPath}\" " +
                $"-vn -map 0:a:0? " +
                $"-c:a libmp3lame -q:a 0 " +
                $"\"{outputPath}\"";
@@ -1145,7 +1145,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
             Path.GetDirectoryName(inputPath) ?? "",
             Path.GetFileNameWithoutExtension(inputPath) + "-silent" + Path.GetExtension(inputPath));
 
-        var args = $"-hide_banner -y -fflags +igndts -i \"{inputPath}\" " +
+        var args = $"-hide_banner -y -fflags +igndts {AsThePlayerReadsIt}-i \"{inputPath}\" " +
                    $"-map 0 -map -0:a -c copy \"{outputPath}\"";
 
         await RunAsync(args, progress, ct, await GetDurationAsync(inputPath));
@@ -1906,7 +1906,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         // keep the switch arms parallel.
         filter = filter.Replace("-vn:__none__ ", string.Empty);
 
-        var args = $"-hide_banner -nostats -i \"{inputPath}\" {filter} -f null -";
+        var args = $"-hide_banner -nostats {AsThePlayerReadsIt}-i \"{inputPath}\" {filter} -f null -";
         var log = await RunCaptureAsync(args, duration, progress, ct);
 
         var ranges = settings.Mode switch
@@ -2117,7 +2117,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
 
             progress?.Report(new FFmpegProgressEventArgs { Message = $"Writing {number - 1} chapters…" });
 
-            var args = $"-hide_banner -y -i \"{inputPath}\" -i \"{metaPath}\" " +
+            var args = $"-hide_banner -y {AsThePlayerReadsIt}-i \"{inputPath}\" -i \"{metaPath}\" " +
                        $"-map_metadata 1 -map_chapters 1 -c copy \"{outputPath}\"";
             await RunAsync(args, progress, ct);
         }
@@ -2194,7 +2194,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         var timestamp = Math.Floor(seconds * 1_000_000) / 1_000_000;
         var stamp = timestamp.ToString("0.######", CultureInfo.InvariantCulture);
         var vf = filters.Count > 0 ? $"-vf \"{string.Join(",", filters)}\" " : string.Empty;
-        var args = $"-hide_banner -loglevel error -ss {stamp} -i \"{videoPath}\" " +
+        var args = $"-hide_banner -loglevel error -ss {stamp} {AsThePlayerReadsIt}-i \"{videoPath}\" " +
                    $"-frames:v 1 {vf}-f image2pipe -c:v png -";
 
         return await PipePngAsync(args, ct).ConfigureAwait(false);
@@ -2211,7 +2211,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
             var psi = new ProcessStartInfo
             {
                 FileName = _ffprobePath,
-                Arguments = $"-v error -select_streams v:0 -show_entries stream=start_time " +
+                Arguments = $"-v error {AsThePlayerReadsIt}-select_streams v:0 -show_entries stream=start_time " +
                             $"-of default=noprint_wrappers=1:nokey=1 \"{videoPath}\"",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -2289,7 +2289,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         // are past the moment wanted and ignored below.
         var to = wanted + LookAheadSeconds;
 
-        var args = $"-v error -select_streams v:0 " +
+        var args = $"-v error {AsThePlayerReadsIt}-select_streams v:0 " +
                    $"-read_intervals {from.ToString("0.###", CultureInfo.InvariantCulture)}" +
                    $"%{to.ToString("0.###", CultureInfo.InvariantCulture)} " +
                    $"-show_entries frame=best_effort_timestamp_time " +
@@ -2417,7 +2417,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         if (width > 0) vf.Add($"scale={width}:-2:flags=lanczos");
         if (columns > 0 && rows > 0) vf.Add($"tile={columns}x{rows}");
 
-        var args = $"-hide_banner -y -fflags +igndts -i \"{inputPath}\" " +
+        var args = $"-hide_banner -y -fflags +igndts {AsThePlayerReadsIt}-i \"{inputPath}\" " +
                    $"-an -vf \"{string.Join(",", vf)}\" -fps_mode passthrough " +
                    $"\"{pattern}\" " +
                    $"-map 0:v:0 -c:v wrapped_avframe -f null -";
@@ -2466,7 +2466,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
     {
         if (string.IsNullOrWhiteSpace(videoPath) || !File.Exists(videoPath)) return null;
 
-        var args = $"-hide_banner -loglevel error -nostats -i \"{videoPath}\" " +
+        var args = $"-hide_banner -loglevel error -nostats {AsThePlayerReadsIt}-i \"{videoPath}\" " +
                    $"-filter_complex \"agate=threshold=0.005:ratio=2.5:range=0.1:attack=5:release=300:detection=peak," +
                    $"showwavespic=s={width}x{height}:colors={ToFfmpegColor(color)}:split_channels=0:scale=sqrt:filter=peak\" " +
                    $"-frames:v 1 -f image2pipe -c:v png -";
@@ -2564,6 +2564,29 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
     /// timestamps exactly, so a single irregular gap makes it report a number
     /// with no relation to playback. Encoding cost scales with it directly.
     /// </remarks>
+    /// <summary>
+    /// Read MP4 input the way the player does, not the way the file asks to
+    /// be read.
+    /// </summary>
+    /// <remarks>
+    /// An MP4 can carry an edit list — a note in the container saying which
+    /// part of the media is the presentation, and where its clock starts.
+    /// ffmpeg honours it; MPC-HC does not. On a file carrying one, the two
+    /// disagree about what time it is: measured on a 3-minute clip whose edit
+    /// list begins 7.5 seconds in, ffmpeg called the file 173.15 seconds long
+    /// while the player called it 181.4, and every time taken from the player
+    /// landed 7.5 seconds early when handed back to ffmpeg. A frame saved at
+    /// the one-second mark came from the eighth.
+    ///
+    /// Every time this program works with comes from the player — the
+    /// playhead, a bookmark set against it, a cut measured from those — so
+    /// the player's reading of the file is the one that has to be matched,
+    /// whatever the container would prefer. The option is specific to the
+    /// MP4 demuxer and is accepted and ignored by the others, so it costs
+    /// nothing to apply to every input.
+    /// </remarks>
+    private const string AsThePlayerReadsIt = "-ignore_editlist 1 ";
+
     private const double MaxPlausibleFrameRate = 240.0;
 
     /// <summary>
@@ -2621,7 +2644,8 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         // Never let a broken ffprobe crash the app with a system dialog.
         try
         {
-            var args = $"-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 \"{filePath}\"";
+            var args = $"-v error {AsThePlayerReadsIt}-show_entries format=duration " +
+                       $"-of default=noprint_wrappers=1:nokey=1 \"{filePath}\"";
             var psi = new ProcessStartInfo
             {
                 FileName = _ffprobePath,
