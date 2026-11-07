@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Windows;
+using MpcHcVideoEditor.Helpers;
 using MpcHcVideoEditor.Services;
 using MpcHcVideoEditor.Views;
 
@@ -9,8 +10,58 @@ public partial class App : Application
 {
     private SingleInstanceService? _singleInstance;
 
+    /// <summary>
+    /// Records an unhandled exception before the program goes, and tells the
+    /// user what happened rather than vanishing.
+    /// </summary>
+    /// <remarks>
+    /// There was nothing here at all: a fault on the UI thread closed the
+    /// window with no message and no trace, which is indistinguishable from
+    /// the program being killed. The dialog is deliberately plain and the
+    /// exception is written to the diagnostics log either way, so a crash
+    /// that happens while nobody is watching can still be read afterwards.
+    ///
+    /// The dispatcher handler marks the exception handled, which keeps the
+    /// program alive. That is the right call for a WPF application whose work
+    /// is held in files already written — losing the window loses the session
+    /// for no reason. The domain handler cannot do the same; the runtime is
+    /// already on its way down there, so it only records.
+    /// </remarks>
+    private void WatchForCrashes()
+    {
+        DispatcherUnhandledException += (_, args) =>
+        {
+            Diagnostics.Swallowed("Unhandled on the UI thread", args.Exception);
+
+            MessageBox.Show(
+                "Something went wrong and the program had to abandon what it was doing." +
+                Environment.NewLine + Environment.NewLine +
+                args.Exception.Message +
+                Environment.NewLine + Environment.NewLine +
+                "It is still running, and the details are in diagnostics.log beside " +
+                "the executable.",
+                "Something went wrong", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+            args.Handled = true;
+        };
+
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+        {
+            if (args.ExceptionObject is Exception ex)
+                Diagnostics.Swallowed("Unhandled off the UI thread", ex);
+        };
+
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            Diagnostics.Swallowed("Unobserved in a background task", args.Exception);
+            args.SetObserved();
+        };
+    }
+
     protected override void OnStartup(StartupEventArgs e)
     {
+        WatchForCrashes();
+
         if (!TryClaimSingleInstance())
         {
             // The running copy has been signalled to come to the front.

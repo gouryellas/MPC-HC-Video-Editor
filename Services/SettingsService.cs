@@ -1052,7 +1052,13 @@ public class SettingsService
             Directory.CreateDirectory(PortablePaths.BackupFolder);
             File.WriteAllText(_backupPath, json);
         }
-        catch { /* the settings themselves are saved; this is a spare copy */ }
+        catch (Exception ex)
+        {
+            // The settings themselves are saved; this is a spare copy. But a
+            // spare that has silently not been written for months is exactly
+            // the thing somebody finds out about on the day they need it.
+            Diagnostics.Swallowed("SettingsService.WriteBackup", ex);
+        }
     }
 
     public void AddRecent(string videoPath)

@@ -9090,6 +9090,26 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>The order as it stands, for the dialog that edits it.</summary>
     public IReadOnlyList<Bookmark>? ProcessingOrder => _processingOrder;
 
+    /// <summary>
+    /// Opens the panel that says what the program can currently see.
+    /// </summary>
+    /// <remarks>
+    /// Exists because the hardest fault in this program's history was found
+    /// by querying the player's web interface by hand and running ffprobe
+    /// against the file — neither of which the person reporting it could do,
+    /// so the loop was "try this build", "still wrong", several times over.
+    /// </remarks>
+    [RelayCommand]
+    private void ShowDiagnostics()
+    {
+        var dlg = new Dialogs.DiagnosticsDialog(_mpc, _ffmpeg, Session.VideoPath)
+        {
+            Owner = DialogOwner
+        };
+
+        dlg.ShowDialog();
+    }
+
     /// <summary>Whether there are enough cuts for an order to mean anything.</summary>
     private bool CanSetProcessingOrder() => Session.Bookmarks.Count(b => b.IsValid) > 1;
 

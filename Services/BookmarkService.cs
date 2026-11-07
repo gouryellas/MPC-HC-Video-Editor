@@ -419,7 +419,13 @@ public class BookmarkService
             Directory.CreateDirectory(backup);
             File.Copy(csvPath, Path.Combine(backup, Path.GetFileName(csvPath)), overwrite: true);
         }
-        catch { /* see above */ }
+        catch (Exception ex)
+        {
+            // See above: the file the user asked for is already written. The
+            // record is so that a mirror which has been failing every save
+            // since January is discoverable before the day it is needed.
+            Diagnostics.Swallowed("BookmarkService.MirrorToBackup", ex);
+        }
 
         // Outside the try: the index describes the bookmarks folder, which was
         // written whether or not the mirror copy succeeded.
@@ -443,7 +449,11 @@ public class BookmarkService
             var backup = Path.Combine(PortablePaths.BackupBookmarksFolder, Path.GetFileName(csvPath));
             if (File.Exists(backup)) File.Delete(backup);
         }
-        catch { /* the program folder is the one that had to change */ }
+        catch (Exception ex)
+        {
+            // The program folder is the one that had to change.
+            Diagnostics.Swallowed("BookmarkService.RemoveFromBackup", ex);
+        }
 
         RecordCurrentContents();
     }

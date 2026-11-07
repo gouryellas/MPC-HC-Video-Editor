@@ -1758,6 +1758,24 @@
                                Source="pack://application:,,,/Assets/icons/icon-menu-license.png"/>
                     </MenuItem.Icon>
                 </MenuItem>
+                <MenuItem Command="{Binding ShowDiagnosticsCommand}">
+                    <MenuItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Diagnostics…" VerticalAlignment="Center"/>
+                            <ContentControl Style="{StaticResource Qmhp}">
+                                <ContentControl.ToolTip>
+                                    <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                               Text="What the program can see right now — where the player says it is, what the file says about itself, whether those two agree, and anything that has quietly failed. Copy it into a bug report."/>
+                                </ContentControl.ToolTip>
+                            </ContentControl>
+                        </StackPanel>
+                    </MenuItem.Header>
+                    <MenuItem.Icon>
+                        <Image Style="{StaticResource MenuIcon}"
+                               Source="pack://application:,,,/Assets/icons/icon-menu-letter_i.png"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+
                 <MenuItem Header="Code" Style="{StaticResource MenuSectionHeader}"/>
                 <MenuItem Header="GitHub repository" Command="{Binding OpenRepositoryCommand}"
                           ToolTip="https://github.com/gouryellas/MPC-HC-Video-Editor">

@@ -2706,8 +2706,14 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
                 ? d
                 : 0;
         }
-        catch
+        catch (Exception ex)
         {
+            // Zero reads downstream as "unknown length", which is survivable
+            // but changes what several things do — the progress estimate has
+            // nothing to divide by, and a cut cannot be checked against the
+            // end of the file. Worth a record even though it is not worth a
+            // dialog.
+            Diagnostics.Swallowed("FFmpegService.GetDurationAsync", ex);
             return 0;
         }
     }
