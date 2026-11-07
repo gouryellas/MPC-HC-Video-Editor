@@ -1,5 +1,7 @@
 using System.IO;
 using System.Reflection;
+using System.Text.Json;
+using MpcHcVideoEditor.Models;
 using MpcHcVideoEditor.Services;
 using Xunit;
 
@@ -28,6 +30,10 @@ public class SettingsDurabilityTests : IDisposable
         typeof(SettingsService).GetMethod("WriteAtomic", BindingFlags.NonPublic | BindingFlags.Static)
         ?? throw new InvalidOperationException("WriteAtomic is gone — has the write been changed?");
 
+    private static readonly MethodInfo Clamp =
+        typeof(SettingsService).GetMethod("ClampNumericSettings", BindingFlags.NonPublic | BindingFlags.Instance)
+        ?? throw new InvalidOperationException("ClampNumericSettings is gone — has the guard been removed?");
+
     private static readonly MethodInfo TryLoadFrom =
         typeof(SettingsService).GetMethod("TryLoadFrom", BindingFlags.NonPublic | BindingFlags.Instance)
         ?? throw new InvalidOperationException("TryLoadFrom is gone — has the load been changed?");
@@ -42,10 +48,22 @@ public class SettingsDurabilityTests : IDisposable
     private string Path_(string name) => Path.Combine(_dir, name);
     private static void Write(string path, string text) => WriteAtomic.Invoke(null, new object[] { path, text });
 
-    /// <summary>A service whose constructor has not run, so it has no paths of its own.</summary>
-    private static SettingsService Bare() =>
-        (SettingsService)System.Runtime.CompilerServices.RuntimeHelpers
+    /// <summary>
+    /// A service whose constructor has not run, so it has no paths of its own
+    /// — and therefore no settings either, since a field initialiser is part
+    /// of the constructor. Given a fresh set here.
+    /// </summary>
+    private static SettingsService Bare()
+    {
+        var service = (SettingsService)System.Runtime.CompilerServices.RuntimeHelpers
             .GetUninitializedObject(typeof(SettingsService));
+
+        typeof(SettingsService)
+            .GetProperty(nameof(SettingsService.Current))!
+            .SetValue(service, new AppSettings());
+
+        return service;
+    }
 
     private static bool Load(SettingsService service, string path) =>
         (bool)TryLoadFrom.Invoke(service, new object[] { path })!;
@@ -107,6 +125,73 @@ public class SettingsDurabilityTests : IDisposable
     public void A_missing_file_is_refused()
     {
         Assert.False(Load(Bare(), Path_("nothing-here.json")));
+    }
+
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(double.NegativeInfinity)]
+    public void A_number_that_is_not_a_number_cannot_reach_the_serializer(double poison)
+    {
+        // The failure this guards against lost a whole session's settings and
+        // said nothing until the save started reporting. A window that has
+        // never been shown reports its position as NaN; that reached the
+        // settings object, and JSON cannot write a NaN — so the one bad number
+        // meant the entire file failed to save, every time, for the rest of
+        // the run.
+        //
+        // Math.Clamp is no defence against the one that actually happened.
+        // An infinity it does clamp — infinity is greater than the maximum,
+        // so the comparison works. NaN it hands straight back, because every
+        // comparison against NaN is false and so neither bound is breached.
+        if (double.IsNaN(poison)) Assert.Equal(poison, Math.Clamp(poison, 0.0, 1.0));
+
+        var service = Bare();
+        service.Current.FadeSeconds = poison;
+        service.Current.ToastSeconds = poison;
+        service.Current.OverlayOpacity = poison;
+        service.Current.SeekbarOpacity = poison;
+        service.Current.MainWindowPlacement = new WindowPlacement(poison, poison, poison, poison, false);
+
+        Clamp.Invoke(service, null);
+
+        // Every one replaced, and the placement dropped outright — there is no
+        // sensible place to move a window to on its behalf.
+        Assert.True(double.IsFinite(service.Current.FadeSeconds));
+        Assert.True(double.IsFinite(service.Current.ToastSeconds));
+        Assert.True(double.IsFinite(service.Current.OverlayOpacity));
+        Assert.True(double.IsFinite(service.Current.SeekbarOpacity));
+        Assert.Null(service.Current.MainWindowPlacement);
+
+        // And the whole object now survives the journey it could not make.
+        var json = JsonSerializer.Serialize(service.Current);
+        Assert.DoesNotContain("NaN", json);
+        Assert.DoesNotContain("Infinity", json);
+    }
+
+    [Fact]
+    public void A_real_window_position_is_left_alone()
+    {
+        var service = Bare();
+        service.Current.MainWindowPlacement = new WindowPlacement(100, 200, 1100, 780, false);
+
+        Clamp.Invoke(service, null);
+
+        Assert.NotNull(service.Current.MainWindowPlacement);
+        Assert.Equal(1100, service.Current.MainWindowPlacement!.Width);
+    }
+
+    [Fact]
+    public void Numbers_outside_their_range_are_still_brought_back_in()
+    {
+        var service = Bare();
+        service.Current.ToastSeconds = 9999;
+        service.Current.SeekbarOpacity = -5;
+
+        Clamp.Invoke(service, null);
+
+        Assert.Equal(10.0, service.Current.ToastSeconds);
+        Assert.Equal(0.1, service.Current.SeekbarOpacity);
     }
 
     [Fact]

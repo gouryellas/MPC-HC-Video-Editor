@@ -255,12 +255,35 @@ public partial class MainWindow : Window
 
         // Minimized to the tray with nothing ever restored: there is no honest
         // size to record, so the last one stands.
-        if (bounds.IsEmpty || bounds.Width <= 0 || bounds.Height <= 0) return;
+        //
+        // Every number checked, and checked for being a number. A window that
+        // has never been shown reports Left and Top as NaN — WindowStartupLocation
+        // leaves them unset until it is positioned — and in tray mode the window
+        // can be closed having never appeared. NaN fails no comparison: the
+        // width test here was "Width <= 0", which NaN answers false to, so it
+        // sailed through, reached the settings file, and took the whole save
+        // down with it, since JSON has no way to write a NaN.
+        if (bounds.IsEmpty) return;
+
+        if (!IsReal(bounds.Left) || !IsReal(bounds.Top) ||
+            !IsReal(bounds.Width) || !IsReal(bounds.Height) ||
+            bounds.Width <= 0 || bounds.Height <= 0)
+            return;
 
         vm.SaveWindowPlacement(new WindowPlacement(bounds.Left, bounds.Top,
                                                    bounds.Width, bounds.Height,
                                                    WindowState == WindowState.Maximized));
     }
+
+    /// <summary>
+    /// Whether a measurement is an actual number — not NaN, not an infinity.
+    /// </summary>
+    /// <remarks>
+    /// Worth its own name because the obvious test does not work: every
+    /// comparison against NaN is false, so a range check lets it through while
+    /// appearing to exclude it.
+    /// </remarks>
+    private static bool IsReal(double value) => !double.IsNaN(value) && !double.IsInfinity(value);
 
     // ------------------------------------------------------------------
     // Minimum size

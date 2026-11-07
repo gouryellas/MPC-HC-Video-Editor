@@ -1240,17 +1240,48 @@ public class SettingsService
         Current.MaxHistory = Math.Clamp(Current.MaxHistory, 1, 50);
 
         // Under half a second a toast cannot be read; over ten it is in the way.
-        Current.ToastSeconds = Math.Clamp(Current.ToastSeconds, 0.5, 10.0);
+        Current.ToastSeconds = Sane(Current.ToastSeconds, 0.5, 10.0, 2.2);
 
         // Fully transparent would be an invisible overlay reported as broken.
-        Current.OverlayOpacity = Math.Clamp(Current.OverlayOpacity, 0.3, 1.0);
+        Current.OverlayOpacity = Sane(Current.OverlayOpacity, 0.3, 1.0, 1.0);
 
         // Fully transparent here would be a position wash nobody can see —
         // indistinguishable from the bar on/off setting doing the same thing
         // for a different reason, and reported as the bar having stopped
         // working rather than as the slider someone actually moved.
-        Current.SeekbarOpacity = Math.Clamp(Current.SeekbarOpacity, 0.1, 1.0);
+        Current.SeekbarOpacity = Sane(Current.SeekbarOpacity, 0.1, 1.0, 0.5);
+
+        // Zero is a real answer here — it is how the setting says "no fade" —
+        // so the floor is zero rather than a minimum length.
+        Current.FadeSeconds = Sane(Current.FadeSeconds, 0, 10.0, 0.5);
+
+        // A window position that is not a position. Dropped rather than
+        // corrected: there is no sensible place to move a window to on its
+        // behalf, and the next close writes a real one.
+        if (Current.MainWindowPlacement is { } p &&
+            !(IsReal(p.Left) && IsReal(p.Top) && IsReal(p.Width) && IsReal(p.Height)))
+            Current.MainWindowPlacement = null;
     }
+
+    /// <summary>
+    /// A number brought into range, with one that is not a number replaced
+    /// outright.
+    /// </summary>
+    /// <remarks>
+    /// Math.Clamp is not enough on its own: every comparison against NaN is
+    /// false, so Clamp hands NaN straight back. That is how a window position
+    /// of NaN reached the serializer, which cannot write it — and because the
+    /// whole file is written in one call, one unwritable number meant nothing
+    /// was saved at all, for the rest of the session, in silence.
+    ///
+    /// So the floor here is not the range but the type: anything that is not
+    /// a finite number is replaced by the default rather than clamped towards
+    /// it, since there is no direction to clamp a NaN in.
+    /// </remarks>
+    private static double Sane(double value, double min, double max, double fallback) =>
+        IsReal(value) ? Math.Clamp(value, min, max) : fallback;
+
+    private static bool IsReal(double value) => !double.IsNaN(value) && !double.IsInfinity(value);
 
     // ------------------------------------------------------------------
     // Derived settings
