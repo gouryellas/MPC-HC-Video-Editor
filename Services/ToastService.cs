@@ -115,6 +115,14 @@ public sealed class ToastService : IDisposable
             if (!_faultReported)
             {
                 _faultReported = true;
+
+                // Recorded before the assert, and not only as one. Debug.Fail
+                // compiles to nothing in Release, which is the build this is
+                // shipped as and the build it runs in — so the guard written
+                // to stop this fault hiding a second time could not fire
+                // where the first one happened. Diagnostics is visible in
+                // both, and Help ▸ Diagnostics is where it will be read.
+                Helpers.Diagnostics.Swallowed("ToastService.Show", ex);
                 Debug.Fail("ToastService.Show failed: " + ex);
             }
         }
