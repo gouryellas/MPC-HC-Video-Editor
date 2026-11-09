@@ -169,7 +169,9 @@ public partial class BulkRenameDialog : Window
     {
         Categories = _settings.Current.RenameCategories,
         Subjects = _settings.Current.RenameSubjects,
-        Blacklist = _settings.Current.RenameBlacklist
+        Blacklist = _settings.Current.RenameBlacklist,
+        Conditionals = _settings.Current.RenameConditionals,
+        Rules = _settings.Current.RenameRules
     };
 
     private void SetFolder(string folder)

@@ -457,6 +457,15 @@ public class AppSettings
     public List<string> RenameBlacklist { get; set; } = new();
 
     /// <summary>
+    /// Words that stand for a category or a subject that is not itself
+    /// written in the filename. Meaningless without the rules below.
+    /// </summary>
+    public List<string> RenameConditionals { get; set; } = new();
+
+    /// <summary>What each conditional word implies.</summary>
+    public List<RenameRule> RenameRules { get; set; } = new();
+
+    /// <summary>
     /// The order of the action toolbar, as <see cref="Models.ToolbarItem.Key"/>
     /// values. Empty means the order the program ships with.
     /// </summary>

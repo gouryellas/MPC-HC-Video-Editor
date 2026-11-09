@@ -5,6 +5,34 @@ using System.Text;
 namespace MpcHcVideoEditor.Services;
 
 /// <summary>
+/// "If this word is in the name, the category is that and the subject is
+/// the other."
+/// </summary>
+/// <remarks>
+/// What the word lists cannot express. A category is not always written in
+/// the filename — a clip named after a team says which sport and which
+/// league it belongs to without either word appearing. This is how that is
+/// said: the trigger word is looked for, and the sections it implies are
+/// supplied.
+///
+/// Either section may be left empty, which means "say nothing about this
+/// one" rather than "clear it".
+/// </remarks>
+public sealed class RenameRule
+{
+    /// <summary>The conditional word that fires this rule.</summary>
+    public string Word { get; set; } = "";
+
+    /// <summary>The category it implies, or empty.</summary>
+    public string Category { get; set; } = "";
+
+    /// <summary>The subject it implies, or empty.</summary>
+    public string Subject { get; set; } = "";
+
+    public bool IsUsable => Word.Length > 0 && (Category.Length > 0 || Subject.Length > 0);
+}
+
+/// <summary>
 /// Words that let a filename be read rather than guessed at.
 /// </summary>
 /// <remarks>
@@ -32,10 +60,19 @@ public sealed class FilenameVocabulary
     /// </remarks>
     public IReadOnlyCollection<string> Blacklist { get; init; } = Array.Empty<string>();
 
+    /// <summary>
+    /// Words that stand for something other than themselves, and the rules
+    /// that say what.
+    /// </summary>
+    public IReadOnlyCollection<string> Conditionals { get; init; } = Array.Empty<string>();
+
+    public IReadOnlyList<RenameRule> Rules { get; init; } = Array.Empty<RenameRule>();
+
     public static readonly FilenameVocabulary Empty = new();
 
     public bool IsEmpty =>
-        Categories.Count == 0 && Subjects.Count == 0 && Blacklist.Count == 0;
+        Categories.Count == 0 && Subjects.Count == 0 &&
+        Blacklist.Count == 0 && Rules.Count == 0;
 }
 
 /// <summary>What a rename would do to one file.</summary>
@@ -253,9 +290,37 @@ public static class FilenameRules
         if (vocabulary.Blacklist.Count > 0)
             words.RemoveAll(w => vocabulary.Blacklist.Contains(w, StringComparer.OrdinalIgnoreCase));
 
-        // What the vocabulary can name outright.
-        var category = Take(words, vocabulary.Categories);
-        var subject = Take(words, vocabulary.Subjects);
+        // A conditional word speaks for sections that are not written in the
+        // name at all, so it is read before anything is looked for: a rule
+        // saying the category is "football" settles the question whether or
+        // not the word "football" appears.
+        //
+        // The trigger word itself stays where it is. It is usually the most
+        // specific thing in the name — a team, a place, a person — and
+        // deleting it would throw away what made the rule fire. The
+        // blacklist is there for anybody who does want it gone.
+        string? category = null;
+        string? subject = null;
+
+        foreach (var rule in vocabulary.Rules)
+        {
+            if (!rule.IsUsable) continue;
+            if (!words.Contains(rule.Word, StringComparer.OrdinalIgnoreCase)) continue;
+
+            // First rule to match wins each slot, so the order they are
+            // written in is the order they are tried.
+            if (category is null && rule.Category.Length > 0) category = rule.Category;
+            if (subject is null && rule.Subject.Length > 0) subject = rule.Subject;
+        }
+
+        // Then whatever is written in the name, for any slot still open.
+        category ??= Take(words, vocabulary.Categories);
+        subject ??= Take(words, vocabulary.Subjects);
+
+        // A rule that supplies a word already in the name would otherwise
+        // leave it in twice.
+        if (category is not null) words.RemoveAll(w => w.Equals(category, StringComparison.OrdinalIgnoreCase));
+        if (subject is not null) words.RemoveAll(w => w.Equals(subject, StringComparison.OrdinalIgnoreCase));
 
         // The name, and — just as important — what stood in front of it.
         var person = TakePerson(words, out var before, out var after);

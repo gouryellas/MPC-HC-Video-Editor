@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Words the renamer knows"
-        Height="520" Width="640"
-        MinHeight="360" MinWidth="480"
+        Height="720" Width="900"
+        MinHeight="520" MinWidth="720"
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource WindowBackground}"
         ShowInTaskbar="False">
@@ -16,6 +16,13 @@
             <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize" Value="13"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="Example" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontSize" Value="12"/>
             <Setter Property="Margin" Value="0,0,0,2"/>
         </Style>
 
@@ -41,12 +48,117 @@
             <Setter Property="CaretBrush" Value="{DynamicResource TextPrimary}"/>
             <Setter Property="FontFamily" Value="Consolas"/>
         </Style>
+
+        <!-- Templated, like the scrollbars and the buttons. A ComboBox draws
+             its closed face with a system-coloured ToggleButton, so setting
+             Background on the control changes almost nothing and leaves a
+             white slab in a dark window. -->
+        <Style TargetType="ComboBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="MinWidth" Value="110"/>
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="Margin" Value="4,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="Face" Focusable="False" ClickMode="Press"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay,
+                                                      RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="Shell"
+                                                Background="{DynamicResource ControlBackground}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
+                                                BorderThickness="1" CornerRadius="3">
+                                            <Path x:Name="Arrow" HorizontalAlignment="Right"
+                                                  VerticalAlignment="Center" Margin="0,0,7,0"
+                                                  Data="M 0 0 L 8 0 L 4 5 Z"
+                                                  Fill="{DynamicResource TextSecondary}"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Shell" Property="Background"
+                                                        Value="{DynamicResource ControlHover}"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+
+                            <ContentPresenter Margin="8,0,20,0" VerticalAlignment="Center"
+                                              IsHitTestVisible="False"
+                                              Content="{TemplateBinding SelectionBoxItem}"/>
+
+                            <!-- Said only when nothing is chosen, so an
+                                 unfinished rule is obvious at a glance
+                                 rather than reading as an empty box. -->
+                            <TextBlock x:Name="Hint" Text="choose…" Margin="8,0,20,0"
+                                       VerticalAlignment="Center" IsHitTestVisible="False"
+                                       FontStyle="Italic" Visibility="Collapsed"
+                                       Foreground="{DynamicResource TextMuted}"/>
+
+                            <Popup IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   Placement="Bottom" AllowsTransparency="True"
+                                   Focusable="False" PopupAnimation="Slide">
+                                <Border Background="{DynamicResource PanelBackground}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="1" CornerRadius="3"
+                                        MinWidth="{TemplateBinding ActualWidth}"
+                                        MaxHeight="220">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <ItemsPresenter/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="SelectionBoxItem" Value="{x:Null}">
+                                <Setter TargetName="Hint" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="Row" Background="Transparent"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Row" Property="Background"
+                                        Value="{DynamicResource RowHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Row" Property="Background"
+                                        Value="{DynamicResource RowSelected}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <DockPanel Margin="16">
-        <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,0,0,12"
-                   Foreground="{DynamicResource TextSecondary}"
-                   Text="One word per line. Nothing in a filename says which word is a category, so these are how the renamer is told — without them it can tidy a name but not rearrange it. They are kept in your settings file and go nowhere else."/>
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+            <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextSecondary}"
+                       Margin="0,0,0,8"
+                       Text="One word per line. Nothing in a filename says which word is a category, so these are how the renamer is told. They are kept in your settings file and go nowhere else."/>
+
+            <TextBlock Style="{StaticResource Example}"
+                       Text="Example ordering:  &lt;1: category&gt;-&lt;2: subject&gt;-&lt;3: filename&gt;.&lt;extension&gt;"/>
+            <TextBlock Style="{StaticResource Example}"
+                       Text="Example file:      vacation-skiing-fun-time-in-colorado.mp4"/>
+        </StackPanel>
 
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
                     HorizontalAlignment="Right" Margin="0,12,0,0">
@@ -57,8 +169,91 @@
                     Foreground="{DynamicResource OnAccent}"/>
         </StackPanel>
 
+        <!-- Rules below the words they are built from, because the lists have
+             to be filled in before a rule can say anything. -->
+        <Border DockPanel.Dock="Bottom" Margin="0,12,0,0" Height="200"
+                Background="{DynamicResource PanelBackground}" CornerRadius="6" Padding="10">
+            <DockPanel>
+                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8" LastChildFill="False">
+                    <TextBlock DockPanel.Dock="Left" Text="Rules" Style="{StaticResource Heading}"/>
+                    <ContentControl DockPanel.Dock="Left" Style="{StaticResource Qmhp}">
+                        <ContentControl.ToolTip>
+                            <TextBlock MaxWidth="360" TextWrapping="Wrap"
+                                       Text="A conditional word can stand for sections that are not written in the filename at all. The word itself is left in the name — blacklist it if you want it gone."/>
+                        </ContentControl.ToolTip>
+                    </ContentControl>
+
+                    <Button DockPanel.Dock="Right" Content="Add rule" Click="AddRule_Click"/>
+                </DockPanel>
+
+                <TextBlock x:Name="NoRulesText" DockPanel.Dock="Top"
+                           Foreground="{DynamicResource TextMuted}" FontSize="12"
+                           TextWrapping="Wrap"
+                           Text="No rules yet. Add one to say what a conditional word stands for."/>
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ItemsControl x:Name="RuleList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,0,4" Padding="8,5" CornerRadius="4"
+                                        Background="{DynamicResource InsetBackground}">
+                                    <!-- A Grid rather than a DockPanel: docked
+                                         children are measured against what is
+                                         left rather than what they need, so
+                                         the sentence ran underneath the
+                                         dropdowns as soon as a word was long. -->
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0" Text="If"
+                                                   VerticalAlignment="Center" Margin="2,0,2,0"
+                                                   Foreground="{DynamicResource TextBody}"/>
+
+                                        <ComboBox Grid.Column="1"
+                                                  ItemsSource="{Binding Conditionals}"
+                                                  SelectedItem="{Binding Word, Mode=TwoWay}"/>
+
+                                        <TextBlock Grid.Column="2" VerticalAlignment="Center"
+                                                   Margin="4,0" TextTrimming="CharacterEllipsis"
+                                                   Foreground="{DynamicResource TextBody}"
+                                                   Text="is found, then the category is"/>
+
+                                        <ComboBox Grid.Column="3"
+                                                  ItemsSource="{Binding Categories}"
+                                                  SelectedItem="{Binding Category, Mode=TwoWay}"/>
+
+                                        <TextBlock Grid.Column="4" VerticalAlignment="Center"
+                                                   Margin="4,0" TextTrimming="CharacterEllipsis"
+                                                   Foreground="{DynamicResource TextBody}"
+                                                   Text="and the subject is"/>
+
+                                        <ComboBox Grid.Column="5"
+                                                  ItemsSource="{Binding Subjects}"
+                                                  SelectedItem="{Binding Subject, Mode=TwoWay}"/>
+
+                                        <Button Grid.Column="6" Content="Remove"
+                                                Click="RemoveRule_Click" Tag="{Binding}"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+
         <Grid>
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="12"/>
                 <ColumnDefinition Width="*"/>
@@ -67,25 +262,41 @@
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="Categories" Style="{StaticResource Heading}"/>
-            <TextBlock Grid.Row="1" Grid.Column="0" Text="First section"
-                       FontSize="11" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,6"/>
-            <TextBox   Grid.Row="2" Grid.Column="0" x:Name="CategoriesBox"/>
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Categories"
+                       Style="{StaticResource Heading}" Margin="0,0,0,6"/>
+            <TextBox   Grid.Row="1" Grid.Column="0" x:Name="CategoriesBox"
+                       TextChanged="Words_Changed"/>
 
-            <TextBlock Grid.Row="0" Grid.Column="2" Text="Subjects" Style="{StaticResource Heading}"/>
-            <TextBlock Grid.Row="1" Grid.Column="2" Text="Second — the event"
-                       FontSize="11" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,6"/>
-            <TextBox   Grid.Row="2" Grid.Column="2" x:Name="SubjectsBox"/>
+            <TextBlock Grid.Row="0" Grid.Column="2" Text="Subjects"
+                       Style="{StaticResource Heading}" Margin="0,0,0,6"/>
+            <TextBox   Grid.Row="1" Grid.Column="2" x:Name="SubjectsBox"
+                       TextChanged="Words_Changed"/>
 
-            <TextBlock Grid.Row="0" Grid.Column="4" Text="Blacklisted words" Style="{StaticResource Heading}"/>
-            <TextBlock Grid.Row="1" Grid.Column="4" Text="Struck out of every name"
-                       FontSize="11" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,6"
-                       ToolTip="Matched whole, never as part of a longer word — a blacklisted &quot;cam&quot; removes &quot;cam&quot; and leaves &quot;camera&quot; alone."/>
-            <TextBox   Grid.Row="2" Grid.Column="4" x:Name="BlacklistBox"/>
+            <StackPanel Grid.Row="0" Grid.Column="4" Orientation="Horizontal" Margin="0,0,0,6">
+                <TextBlock Text="Conditional" Style="{StaticResource Heading}"/>
+                <ContentControl Style="{StaticResource Qmhp}">
+                    <ContentControl.ToolTip>
+                        <TextBlock MaxWidth="340" TextWrapping="Wrap"
+                                   Text="These words are used in the rules section to determine what other sections are."/>
+                    </ContentControl.ToolTip>
+                </ContentControl>
+            </StackPanel>
+            <TextBox   Grid.Row="1" Grid.Column="4" x:Name="ConditionalsBox"
+                       TextChanged="Words_Changed"/>
+
+            <StackPanel Grid.Row="0" Grid.Column="6" Orientation="Horizontal" Margin="0,0,0,6">
+                <TextBlock Text="Blacklisted" Style="{StaticResource Heading}"/>
+                <ContentControl Style="{StaticResource Qmhp}">
+                    <ContentControl.ToolTip>
+                        <TextBlock MaxWidth="340" TextWrapping="Wrap"
+                                   Text="If any of these words are found, they will be removed from the filename."/>
+                    </ContentControl.ToolTip>
+                </ContentControl>
+            </StackPanel>
+            <TextBox   Grid.Row="1" Grid.Column="6" x:Name="BlacklistBox"/>
         </Grid>
     </DockPanel>
 </Window>

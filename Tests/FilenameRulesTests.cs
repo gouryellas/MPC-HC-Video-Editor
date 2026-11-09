@@ -220,6 +220,107 @@ public class FilenameRulesTests
     }
 
     [Fact]
+    public void A_conditional_word_supplies_sections_that_are_not_written()
+    {
+        // The point of the rules: neither "football" nor "college" appears
+        // in the name, and both belong in it.
+        var vocab = new FilenameVocabulary
+        {
+            Conditionals = new[] { "aggies" },
+            Rules = new[]
+            {
+                new RenameRule { Word = "aggies", Category = "football", Subject = "college" }
+            }
+        };
+
+        Assert.Equal("football-college-aggies-highlights.mp4",
+                     FilenameRules.Apply("aggies highlights.mp4", vocab));
+    }
+
+    [Fact]
+    public void A_rule_may_supply_only_one_of_the_two()
+    {
+        var vocab = new FilenameVocabulary
+        {
+            Rules = new[] { new RenameRule { Word = "aggies", Category = "football" } }
+        };
+
+        // An empty subject means "say nothing", not "leave a gap".
+        Assert.Equal("football-aggies-highlights.mp4",
+                     FilenameRules.Apply("aggies highlights.mp4", vocab));
+    }
+
+    [Fact]
+    public void A_rule_does_not_leave_its_word_in_twice()
+    {
+        var vocab = new FilenameVocabulary
+        {
+            Rules = new[] { new RenameRule { Word = "aggies", Category = "football" } }
+        };
+
+        Assert.Equal("football-aggies.mp4",
+                     FilenameRules.Apply("football aggies.mp4", vocab));
+    }
+
+    [Fact]
+    public void A_rule_beats_a_category_written_in_the_name()
+    {
+        // The rule is the more specific statement — it was written about
+        // this word, where the category list is about any name at all.
+        var vocab = new FilenameVocabulary
+        {
+            Categories = new[] { "practice" },
+            Rules = new[] { new RenameRule { Word = "aggies", Category = "football" } }
+        };
+
+        // "practice" is no longer the category, so it stays in the
+        // description — where it was, ahead of the word that displaced it.
+        Assert.Equal("football-practice-aggies.mp4",
+                     FilenameRules.Apply("practice aggies.mp4", vocab));
+    }
+
+    [Fact]
+    public void A_rule_whose_word_is_absent_does_nothing()
+    {
+        var vocab = new FilenameVocabulary
+        {
+            Rules = new[] { new RenameRule { Word = "aggies", Category = "football" } }
+        };
+
+        Assert.Equal("longhorns-highlights.mp4",
+                     FilenameRules.Apply("longhorns highlights.mp4", vocab));
+    }
+
+    [Fact]
+    public void A_half_written_rule_is_ignored()
+    {
+        var vocab = new FilenameVocabulary
+        {
+            Rules = new[] { new RenameRule { Word = "aggies" } }
+        };
+
+        Assert.Equal("aggies-highlights.mp4",
+                     FilenameRules.Apply("aggies highlights.mp4", vocab));
+    }
+
+    [Fact]
+    public void The_first_rule_to_match_wins_each_slot()
+    {
+        var vocab = new FilenameVocabulary
+        {
+            Rules = new[]
+            {
+                new RenameRule { Word = "aggies", Category = "football" },
+                new RenameRule { Word = "aggies", Category = "basketball", Subject = "college" }
+            }
+        };
+
+        // The second rule still supplies the subject the first left open.
+        Assert.Equal("football-college-aggies.mp4",
+                     FilenameRules.Apply("aggies.mp4", vocab));
+    }
+
+    [Fact]
     public void A_blacklisted_word_is_struck_out()
     {
         var vocab = new FilenameVocabulary { Blacklist = new[] { "raw" } };
