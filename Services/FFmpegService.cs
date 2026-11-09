@@ -962,7 +962,7 @@ public class FFmpegService
             ? MappingFor(streams, format.Extension, viaMp4Segments: false) + "-c:v copy -c:a copy"
             : VideoFormats.ApplyEncoder(format, VideoCodec, QualityArgs);
 
-        var args = $"-hide_banner -y {OpenVideo}-i \"{inputPath}\" {normalize}" +
+        var args = $"-hide_banner -y {OpenVideo(inputPath)}-i \"{inputPath}\" {normalize}" +
                    $"{codecs} \"{outputPath}\"";
 
         // Probe first so the progress bar has something to divide by.
@@ -994,7 +994,7 @@ public class FFmpegService
         var crop = $"crop=trunc(in_w*{Frac(width)}/2)*2:trunc(in_h*{Frac(height)}/2)*2:" +
                    $"trunc(in_w*{Frac(x)}/2)*2:trunc(in_h*{Frac(y)}/2)*2";
 
-        var args = $"-hide_banner -y {OpenVideo}-i \"{inputPath}\" " +
+        var args = $"-hide_banner -y {OpenVideo(inputPath)}-i \"{inputPath}\" " +
                    $"-vf \"{crop}\" -c:v {VideoCodec} {QualityArgs} -pix_fmt yuv420p " +
                    $"-c:a copy \"{outputPath}\"";
 
@@ -1050,7 +1050,7 @@ public class FFmpegService
         string args;
         if (webp)
         {
-            args = $"-hide_banner -y -ss {start} -to {end} {OpenVideo}-i \"{inputPath}\" " +
+            args = $"-hide_banner -y -ss {start} -to {end} {OpenVideo(inputPath)}-i \"{inputPath}\" " +
                    $"-an -vf \"{string.Join(",", vf)}\" " +
                    $"-c:v libwebp_anim -lossless 0 -q:v 75 -compression_level 5 -loop 0 " +
                    $"\"{outputPath}\"";
@@ -1065,7 +1065,7 @@ public class FFmpegService
                         ",split[s0][s1];[s0]palettegen=stats_mode=diff[p];" +
                         "[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle";
 
-            args = $"-hide_banner -y -ss {start} -to {end} {OpenVideo}-i \"{inputPath}\" " +
+            args = $"-hide_banner -y -ss {start} -to {end} {OpenVideo(inputPath)}-i \"{inputPath}\" " +
                    $"-an -vf \"{chain}\" -loop 0 \"{outputPath}\"";
         }
 
@@ -1100,7 +1100,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
             $"{Path.GetFileName(inputPath)} has no audio track, so there is nothing to extract.");
 
     // Optional map so files with no audio don't hard-fail on the map itself
-    var args = $"-hide_banner -y {OpenVideo}-i \"{inputPath}\" " +
+    var args = $"-hide_banner -y {OpenVideo(inputPath)}-i \"{inputPath}\" " +
                $"-vn -map 0:a:0? " +
                $"-c:a libmp3lame -q:a 0 " +
                $"\"{outputPath}\"";
@@ -1144,7 +1144,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
             Path.GetDirectoryName(inputPath) ?? "",
             Path.GetFileNameWithoutExtension(inputPath) + "-silent" + Path.GetExtension(inputPath));
 
-        var args = $"-hide_banner -y {OpenVideo}-i \"{inputPath}\" " +
+        var args = $"-hide_banner -y {OpenVideo(inputPath)}-i \"{inputPath}\" " +
                    $"-map 0 -map -0:a -c copy \"{outputPath}\"";
 
         await RunAsync(args, progress, ct, await GetDurationAsync(inputPath));
@@ -1499,7 +1499,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
 
         var sb = new StringBuilder();
         sb.Append($"-hide_banner -y -ss {start} -to {end} " +
-                  $"{OpenVideo}-i \"{input}\" ");
+                  $"{OpenVideo(input)}-i \"{input}\" ");
 
         if (vf.Count > 0)
             sb.Append($"-vf \"{string.Join(",", vf)}\" ");
@@ -1666,7 +1666,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
                 // effort spent here buys nothing. Routed through the chosen
                 // encoder all the same, since x264's presets mean nothing to a
                 // GPU encoder.
-                var args = $"-hide_banner -y {OpenVideoKeepingTimestamps}-i \"{files[i]}\" " +
+                var args = $"-hide_banner -y {OpenVideoKeepingTimestamps(files[i])}-i \"{files[i]}\" " +
                            $"-c:v {VideoCodec} {VideoEncoders.QualityArgsFor(Encoder, EncodingQuality.Fast)} " +
                            $"{scaleArgs}{rateArgs}-pix_fmt yuv420p -c:a aac -ar 48000 -ac 2 \"{seg}\"";
                 await RunAsync(args, null, ct);
@@ -1906,7 +1906,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         // keep the switch arms parallel.
         filter = filter.Replace("-vn:__none__ ", string.Empty);
 
-        var args = $"-hide_banner -nostats {OpenVideo}-i \"{inputPath}\" {filter} -f null -";
+        var args = $"-hide_banner -nostats {OpenVideo(inputPath)}-i \"{inputPath}\" {filter} -f null -";
         var log = await RunCaptureAsync(args, duration, progress, ct);
 
         var ranges = settings.Mode switch
@@ -2117,7 +2117,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
 
             progress?.Report(new FFmpegProgressEventArgs { Message = $"Writing {number - 1} chapters…" });
 
-            var args = $"-hide_banner -y {OpenVideoKeepingTimestamps}-i \"{inputPath}\" -i \"{metaPath}\" " +
+            var args = $"-hide_banner -y {OpenVideoKeepingTimestamps(inputPath)}-i \"{inputPath}\" -i \"{metaPath}\" " +
                        $"-map_metadata 1 -map_chapters 1 -c copy \"{outputPath}\"";
             await RunAsync(args, progress, ct);
         }
@@ -2194,7 +2194,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         var timestamp = Math.Floor(seconds * 1_000_000) / 1_000_000;
         var stamp = timestamp.ToString("0.######", CultureInfo.InvariantCulture);
         var vf = filters.Count > 0 ? $"-vf \"{string.Join(",", filters)}\" " : string.Empty;
-        var args = $"-hide_banner -loglevel error -ss {stamp} {OpenVideo}-i \"{videoPath}\" " +
+        var args = $"-hide_banner -loglevel error -ss {stamp} {OpenVideo(videoPath)}-i \"{videoPath}\" " +
                    $"-frames:v 1 {vf}-f image2pipe -c:v png -";
 
         return await PipePngAsync(args, ct).ConfigureAwait(false);
@@ -2211,7 +2211,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
             var psi = new ProcessStartInfo
             {
                 FileName = _ffprobePath,
-                Arguments = $"-v error {OpenVideoKeepingTimestamps}-select_streams v:0 -show_entries stream=start_time " +
+                Arguments = $"-v error {OpenVideoKeepingTimestamps(videoPath)}-select_streams v:0 -show_entries stream=start_time " +
                             $"-of default=noprint_wrappers=1:nokey=1 \"{videoPath}\"",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -2289,7 +2289,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         // are past the moment wanted and ignored below.
         var to = wanted + LookAheadSeconds;
 
-        var args = $"-v error {OpenVideoKeepingTimestamps}-select_streams v:0 " +
+        var args = $"-v error {OpenVideoKeepingTimestamps(videoPath)}-select_streams v:0 " +
                    $"-read_intervals {from.ToString("0.###", CultureInfo.InvariantCulture)}" +
                    $"%{to.ToString("0.###", CultureInfo.InvariantCulture)} " +
                    $"-show_entries frame=best_effort_timestamp_time " +
@@ -2430,7 +2430,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         if (width > 0) vf.Add($"scale={width}:-2:flags=lanczos");
         if (columns > 0 && rows > 0) vf.Add($"tile={columns}x{rows}");
 
-        var args = $"-hide_banner -y {OpenVideo}-i \"{inputPath}\" " +
+        var args = $"-hide_banner -y {OpenVideo(inputPath)}-i \"{inputPath}\" " +
                    $"-an -vf \"{string.Join(",", vf)}\" -fps_mode passthrough " +
                    $"\"{pattern}\" " +
                    $"-map 0:v:0 -c:v wrapped_avframe -f null -";
@@ -2479,7 +2479,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
     {
         if (string.IsNullOrWhiteSpace(videoPath) || !File.Exists(videoPath)) return null;
 
-        var args = $"-hide_banner -loglevel error -nostats {OpenVideo}-i \"{videoPath}\" " +
+        var args = $"-hide_banner -loglevel error -nostats {OpenVideo(videoPath)}-i \"{videoPath}\" " +
                    $"-filter_complex \"agate=threshold=0.005:ratio=2.5:range=0.1:attack=5:release=300:detection=peak," +
                    $"showwavespic=s={width}x{height}:colors={ToFfmpegColor(color)}:split_channels=0:scale=sqrt:filter=peak\" " +
                    $"-frames:v 1 -f image2pipe -c:v png -";
@@ -2599,12 +2599,22 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
     /// broken or non-monotonic decode clock from failing outright.
     /// </para>
     /// <para>
-    /// Both belong to the MP4 demuxer or are accepted and ignored by the
-    /// others, so this is applied to every input rather than guessed at per
-    /// container. The exception is <see cref="OpenVideoKeepingTimestamps"/>.
+    /// <c>-ignore_editlist</c> is added only for MP4-family inputs, because
+    /// it belongs to that demuxer alone. It was once applied to everything,
+    /// on the belief that the other demuxers accept and ignore what they do
+    /// not recognise. They do not: ffmpeg rejects an option its demuxer has
+    /// not declared and refuses to open the input at all —
+    ///
+    ///     Option ignore_editlist not found.
+    ///     Error opening input file …
+    ///
+    /// — so every operation on a .mkv, .avi, .webm or .wmv failed outright.
+    /// ffprobe is laxer and accepted it, which is why reading a duration
+    /// went on working and hid the fault.
     /// </para>
     /// </remarks>
-    private const string OpenVideo = "-fflags +igndts -ignore_editlist 1 ";
+    private static string OpenVideo(string path) =>
+        IsMp4Family(path) ? "-fflags +igndts -ignore_editlist 1 " : "-fflags +igndts ";
 
     /// <summary>
     /// The same, less the timestamp flag, for the paths that copy a stream
@@ -2621,7 +2631,25 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
     /// but it is a question about output, not about reading, and wants its own
     /// evidence rather than being folded in here.
     /// </remarks>
-    private const string OpenVideoKeepingTimestamps = "-ignore_editlist 1 ";
+    private static string OpenVideoKeepingTimestamps(string path) =>
+        IsMp4Family(path) ? "-ignore_editlist 1 " : "";
+
+    /// <summary>
+    /// Whether a path is one the MP4 demuxer handles, and therefore one that
+    /// can carry an edit list.
+    /// </summary>
+    /// <remarks>
+    /// By extension rather than by probing the container. The flag is being
+    /// chosen for a command line that has not run yet, and a file whose name
+    /// lies about its contents loses only the edit-list correction — it does
+    /// not fail, which is what guessing the other way costs.
+    /// </remarks>
+    private static bool IsMp4Family(string path) =>
+        Mp4Extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Every extension the "mov,mp4,m4a,3gp,3g2,mj2" demuxer reads.</summary>
+    private static readonly string[] Mp4Extensions =
+        { ".mp4", ".m4v", ".mov", ".m4a", ".3gp", ".3g2", ".mj2", ".qt" };
 
     private const double MaxPlausibleFrameRate = 240.0;
 
@@ -2675,12 +2703,79 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         }
     }
 
+    /// <summary>
+    /// One frame, reduced to a tiny square of greyscale pixels.
+    /// </summary>
+    /// <param name="seconds">Where to take it from.</param>
+    /// <param name="size">Side of the square, in pixels.</param>
+    /// <returns>
+    /// <paramref name="size"/> squared bytes, one per pixel, row by row — or
+    /// null if the frame could not be read.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// For comparing one video against another rather than for showing
+    /// anybody: at eight pixels across there is nothing to look at, which is
+    /// the point. What survives that reduction is the broad arrangement of
+    /// light and dark, and that is what two encodes of the same footage have
+    /// in common while two different shots do not.
+    /// </para>
+    /// <para>
+    /// Raw pixels straight off the pipe rather than a PNG, so nothing has to
+    /// decode an image to read them back. <c>-ss</c> goes before <c>-i</c>,
+    /// which seeks by keyframe without decoding everything up to that point —
+    /// landing a frame or two off is irrelevant here and being fast is not.
+    /// </para>
+    /// </remarks>
+    public async Task<byte[]?> GreyThumbnailAsync(string filePath, double seconds, int size,
+                                                  CancellationToken ct = default)
+    {
+        try
+        {
+            var at = seconds.ToString("0.###", CultureInfo.InvariantCulture);
+            var args = $"-hide_banner -loglevel error -ss {at} {OpenVideo(filePath)}-i \"{filePath}\" " +
+                       $"-frames:v 1 -vf \"scale={size}:{size},format=gray\" " +
+                       $"-f rawvideo -pix_fmt gray -";
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = _ffmpegPath,
+                Arguments = args,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var p = Process.Start(psi);
+            if (p == null) return null;
+
+            using var buffer = new MemoryStream();
+            var copying = p.StandardOutput.BaseStream.CopyToAsync(buffer, ct);
+
+            // Drained, or a file whose errors fill the pipe would deadlock
+            // against a process that cannot exit until someone reads them.
+            var errors = p.StandardError.ReadToEndAsync(ct);
+
+            await Task.WhenAll(copying, errors);
+            await p.WaitForExitAsync(ct);
+
+            var pixels = buffer.ToArray();
+            return pixels.Length >= size * size ? pixels : null;
+        }
+        catch (Exception ex)
+        {
+            Helpers.Diagnostics.Swallowed("FFmpeg.GreyThumbnail", ex);
+            return null;
+        }
+    }
+
     public async Task<double> GetDurationAsync(string filePath)
     {
         // Never let a broken ffprobe crash the app with a system dialog.
         try
         {
-            var args = $"-v error {OpenVideoKeepingTimestamps}-show_entries format=duration " +
+            var args = $"-v error {OpenVideoKeepingTimestamps(filePath)}-show_entries format=duration " +
                        $"-of default=noprint_wrappers=1:nokey=1 \"{filePath}\"";
             var psi = new ProcessStartInfo
             {
