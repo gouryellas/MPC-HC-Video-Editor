@@ -9480,6 +9480,30 @@ public partial class MainViewModel : ObservableObject, IDisposable
         dlg.ShowDialog();
     }
 
+    /// <summary>
+    /// Finds files in a folder that are copies of each other.
+    /// </summary>
+    /// <remarks>
+    /// Opens on the folder of the loaded video when there is one, that being
+    /// the folder somebody working in this program is most likely to be
+    /// thinking about. It is only a starting point; the dialog asks either
+    /// way.
+    /// </remarks>
+    [RelayCommand]
+    private void FindDuplicates()
+    {
+        var start = Session.HasVideo && !string.IsNullOrEmpty(Session.VideoPath)
+            ? Path.GetDirectoryName(Session.VideoPath)
+            : ResolveSaveToDirectory();
+
+        var dlg = new Dialogs.DuplicatesDialog(_ffmpeg, start)
+        {
+            Owner = DialogOwner
+        };
+
+        dlg.ShowDialog();
+    }
+
     /// <summary>Whether there are enough cuts for an order to mean anything.</summary>
     private bool CanSetProcessingOrder() => Session.Bookmarks.Count(b => b.IsValid) > 1;
 

@@ -1036,6 +1036,20 @@
                 </MenuItem>
 
 
+                <MenuItem Header="Files" Style="{StaticResource MenuSectionHeader}"/>
+                <!-- Needs no video loaded: it works on a folder, and the
+                     loaded video's folder is only what it opens on. -->
+                <MenuItem Header="Find duplicates…" Command="{Binding FindDuplicatesCommand}">
+                    <MenuItem.Icon>
+                        <Image Style="{StaticResource MenuIcon}"
+                               Source="pack://application:,,,/Assets/icons/icon-detect_cuts.png"/>
+                    </MenuItem.Icon>
+                    <MenuItem.ToolTip>
+                        <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                   Text="Scans a folder for files that are copies of each other. Finds byte-for-byte copies straight away, and can also look for the same footage saved at a different size or bitrate."/>
+                    </MenuItem.ToolTip>
+                </MenuItem>
+
                 <MenuItem Header="Images" Style="{StaticResource MenuSectionHeader}"/>
                 <MenuItem Header="Save the frame on screen…" Command="{Binding SaveCurrentFrameCommand}">
                     <MenuItem.Icon>
