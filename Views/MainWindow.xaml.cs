@@ -1169,7 +1169,12 @@ public partial class MainWindow : Window
         var parent = new MenuItem
         {
             Header = $"{position}.  {fileName}",
-            Icon = MenuIcon("menu-video_history"),
+
+            // The same play mark the playlist entries carry. Both lists are
+            // videos, and clicking either opens one — the history icon said
+            // what the list was rather than what the entry does, and the two
+            // lists looked like different kinds of thing.
+            Icon = MenuIcon("play"),
             ToolTip = path,
             Tag = path
         };
@@ -1801,7 +1806,11 @@ public partial class MainWindow : Window
         var parent = new MenuItem
         {
             Header = $"{index}.  {fileName}{suffix}",
-            Icon = MenuIcon("menu-video_history"),
+
+            // The play mark, because clicking one of these plays it. It
+            // used to carry the history icon, which says where a file came
+            // from rather than what the entry does.
+            Icon = MenuIcon("play"),
             ToolTip = entry.Status == PlaylistEntryStatus.Unknown
                 ? $"{videoPath}\n\n{DriveAvailability.RootOf(videoPath)} is not connected — " +
                   "whether this file still exists is unknown."
