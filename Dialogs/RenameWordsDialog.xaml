@@ -150,9 +150,11 @@
 
     <DockPanel Margin="16">
         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
-            <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextSecondary}"
-                       Margin="0,0,0,8"
-                       Text="One word per line. Nothing in a filename says which word is a category, so these are how the renamer is told. They are kept in your settings file and go nowhere else."/>
+            <TextBlock Text="Rename options" FontSize="15" FontWeight="SemiBold"
+                       Foreground="{DynamicResource ValueYellow}"/>
+            <TextBlock TextWrapping="Wrap" Margin="0,2,0,10" FontSize="12"
+                       Foreground="{DynamicResource TextSecondary}"
+                       Text="These will be saved in your settings file and will not be lost when you update the program."/>
 
             <TextBlock Style="{StaticResource Example}"
                        Text="Example ordering:  &lt;1: category&gt;-&lt;2: subject&gt;-&lt;3: filename&gt;.&lt;extension&gt;"/>
@@ -239,8 +241,19 @@
                                                   ItemsSource="{Binding Subjects}"
                                                   SelectedItem="{Binding Subject, Mode=TwoWay}"/>
 
-                                        <Button Grid.Column="6" Content="Remove"
-                                                Click="RemoveRule_Click" Tag="{Binding}"/>
+                                        <StackPanel Grid.Column="6" Orientation="Horizontal">
+                                            <!-- A rule is three dropdowns and
+                                                 no way to tell what it will
+                                                 do. This runs it against some
+                                                 made-up names so the answer
+                                                 is visible before a folder is
+                                                 renamed by it. -->
+                                            <Button Content="Test" Padding="10,4"
+                                                    Click="TestRule_Click" Tag="{Binding}"
+                                                    ToolTip="See what this rule does to a few example filenames."/>
+                                            <Button Content="Remove" Padding="10,4"
+                                                    Click="RemoveRule_Click" Tag="{Binding}"/>
+                                        </StackPanel>
                                     </Grid>
                                 </Border>
                             </DataTemplate>

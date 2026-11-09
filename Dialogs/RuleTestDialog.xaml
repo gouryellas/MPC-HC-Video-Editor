@@ -1,0 +1,87 @@
+<Window x:Class="MpcHcVideoEditor.Dialogs.RuleTestDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Test rule"
+        Height="520" Width="760"
+        MinHeight="360" MinWidth="560"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource WindowBackground}"
+        ShowInTaskbar="False">
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextBody}"/>
+        </Style>
+
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Margin" Value="6,0,0,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource TextPrimary}"/>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel Margin="16">
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+            <TextBlock x:Name="RuleText" FontSize="13" TextWrapping="Wrap"
+                       Foreground="{DynamicResource ValueYellow}"/>
+            <TextBlock Margin="0,4,0,0" FontSize="12" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextSecondary}"
+                       Text="Run against made-up names, using every word list and rule as they stand in the window behind this one — including anything typed but not yet saved."/>
+        </StackPanel>
+
+        <!-- Their own name, because the made-up ones can only ever be a guess
+             at what somebody's files look like. -->
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+            <TextBlock DockPanel.Dock="Left" Text="Try one" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextSecondary}" Margin="0,0,10,0"/>
+            <TextBox x:Name="OwnBox" TextChanged="Own_Changed"
+                     FontFamily="Consolas"/>
+        </DockPanel>
+
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Close" Width="90" IsCancel="True" IsDefault="True"/>
+        </StackPanel>
+
+        <Border Background="{DynamicResource PanelBackground}" CornerRadius="6" Padding="4">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ItemsControl x:Name="ResultList" Margin="6">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Margin="0,0,0,4" Padding="8,6" CornerRadius="4"
+                                    Background="{DynamicResource InsetBackground}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Original}"
+                                               FontFamily="Consolas" FontSize="12"
+                                               TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource TextSecondary}"/>
+                                    <DockPanel Margin="0,3,0,0">
+                                        <TextBlock DockPanel.Dock="Left" Text="&#x2192;"
+                                                   Margin="0,0,8,0"
+                                                   Foreground="{DynamicResource Accent}"/>
+                                        <TextBlock Text="{Binding Result}"
+                                                   FontFamily="Consolas" FontSize="12"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Foreground="{Binding ResultBrush}"/>
+                                    </DockPanel>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+    </DockPanel>
+</Window>

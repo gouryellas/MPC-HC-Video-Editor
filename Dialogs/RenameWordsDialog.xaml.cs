@@ -177,6 +177,30 @@ public partial class RenameWordsDialog : Window
         RefreshChoices();
     }
 
+    /// <summary>
+    /// Runs one rule against made-up names, using the window as it stands.
+    /// </summary>
+    /// <remarks>
+    /// Built from the boxes rather than from the saved settings, so a rule
+    /// can be tried before it is committed — which is the only time the
+    /// answer is worth having.
+    /// </remarks>
+    private void TestRule_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: RenameRuleRow row }) return;
+
+        var vocabulary = new FilenameVocabulary
+        {
+            Categories = Words(CategoriesBox.Text),
+            Subjects = Words(SubjectsBox.Text),
+            Conditionals = Words(ConditionalsBox.Text),
+            Blacklist = Words(BlacklistBox.Text),
+            Rules = _rules.Select(r => r.Rule).Where(r => r.IsUsable).ToList()
+        };
+
+        new RuleTestDialog(row.Rule, vocabulary) { Owner = this }.ShowDialog();
+    }
+
     private void RemoveRule_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: RenameRuleRow row }) _rules.Remove(row);
