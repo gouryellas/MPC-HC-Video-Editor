@@ -14,16 +14,22 @@ namespace MpcHcVideoEditor.Services;
 /// </remarks>
 public sealed class FilenameVocabulary
 {
+    /// <summary>The first section.</summary>
     public IReadOnlyCollection<string> Categories { get; init; } = Array.Empty<string>();
-    public IReadOnlyCollection<string> Activities { get; init; } = Array.Empty<string>();
 
-    /// <summary>First names, for recognising a <c>first_last</c> pair.</summary>
+    /// <summary>The second — the event, or what the clip is of.</summary>
+    public IReadOnlyCollection<string> Subjects { get; init; } = Array.Empty<string>();
+
+    /// <summary>
+    /// First names, which are the third section. Surnames are not listed:
+    /// the word after a known first name is taken as one.
+    /// </summary>
     public IReadOnlyCollection<string> FirstNames { get; init; } = Array.Empty<string>();
 
     public static readonly FilenameVocabulary Empty = new();
 
     public bool IsEmpty =>
-        Categories.Count == 0 && Activities.Count == 0 && FirstNames.Count == 0;
+        Categories.Count == 0 && Subjects.Count == 0 && FirstNames.Count == 0;
 }
 
 /// <summary>What a rename would do to one file.</summary>
@@ -109,35 +115,72 @@ public static class FilenameRules
         Clean(Path.GetFileNameWithoutExtension(fileName)).Length == 0;
 
     /// <summary>
-    /// The character rules, in the only order that works.
+    /// The character rules.
     /// </summary>
     /// <remarks>
-    /// Spaces are dealt with before the deletion step, because a space is
-    /// not an allowed character and would otherwise be deleted rather than
-    /// becoming a dash.
-    ///
-    /// Runs of dashes are collapsed at the end, which the rules do not
-    /// mention but follow from them: deleting a comma out of "a , b" leaves
-    /// "a--b", a doubling nobody asked for and which no rule would otherwise
-    /// remove. Underscores are collapsed for the same reason.
+    /// <para>
+    /// A run of characters that are not allowed — spaces among them — is one
+    /// separator, and what becomes of it depends on where it sits. Between
+    /// two kept characters it was dividing two things, so it becomes a
+    /// dash: "vol2.take3" is two parts and should stay two parts. At either
+    /// end it was dividing nothing, so it goes.
+    /// </para>
+    /// <para>
+    /// That one rule covers the spaces as well. A space is not an allowed
+    /// character, so "wedding  vows" is a word, a separator and a word, and
+    /// arrives at "wedding-vows" without needing a rule of its own.
+    /// </para>
+    /// <para>
+    /// Then no character may repeat: "((((" becomes "(", "---" becomes "-".
+    /// Letters and digits are exempt, which is not in the instruction but
+    /// has to be — collapsing those would turn "bookkeeper" into "bokeper"
+    /// and "2000" into "20".
+    /// </para>
     /// </remarks>
     internal static string Clean(string text)
     {
-        var lowered = text.ToLowerInvariant();
-        var plain = Transliterate(lowered);
+        var plain = Transliterate(text.ToLowerInvariant());
 
-        // Runs of spaces to one, then every space to a dash.
-        var spaced = System.Text.RegularExpressions.Regex.Replace(plain, " {2,}", " ");
-        var dashed = spaced.Replace(' ', '-');
+        var kept = new StringBuilder(plain.Length);
 
-        var kept = new StringBuilder(dashed.Length);
-        foreach (var c in dashed)
-            if (Allowed.Contains(c)) kept.Append(c);
+        for (int i = 0; i < plain.Length; i++)
+        {
+            if (Allowed.Contains(plain[i])) { kept.Append(plain[i]); continue; }
 
-        var result = System.Text.RegularExpressions.Regex.Replace(kept.ToString(), "-{2,}", "-");
-        result = System.Text.RegularExpressions.Regex.Replace(result, "_{2,}", "_");
+            // The whole run of unwanted characters, as one separator.
+            int end = i;
+            while (end < plain.Length && !Allowed.Contains(plain[end])) end++;
 
-        return result.Trim('-');
+            var dividing = kept.Length > 0 && end < plain.Length;
+            if (dividing) kept.Append('-');
+
+            i = end - 1;
+        }
+
+        return Squeeze(kept.ToString()).Trim('-');
+    }
+
+    /// <summary>
+    /// Reduces any repeat of a punctuation character to one of it.
+    /// </summary>
+    /// <remarks>
+    /// Letters and digits are left alone. Doubles are ordinary in words and
+    /// in numbers, and the instruction is plainly about the marks between
+    /// things rather than about the things themselves.
+    /// </remarks>
+    internal static string Squeeze(string text)
+    {
+        var result = new StringBuilder(text.Length);
+
+        foreach (var c in text)
+        {
+            var repeat = result.Length > 0 && result[^1] == c;
+            if (repeat && !char.IsLetterOrDigit(c)) continue;
+
+            result.Append(c);
+        }
+
+        return result.ToString();
     }
 
     /// <summary>
@@ -199,30 +242,20 @@ public static class FilenameRules
         var words = body.Split('-', StringSplitOptions.RemoveEmptyEntries).ToList();
         if (words.Count == 0 && tags.Count == 0) return cleaned;
 
+        // Each part is lifted out and put in its slot on its own account.
+        // Whether the others were found makes no difference: a name with no
+        // category in front of it goes to the front, because that is where
+        // the name belongs once there is nothing to precede it.
         var category = Take(words, vocabulary.Categories);
-        var activity = Take(words, vocabulary.Activities);
-
-        // Joining a known first name to the word after it is done in place,
-        // so a name that was already in the right position stays there.
-        var joined = JoinName(words, vocabulary.FirstNames);
-
-        // Nothing was recognised, so nothing is known about which word
-        // belongs where. Leave the order exactly as found: a name that has
-        // merely been tidied is obviously still untidy, where one that has
-        // been shuffled on a guess looks deliberate and is wrong.
-        var recognised = category is not null || activity is not null || joined;
+        var subject = Take(words, vocabulary.Subjects);
+        var person = TakePerson(words, vocabulary.FirstNames);
 
         var ordered = new List<string>();
+        if (category is not null) ordered.Add(category);
+        if (subject is not null) ordered.Add(subject);
+        if (person is not null) ordered.Add(person);
 
-        if (recognised)
-        {
-            if (category is not null) ordered.Add(category);
-            if (activity is not null) ordered.Add(activity);
-
-            var person = TakePair(words);
-            if (person is not null) ordered.Add(person);
-        }
-
+        // Whatever is left is the description, in the order it was found.
         ordered.AddRange(words);
 
         var result = string.Join("-", ordered).Trim('-');
@@ -245,50 +278,47 @@ public static class FilenameRules
     }
 
     /// <summary>
-    /// Joins a known first name to the word after it, where it stands.
+    /// Lifts out whoever the name belongs to: a joined pair, a known first
+    /// name with the word after it as a surname, or a known first name on
+    /// its own.
     /// </summary>
     /// <param name="firstNames">
     /// First names only. There are far more surnames than anyone will type
     /// into a settings file, and the first name is the half that repeats.
     /// </param>
-    /// <returns>Whether a pair was made.</returns>
     /// <remarks>
-    /// A known first name with no word after it is left alone rather than
-    /// being called a person. On its own it is just a word, and promoting it
-    /// to the name slot would move it past words that may well belong in
-    /// front of it.
+    /// A name on its own still counts. "first only, last only, or both" are
+    /// all names, and all belong in the name slot — a lone one is not left
+    /// where it fell merely because its other half is missing.
     /// </remarks>
-    private static bool JoinName(List<string> words, IReadOnlyCollection<string> firstNames)
+    private static string? TakePerson(List<string> words, IReadOnlyCollection<string> firstNames)
     {
-        if (firstNames.Count == 0) return false;
+        // Already joined, by a person or by an earlier run.
+        var pair = words.FindIndex(IsPair);
+        if (pair >= 0)
+        {
+            var joined = words[pair];
+            words.RemoveAt(pair);
+            return joined;
+        }
+
+        if (firstNames.Count == 0) return null;
 
         var index = words.FindIndex(w => firstNames.Contains(w, StringComparer.OrdinalIgnoreCase));
-        if (index < 0 || index + 1 >= words.Count) return false;
-
-        // Not onto something that is already a pair.
-        if (IsPair(words[index + 1])) return false;
-
-        words[index] = words[index] + "_" + words[index + 1];
-        words.RemoveAt(index + 1);
-        return true;
-    }
-
-    /// <summary>
-    /// Lifts an existing <c>first_last</c> out, for placing in the name slot.
-    /// </summary>
-    /// <remarks>
-    /// Only called once something else has been recognised, so there is a
-    /// known order to place it into. With nothing recognised the pair stays
-    /// where it was found.
-    /// </remarks>
-    private static string? TakePair(List<string> words)
-    {
-        var index = words.FindIndex(IsPair);
         if (index < 0) return null;
 
-        var pair = words[index];
+        var first = words[index];
+
+        // The word after it is the surname, when there is one to be.
+        if (index + 1 < words.Count)
+        {
+            var last = words[index + 1];
+            words.RemoveRange(index, 2);
+            return first + "_" + last;
+        }
+
         words.RemoveAt(index);
-        return pair;
+        return first;
     }
 
     /// <summary>

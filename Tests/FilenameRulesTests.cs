@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using MpcHcVideoEditor.Services;
 using Xunit;
 
@@ -57,18 +57,51 @@ public class FilenameRulesTests
     [InlineData("|")] [InlineData(";")] [InlineData("\"")] [InlineData("'")]
     [InlineData("<")] [InlineData(">")] [InlineData(",")] [InlineData("?")]
     [InlineData("`")] [InlineData("~")]
-    public void Disallowed_characters_are_deleted_with_nothing_in_their_place(string bad)
+    public void A_disallowed_character_between_two_words_divides_them(string bad)
     {
-        Assert.Equal("ab.mp4", FilenameRules.Apply($"a{bad}b.mp4"));
+        Assert.Equal("a-b.mp4", FilenameRules.Apply($"a{bad}b.mp4"));
+    }
+
+    [Theory]
+    [InlineData("!clip.mp4")]
+    [InlineData("clip!.mp4")]
+    [InlineData("!!clip!!.mp4")]
+    [InlineData("~ clip ~.mp4")]
+    public void A_disallowed_character_dividing_nothing_is_deleted(string original)
+    {
+        // At either end it was separating a word from nothing, so there is
+        // no gap for a dash to stand in.
+        Assert.Equal("clip.mp4", FilenameRules.Apply(original));
+    }
+
+    [Theory]
+    [InlineData("a((((b.mp4", "a(b.mp4")]
+    [InlineData("a[[b.mp4", "a[b.mp4")]
+    [InlineData("a---b.mp4", "a-b.mp4")]
+    [InlineData("a___b.mp4", "a_b.mp4")]
+    [InlineData("a...b.mp4", "a-b.mp4")]
+    public void No_punctuation_character_may_repeat(string original, string expected)
+    {
+        Assert.Equal(expected, FilenameRules.Apply(original));
+    }
+
+    [Theory]
+    [InlineData("bookkeeper.mp4")]
+    [InlineData("soccer.mp4")]
+    [InlineData("vol2000.mp4")]
+    public void Repeated_letters_and_digits_are_left_alone(string name)
+    {
+        // Not in the instruction, but it has to be: collapsing these would
+        // turn "bookkeeper" into "bokeper" and 2000 into 20.
+        Assert.Equal(name, FilenameRules.Apply(name));
     }
 
     [Fact]
     public void A_dot_inside_the_name_goes_but_the_extension_keeps_its_own()
     {
-        // Deleted, not turned into a dash — the rule is that a disallowed
-        // character has nothing put in its place, so the words on either
-        // side of the dot are joined.
-        Assert.Equal("vol2take3.mp4", FilenameRules.Apply("vol2.take3.mp4"));
+        // A disallowed character between two kept ones was dividing them,
+        // so it becomes a dash rather than joining the words together.
+        Assert.Equal("vol2-take3.mp4", FilenameRules.Apply("vol2.take3.mp4"));
     }
 
     [Fact]
@@ -128,6 +161,16 @@ public class FilenameRulesTests
     }
 
     [Fact]
+    public void A_detected_name_moves_even_with_nothing_else_detected()
+    {
+        // No vocabulary at all, so "wedding" is just a word — but the
+        // underscore makes the name unmistakable, and a name with nothing
+        // to precede it goes to the front.
+        Assert.Equal("sarah_williams-wedding-vows.mp4",
+                     FilenameRules.Apply("wedding vows sarah_williams.mp4"));
+    }
+
+    [Fact]
     public void Without_a_vocabulary_the_words_keep_their_order()
     {
         // Guessing which word is the category would produce a name that
@@ -141,7 +184,7 @@ public class FilenameRulesTests
         var vocab = new FilenameVocabulary
         {
             Categories = new[] { "wedding" },
-            Activities = new[] { "vows" },
+            Subjects = new[] { "vows" },
             FirstNames = new[] { "sarah" }
         };
 
@@ -159,11 +202,13 @@ public class FilenameRulesTests
     }
 
     [Fact]
-    public void A_known_first_name_with_nothing_after_it_stays_alone()
+    public void A_lone_first_name_still_moves_to_the_name_slot()
     {
         var vocab = new FilenameVocabulary { FirstNames = new[] { "sarah" } };
 
-        Assert.Equal("dancing-sarah.mp4",
+        // Moved to the name slot all the same — a name is a name whether
+        // or not its other half is there.
+        Assert.Equal("sarah-dancing.mp4",
                      FilenameRules.Apply("dancing sarah.mp4", vocab));
     }
 
@@ -214,8 +259,18 @@ public class FilenameRulesTests
     [Fact]
     public void A_file_already_in_the_house_style_is_left_untouched()
     {
+        // With the vocabulary that named its parts. Without one the name
+        // is still detected and moves to the front, which is the cost of
+        // "anything detected gets moved where it needs to go".
+        var vocab = new FilenameVocabulary
+        {
+            Categories = new[] { "wedding" },
+            Subjects = new[] { "vows" },
+            FirstNames = new[] { "sarah" }
+        };
+
         var proposal = Assert.Single(
-            FilenameRules.Propose(new[] { "wedding-vows-sarah_williams-cries[take1].mp4" }));
+            FilenameRules.Propose(new[] { "wedding-vows-sarah_williams-cries[take1].mp4" }, vocab));
 
         Assert.False(proposal.Changes);
         Assert.Equal("", proposal.Note);
