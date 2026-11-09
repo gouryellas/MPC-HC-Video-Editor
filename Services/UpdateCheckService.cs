@@ -119,6 +119,22 @@ public static class UpdateCheckService
                 ? body.GetString()
                 : null;
 
+            var published = doc.RootElement.TryGetProperty("published_at", out var at)
+                ? at.GetString()
+                : null;
+
+            // Keep the notes that were downloaded anyway. Six lines of them
+            // used to be shown and the rest dropped on the floor, which left
+            // the only copy of "what is in the update" on a web page — so
+            // deciding whether to take it meant going and reading one.
+            //
+            // A side effect in a method called Check, deliberately: this is
+            // the only place the body exists, and a caller that had to
+            // remember to store it is a caller that will eventually forget.
+            // It cannot fail the check — Remember swallows everything — and
+            // it writes nothing unless the release really is newer.
+            ChangelogCache.Remember(display, published?.Split('T')[0], notes);
+
             // Greater than, not "different from": a developer running a build
             // ahead of the last release is not out of date.
             return new UpdateCheckResult(

@@ -75,36 +75,50 @@ it, lost it". Delete it by hand only together with `Bookmarks\`.
 
 ## Packaging a release
 
-**Regenerate `CHANGELOG.md` after publishing the GitHub release.** Help ▸ About
-lists every version from that file, which is compiled into the assembly — so a
-build made before the release is published has no notes for it. The file is
-written from the published releases:
+**Top up `CHANGELOG.md` after publishing the GitHub release, then build.**
+Help ▸ About lists every version from that file, which is compiled into the
+assembly — so a build made before the release is published has no notes for
+it.
 
 ```powershell
-gh api --paginate "repos/gouryellas/MPC-HC-Video-Editor/releases" > releases.json
+powershell -ExecutionPolicy Bypass -File tools\update-changelog.ps1
 ```
 
-Then one entry per release, newest first, under a `## <version> — <date>`
-heading, with each release body's own `##` sections demoted to `###`. That
-demotion is what lets the parser treat `## ` as "a version starts here" and
-nothing else; a release section called "## Playlists" would otherwise be read
-as a version named Playlists. `ChangelogTests` holds both ends of that.
+Only the missing releases are fetched: the script reads the versions already
+in the file and asks for one page. Add `-Full` to rebuild from every release,
+which is needed only if the file is lost or an old release's notes were edited
+on GitHub. Both paths produce byte-identical output, so a full rebuild is a
+safe way to check the file has not drifted.
+
+Each release body is written with its own `##` sections demoted to `###`, so
+`## ` marks a version and nothing else — a release section called
+"## Playlists" would otherwise be read back as a version named Playlists.
+`ChangelogTests` and `ChangelogCacheTests` hold both ends of that.
+
+A build that is already out in the world fills its own gap: the update check
+downloads the newest release's notes anyway, and keeps them in
+`changelog.local.md` beside `settings.json`, which About merges over the
+compiled-in file. That file is a cache — it holds only versions newer than
+the build and empties itself once the build catches up. It is written at run
+time, so it must never be in a release zip; it is not produced by
+`dotnet publish`, so it only appears in a folder that has been run.
 
 **Never ship the folder you have been running.** `publish\portable` is both the
 build output and the working directory of the portable build, so it accumulates
-your own data as you test. Two things must be out of the zip:
+your own data as you test. These must be out of the zip:
 
 - `settings.json` — holds every local path you have configured
+- `changelog.local.md` — the update check's note cache, written at run time
 - `Bookmarks\` — holds the filename and cut timings of every video you have
   bookmarked
 - `bookmarks.index` — lists those filenames again
 
 None of them is produced by `dotnet publish`, so none comes back if you delete
 it, and `dotnet publish` will not overwrite them either — they persist until
-removed by hand. Check for all three before zipping:
+removed by hand. Check for all of them before zipping:
 
 ```powershell
-Get-ChildItem publish\portable -Force | Where-Object { $_.Name -in 'settings.json','Bookmarks','bookmarks.index' }
+Get-ChildItem publish\portable -Force | Where-Object { $_.Name -in 'settings.json','changelog.local.md','Bookmarks','bookmarks.index' }
 ```
 
 Anything that command prints is yours and does not belong in a public download.
@@ -115,7 +129,7 @@ Anything that command prints is yours and does not belong in a public download.
 dotnet test Tests
 ```
 
-Fifty-eight of them, in a few seconds. They need `ffmpeg.exe` and
+Sixty-eight of them, in a few seconds. They need `ffmpeg.exe` and
 `ffprobe.exe`, which are found beside the test assembly, in
 `publish\portable`, or in an `ffmpeg` subfolder of any parent directory — so a
 checkout that has published once already has what they need.

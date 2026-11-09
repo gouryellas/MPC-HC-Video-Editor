@@ -1,0 +1,180 @@
+using System.IO;
+using MpcHcVideoEditor.Helpers;
+
+namespace MpcHcVideoEditor.Services;
+
+/// <summary>
+/// Keeps the notes for releases published after this build was made.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The changelog compiled into the assembly is complete up to the moment the
+/// build was produced and cannot grow — it is inside the .exe. This is the
+/// thin layer over it: a handful of entries for versions that came later,
+/// stored beside the settings file and merged in when About is opened.
+/// </para>
+/// <para>
+/// Nothing is fetched for it. <see cref="UpdateCheckService"/> already asks
+/// GitHub for the newest release and already reads that release's notes, of
+/// which it previously kept six lines and discarded the rest. This keeps what
+/// was already downloaded, so the whole feature costs no request it was not
+/// making anyway.
+/// </para>
+/// <para>
+/// Deliberately an overlay rather than a writable copy of the whole thing.
+/// Copying the shipped notes out to a file and appending to it forever sounds
+/// simpler, but the moment a new .exe arrives that copy is older than the one
+/// inside the binary and every version needs reconciling against two sources.
+/// A read-only baseline with a small overlay has no such problem: entries that
+/// the baseline has caught up with are simply dropped.
+/// </para>
+/// <para>
+/// It therefore empties itself. Only versions newer than the running build are
+/// kept, so updating makes the entries redundant and the next load discards
+/// them.
+/// </para>
+/// </remarks>
+public static class ChangelogCache
+{
+    /// <summary>
+    /// How many entries are kept. A cache that only holds releases newer than
+    /// the running build is normally one deep; this is the bound for somebody
+    /// who has not updated in a very long time.
+    /// </summary>
+    private const int Capacity = 20;
+
+    private static string Path => System.IO.Path.Combine(PortablePaths.AppFolder, "changelog.local.md");
+
+    /// <summary>
+    /// Stores one release's notes, if they are for something newer than this
+    /// build and not already held.
+    /// </summary>
+    /// <remarks>
+    /// Quietly does nothing on any kind of failure, including a version that
+    /// cannot be read or notes that are empty. This is an extra on top of a
+    /// changelog that is already complete and correct; nothing it does is
+    /// worth interrupting an update check over.
+    /// </remarks>
+    public static void Remember(string? version, string? released, string? notes)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(version) || string.IsNullOrWhiteSpace(notes)) return;
+
+            var incoming = UpdateCheckService.ParseVersion(version);
+            var running = UpdateCheckService.ParseVersion(AppVersion.Display);
+            if (incoming is null || running is null || incoming <= running) return;
+
+            var held = Load().ToList();
+            if (held.Any(e => e.Version == version.Trim())) return;
+
+            held.Add(new ChangelogEntry(version.Trim(), (released ?? "").Trim(), Normalise(notes)));
+
+            // Newest first, matching the shipped file, and capped from that
+            // end so the ones dropped are the oldest.
+            var ordered = held
+                .OrderByDescending(e => UpdateCheckService.ParseVersion(e.Version) ?? new Version(0, 0))
+                .Take(Capacity)
+                .ToList();
+
+            Write(ordered);
+        }
+        catch (Exception ex)
+        {
+            Diagnostics.Swallowed("ChangelogCache.Remember", ex);
+        }
+    }
+
+    /// <summary>
+    /// The held entries that are still newer than this build, newest first.
+    /// </summary>
+    public static IReadOnlyList<ChangelogEntry> Entries
+    {
+        get
+        {
+            try
+            {
+                var running = UpdateCheckService.ParseVersion(AppVersion.Display);
+                if (running is null) return Array.Empty<ChangelogEntry>();
+
+                return Load()
+                    .Where(e => (UpdateCheckService.ParseVersion(e.Version) ?? new Version(0, 0)) > running)
+                    .OrderByDescending(e => UpdateCheckService.ParseVersion(e.Version) ?? new Version(0, 0))
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                Diagnostics.Swallowed("ChangelogCache.Entries", ex);
+                return Array.Empty<ChangelogEntry>();
+            }
+        }
+    }
+
+    private static IReadOnlyList<ChangelogEntry> Load()
+    {
+        var path = Path;
+        if (!File.Exists(path)) return Array.Empty<ChangelogEntry>();
+
+        // The same shape as the shipped file, read by the same parser — one
+        // format rather than two, so a change to either is caught by the
+        // tests that already cover it.
+        return ChangelogService.Parse(File.ReadAllText(path));
+    }
+
+    private static void Write(IReadOnlyList<ChangelogEntry> entries)
+    {
+        var text = new System.Text.StringBuilder();
+        text.AppendLine("# Newer releases");
+        text.AppendLine();
+        text.AppendLine("Notes for versions published after this build, kept from the update");
+        text.AppendLine("check. Safe to delete; it is rebuilt on the next check and discarded");
+        text.AppendLine("once the build catches up.");
+        text.AppendLine();
+
+        foreach (var entry in entries)
+        {
+            text.Append("## ").Append(entry.Version);
+            if (!string.IsNullOrEmpty(entry.Released)) text.Append(" — ").Append(entry.Released);
+            text.AppendLine();
+            text.AppendLine();
+            text.AppendLine(entry.Notes);
+            text.AppendLine();
+        }
+
+        File.WriteAllText(Path, text.ToString());
+    }
+
+    /// <summary>
+    /// Brings a downloaded release body into the shape the shipped file uses:
+    /// no title line, and sections one level down so that "## " keeps meaning
+    /// "a version starts here" and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// The same transformation the generator applies when writing
+    /// CHANGELOG.md. It has to happen here too, because without it a release
+    /// whose notes contain "## Playlists" would be read back as a version
+    /// called Playlists.
+    /// </remarks>
+    internal static string Normalise(string body)
+    {
+        var lines = body.Replace("\r\n", "\n").Split('\n').ToList();
+        var kept = new List<string>(lines.Count);
+
+        foreach (var raw in lines)
+        {
+            var line = raw.TrimEnd();
+
+            if (System.Text.RegularExpressions.Regex.IsMatch(
+                    line, @"^#\s*(MPC-HC|MPC-BE)\s+Video\s+Editor",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                continue;
+
+            if (line.StartsWith("## ")) line = "#" + line;
+            else if (line.StartsWith("# ")) line = "##" + line;
+
+            kept.Add(line);
+        }
+
+        return string.Join("\n", kept).Trim('\n');
+    }
+}

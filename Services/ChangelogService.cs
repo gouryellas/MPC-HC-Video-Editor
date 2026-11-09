@@ -43,13 +43,37 @@ public sealed record ChangelogEntry(string Version, string Released, string Note
 /// </remarks>
 public static class ChangelogService
 {
-    private static IReadOnlyList<ChangelogEntry>? _cached;
+    private static IReadOnlyList<ChangelogEntry>? _shipped;
 
     /// <summary>
-    /// Every released version, newest first. Empty if the file is missing or
-    /// unreadable — the About box simply says so rather than failing to open.
+    /// Every released version, newest first: the ones compiled into this
+    /// build, plus any newer ones the update check has since seen. Empty if
+    /// the file is missing or unreadable — the About box says so rather than
+    /// failing to open.
     /// </summary>
-    public static IReadOnlyList<ChangelogEntry> Entries => _cached ??= Read();
+    /// <remarks>
+    /// The shipped list is read once and held; the overlay is read each time,
+    /// because an update check during the session can add to it and the About
+    /// box should not need restarting to show what it found.
+    ///
+    /// Shipped wins on a clash. The overlay only ever holds versions newer
+    /// than this build, so an entry appearing in both means the build has
+    /// caught up — at which point the compiled-in copy is the one that was
+    /// actually released with it.
+    /// </remarks>
+    public static IReadOnlyList<ChangelogEntry> Entries
+    {
+        get
+        {
+            var shipped = _shipped ??= Read();
+            var newer = ChangelogCache.Entries;
+
+            if (newer.Count == 0) return shipped;
+
+            var known = shipped.Select(e => e.Version).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            return newer.Where(e => !known.Contains(e.Version)).Concat(shipped).ToList();
+        }
+    }
 
     private static IReadOnlyList<ChangelogEntry> Read()
     {
