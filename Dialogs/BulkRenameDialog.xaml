@@ -146,9 +146,14 @@
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
 
+                                        <!-- Gone rather than disabled on a
+                                             row with nothing to do. A greyed
+                                             box still reads as something that
+                                             could be ticked; an empty space
+                                             says there is no decision here. -->
                                         <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}"
                                                   VerticalAlignment="Center" Margin="0,0,8,0"
-                                                  IsEnabled="{Binding CanRename}"/>
+                                                  Visibility="{Binding ActionVisibility}"/>
 
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Original}"
@@ -164,18 +169,25 @@
 
                                         <TextBlock Grid.Column="2" Text="&#x2192;" Margin="10,0"
                                                    VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource Accent}"/>
+                                                   Foreground="{DynamicResource Accent}"
+                                                   Visibility="{Binding ActionVisibility}"/>
 
                                         <!-- Editable, and corrected on the way
                                              out: whatever is typed goes through
                                              the same rules, so the field cannot
                                              be used to write a name the rules
-                                             would not have produced. -->
+                                             would not have produced.
+
+                                             Absent on a row whose name is not
+                                             changing — there is nothing to
+                                             edit, and an empty half-row makes
+                                             the ones that do need attention
+                                             easier to pick out. -->
                                         <TextBox Grid.Column="3"
                                                  Text="{Binding Proposed, Mode=TwoWay,
                                                         UpdateSourceTrigger=LostFocus}"
                                                  VerticalAlignment="Center"
-                                                 IsEnabled="{Binding CanRename}"/>
+                                                 Visibility="{Binding ActionVisibility}"/>
                                     </Grid>
                                 </Border>
                             </DataTemplate>

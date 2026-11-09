@@ -1,4 +1,4 @@
-<Window x:Class="MpcHcVideoEditor.Dialogs.RenameWordsDialog"
+﻿<Window x:Class="MpcHcVideoEditor.Dialogs.RenameWordsDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Words the renamer knows"
@@ -81,13 +81,11 @@
                        FontSize="11" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,6"/>
             <TextBox   Grid.Row="2" Grid.Column="2" x:Name="SubjectsBox"/>
 
-            <TextBlock Grid.Row="0" Grid.Column="4" Text="First names" Style="{StaticResource Heading}"/>
-            <!-- Said here because it is the one surprise in this window: a
-                 surname is found by position, not by being listed. -->
-            <TextBlock Grid.Row="1" Grid.Column="4" Text="Third — surnames not needed"
+            <TextBlock Grid.Row="0" Grid.Column="4" Text="Blacklisted words" Style="{StaticResource Heading}"/>
+            <TextBlock Grid.Row="1" Grid.Column="4" Text="Struck out of every name"
                        FontSize="11" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,6"
-                       ToolTip="The word after a known first name is taken as the surname. There are far more surnames than anybody will type, and the first name is the half that repeats."/>
-            <TextBox   Grid.Row="2" Grid.Column="4" x:Name="FirstNamesBox"/>
+                       ToolTip="Matched whole, never as part of a longer word — a blacklisted &quot;cam&quot; removes &quot;cam&quot; and leaves &quot;camera&quot; alone."/>
+            <TextBox   Grid.Row="2" Grid.Column="4" x:Name="BlacklistBox"/>
         </Grid>
     </DockPanel>
 </Window>

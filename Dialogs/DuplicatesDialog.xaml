@@ -96,9 +96,9 @@
                  one decodes every candidate and can only ever be a strong
                  suggestion, so it is asked for rather than assumed. -->
             <CheckBox x:Name="FootageCheck" VerticalAlignment="Center" Margin="18,0,0,0"
-                      Content="Also look for the same footage re-encoded"
+                      Content="Deep scan (will take longer)"
                       Foreground="{DynamicResource TextBody}"
-                      ToolTip="Compares sampled frames, so a clip saved at another size or bitrate still matches. Much slower — it decodes each file."/>
+                      ToolTip="Also finds the same footage saved at another size or bitrate, by comparing sampled frames. Much slower — it decodes each file."/>
 
             <Button Content="Scan" Click="Scan_Click" Margin="18,0,0,0"
                     Background="{DynamicResource PrimaryButton}"
@@ -108,21 +108,14 @@
                     IsEnabled="False"/>
         </StackPanel>
 
-        <!-- Progress, and the one line that says what is happening. -->
-        <Grid DockPanel.Dock="Top" Margin="0,0,0,10"
-              x:Name="ProgressArea" Visibility="Collapsed">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-
-            <ProgressBar x:Name="Bar" Height="6" Minimum="0" Maximum="100"
-                         Background="{DynamicResource InsetBackground}"
-                         Foreground="{DynamicResource Accent}" BorderThickness="0"
-                         VerticalAlignment="Center"/>
-            <TextBlock Grid.Column="1" x:Name="StageText" Margin="10,0,0,0"
-                       Style="{StaticResource Quiet}" VerticalAlignment="Center"/>
-        </Grid>
+        <!-- One line, in place of a bar.
+             A scan has no honest percentage: the exact pass narrows by size
+             before it reads anything, so the count of files left to compare
+             changes as it goes. A bar filling and refilling says less than a
+             word that is plainly still moving. -->
+        <TextBlock DockPanel.Dock="Top" x:Name="StageText" Margin="0,0,0,10"
+                   FontSize="13" Visibility="Collapsed"
+                   Foreground="{DynamicResource Accent}"/>
 
         <!-- The footer. Built before the list so it is never pushed off the
              bottom by a long set of results. -->
@@ -138,10 +131,12 @@
                     Background="{DynamicResource PrimaryButton}"
                     BorderBrush="{DynamicResource PrimaryButtonBorder}"
                     Foreground="{DynamicResource OnAccent}"/>
-            <Button DockPanel.Dock="Right" Content="Check all but the largest"
-                    Click="CheckAllButLargest_Click"
-                    ToolTip="In every group, checks every copy except the biggest one."/>
-            <Button DockPanel.Dock="Right" Content="Clear checks" Click="ClearChecks_Click"/>
+            <Button DockPanel.Dock="Right" Content="Select duplicates"
+                    Click="SelectDuplicates_Click"
+                    ToolTip="In every group, checks all but one — so each set keeps a copy."/>
+            <Button DockPanel.Dock="Right" Content="Select none" Click="SelectNone_Click"/>
+            <Button DockPanel.Dock="Right" Content="Select all" Click="SelectAll_Click"
+                    ToolTip="Checks every file, including the ones a group would otherwise keep."/>
         </DockPanel>
 
         <Border Background="{DynamicResource PanelBackground}" CornerRadius="6" Padding="2">
@@ -203,16 +198,6 @@
                                                                        TextTrimming="CharacterEllipsis"
                                                                        ToolTip="{Binding Path}"/>
                                                         </StackPanel>
-
-                                                        <!-- Marks the one a
-                                                             "keep the best"
-                                                             rule would keep. -->
-                                                        <TextBlock Grid.Column="2" Text="largest"
-                                                                   Margin="10,0"
-                                                                   VerticalAlignment="Center"
-                                                                   FontSize="10"
-                                                                   Foreground="{DynamicResource ValueGreen}"
-                                                                   Visibility="{Binding LargestVisibility}"/>
 
                                                         <TextBlock Grid.Column="3"
                                                                    Text="{Binding Size}"

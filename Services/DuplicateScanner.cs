@@ -11,6 +11,13 @@ public enum DuplicateKind
     Identical,
 
     /// <summary>
+    /// The same length of video and all but the same size on disk — the same
+    /// encode written twice, differing by a container field or a byte of
+    /// padding rather than by any of its content.
+    /// </summary>
+    NearIdentical,
+
+    /// <summary>
     /// The same footage encoded differently — a different size, bitrate or
     /// container. Judged from sampled frames, so it is a strong suggestion
     /// rather than a certainty.
@@ -203,6 +210,157 @@ public sealed class DuplicateScanner
         }
 
         return groups;
+    }
+
+    /// <summary>
+    /// How close two sizes may be and still be called the same encode: a
+    /// twentieth of a percent, or 64 KB, whichever is larger.
+    /// </summary>
+    /// <remarks>
+    /// Tight on purpose. Two copies of one encode differ by a container
+    /// field, a padding byte, a rewritten index — kilobytes at most. Two
+    /// different encodes of the same footage differ by far more than this,
+    /// and are the deep scan's business, where frames are actually compared.
+    /// </remarks>
+    private const double SizeTolerance = 0.0005;
+    private const long SizeToleranceFloor = 64 * 1024;
+
+    /// <summary>
+    /// How close two durations may be and still be called the same video.
+    /// </summary>
+    private const double NearDurationSeconds = 0.25;
+
+    /// <summary>
+    /// Finds files that are all but byte-identical: the same running time,
+    /// and the same size give or take a rounding error.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The gap the exact pass leaves. It groups by exact length, so two
+    /// copies of one file differing by a single byte — a container field, a
+    /// rewritten index — are never even compared, and nothing short of the
+    /// deep scan would look at them again. They are plainly the same video
+    /// and ought to be reported as such.
+    /// </para>
+    /// <para>
+    /// Size alone is not enough: two unrelated clips can happen to be within
+    /// a kilobyte of each other. Running time is what makes it safe, and it
+    /// is the cheap half — so only the files that already have a size
+    /// neighbour are probed for it, and a folder with no near-size pairs
+    /// costs nothing at all.
+    /// </para>
+    /// </remarks>
+    public async Task<IReadOnlyList<DuplicateGroup>> FindNearIdenticalAsync(
+        IReadOnlyList<string> files,
+        IProgress<DuplicateProgress>? progress = null,
+        CancellationToken ct = default)
+    {
+        var sized = files.Select(TryDescribe).Where(f => f is not null && f!.Bytes > 0)
+                         .Select(f => f!)
+                         .OrderBy(f => f.Bytes)
+                         .ToList();
+
+        // Files whose size is within tolerance of a neighbour. Everything
+        // else cannot pair with anything and is never probed.
+        var neighbours = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        for (int i = 0; i < sized.Count; i++)
+        {
+            for (int j = i + 1; j < sized.Count && Near(sized[i].Bytes, sized[j].Bytes); j++)
+            {
+                neighbours.Add(sized[i].Path);
+                neighbours.Add(sized[j].Path);
+            }
+        }
+
+        var candidates = sized.Where(f => neighbours.Contains(f.Path)).ToList();
+        if (candidates.Count < 2) return Array.Empty<DuplicateGroup>();
+
+        var timed = new List<DuplicateFile>();
+        var done = 0;
+
+        foreach (var file in candidates)
+        {
+            ct.ThrowIfCancellationRequested();
+            progress?.Report(new DuplicateProgress("Reading lengths", ++done, candidates.Count));
+
+            double seconds;
+            try { seconds = await _ffmpeg.GetDurationAsync(file.Path); }
+            catch (Exception ex) { Diagnostics.Swallowed("DuplicateScan.NearDuration", ex); continue; }
+
+            if (seconds > 0) timed.Add(new DuplicateFile(file.Path, file.Bytes, seconds));
+        }
+
+        var groups = new List<DuplicateGroup>();
+        var placed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var prints = new Dictionary<string, ulong[]>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var file in timed.OrderByDescending(f => f.Bytes))
+        {
+            if (placed.Contains(file.Path)) continue;
+
+            var candidatesHere = timed
+                .Where(other => !placed.Contains(other.Path)
+                             && Near(file.Bytes, other.Bytes)
+                             && Math.Abs(file.Seconds - other.Seconds) <= NearDurationSeconds)
+                .ToList();
+
+            if (candidatesHere.Count < 2) continue;
+
+            // Size and length agreeing is strong, but it is still only an
+            // argument from the outside of the file: two unrelated clips of
+            // the same length can be padded to the same size by nothing more
+            // than coincidence. The frames settle it, and only this handful
+            // of files is ever decoded.
+            var print = await Remembered(file);
+            if (print is null) continue;
+
+            var set = new List<DuplicateFile> { file };
+
+            foreach (var other in candidatesHere.Where(o => o.Path != file.Path))
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var theirs = await Remembered(other);
+                if (theirs is not null && Similarity(print, theirs) >= NearFrameThreshold)
+                    set.Add(other);
+            }
+
+            if (set.Count < 2) continue;
+
+            foreach (var member in set) placed.Add(member.Path);
+            groups.Add(new DuplicateGroup(DuplicateKind.NearIdentical, Ordered(set), 99));
+        }
+
+        return groups;
+
+        async Task<ulong[]?> Remembered(DuplicateFile file)
+        {
+            if (prints.TryGetValue(file.Path, out var known)) return known;
+
+            var made = await FingerprintAsync(file, ct);
+            if (made is not null) prints[file.Path] = made;
+
+            return made;
+        }
+    }
+
+    /// <summary>
+    /// How alike the frames of two near-identical candidates must be.
+    /// </summary>
+    /// <remarks>
+    /// Higher than the deep scan's bar, and for a different job. There the
+    /// question is whether two encodes show the same footage; here the two
+    /// files claim to be the same encode, so their frames should be the same
+    /// frames and anything much short of that means they are not.
+    /// </remarks>
+    private const int NearFrameThreshold = 97;
+
+    /// <summary>Whether two sizes are close enough to be one encode.</summary>
+    internal static bool Near(long a, long b)
+    {
+        var allowed = Math.Max(SizeToleranceFloor, (long)(Math.Max(a, b) * SizeTolerance));
+        return Math.Abs(a - b) <= allowed;
     }
 
     /// <summary>

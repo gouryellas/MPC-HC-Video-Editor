@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Windows;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -342,7 +342,7 @@ public partial class JobProgress : ObservableObject
     private void UpdateClock()
     {
         var elapsed = _clock.Elapsed;
-        ElapsedDisplay = Format(elapsed);
+        ElapsedDisplay = FormatElapsed(elapsed);
 
         if (!_clock.IsRunning || _remainingSeconds is not { } left)
         {
@@ -365,7 +365,7 @@ public partial class JobProgress : ObservableObject
         // working is the same useless figure as one that climbs — it just
         // lies in the other direction. Held back until the percentage moves
         // and gives the countdown something new to go on.
-        RemainingDisplay = left <= 0 ? "—" : Format(TimeSpan.FromSeconds(left));
+        RemainingDisplay = left <= 0 ? "—" : FormatElapsed(TimeSpan.FromSeconds(left));
     }
 
     /// <summary>
@@ -421,7 +421,17 @@ public partial class JobProgress : ObservableObject
         _lastCountdownAt = _clock.Elapsed;
     }
 
-    private static string Format(TimeSpan t) =>
+    /// <summary>
+    /// A duration as the status bar writes it: minutes and seconds, with
+    /// hours only once there are any.
+    /// </summary>
+    /// <remarks>
+    /// Internal rather than private so the duplicate scan can show its
+    /// elapsed time the same way. Two clocks in one program that disagree
+    /// about how to write four and a half minutes is the sort of difference
+    /// nobody can unsee once noticed.
+    /// </remarks>
+    internal static string FormatElapsed(TimeSpan t) =>
         t.TotalHours >= 1
             ? $"{(int)t.TotalHours}:{t.Minutes:D2}:{t.Seconds:D2}"
             : $"{t.Minutes}:{t.Seconds:D2}";

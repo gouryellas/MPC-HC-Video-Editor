@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
@@ -96,8 +96,24 @@ public sealed class RenameRow : INotifyPropertyChanged
 
             OnPropertyChanged();
             OnPropertyChanged(nameof(IsChecked));
+            OnPropertyChanged(nameof(ActionVisibility));
         }
     }
+
+    /// <summary>
+    /// Whether this row offers anything to do.
+    /// </summary>
+    /// <remarks>
+    /// A file whose name already follows the rules shows its name and
+    /// nothing else — no tick box, no arrow, no field. There is no decision
+    /// to make about it, and an empty row makes the ones that do need
+    /// attention easier to find.
+    ///
+    /// A row blocked by a clash keeps its controls: that one has a decision
+    /// in it, which is to type a different name.
+    /// </remarks>
+    public Visibility ActionVisibility =>
+        CanRename || BaseNote.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
     private bool _isChecked;
 
@@ -153,7 +169,7 @@ public partial class BulkRenameDialog : Window
     {
         Categories = _settings.Current.RenameCategories,
         Subjects = _settings.Current.RenameSubjects,
-        FirstNames = _settings.Current.RenameFirstNames
+        Blacklist = _settings.Current.RenameBlacklist
     };
 
     private void SetFolder(string folder)

@@ -244,6 +244,78 @@ public class DuplicateScannerTests
     }
 
 
+    [Theory]
+    // The case that went unreported: two copies of one encode, one byte
+    // apart. The exact pass groups by exact length and never compares them.
+    [InlineData(1_427_593_216L, 1_427_593_217L, true)]
+    [InlineData(1_000_000L, 1_000_000L, true)]
+    [InlineData(1_000_000L, 1_064_576L, true)]      // 64 KB, the floor
+    [InlineData(1_000_000L, 1_200_000L, false)]     // a fifth bigger
+    [InlineData(500L, 70_000L, false)]
+    public void Sizes_within_a_rounding_error_count_as_one_encode(long a, long b, bool near)
+    {
+        Assert.Equal(near, DuplicateScanner.Near(a, b));
+        Assert.Equal(near, DuplicateScanner.Near(b, a));
+    }
+
+    [Fact]
+    public async Task A_copy_differing_by_one_byte_is_found()
+    {
+        // The complaint, end to end. These are real videos of the same
+        // length, one with a byte appended — which is what a rewritten
+        // container index looks like from outside.
+        var dir = Scratch();
+        try
+        {
+            var a = Path.Combine(dir, "a.mp4");
+            var b = Path.Combine(dir, "b.mp4");
+
+            File.Copy(Pattern, a);
+            File.Copy(Pattern, b);
+            using (var tail = new FileStream(b, FileMode.Append)) tail.WriteByte(0);
+
+            Assert.Empty(await Scanner().FindIdenticalAsync(new[] { a, b }));
+
+            var group = Assert.Single(await Scanner().FindNearIdenticalAsync(new[] { a, b }));
+            Assert.Equal(DuplicateKind.NearIdentical, group.Kind);
+            Assert.Equal(2, group.Files.Count);
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact]
+    public async Task Two_different_videos_of_a_similar_size_are_not_paired()
+    {
+        // Size alone proves nothing — running time is what makes the
+        // near-identical pass safe.
+        var dir = Scratch();
+        try
+        {
+            var a = Path.Combine(dir, "a.mp4");
+            File.Copy(Pattern, a);
+
+            // Padded to within a rounding error of the other clip's size.
+            var b = Path.Combine(dir, "b.mp4");
+            File.Copy(Other, b);
+
+            // Pad whichever is smaller up to the other, so the two agree on
+            // size and on running time and the only thing left to tell them
+            // apart is what is in the frames.
+            var smaller = new FileInfo(a).Length < new FileInfo(b).Length ? a : b;
+            var larger = smaller == a ? b : a;
+            var difference = new FileInfo(larger).Length - new FileInfo(smaller).Length;
+
+            using (var tail = new FileStream(smaller, FileMode.Append))
+                tail.Write(new byte[difference]);
+
+            Assert.True(DuplicateScanner.Near(new FileInfo(a).Length, new FileInfo(b).Length),
+                        "the two files should be the same size for this test to mean anything");
+
+            Assert.Empty(await Scanner().FindNearIdenticalAsync(new[] { a, b }));
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
     [Fact]
     public void An_identical_fingerprint_is_a_hundred_percent()
     {

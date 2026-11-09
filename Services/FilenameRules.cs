@@ -21,15 +21,21 @@ public sealed class FilenameVocabulary
     public IReadOnlyCollection<string> Subjects { get; init; } = Array.Empty<string>();
 
     /// <summary>
-    /// First names, which are the third section. Surnames are not listed:
-    /// the word after a known first name is taken as one.
+    /// Words struck out of every filename.
     /// </summary>
-    public IReadOnlyCollection<string> FirstNames { get; init; } = Array.Empty<string>();
+    /// <remarks>
+    /// Matched whole, never as part of a longer word: a blacklisted "cam"
+    /// takes out "cam" and leaves "camera" alone. Deleting a run of letters
+    /// wherever it appeared would quietly damage words nobody meant to
+    /// touch, and the damage would be invisible in a list of two hundred
+    /// names.
+    /// </remarks>
+    public IReadOnlyCollection<string> Blacklist { get; init; } = Array.Empty<string>();
 
     public static readonly FilenameVocabulary Empty = new();
 
     public bool IsEmpty =>
-        Categories.Count == 0 && Subjects.Count == 0 && FirstNames.Count == 0;
+        Categories.Count == 0 && Subjects.Count == 0 && Blacklist.Count == 0;
 }
 
 /// <summary>What a rename would do to one file.</summary>
@@ -242,12 +248,17 @@ public static class FilenameRules
         var words = body.Split('-', StringSplitOptions.RemoveEmptyEntries).ToList();
         if (words.Count == 0 && tags.Count == 0) return cleaned;
 
+        // Struck out first, so a blacklisted word cannot take a slot or
+        // push a real word into the description.
+        if (vocabulary.Blacklist.Count > 0)
+            words.RemoveAll(w => vocabulary.Blacklist.Contains(w, StringComparer.OrdinalIgnoreCase));
+
         // What the vocabulary can name outright.
         var category = Take(words, vocabulary.Categories);
         var subject = Take(words, vocabulary.Subjects);
 
         // The name, and — just as important — what stood in front of it.
-        var person = TakePerson(words, vocabulary.FirstNames, out var before, out var after);
+        var person = TakePerson(words, out var before, out var after);
 
         if (person is not null)
         {
@@ -300,50 +311,33 @@ public static class FilenameRules
     }
 
     /// <summary>
-    /// Lifts out whoever the name belongs to: a joined pair, a known first
-    /// name with the word after it as a surname, or a known first name on
-    /// its own.
+    /// Lifts out the name, which is whatever is already written as a
+    /// <c>first_last</c> pair.
     /// </summary>
-    /// <param name="firstNames">
-    /// First names only. There are far more surnames than anyone will type
-    /// into a settings file, and the first name is the half that repeats.
-    /// </param>
-    /// <remarks>
-    /// A name on its own still counts. "first only, last only, or both" are
-    /// all names, and all belong in the name slot — a lone one is not left
-    /// where it fell merely because its other half is missing.
-    /// </remarks>
     /// <param name="before">What stood in front of the name.</param>
     /// <param name="after">What followed it.</param>
-    private static string? TakePerson(List<string> words, IReadOnlyCollection<string> firstNames,
+    /// <remarks>
+    /// The underscore is the only evidence. There was once a list of first
+    /// names to recognise as well, which is gone: a list of the people in
+    /// somebody's library is a different and much more personal thing than a
+    /// list of categories, and the underscore already marks a name
+    /// unambiguously wherever one has been written properly.
+    /// </remarks>
+    private static string? TakePerson(List<string> words,
                                       out List<string> before, out List<string> after)
     {
         before = new List<string>();
         after = new List<string>();
 
-        // Already joined, by a person or by an earlier run.
         var index = words.FindIndex(IsPair);
-        var length = 1;
+        if (index < 0) return null;
 
-        if (index < 0)
-        {
-            if (firstNames.Count == 0) return null;
-
-            index = words.FindIndex(w => firstNames.Contains(w, StringComparer.OrdinalIgnoreCase));
-            if (index < 0) return null;
-
-            // The word after it is the surname, when there is one to be.
-            if (index + 1 < words.Count) length = 2;
-        }
-
-        var person = length == 2
-            ? words[index] + "_" + words[index + 1]
-            : words[index];
+        var person = words[index];
 
         before.AddRange(words.Take(index));
-        after.AddRange(words.Skip(index + length));
+        after.AddRange(words.Skip(index + 1));
 
-        words.RemoveRange(index, length);
+        words.RemoveAt(index);
         return person;
     }
 

@@ -210,32 +210,43 @@ public class FilenameRulesTests
         {
             Categories = new[] { "wedding" },
             Subjects = new[] { "vows" },
-            FirstNames = new[] { "sarah" }
+            Blacklist = Array.Empty<string>()
         };
 
+        // The name is recognised by its underscore, the other two by the
+        // vocabulary, and each goes to its own slot.
         Assert.Equal("wedding-vows-sarah_williams-cries[take1].mp4",
-                     FilenameRules.Apply("cries sarah williams [take1] vows wedding.mp4", vocab));
+                     FilenameRules.Apply("cries sarah_williams [take1] vows wedding.mp4", vocab));
     }
 
     [Fact]
-    public void A_known_first_name_takes_the_word_after_it_as_the_surname()
+    public void A_blacklisted_word_is_struck_out()
     {
-        var vocab = new FilenameVocabulary { FirstNames = new[] { "sarah" } };
+        var vocab = new FilenameVocabulary { Blacklist = new[] { "raw" } };
 
-        Assert.Equal("sarah_williams-dancing.mp4",
-                     FilenameRules.Apply("sarah williams dancing.mp4", vocab));
+        Assert.Equal("wedding-vows.mp4",
+                     FilenameRules.Apply("wedding raw vows.mp4", vocab));
     }
 
     [Fact]
-    public void A_lone_first_name_is_still_a_name()
+    public void A_blacklisted_word_only_matches_a_whole_word()
     {
-        var vocab = new FilenameVocabulary { FirstNames = new[] { "sarah" } };
+        // Striking a run of letters wherever it appeared would quietly
+        // damage words nobody meant to touch.
+        var vocab = new FilenameVocabulary { Blacklist = new[] { "cam" } };
 
-        // A name with nothing after it is still a name, and the word in
-        // front of it takes the category slot rather than being shoved
-        // behind it.
-        Assert.Equal("dancing-sarah.mp4",
-                     FilenameRules.Apply("dancing sarah.mp4", vocab));
+        Assert.Equal("camera-cameron.mp4",
+                     FilenameRules.Apply("cam camera cameron.mp4", vocab));
+    }
+
+    [Fact]
+    public void Blacklisting_everything_leaves_the_file_alone()
+    {
+        // Nothing left to call it, so it keeps the name it has rather than
+        // becoming ".mp4".
+        var vocab = new FilenameVocabulary { Blacklist = new[] { "raw" } };
+
+        Assert.Equal("raw.mp4", FilenameRules.Apply("raw.mp4", vocab));
     }
 
     [Fact]

@@ -13,29 +13,35 @@ namespace MpcHcVideoEditor.Dialogs;
 /// <summary>One file in a group, with its checkbox.</summary>
 public sealed class DuplicateRow : INotifyPropertyChanged
 {
-    public DuplicateRow(DuplicateFile file, bool isLargest)
-    {
-        File = file;
-        IsLargest = isLargest;
-    }
+    public DuplicateRow(DuplicateFile file) => File = file;
 
     public DuplicateFile File { get; }
 
     public string Name => File.Name;
     public string Folder => File.Folder;
     public string Path => File.Path;
-    public string Size => File.SizeDisplay;
 
-    /// <summary>The copy a "keep the best" rule would keep.</summary>
-    public bool IsLargest { get; }
-
-    public Visibility LargestVisibility => IsLargest ? Visibility.Visible : Visibility.Collapsed;
+    /// <summary>
+    /// Size, and running time when it is known.
+    /// </summary>
+    /// <remarks>
+    /// The length is shown because it is half the reason a near-identical
+    /// group is a group at all — two files within a kilobyte of each other
+    /// prove nothing on their own, and seeing the same duration twice is
+    /// what makes the grouping obvious rather than mysterious. Blank for the
+    /// exact pass, which never needs to ask.
+    /// </remarks>
+    public string Size => File.Seconds > 0
+        ? $"{Models.Bookmark.FormatTime(File.Seconds)}   {File.SizeDisplay}"
+        : File.SizeDisplay;
 
     private bool _isChecked;
 
     /// <summary>
-    /// Whether this file is marked for deletion. Nothing is checked when a
-    /// scan finishes: the program found these, it did not decide about them.
+    /// Whether this file is marked for deletion. Every copy but the first in
+    /// a group is checked when a scan finishes, which is the answer somebody
+    /// looking at a list of duplicates almost always wants — and the one
+    /// that still leaves a copy of everything.
     /// </summary>
     public bool IsChecked
     {
@@ -63,21 +69,26 @@ public sealed class DuplicateGroupRow
 {
     public DuplicateGroupRow(DuplicateGroup group)
     {
-        var largest = group.Files.OrderByDescending(f => f.Bytes).First();
-
+        // The scanner hands them over largest first, which is what makes the
+        // default — keep the first, check the rest — keep the best copy
+        // without having to say so on every row.
         Files = new ObservableCollection<DuplicateRow>(
-            group.Files.Select(f => new DuplicateRow(f, ReferenceEquals(f, largest))));
+            group.Files.Select(f => new DuplicateRow(f)));
 
-        Heading = group.Kind == DuplicateKind.Identical
-            ? $"{group.Files.Count} identical files"
-            : $"{group.Files.Count} files, same footage · {group.Confidence}% alike";
+        Heading = group.Kind switch
+        {
+            DuplicateKind.Identical => $"{group.Files.Count} identical files",
+            DuplicateKind.NearIdentical =>
+                $"{group.Files.Count} files, same length and all but the same size",
+            _ => $"{group.Files.Count} files, same footage · {group.Confidence}% alike"
+        };
 
-        // Certainty and likelihood should not look the same. An exact match
-        // is a fact; a footage match is a suggestion, and is coloured as the
-        // caution it is.
-        HeadingBrush = group.Kind == DuplicateKind.Identical
-            ? Brush("ValueGreen")
-            : Brush("ValueYellow");
+        // Certainty and likelihood should not look the same. The first two
+        // are facts about the files; a footage match is a judgement from
+        // sampled frames, and is coloured as the caution it is.
+        HeadingBrush = group.Kind == DuplicateKind.SameFootage
+            ? Brush("ValueYellow")
+            : Brush("ValueGreen");
 
         Recoverable = $"{group.RecoverableBytes / 1024.0 / 1024:0.#} MB recoverable";
     }
@@ -96,9 +107,9 @@ public sealed class DuplicateGroupRow
 /// rid of the ones you pick.
 /// </summary>
 /// <remarks>
-/// Nothing is checked when a scan finishes, and nothing is deleted without a
-/// count being put to the user first. The program is good at finding
-/// candidates and has no idea which copy anybody wants to keep.
+/// Every copy but the first in a group is checked when a scan finishes, so
+/// pressing Delete once leaves exactly one of everything. Nothing is deleted
+/// without a count being put to the user first.
 /// </remarks>
 public partial class DuplicatesDialog : Window
 {
@@ -107,12 +118,23 @@ public partial class DuplicatesDialog : Window
     private CancellationTokenSource? _running;
     private string? _folder;
 
+    /// <summary>Drives the moving dots and the elapsed time.</summary>
+    private readonly System.Windows.Threading.DispatcherTimer _tick = new()
+    {
+        Interval = TimeSpan.FromMilliseconds(450)
+    };
+
+    private readonly System.Diagnostics.Stopwatch _clock = new();
+    private int _dots;
+
     public DuplicatesDialog(FFmpegService ffmpeg, string? startIn = null)
     {
         InitializeComponent();
 
         _scanner = new DuplicateScanner(ffmpeg);
         GroupList.ItemsSource = _groups;
+
+        _tick.Tick += (_, _) => ShowWorking();
 
         if (!string.IsNullOrWhiteSpace(startIn) && Directory.Exists(startIn))
             SetFolder(startIn!);
@@ -149,10 +171,13 @@ public partial class DuplicatesDialog : Window
         Refresh();
 
         StopButton.IsEnabled = true;
-        ProgressArea.Visibility = Visibility.Visible;
         EmptyText.Visibility = Visibility.Collapsed;
-        StageText.Text = "Listing files…";
-        Bar.Value = 0;
+
+        StageText.Visibility = Visibility.Visible;
+        _dots = 0;
+        _clock.Restart();
+        _tick.Start();
+        ShowWorking();
 
         try
         {
@@ -162,39 +187,32 @@ public partial class DuplicatesDialog : Window
             var files = await Task.Run(
                 () => DuplicateScanner.FindVideos(folder, recursive, ct), ct);
 
-            var progress = new Progress<DuplicateProgress>(p =>
-            {
-                StageText.Text = p.Total > 0
-                    ? $"{p.Stage} — {p.Done} of {p.Total}"
-                    : p.Stage;
-                Bar.Value = p.Percent;
-            });
-
             var found = new List<DuplicateGroup>();
-            found.AddRange(await _scanner.FindIdenticalAsync(files, progress, ct));
+
+            // Narrowing, pass by pass. Each one only looks at what the ones
+            // before it could not account for — a file already known to be a
+            // copy is not worth probing, let alone decoding.
+            found.AddRange(await _scanner.FindIdenticalAsync(files, null, ct));
+            found.AddRange(await _scanner.FindNearIdenticalAsync(Rest(files, found), null, ct));
 
             if (FootageCheck.IsChecked == true)
-            {
-                // Only what the exact pass did not already account for.
-                // Fingerprinting a file already known to be a copy spends a
-                // decode to learn nothing.
-                var settled = found.SelectMany(g => g.Files).Select(f => f.Path)
-                                   .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-                var rest = files.Where(f => !settled.Contains(f)).ToList();
-                found.AddRange(await _scanner.FindSameFootageAsync(rest, progress, ct));
-            }
+                found.AddRange(await _scanner.FindSameFootageAsync(Rest(files, found), null, ct));
 
             foreach (var group in found) Add(group);
 
-            EmptyText.Text = _groups.Count == 0
-                ? $"No duplicates found among {files.Count} file(s)."
-                : "";
+            var copies = found.Sum(g => g.Files.Count);
+
+            StageText.Text = copies == 0
+                ? "Finished! Didn't find any."
+                : $"Finished! Found {copies} file(s).   {Elapsed}";
+
+            EmptyText.Text = $"No duplicates found among {files.Count} file(s).";
             EmptyText.Visibility = _groups.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }
         catch (OperationCanceledException)
         {
-            StageText.Text = "Stopped.";
+            StageText.Text = $"Stopped.   {Elapsed}";
+
             if (_groups.Count == 0)
             {
                 EmptyText.Text = "Stopped before anything was found.";
@@ -204,41 +222,85 @@ public partial class DuplicatesDialog : Window
         catch (Exception ex)
         {
             Diagnostics.Swallowed("DuplicatesDialog.Scan", ex);
+            StageText.Text = "The scan could not finish.";
             EmptyText.Text = "The scan could not finish: " + ex.Message;
             EmptyText.Visibility = Visibility.Visible;
         }
         finally
         {
+            _tick.Stop();
+            _clock.Stop();
             StopButton.IsEnabled = false;
-            ProgressArea.Visibility = Visibility.Collapsed;
             Refresh();
         }
+    }
+
+    /// <summary>What no pass has accounted for yet.</summary>
+    private static IReadOnlyList<string> Rest(IReadOnlyList<string> all, List<DuplicateGroup> found)
+    {
+        var settled = found.SelectMany(g => g.Files).Select(f => f.Path)
+                           .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return all.Where(f => !settled.Contains(f)).ToList();
+    }
+
+    /// <summary>
+    /// The scan's own clock, written the way the status bar writes one.
+    /// </summary>
+    private string Elapsed => JobProgress.FormatElapsed(_clock.Elapsed);
+
+    /// <summary>
+    /// "Scanning..." with the dots counting down and back, so a long scan is
+    /// visibly still going without claiming a percentage it does not have.
+    /// </summary>
+    private void ShowWorking()
+    {
+        var what = FootageCheck.IsChecked == true ? "Deep scanning" : "Scanning";
+
+        // Three dots down to none, then round again. Padded so the line does
+        // not change width and shuffle the text beside it.
+        var dots = new string('.', 3 - _dots % 4).PadRight(3);
+        _dots++;
+
+        StageText.Text = $"{what}{dots}   {Elapsed}";
     }
 
     private void Add(DuplicateGroup group)
     {
         var row = new DuplicateGroupRow(group);
         foreach (var file in row.Files) file.CheckedChanged = Refresh;
+
         _groups.Add(row);
+        CheckDuplicates(row);
     }
 
     private void Stop_Click(object sender, RoutedEventArgs e) => _running?.Cancel();
 
-    private void CheckAllButLargest_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Checks every copy in a group but the first, so acting on the list
+    /// leaves exactly one of everything.
+    /// </summary>
+    private static void CheckDuplicates(DuplicateGroupRow group)
     {
-        foreach (var group in _groups)
-            foreach (var file in group.Files)
-                file.IsChecked = !file.IsLargest;
+        for (int i = 0; i < group.Files.Count; i++)
+            group.Files[i].IsChecked = i > 0;
+    }
 
+    private void SelectAll_Click(object sender, RoutedEventArgs e)
+    {
+        foreach (var file in _groups.SelectMany(g => g.Files)) file.IsChecked = true;
         Refresh();
     }
 
-    private void ClearChecks_Click(object sender, RoutedEventArgs e)
+    private void SelectNone_Click(object sender, RoutedEventArgs e)
     {
-        foreach (var group in _groups)
-            foreach (var file in group.Files)
-                file.IsChecked = false;
+        foreach (var file in _groups.SelectMany(g => g.Files)) file.IsChecked = false;
+        Refresh();
+    }
 
+    private void SelectDuplicates_Click(object sender, RoutedEventArgs e)
+    {
+        foreach (var group in _groups) CheckDuplicates(group);
         Refresh();
     }
 

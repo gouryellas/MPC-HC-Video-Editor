@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using MpcHcVideoEditor.Services;
 
 namespace MpcHcVideoEditor.Dialogs;
@@ -25,7 +25,7 @@ public partial class RenameWordsDialog : Window
 
         CategoriesBox.Text = string.Join(Environment.NewLine, settings.Current.RenameCategories);
         SubjectsBox.Text = string.Join(Environment.NewLine, settings.Current.RenameSubjects);
-        FirstNamesBox.Text = string.Join(Environment.NewLine, settings.Current.RenameFirstNames);
+        BlacklistBox.Text = string.Join(Environment.NewLine, settings.Current.RenameBlacklist);
     }
 
     /// <summary>
@@ -50,7 +50,7 @@ public partial class RenameWordsDialog : Window
     {
         _settings.Current.RenameCategories = Words(CategoriesBox.Text);
         _settings.Current.RenameSubjects = Words(SubjectsBox.Text);
-        _settings.Current.RenameFirstNames = Words(FirstNamesBox.Text);
+        _settings.Current.RenameBlacklist = Words(BlacklistBox.Text);
 
         _settings.Save();
 

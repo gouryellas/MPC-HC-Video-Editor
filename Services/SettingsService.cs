@@ -443,17 +443,18 @@ public class AppSettings
     /// the settings file beside the executable, and never in the repository —
     /// they are a description of one person's library.
     ///
-    /// Surnames are deliberately absent. The word after a known first name is
-    /// taken as one, there being far more surnames than anybody will type and
-    /// the first name being the half that repeats.
+    /// Names are deliberately absent: the underscore in a first_last pair
+    /// already marks one wherever it has been written properly, and a list of
+    /// the people in somebody's library is a different and much more personal
+    /// thing than a list of categories.
     /// </remarks>
     public List<string> RenameCategories { get; set; } = new();
 
     /// <summary>The second section — the event, or what the clip is of.</summary>
     public List<string> RenameSubjects { get; set; } = new();
 
-    /// <summary>First names, which anchor the third section.</summary>
-    public List<string> RenameFirstNames { get; set; } = new();
+    /// <summary>Words struck out of every filename, matched whole.</summary>
+    public List<string> RenameBlacklist { get; set; } = new();
 
     /// <summary>
     /// The order of the action toolbar, as <see cref="Models.ToolbarItem.Key"/>

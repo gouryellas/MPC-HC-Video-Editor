@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using MpcHcVideoEditor.Services;
 using Xunit;
 
@@ -14,7 +14,7 @@ public class FilenameExamplesTests
     {
         Categories = new[] { "wedding" },
         Subjects = new[] { "vows" },
-        FirstNames = new[] { "sarah" }
+        Blacklist = Array.Empty<string>()
     };
 
     [Fact]
