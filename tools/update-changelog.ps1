@@ -61,6 +61,9 @@ function Convert-Body {
         if ($line -match '^#\s*(MPC-HC|MPC-BE)\s+Video\s+Editor') { continue }
         if ($line.StartsWith('## ')) { '#' + $line }
         elseif ($line.StartsWith('# ')) { '##' + $line }
+        # One bullet marker: the earliest releases used "*", everything
+        # since has used "-". Must match ChangelogCache.Normalise.
+        elseif ($line.StartsWith('* ')) { '-' + $line.Substring(1) }
         else { $line }
     }
     ($kept -join "`n").Trim("`n")

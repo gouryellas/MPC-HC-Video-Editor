@@ -172,6 +172,11 @@ public static class ChangelogCache
             if (line.StartsWith("## ")) line = "#" + line;
             else if (line.StartsWith("# ")) line = "##" + line;
 
+            // One bullet marker. The earliest releases used "*" and every
+            // one since has used "-"; the renderer accepts both, but the
+            // stored text should not need it to.
+            else if (line.StartsWith("* ")) line = "-" + line[1..];
+
             kept.Add(line);
         }
 

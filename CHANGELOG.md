@@ -3156,15 +3156,15 @@ V. Stats
 This is the latest release.
 
 ### What's Changed
-* Added 32bit version
-* Added native ffmpeg processing
-* Images now show in the gui
-* Fix csv line deletion by @gouryellas in https://github.com/gouryellas/mpcbe-video-editor/pull/1
-* Fix fuchsia spelling by @gouryellas in https://github.com/gouryellas/mpcbe-video-editor/pull/3
-* Fix fuchsia spelling by @gouryellas in https://github.com/gouryellas/mpcbe-video-editor/pull/4
+- Added 32bit version
+- Added native ffmpeg processing
+- Images now show in the gui
+- Fix csv line deletion by @gouryellas in https://github.com/gouryellas/mpcbe-video-editor/pull/1
+- Fix fuchsia spelling by @gouryellas in https://github.com/gouryellas/mpcbe-video-editor/pull/3
+- Fix fuchsia spelling by @gouryellas in https://github.com/gouryellas/mpcbe-video-editor/pull/4
 
 ### New Contributors
-* @gouryellas made their first contribution in https://github.com/gouryellas/mpcbe-video-editor/pull/1
+- @gouryellas made their first contribution in https://github.com/gouryellas/mpcbe-video-editor/pull/1
 
 **Full Changelog**: https://github.com/gouryellas/mpcbe-video-editor/compare/release...v1.1
 
