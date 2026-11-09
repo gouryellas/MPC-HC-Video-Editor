@@ -242,20 +242,42 @@ public static class FilenameRules
         var words = body.Split('-', StringSplitOptions.RemoveEmptyEntries).ToList();
         if (words.Count == 0 && tags.Count == 0) return cleaned;
 
-        // Each part is lifted out and put in its slot on its own account.
-        // Whether the others were found makes no difference: a name with no
-        // category in front of it goes to the front, because that is where
-        // the name belongs once there is nothing to precede it.
+        // What the vocabulary can name outright.
         var category = Take(words, vocabulary.Categories);
         var subject = Take(words, vocabulary.Subjects);
-        var person = TakePerson(words, vocabulary.FirstNames);
+
+        // The name, and — just as important — what stood in front of it.
+        var person = TakePerson(words, vocabulary.FirstNames, out var before, out var after);
+
+        if (person is not null)
+        {
+            // A name is third, not first. It reaches the front only when
+            // there is no category and no subject, and words already in
+            // front of it are the likeliest candidates for those: a file
+            // reading "wedding-vows-sarah_williams-cries" is already right,
+            // and pulling the name forward would break a correct name on
+            // the strength of a vocabulary that happens to be empty.
+            if (category is null && before.Count > 0)
+            {
+                category = before[0];
+                before.RemoveAt(0);
+            }
+
+            if (subject is null && before.Count > 0)
+            {
+                subject = before[0];
+                before.RemoveAt(0);
+            }
+
+            // Anything still in front joins what came after it, all of it
+            // description, in the order it was found.
+            words = before.Concat(after).ToList();
+        }
 
         var ordered = new List<string>();
         if (category is not null) ordered.Add(category);
         if (subject is not null) ordered.Add(subject);
         if (person is not null) ordered.Add(person);
-
-        // Whatever is left is the description, in the order it was found.
         ordered.AddRange(words);
 
         var result = string.Join("-", ordered).Trim('-');
@@ -291,34 +313,38 @@ public static class FilenameRules
     /// all names, and all belong in the name slot — a lone one is not left
     /// where it fell merely because its other half is missing.
     /// </remarks>
-    private static string? TakePerson(List<string> words, IReadOnlyCollection<string> firstNames)
+    /// <param name="before">What stood in front of the name.</param>
+    /// <param name="after">What followed it.</param>
+    private static string? TakePerson(List<string> words, IReadOnlyCollection<string> firstNames,
+                                      out List<string> before, out List<string> after)
     {
+        before = new List<string>();
+        after = new List<string>();
+
         // Already joined, by a person or by an earlier run.
-        var pair = words.FindIndex(IsPair);
-        if (pair >= 0)
+        var index = words.FindIndex(IsPair);
+        var length = 1;
+
+        if (index < 0)
         {
-            var joined = words[pair];
-            words.RemoveAt(pair);
-            return joined;
+            if (firstNames.Count == 0) return null;
+
+            index = words.FindIndex(w => firstNames.Contains(w, StringComparer.OrdinalIgnoreCase));
+            if (index < 0) return null;
+
+            // The word after it is the surname, when there is one to be.
+            if (index + 1 < words.Count) length = 2;
         }
 
-        if (firstNames.Count == 0) return null;
+        var person = length == 2
+            ? words[index] + "_" + words[index + 1]
+            : words[index];
 
-        var index = words.FindIndex(w => firstNames.Contains(w, StringComparer.OrdinalIgnoreCase));
-        if (index < 0) return null;
+        before.AddRange(words.Take(index));
+        after.AddRange(words.Skip(index + length));
 
-        var first = words[index];
-
-        // The word after it is the surname, when there is one to be.
-        if (index + 1 < words.Count)
-        {
-            var last = words[index + 1];
-            words.RemoveRange(index, 2);
-            return first + "_" + last;
-        }
-
-        words.RemoveAt(index);
-        return first;
+        words.RemoveRange(index, length);
+        return person;
     }
 
     /// <summary>

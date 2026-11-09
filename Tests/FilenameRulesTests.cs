@@ -24,6 +24,7 @@ public class FilenameRulesTests
         Assert.Equal(expected, FilenameRules.Apply(original));
     }
 
+
     [Fact]
     public void Everything_goes_lowercase()
     {
@@ -161,13 +162,37 @@ public class FilenameRulesTests
     }
 
     [Fact]
-    public void A_detected_name_moves_even_with_nothing_else_detected()
+    public void A_name_already_in_its_slot_stays_there()
     {
-        // No vocabulary at all, so "wedding" is just a word — but the
-        // underscore makes the name unmistakable, and a name with nothing
-        // to precede it goes to the front.
-        Assert.Equal("sarah_williams-wedding-vows.mp4",
-                     FilenameRules.Apply("wedding vows sarah_williams.mp4"));
+        // No vocabulary, so nothing marks "wedding" as a category — but the
+        // name is third, and the two words in front of it are therefore the
+        // category and the subject. Pulling the name forward would break a
+        // correct name on the strength of an empty vocabulary.
+        Assert.Equal("wedding-vows-sarah_williams-cries.mp4",
+                     FilenameRules.Apply("wedding-vows-sarah_williams-cries.mp4"));
+    }
+
+    [Fact]
+    public void A_name_reaches_the_front_only_with_nothing_in_front_of_it()
+    {
+        Assert.Equal("sarah_williams-cries.mp4",
+                     FilenameRules.Apply("sarah_williams cries.mp4"));
+    }
+
+    [Fact]
+    public void Words_in_front_of_a_name_fill_the_slots_before_it()
+    {
+        // One word in front fills the category; the subject stays empty,
+        // which is one of the valid shapes.
+        Assert.Equal("wedding-sarah_williams-cries.mp4",
+                     FilenameRules.Apply("wedding sarah_williams cries.mp4"));
+    }
+
+    [Fact]
+    public void More_words_than_slots_push_the_rest_into_the_description()
+    {
+        Assert.Equal("a-b-sarah_williams-c-d.mp4",
+                     FilenameRules.Apply("a b c sarah_williams d.mp4"));
     }
 
     [Fact]
@@ -202,13 +227,14 @@ public class FilenameRulesTests
     }
 
     [Fact]
-    public void A_lone_first_name_still_moves_to_the_name_slot()
+    public void A_lone_first_name_is_still_a_name()
     {
         var vocab = new FilenameVocabulary { FirstNames = new[] { "sarah" } };
 
-        // Moved to the name slot all the same — a name is a name whether
-        // or not its other half is there.
-        Assert.Equal("sarah-dancing.mp4",
+        // A name with nothing after it is still a name, and the word in
+        // front of it takes the category slot rather than being shoved
+        // behind it.
+        Assert.Equal("dancing-sarah.mp4",
                      FilenameRules.Apply("dancing sarah.mp4", vocab));
     }
 
@@ -259,18 +285,10 @@ public class FilenameRulesTests
     [Fact]
     public void A_file_already_in_the_house_style_is_left_untouched()
     {
-        // With the vocabulary that named its parts. Without one the name
-        // is still detected and moves to the front, which is the cost of
-        // "anything detected gets moved where it needs to go".
-        var vocab = new FilenameVocabulary
-        {
-            Categories = new[] { "wedding" },
-            Subjects = new[] { "vows" },
-            FirstNames = new[] { "sarah" }
-        };
-
+        // With no vocabulary at all, which is the harder case: the shape
+        // alone has to be enough to leave it alone.
         var proposal = Assert.Single(
-            FilenameRules.Propose(new[] { "wedding-vows-sarah_williams-cries[take1].mp4" }, vocab));
+            FilenameRules.Propose(new[] { "wedding-vows-sarah_williams-cries[take1].mp4" }));
 
         Assert.False(proposal.Changes);
         Assert.Equal("", proposal.Note);
