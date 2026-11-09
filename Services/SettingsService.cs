@@ -434,6 +434,28 @@ public class AppSettings
     public List<string> RecentVideos { get; set; } = new();
 
     /// <summary>
+    /// The words the bulk renamer recognises, so it can tell which part of a
+    /// filename is which.
+    /// </summary>
+    /// <remarks>
+    /// Nothing in a filename marks a word as a category, so without these the
+    /// renamer can only keep the shape a name already has. They live here, in
+    /// the settings file beside the executable, and never in the repository —
+    /// they are a description of one person's library.
+    ///
+    /// Surnames are deliberately absent. The word after a known first name is
+    /// taken as one, there being far more surnames than anybody will type and
+    /// the first name being the half that repeats.
+    /// </remarks>
+    public List<string> RenameCategories { get; set; } = new();
+
+    /// <summary>The second section — the event, or what the clip is of.</summary>
+    public List<string> RenameSubjects { get; set; } = new();
+
+    /// <summary>First names, which anchor the third section.</summary>
+    public List<string> RenameFirstNames { get; set; } = new();
+
+    /// <summary>
     /// The order of the action toolbar, as <see cref="Models.ToolbarItem.Key"/>
     /// values. Empty means the order the program ships with.
     /// </summary>

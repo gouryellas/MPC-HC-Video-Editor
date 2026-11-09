@@ -1,0 +1,93 @@
+<Window x:Class="MpcHcVideoEditor.Dialogs.RenameWordsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Words the renamer knows"
+        Height="520" Width="640"
+        MinHeight="360" MinWidth="480"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource WindowBackground}"
+        ShowInTaskbar="False">
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextBody}"/>
+        </Style>
+
+        <Style x:Key="Heading" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Margin" Value="0,0,0,2"/>
+        </Style>
+
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Margin" Value="6,0,0,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="{DynamicResource InsetBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="AcceptsReturn" Value="True"/>
+            <Setter Property="TextWrapping" Value="NoWrap"/>
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="FontFamily" Value="Consolas"/>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel Margin="16">
+        <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,0,0,12"
+                   Foreground="{DynamicResource TextSecondary}"
+                   Text="One word per line. Nothing in a filename says which word is a category, so these are how the renamer is told — without them it can tidy a name but not rearrange it. They are kept in your settings file and go nowhere else."/>
+
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Cancel" Width="90" IsCancel="True"/>
+            <Button Content="Save" Width="90" Click="Save_Click" IsDefault="True"
+                    Background="{DynamicResource PrimaryButton}"
+                    BorderBrush="{DynamicResource PrimaryButtonBorder}"
+                    Foreground="{DynamicResource OnAccent}"/>
+        </StackPanel>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Categories" Style="{StaticResource Heading}"/>
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="First section"
+                       FontSize="11" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,6"/>
+            <TextBox   Grid.Row="2" Grid.Column="0" x:Name="CategoriesBox"/>
+
+            <TextBlock Grid.Row="0" Grid.Column="2" Text="Subjects" Style="{StaticResource Heading}"/>
+            <TextBlock Grid.Row="1" Grid.Column="2" Text="Second — the event"
+                       FontSize="11" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,6"/>
+            <TextBox   Grid.Row="2" Grid.Column="2" x:Name="SubjectsBox"/>
+
+            <TextBlock Grid.Row="0" Grid.Column="4" Text="First names" Style="{StaticResource Heading}"/>
+            <!-- Said here because it is the one surprise in this window: a
+                 surname is found by position, not by being listed. -->
+            <TextBlock Grid.Row="1" Grid.Column="4" Text="Third — surnames not needed"
+                       FontSize="11" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,6"
+                       ToolTip="The word after a known first name is taken as the surname. There are far more surnames than anybody will type, and the first name is the half that repeats."/>
+            <TextBox   Grid.Row="2" Grid.Column="4" x:Name="FirstNamesBox"/>
+        </Grid>
+    </DockPanel>
+</Window>

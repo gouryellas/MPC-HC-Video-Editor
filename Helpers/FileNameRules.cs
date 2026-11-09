@@ -18,21 +18,27 @@ public static class FileNameRules
     /// <summary>Human-readable description, shown when input is rejected.</summary>
     public const string Description =
         "Filenames may contain letters, numbers, dashes (-), underscores (_), " +
-        "square brackets ([ ]), parentheses ( ) and curly braces ({ }). Spaces " +
-        "become dashes automatically, and none of those punctuation characters " +
-        "may repeat back to back.";
+        "square brackets ([ ]) and parentheses ( ). Spaces become dashes " +
+        "automatically, and none of those punctuation characters may repeat " +
+        "back to back.";
 
     /// <summary>
     /// The punctuation a filename may contain.
     /// </summary>
     /// <remarks>
-    /// Curly braces are allowed so a naming tag can use them, and so a
-    /// misspelled filename variable — <c>{nam}</c> for <c>{name}</c> — comes
-    /// out visibly wrong rather than silently stripped to <c>nam</c>. Windows
-    /// has no objection to braces in a filename; only this project's own policy
-    /// ever did.
+    /// Curly braces were once allowed, so that a misspelled naming variable —
+    /// <c>{nam}</c> for <c>{name}</c> — came out visibly wrong rather than
+    /// being quietly stripped to <c>nam</c>. They are not any more: a brace is
+    /// unwanted in a filename, and this is the one set of characters the
+    /// program both writes and renames by, so it should say the same thing in
+    /// both places.
+    ///
+    /// Nothing correct is lost. <see cref="NameTemplate"/> substitutes its
+    /// variables before a name reaches here, so a pattern that is spelled
+    /// right never produces a brace to begin with. Only a typo is affected,
+    /// and it is now stripped rather than kept.
     /// </remarks>
-    private const string Punctuation = "-_[](){}";
+    private const string Punctuation = "-_[]()";
 
     /// <summary>True if <paramref name="c"/> may appear in a filename at all.</summary>
     public static bool IsAllowedChar(char c) =>

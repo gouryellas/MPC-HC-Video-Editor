@@ -9504,6 +9504,25 @@ public partial class MainViewModel : ObservableObject, IDisposable
         dlg.ShowDialog();
     }
 
+    /// <summary>
+    /// Renames a folder's files to the house shape, after showing what it
+    /// would do.
+    /// </summary>
+    [RelayCommand]
+    private void BulkRename()
+    {
+        var start = Session.HasVideo && !string.IsNullOrEmpty(Session.VideoPath)
+            ? Path.GetDirectoryName(Session.VideoPath)
+            : ResolveSaveToDirectory();
+
+        var dlg = new Dialogs.BulkRenameDialog(_settings, start)
+        {
+            Owner = DialogOwner
+        };
+
+        dlg.ShowDialog();
+    }
+
     /// <summary>Whether there are enough cuts for an order to mean anything.</summary>
     private bool CanSetProcessingOrder() => Session.Bookmarks.Count(b => b.IsValid) > 1;
 

@@ -129,7 +129,7 @@ Anything that command prints is yours and does not belong in a public download.
 dotnet test Tests
 ```
 
-A hundred and eighty-nine of them, in a few seconds. They need `ffmpeg.exe` and
+A hundred and ninety-five of them, in a few seconds. They need `ffmpeg.exe` and
 `ffprobe.exe`, which are found beside the test assembly, in
 `publish\portable`, or in an `ffmpeg` subfolder of any parent directory — so a
 checkout that has published once already has what they need.
