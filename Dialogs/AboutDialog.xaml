@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="About MPC-HC Video Editor"
-        Height="440" Width="480"
-        MinHeight="380" MinWidth="420"
+        Height="620" Width="560"
+        MinHeight="420" MinWidth="460"
         Background="{DynamicResource WindowBackground}"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
@@ -28,6 +28,87 @@
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- One version in the history, shut until asked.
+
+             Templated rather than left to WPF's own Expander, which draws a
+             circled chevron in system colours — the one piece of light
+             chrome in a dark window, and the reason the scrollbars in this
+             program are templated too.
+
+             The arrow is a Path rotated by a trigger rather than two glyphs
+             swapped, so it turns from pointing right to pointing down
+             through the same shape. A character swap at this size reads as
+             a flicker.
+
+             The whole header is the button, not just the arrow: the target
+             is then the width of the row, which is what anybody actually
+             aims at. -->
+        <Style x:Key="VersionExpander" TargetType="Expander">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Expander">
+                        <StackPanel>
+                            <ToggleButton x:Name="Head"
+                                          IsChecked="{Binding IsExpanded, Mode=TwoWay,
+                                                      RelativeSource={RelativeSource TemplatedParent}}"
+                                          Focusable="False" Cursor="Hand"
+                                          HorizontalContentAlignment="Stretch">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="Row" Background="Transparent"
+                                                CornerRadius="4" Padding="6,5">
+                                            <DockPanel LastChildFill="True">
+                                                <Path x:Name="Arrow" DockPanel.Dock="Left"
+                                                      Data="M 0 0 L 4 4 L 0 8 Z"
+                                                      Fill="{DynamicResource Accent}"
+                                                      Width="8" Height="8"
+                                                      VerticalAlignment="Center"
+                                                      Margin="2,0,10,0"
+                                                      RenderTransformOrigin="0.5,0.5"/>
+                                                <ContentPresenter VerticalAlignment="Center"/>
+                                            </DockPanel>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Row" Property="Background"
+                                                        Value="{DynamicResource RowHover}"/>
+                                            </Trigger>
+                                            <!-- The whole transform, not an
+                                                 Angle inside one: a trigger
+                                                 cannot reach a name that
+                                                 belongs to a Freezable
+                                                 rather than to a template
+                                                 child. -->
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter TargetName="Arrow" Property="RenderTransform">
+                                                    <Setter.Value>
+                                                        <RotateTransform Angle="90"/>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+
+                                <ContentPresenter ContentSource="Header"/>
+                            </ToggleButton>
+
+                            <!-- Indented to the text of the header above it,
+                                 so the notes read as belonging to that
+                                 version rather than sitting between two. -->
+                            <ContentPresenter x:Name="Body" Visibility="Collapsed"
+                                              Margin="26,2,4,12"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsExpanded" Value="True">
+                                <Setter TargetName="Body" Property="Visibility" Value="Visible"/>
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -64,8 +145,30 @@
         <Border Grid.Row="2" Background="{DynamicResource PanelBackground}" CornerRadius="6" Padding="12">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel>
+                    <!-- Version history, first: it is the part of this window
+                         anybody opens twice. The licensing below it is read
+                         once, if ever, and does not move. -->
+                    <DockPanel Margin="0,0,0,4">
+                        <TextBlock Text="Version history" Foreground="{DynamicResource Accent}"
+                                   FontWeight="SemiBold" FontSize="13"/>
+                        <TextBlock x:Name="HistoryCount" DockPanel.Dock="Right"
+                                   HorizontalAlignment="Right"
+                                   Foreground="{DynamicResource TextMuted}" FontSize="11"
+                                   VerticalAlignment="Center"/>
+                    </DockPanel>
+
+                    <StackPanel x:Name="VersionList" Margin="0,0,0,4"/>
+
+                    <!-- Said only when there is nothing to say; filled in and
+                         shown by the code behind. -->
+                    <TextBlock x:Name="HistoryEmpty" Visibility="Collapsed"
+                               Foreground="{DynamicResource TextMuted}" FontSize="12"
+                               TextWrapping="Wrap" Margin="0,2,0,8"/>
+
+                    <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,10,0,0"/>
+
                     <TextBlock Text="License" Foreground="{DynamicResource Accent}" FontWeight="SemiBold"
-                               FontSize="13" Margin="0,0,0,6"/>
+                               FontSize="13" Margin="0,14,0,6"/>
                     <TextBlock x:Name="LicenseText" Foreground="{DynamicResource TextDim}" FontSize="12"
                                TextWrapping="Wrap"/>
 

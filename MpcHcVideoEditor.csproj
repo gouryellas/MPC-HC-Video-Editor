@@ -40,6 +40,11 @@
          globs **/*.cs and excludes only bin and obj, so without this every
          test file would be compiled into the application as well — the same
          trap BUILD.md warns about for a nested copy of the sources. -->
+    <!-- The changelog parser and the note renderer are internal because
+         nothing outside this assembly should call them, but the format they
+         read is a contract with a generator and is worth testing directly. -->
+    <InternalsVisibleTo Include="MpcHcVideoEditor.Tests" />
+
     <Compile Remove="Tests\**" />
     <None Remove="Tests\**" />
     <Page Remove="Tests\**" />
@@ -55,6 +60,10 @@
     <!-- Embedded rather than copied beside the exe: the tray icon is loaded
          through a pack:// URI at runtime, and a portable install should not
          depend on a loose file surviving next to the executable. -->
+    <!-- Compiled in rather than copied beside the exe, because the portable
+         build is a single file and has no folder to read it from. Help ▸
+         About lists every version from this. -->
+    <Resource Include="CHANGELOG.md" />
     <Resource Include="Assets\app.ico" />
     <Resource Include="Assets\tray.ico" />
 

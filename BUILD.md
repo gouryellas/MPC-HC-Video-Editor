@@ -75,6 +75,21 @@ it, lost it". Delete it by hand only together with `Bookmarks\`.
 
 ## Packaging a release
 
+**Regenerate `CHANGELOG.md` after publishing the GitHub release.** Help ▸ About
+lists every version from that file, which is compiled into the assembly — so a
+build made before the release is published has no notes for it. The file is
+written from the published releases:
+
+```powershell
+gh api --paginate "repos/gouryellas/MPC-HC-Video-Editor/releases" > releases.json
+```
+
+Then one entry per release, newest first, under a `## <version> — <date>`
+heading, with each release body's own `##` sections demoted to `###`. That
+demotion is what lets the parser treat `## ` as "a version starts here" and
+nothing else; a release section called "## Playlists" would otherwise be read
+as a version named Playlists. `ChangelogTests` holds both ends of that.
+
 **Never ship the folder you have been running.** `publish\portable` is both the
 build output and the working directory of the portable build, so it accumulates
 your own data as you test. Two things must be out of the zip:
@@ -100,7 +115,7 @@ Anything that command prints is yours and does not belong in a public download.
 dotnet test Tests
 ```
 
-Forty-four of them, in a few seconds. They need `ffmpeg.exe` and
+Fifty-eight of them, in a few seconds. They need `ffmpeg.exe` and
 `ffprobe.exe`, which are found beside the test assembly, in
 `publish\portable`, or in an `ffmpeg` subfolder of any parent directory — so a
 checkout that has published once already has what they need.
