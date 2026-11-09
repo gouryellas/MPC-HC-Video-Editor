@@ -1,4 +1,4 @@
-<Window x:Class="MpcHcVideoEditor.Dialogs.RuleTestDialog"
+﻿<Window x:Class="MpcHcVideoEditor.Dialogs.RuleTestDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Test rule"
@@ -35,7 +35,7 @@
     <DockPanel Margin="16">
         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
             <TextBlock x:Name="RuleText" FontSize="13" TextWrapping="Wrap"
-                       Foreground="{DynamicResource ValueYellow}"/>
+                       Foreground="{DynamicResource Accent}"/>
             <TextBlock Margin="0,4,0,0" FontSize="12" TextWrapping="Wrap"
                        Foreground="{DynamicResource TextSecondary}"
                        Text="Run against made-up names, using every word list and rule as they stand in the window behind this one — including anything typed but not yet saved."/>
