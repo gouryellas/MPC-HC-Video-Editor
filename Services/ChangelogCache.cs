@@ -145,41 +145,92 @@ public static class ChangelogCache
     }
 
     /// <summary>
-    /// Brings a downloaded release body into the shape the shipped file uses:
-    /// no title line, and sections one level down so that "## " keeps meaning
-    /// "a version starts here" and nothing else.
+    /// Brings a downloaded release body into the house style: no title line,
+    /// sections one level down, and every paragraph a bullet on one line.
     /// </summary>
     /// <remarks>
-    /// The same transformation the generator applies when writing
-    /// CHANGELOG.md. It has to happen here too, because without it a release
-    /// whose notes contain "## Playlists" would be read back as a version
-    /// called Playlists.
+    /// <para>
+    /// The sections move down so that "## " keeps meaning "a version starts
+    /// here" and nothing else — without it a release whose notes contain
+    /// "## Playlists" would be read back as a version called Playlists.
+    /// </para>
+    /// <para>
+    /// The bulleting is what makes a release written as prose read like one
+    /// written as a list. No words change: a paragraph gains "- " and loses
+    /// the line breaks that were wrapping it at eighty columns, which the
+    /// panel it is displayed in does not want anyway.
+    /// </para>
+    /// <para>
+    /// The same transformation tools/update-changelog.ps1 applies when it
+    /// writes CHANGELOG.md. The two must agree, or a version would change
+    /// shape on the day the build caught up with it.
+    /// </para>
     /// </remarks>
     internal static string Normalise(string body)
     {
-        var lines = body.Replace("\r\n", "\n").Split('\n').ToList();
-        var kept = new List<string>(lines.Count);
+        var titleLine = new System.Text.RegularExpressions.Regex(
+            @"^#\s*(MPC-HC|MPC-BE)\s+Video\s+Editor",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
-        foreach (var raw in lines)
+        var heading = new System.Text.RegularExpressions.Regex(@"^#{1,6}\s");
+        var bullet = new System.Text.RegularExpressions.Regex(@"^[-*]\s");
+
+        var outLines = new List<string>();
+        var run = new List<string>();
+        var fenced = false;
+
+        void Flush()
         {
-            var line = raw.TrimEnd();
+            if (run.Count == 0) return;
 
-            if (System.Text.RegularExpressions.Regex.IsMatch(
-                    line, @"^#\s*(MPC-HC|MPC-BE)\s+Video\s+Editor",
-                    System.Text.RegularExpressions.RegexOptions.IgnoreCase))
-                continue;
+            var text = string.Join(" ", run).Trim();
+            run.Clear();
 
-            if (line.StartsWith("## ")) line = "#" + line;
-            else if (line.StartsWith("# ")) line = "##" + line;
-
-            // One bullet marker. The earliest releases used "*" and every
-            // one since has used "-"; the renderer accepts both, but the
-            // stored text should not need it to.
-            else if (line.StartsWith("* ")) line = "-" + line[1..];
-
-            kept.Add(line);
+            if (text.Length == 0) return;
+            outLines.Add("- " + bullet.Replace(text, "").TrimStart());
         }
 
-        return string.Join("\n", kept).Trim('\n');
+        foreach (var raw in body.Replace("\r\n", "\n").Split('\n'))
+        {
+            var line = raw.TrimEnd();
+            var trimmed = line.TrimStart();
+
+            // Fenced blocks are the one place line breaks carry meaning.
+            if (trimmed.StartsWith("```"))
+            {
+                Flush();
+                outLines.Add(line);
+                fenced = !fenced;
+                continue;
+            }
+
+            if (fenced) { outLines.Add(line); continue; }
+
+            if (titleLine.IsMatch(line)) continue;
+
+            if (heading.IsMatch(trimmed))
+            {
+                Flush();
+
+                if (line.StartsWith("## ")) outLines.Add("#" + line);
+                else if (line.StartsWith("# ")) outLines.Add("##" + line);
+                else outLines.Add(line);
+                continue;
+            }
+
+            if (trimmed.Length == 0) { Flush(); outLines.Add(""); continue; }
+
+            // A new bullet ends the one before it; anything else continues
+            // whatever is open, which is how the wrapped lines in the older
+            // notes were written.
+            if (bullet.IsMatch(trimmed)) Flush();
+            run.Add(trimmed);
+        }
+
+        Flush();
+
+        var text = string.Join("\n", outLines);
+        text = System.Text.RegularExpressions.Regex.Replace(text, "\n{3,}", "\n\n");
+        return text.Trim('\n');
     }
 }

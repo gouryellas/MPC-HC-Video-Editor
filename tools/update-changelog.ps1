@@ -52,21 +52,74 @@ $Path = [System.IO.Path]::GetFullPath($Path)
 $exists = Test-Path $Path
 
 function Convert-Body {
+    <#
+    Brings a release body into the house style: headings one level down, one
+    bullet marker, and every paragraph a bullet on a single line.
+
+    Releases up to 5.7 are written as prose hard-wrapped at about eighty
+    columns. Those paragraphs become bullets, and wrapped lines are rejoined
+    so each bullet is one line, which is how every release since is written.
+    No words are changed - a paragraph gains "- " and loses its line breaks.
+
+    Must match ChangelogCache.Normalise, which does the same to notes arriving
+    from the update check. ChangelogCacheTests holds the two together.
+    #>
     param([string]$Body)
 
     $lines = ($Body -replace "`r`n", "`n").Split("`n")
-    $kept = foreach ($raw in $lines) {
+
+    $out = New-Object System.Collections.Generic.List[string]
+    $run = New-Object System.Collections.Generic.List[string]
+    $fenced = $false
+
+    function Flush {
+        if ($run.Count -eq 0) { return }
+        $text = ($run -join ' ').Trim()
+        $run.Clear()
+        if (-not $text) { return }
+        # Already a bullet, or make it one.
+        if ($text -match '^[-*]\s') { $out.Add('- ' + ($text -replace '^[-*]\s+', '')) }
+        else { $out.Add('- ' + $text) }
+    }
+
+    foreach ($raw in $lines) {
         $line = $raw.TrimEnd()
+        $trim = $line.TrimStart()
+
+        # Fenced blocks are the one place line breaks carry meaning.
+        if ($trim.StartsWith('```')) {
+            Flush
+            $out.Add($line)
+            $fenced = -not $fenced
+            continue
+        }
+        if ($fenced) { $out.Add($line); continue }
+
         # The body's own title; the version heading replaces it.
         if ($line -match '^#\s*(MPC-HC|MPC-BE)\s+Video\s+Editor') { continue }
-        if ($line.StartsWith('## ')) { '#' + $line }
-        elseif ($line.StartsWith('# ')) { '##' + $line }
-        # One bullet marker: the earliest releases used "*", everything
-        # since has used "-". Must match ChangelogCache.Normalise.
-        elseif ($line.StartsWith('* ')) { '-' + $line.Substring(1) }
-        else { $line }
+
+        if ($trim -match '^#{1,6}\s') {
+            Flush
+            if ($line.StartsWith('## ')) { $out.Add('#' + $line) }
+            elseif ($line.StartsWith('# ')) { $out.Add('##' + $line) }
+            else { $out.Add($line) }
+            continue
+        }
+
+        if (-not $trim) { Flush; $out.Add(''); continue }
+
+        # A new bullet ends the one before it; anything else continues the
+        # paragraph or bullet already open, which is how the wrapped ones in
+        # the older notes were written.
+        if ($trim -match '^[-*]\s') { Flush }
+        $run.Add($trim)
     }
-    ($kept -join "`n").Trim("`n")
+
+    Flush
+
+    # Collapse the runs of blank lines the rejoining leaves behind.
+    $text = ($out -join "`n") -replace "`n{3,}", "`n`n"
+    $text.Trim("`n")
 }
 
 function Format-Entry {

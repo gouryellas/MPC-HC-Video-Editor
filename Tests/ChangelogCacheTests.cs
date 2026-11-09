@@ -85,6 +85,89 @@ public class ChangelogCacheTests
         Assert.Equal(body, ChangelogCache.Normalise(body));
     }
 
+    [Fact]
+    public void A_hard_wrapped_paragraph_becomes_one_bullet()
+    {
+        // Releases up to 5.7 are prose wrapped at eighty columns. No words
+        // change — the paragraph gains "- " and loses the wrapping.
+        const string body = """
+            They are stored in one location now: a bookmarks folder inside
+            the program folder. A copy is kept in %appdata%.
+            """;
+
+        Assert.Equal(
+            "- They are stored in one location now: a bookmarks folder inside " +
+            "the program folder. A copy is kept in %appdata%.",
+            ChangelogCache.Normalise(body));
+    }
+
+    [Fact]
+    public void Two_paragraphs_become_two_bullets()
+    {
+        const string body = "First thing\nwrapped.\n\nSecond thing.";
+
+        Assert.Equal("- First thing wrapped.\n\n- Second thing.",
+                     ChangelogCache.Normalise(body));
+    }
+
+    [Fact]
+    public void A_wrapped_bullet_is_rejoined_rather_than_split()
+    {
+        const string body = "- The base merge operation will now show\n  a list of what you selected.";
+
+        Assert.Equal("- The base merge operation will now show a list of what you selected.",
+                     ChangelogCache.Normalise(body));
+    }
+
+    [Fact]
+    public void A_fenced_block_is_left_exactly_as_written()
+    {
+        // The one place line breaks carry meaning — 4.8 pastes a progress
+        // panel to show what it looked like.
+        const string body = """
+            Before:
+
+            ```
+            Merge files      File 1 of 10
+            Preparing 4/10
+            ```
+            """;
+
+        var shaped = ChangelogCache.Normalise(body);
+
+        Assert.Contains("```\nMerge files      File 1 of 10\nPreparing 4/10\n```", shaped);
+        Assert.Contains("- Before:", shaped);
+    }
+
+    [Fact]
+    public void Headings_are_not_bulleted()
+    {
+        var shaped = ChangelogCache.Normalise("## Playlists\n\nSomething.");
+
+        Assert.Contains("### Playlists", shaped);
+        Assert.DoesNotContain("- ### Playlists", shaped);
+    }
+
+    [Fact]
+    public void Shaping_a_shaped_body_changes_nothing()
+    {
+        // Idempotent, because the generator and this both run over the same
+        // notes — once at release time and again if the update check sees
+        // that release before the build catches up.
+        const string body = """
+            ## Playlists
+
+            Some prose that
+            was wrapped.
+
+            - An existing bullet.
+            """;
+
+        var once = ChangelogCache.Normalise(body);
+
+        Assert.Equal(once, ChangelogCache.Normalise(once));
+    }
+
     [Theory]
     [InlineData("5.8.2")]   // the running build
     [InlineData("5.8.1")]   // older
