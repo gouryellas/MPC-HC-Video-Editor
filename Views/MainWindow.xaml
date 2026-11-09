@@ -1042,7 +1042,7 @@
                 <MenuItem Header="Find duplicates…" Command="{Binding FindDuplicatesCommand}">
                     <MenuItem.Icon>
                         <Image Style="{StaticResource MenuIcon}"
-                               Source="pack://application:,,,/Assets/icons/icon-detect_cuts.png"/>
+                               Source="pack://application:,,,/Assets/icons/icon-find_duplicates.png"/>
                     </MenuItem.Icon>
                     <MenuItem.ToolTip>
                         <TextBlock MaxWidth="330" TextWrapping="Wrap"
@@ -1052,7 +1052,7 @@
                 <MenuItem Header="Rename files…" Command="{Binding BulkRenameCommand}">
                     <MenuItem.Icon>
                         <Image Style="{StaticResource MenuIcon}"
-                               Source="pack://application:,,,/Assets/icons/icon-menu-naming_tag.png"/>
+                               Source="pack://application:,,,/Assets/icons/icon-rename.png"/>
                     </MenuItem.Icon>
                     <MenuItem.ToolTip>
                         <TextBlock MaxWidth="330" TextWrapping="Wrap"
