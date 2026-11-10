@@ -194,13 +194,13 @@ public partial class BulkRenameDialog : Window
     private void Words_Click(object sender, RoutedEventArgs e)
     {
         var dlg = new RenameWordsDialog(_settings) { Owner = this };
-        if (dlg.ShowDialog() == true && _rows.Count > 0) Preview_Click(sender, e);
+        if (dlg.ShowDialog() == true && _rows.Count > 0) Generate_Click(sender, e);
     }
 
     private static readonly string[] VideoExtensions =
         { ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".mpeg", ".mpg", ".ts", ".m4v", ".flv", ".m2ts" };
 
-    private void Preview_Click(object sender, RoutedEventArgs e)
+    private void Generate_Click(object sender, RoutedEventArgs e)
     {
         if (string.IsNullOrWhiteSpace(_folder) || !Directory.Exists(_folder))
         {
@@ -240,7 +240,7 @@ public partial class BulkRenameDialog : Window
         }
         catch (Exception ex)
         {
-            Diagnostics.Swallowed("BulkRename.Preview", ex);
+            Diagnostics.Swallowed("BulkRename.Generate", ex);
             Show("The folder could not be read: " + ex.Message);
             return;
         }

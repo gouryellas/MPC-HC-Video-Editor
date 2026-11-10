@@ -102,14 +102,12 @@
 
             <Button Content="Words…" Click="Words_Click"/>
 
-            <Button Content="Preview" Click="Preview_Click" Margin="18,0,0,0"
+            <!-- One button, pressed again to read the folder afresh. A
+                 separate Refresh was the same work under a second name. -->
+            <Button Content="Generate" Click="Generate_Click" Margin="18,0,0,0"
                     Background="{DynamicResource PrimaryButton}"
                     BorderBrush="{DynamicResource PrimaryButtonBorder}"
                     Foreground="{DynamicResource OnAccent}"/>
-            <!-- The same work as Preview, named for what it is for: reading
-                 the folder again after something has changed outside this
-                 window, or after editing the words. -->
-            <Button Content="Refresh" Click="Preview_Click"/>
         </StackPanel>
 
         <DockPanel DockPanel.Dock="Bottom" Margin="0,12,0,0" LastChildFill="False">
@@ -132,7 +130,7 @@
                 <TextBlock x:Name="EmptyText" Margin="14" TextWrapping="Wrap"
                            VerticalAlignment="Top"
                            Foreground="{DynamicResource TextMuted}"
-                           Text="Choose a folder and press Preview. Nothing is renamed until you say so."/>
+                           Text="Choose a folder and press Generate. Nothing is renamed until you say so."/>
 
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
