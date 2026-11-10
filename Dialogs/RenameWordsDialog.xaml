@@ -173,7 +173,7 @@
 
         <!-- Rules below the words they are built from, because the lists have
              to be filled in before a rule can say anything. -->
-        <Border DockPanel.Dock="Bottom" Margin="0,12,0,0" Height="200"
+        <Border DockPanel.Dock="Bottom" Margin="0,12,0,0" Height="280"
                 Background="{DynamicResource PanelBackground}" CornerRadius="6" Padding="10">
             <DockPanel>
                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8" LastChildFill="False">
@@ -197,64 +197,76 @@
                     <ItemsControl x:Name="RuleList">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Margin="0,0,0,4" Padding="8,5" CornerRadius="4"
+                                <!-- Three lines, each a label and three
+                                     slots. A rule of one word is a rule of
+                                     three with two left empty, and a row of
+                                     fixed shape is far easier to read down a
+                                     list than one that changes width with
+                                     what is in it. -->
+                                <Border Margin="0,0,0,6" Padding="10,8" CornerRadius="4"
                                         Background="{DynamicResource InsetBackground}">
-                                    <!-- A Grid rather than a DockPanel: docked
-                                         children are measured against what is
-                                         left rather than what they need, so
-                                         the sentence ran underneath the
-                                         dropdowns as soon as a word was long. -->
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-
-                                        <TextBlock Grid.Column="0" Text="If"
-                                                   VerticalAlignment="Center" Margin="2,0,2,0"
-                                                   Foreground="{DynamicResource TextBody}"/>
-
-                                        <ComboBox Grid.Column="1"
-                                                  ItemsSource="{Binding Conditionals}"
-                                                  SelectedItem="{Binding Word, Mode=TwoWay}"/>
-
-                                        <TextBlock Grid.Column="2" VerticalAlignment="Center"
-                                                   Margin="4,0" TextTrimming="CharacterEllipsis"
-                                                   Foreground="{DynamicResource TextBody}"
-                                                   Text="is found, then the category is"/>
-
-                                        <ComboBox Grid.Column="3"
-                                                  ItemsSource="{Binding Categories}"
-                                                  SelectedItem="{Binding Category, Mode=TwoWay}"/>
-
-                                        <TextBlock Grid.Column="4" VerticalAlignment="Center"
-                                                   Margin="4,0" TextTrimming="CharacterEllipsis"
-                                                   Foreground="{DynamicResource TextBody}"
-                                                   Text="and the subject is"/>
-
-                                        <ComboBox Grid.Column="5"
-                                                  ItemsSource="{Binding Subjects}"
-                                                  SelectedItem="{Binding Subject, Mode=TwoWay}"/>
-
-                                        <StackPanel Grid.Column="6" Orientation="Horizontal">
-                                            <!-- A rule is three dropdowns and
-                                                 no way to tell what it will
-                                                 do. This runs it against some
-                                                 made-up names so the answer
-                                                 is visible before a folder is
-                                                 renamed by it. -->
+                                    <DockPanel>
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                                                    VerticalAlignment="Top">
                                             <Button Content="Test" Padding="10,4"
-                                                    Click="TestRule_Click" Tag="{Binding}"
-                                                    ToolTip="See what this rule does to a few example filenames."/>
+                                                    Click="TestRule_Click" Tag="{Binding}"/>
                                             <Button Content="Remove" Padding="10,4"
                                                     Click="RemoveRule_Click" Tag="{Binding}"/>
                                         </StackPanel>
-                                    </Grid>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="86"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+
+                                            <TextBlock Grid.Row="0" Grid.Column="0" Text="If"
+                                                       VerticalAlignment="Center" Margin="0,3"
+                                                       Foreground="{DynamicResource TextSecondary}"/>
+                                            <ComboBox Grid.Row="0" Grid.Column="1" Margin="4,3"
+                                                      ItemsSource="{Binding If[0].Choices}"
+                                                      SelectedItem="{Binding If[0].Word, Mode=TwoWay}"/>
+                                            <ComboBox Grid.Row="0" Grid.Column="2" Margin="4,3"
+                                                      ItemsSource="{Binding If[1].Choices}"
+                                                      SelectedItem="{Binding If[1].Word, Mode=TwoWay}"/>
+                                            <ComboBox Grid.Row="0" Grid.Column="3" Margin="4,3"
+                                                      ItemsSource="{Binding If[2].Choices}"
+                                                      SelectedItem="{Binding If[2].Word, Mode=TwoWay}"/>
+
+                                            <TextBlock Grid.Row="1" Grid.Column="0" Text="then order"
+                                                       VerticalAlignment="Center" Margin="0,3"
+                                                       Foreground="{DynamicResource TextSecondary}"/>
+                                            <ComboBox Grid.Row="1" Grid.Column="1" Margin="4,3"
+                                                      ItemsSource="{Binding Then[0].Choices}"
+                                                      SelectedItem="{Binding Then[0].Word, Mode=TwoWay}"/>
+                                            <ComboBox Grid.Row="1" Grid.Column="2" Margin="4,3"
+                                                      ItemsSource="{Binding Then[1].Choices}"
+                                                      SelectedItem="{Binding Then[1].Word, Mode=TwoWay}"/>
+                                            <ComboBox Grid.Row="1" Grid.Column="3" Margin="4,3"
+                                                      ItemsSource="{Binding Then[2].Choices}"
+                                                      SelectedItem="{Binding Then[2].Word, Mode=TwoWay}"/>
+
+                                            <TextBlock Grid.Row="2" Grid.Column="0" Text="otherwise"
+                                                       VerticalAlignment="Center" Margin="0,3"
+                                                       Foreground="{DynamicResource TextMuted}"/>
+                                            <ComboBox Grid.Row="2" Grid.Column="1" Margin="4,3"
+                                                      ItemsSource="{Binding Else[0].Choices}"
+                                                      SelectedItem="{Binding Else[0].Word, Mode=TwoWay}"/>
+                                            <ComboBox Grid.Row="2" Grid.Column="2" Margin="4,3"
+                                                      ItemsSource="{Binding Else[1].Choices}"
+                                                      SelectedItem="{Binding Else[1].Word, Mode=TwoWay}"/>
+                                            <ComboBox Grid.Row="2" Grid.Column="3" Margin="4,3"
+                                                      ItemsSource="{Binding Else[2].Choices}"
+                                                      SelectedItem="{Binding Else[2].Word, Mode=TwoWay}"/>
+                                        </Grid>
+                                    </DockPanel>
                                 </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -266,11 +278,7 @@
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="12"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="12"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="14"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
@@ -278,29 +286,19 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="Categories"
-                       Style="{StaticResource Heading}" Margin="0,0,0,6"/>
-            <TextBox   Grid.Row="1" Grid.Column="0" x:Name="CategoriesBox"
-                       TextChanged="Words_Changed"/>
-
-            <TextBlock Grid.Row="0" Grid.Column="2" Text="Subjects"
-                       Style="{StaticResource Heading}" Margin="0,0,0,6"/>
-            <TextBox   Grid.Row="1" Grid.Column="2" x:Name="SubjectsBox"
-                       TextChanged="Words_Changed"/>
-
-            <StackPanel Grid.Row="0" Grid.Column="4" Orientation="Horizontal" Margin="0,0,0,6">
-                <TextBlock Text="Conditional" Style="{StaticResource Heading}"/>
+            <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Margin="0,0,0,6">
+                <TextBlock Text="Words" Style="{StaticResource Heading}"/>
                 <ContentControl Style="{StaticResource Qmhp}">
                     <ContentControl.ToolTip>
                         <TextBlock MaxWidth="340" TextWrapping="Wrap"
-                                   Text="These words are used in the rules section to determine what other sections are."/>
+                                   Text="Every word worth noticing, one per line. The rules below say how they are ordered — a word is not a category or a subject in itself, since the same word can lead one name and trail another."/>
                     </ContentControl.ToolTip>
                 </ContentControl>
             </StackPanel>
-            <TextBox   Grid.Row="1" Grid.Column="4" x:Name="ConditionalsBox"
+            <TextBox   Grid.Row="1" Grid.Column="0" x:Name="WordsBox"
                        TextChanged="Words_Changed"/>
 
-            <StackPanel Grid.Row="0" Grid.Column="6" Orientation="Horizontal" Margin="0,0,0,6">
+            <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" Margin="0,0,0,6">
                 <TextBlock Text="Blacklisted" Style="{StaticResource Heading}"/>
                 <ContentControl Style="{StaticResource Qmhp}">
                     <ContentControl.ToolTip>
@@ -309,7 +307,7 @@
                     </ContentControl.ToolTip>
                 </ContentControl>
             </StackPanel>
-            <TextBox   Grid.Row="1" Grid.Column="6" x:Name="BlacklistBox"/>
+            <TextBox   Grid.Row="1" Grid.Column="2" x:Name="BlacklistBox"/>
         </Grid>
     </DockPanel>
 </Window>

@@ -1,52 +1,97 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO;
 using System.Text;
 
 namespace MpcHcVideoEditor.Services;
 
 /// <summary>
-/// "If this word is in the name, the category is that and the subject is
-/// the other."
+/// "If these words are in the name, lead with those words in that order."
 /// </summary>
 /// <remarks>
-/// What the word lists cannot express. A category is not always written in
-/// the filename — a clip named after a team says which sport and which
-/// league it belongs to without either word appearing. This is how that is
-/// said: the trigger word is looked for, and the sections it implies are
-/// supplied.
-///
-/// Either section may be left empty, which means "say nothing about this
-/// one" rather than "clear it".
+/// <para>
+/// One word list cannot say how its words relate. A rule is where that is
+/// written: a condition of up to three words that must all be present, and
+/// an ordering of up to three words to put at the front of the name when
+/// they are.
+/// </para>
+/// <para>
+/// A word in the ordering that is not in the filename is added — which is
+/// the point of it. A clip named after a team can be made to say which sport
+/// and which league it belongs to without either word ever having been typed
+/// into the name.
+/// </para>
+/// <para>
+/// The otherwise ordering is used when the condition does not hold. A rule
+/// that has one therefore always applies, which ends the matter; a rule
+/// without one steps aside and lets the next rule be tried.
+/// </para>
 /// </remarks>
 public sealed class RenameRule
 {
-    /// <summary>The conditional word that fires this rule.</summary>
-    public string Word { get; set; } = "";
+    /// <summary>
+    /// Words that must all be present. Up to three; empties are ignored.
+    /// </summary>
+    public List<string> If { get; set; } = new();
 
-    /// <summary>The category it implies, or empty.</summary>
-    public string Category { get; set; } = "";
+    /// <summary>The order to lead with when the condition holds.</summary>
+    public List<string> Then { get; set; } = new();
 
-    /// <summary>The subject it implies, or empty.</summary>
-    public string Subject { get; set; } = "";
+    /// <summary>The order to lead with when it does not, if any.</summary>
+    public List<string> Else { get; set; } = new();
 
-    public bool IsUsable => Word.Length > 0 && (Category.Length > 0 || Subject.Length > 0);
+    /// <summary>Just the words, without the gaps left by unused slots.</summary>
+    public static IReadOnlyList<string> Used(IEnumerable<string>? slots) =>
+        (slots ?? Array.Empty<string>())
+        .Where(w => !string.IsNullOrWhiteSpace(w))
+        .Select(w => w.Trim())
+        .ToList();
+
+    public IReadOnlyList<string> Conditions => Used(If);
+    public IReadOnlyList<string> ThenOrder => Used(Then);
+    public IReadOnlyList<string> ElseOrder => Used(Else);
+
+    /// <summary>
+    /// Whether this rule says anything. A condition with no ordering behind
+    /// it, either way, is a sentence that stops halfway.
+    /// </summary>
+    public bool IsUsable =>
+        Conditions.Count > 0 && (ThenOrder.Count > 0 || ElseOrder.Count > 0);
+
+    /// <summary>
+    /// The ordering this rule calls for, or null if it has nothing to say
+    /// about this name.
+    /// </summary>
+    public IReadOnlyList<string>? OrderFor(IReadOnlyCollection<string> words)
+    {
+        if (!IsUsable) return null;
+
+        var holds = Conditions.All(c => words.Contains(c, StringComparer.OrdinalIgnoreCase));
+
+        if (holds) return ThenOrder.Count > 0 ? ThenOrder : null;
+        return ElseOrder.Count > 0 ? ElseOrder : null;
+    }
 }
 
 /// <summary>
-/// Words that let a filename be read rather than guessed at.
+/// The words a filename can be read with, and the rules that order them.
 /// </summary>
 /// <remarks>
 /// Kept in settings beside the executable, never in the repository. A
-/// filename carries no marker saying which of its words is a category and
-/// which is a subject; this is how the program is told.
+/// filename carries no marker saying which of its words matters; this is how
+/// the program is told.
 /// </remarks>
 public sealed class FilenameVocabulary
 {
-    /// <summary>The first section.</summary>
-    public IReadOnlyCollection<string> Categories { get; init; } = Array.Empty<string>();
-
-    /// <summary>The second — the event, or what the clip is of.</summary>
-    public IReadOnlyCollection<string> Subjects { get; init; } = Array.Empty<string>();
+    /// <summary>
+    /// Every word worth recognising, in one list.
+    /// </summary>
+    /// <remarks>
+    /// One list rather than a column per section. Which section a word
+    /// belongs to is not a property of the word — the same word can lead one
+    /// name and trail another — so it is the rules that decide, and the list
+    /// just says which words are worth noticing at all.
+    /// </remarks>
+    public IReadOnlyCollection<string> Words { get; init; } = Array.Empty<string>();
 
     /// <summary>
     /// Words struck out of every filename.
@@ -60,19 +105,11 @@ public sealed class FilenameVocabulary
     /// </remarks>
     public IReadOnlyCollection<string> Blacklist { get; init; } = Array.Empty<string>();
 
-    /// <summary>
-    /// Words that stand for something other than themselves, and the rules
-    /// that say what.
-    /// </summary>
-    public IReadOnlyCollection<string> Conditionals { get; init; } = Array.Empty<string>();
-
     public IReadOnlyList<RenameRule> Rules { get; init; } = Array.Empty<RenameRule>();
 
     public static readonly FilenameVocabulary Empty = new();
 
-    public bool IsEmpty =>
-        Categories.Count == 0 && Subjects.Count == 0 &&
-        Blacklist.Count == 0 && Rules.Count == 0;
+    public bool IsEmpty => Words.Count == 0 && Blacklist.Count == 0 && Rules.Count == 0;
 }
 
 /// <summary>What a rename would do to one file.</summary>
@@ -85,23 +122,6 @@ public sealed record RenameProposal(string Original, string Proposed, string Not
     public bool Changes => !string.Equals(Original, Proposed, StringComparison.Ordinal);
 }
 
-/// <summary>
-/// Puts a filename into the house shape.
-/// </summary>
-/// <remarks>
-/// <para>
-/// Two jobs, and they are not equally certain. The character rules are
-/// mechanical: given a name there is exactly one answer, and it can be
-/// applied without asking anybody. The structure — category, activity, name,
-/// subject — cannot be derived from a filename at all, because nothing in a
-/// filename says which word is which. So that half reshapes what is already
-/// there, uses a vocabulary where one is supplied, and otherwise leaves the
-/// words in the order it found them for a person to correct.
-/// </para>
-/// <para>
-/// Nothing here touches the disk.
-/// </para>
-/// </remarks>
 public static class FilenameRules
 {
     /// <summary>Everything a name may contain, besides the extension's dot.</summary>
@@ -290,59 +310,50 @@ public static class FilenameRules
         if (vocabulary.Blacklist.Count > 0)
             words.RemoveAll(w => vocabulary.Blacklist.Contains(w, StringComparer.OrdinalIgnoreCase));
 
-        // A conditional word speaks for sections that are not written in the
-        // name at all, so it is read before anything is looked for: a rule
-        // saying the category is "football" settles the question whether or
-        // not the word "football" appears.
-        //
-        // The trigger word itself stays where it is. It is usually the most
-        // specific thing in the name — a team, a place, a person — and
-        // deleting it would throw away what made the rule fire. The
-        // blacklist is there for anybody who does want it gone.
-        string? category = null;
-        string? subject = null;
+        // The first rule with something to say decides the order of what
+        // leads the name. Tried top to bottom, so the order they are written
+        // in is the order they are tried — and a rule carrying an otherwise
+        // always has something to say, which ends the search.
+        IReadOnlyList<string>? lead = null;
 
         foreach (var rule in vocabulary.Rules)
         {
-            if (!rule.IsUsable) continue;
-            if (!words.Contains(rule.Word, StringComparer.OrdinalIgnoreCase)) continue;
-
-            // First rule to match wins each slot, so the order they are
-            // written in is the order they are tried.
-            if (category is null && rule.Category.Length > 0) category = rule.Category;
-            if (subject is null && rule.Subject.Length > 0) subject = rule.Subject;
+            lead = rule.OrderFor(words);
+            if (lead is not null) break;
         }
 
-        // Then whatever is written in the name, for any slot still open.
-        category ??= Take(words, vocabulary.Categories);
-        subject ??= Take(words, vocabulary.Subjects);
+        var leading = new List<string>();
 
-        // A rule that supplies a word already in the name would otherwise
-        // leave it in twice.
-        if (category is not null) words.RemoveAll(w => w.Equals(category, StringComparison.OrdinalIgnoreCase));
-        if (subject is not null) words.RemoveAll(w => w.Equals(subject, StringComparison.OrdinalIgnoreCase));
+        if (lead is not null)
+        {
+            // Listed once, at the front, in the order the rule gives. A word
+            // the rule names but the name does not have is added: that is
+            // what lets a clip say which sport it belongs to without the
+            // word ever having been typed into it.
+            foreach (var word in lead)
+            {
+                words.RemoveAll(w => w.Equals(word, StringComparison.OrdinalIgnoreCase));
+                if (!leading.Contains(word, StringComparer.OrdinalIgnoreCase)) leading.Add(word);
+            }
+        }
 
         // The name, and — just as important — what stood in front of it.
         var person = TakePerson(words, out var before, out var after);
 
         if (person is not null)
         {
-            // A name is third, not first. It reaches the front only when
-            // there is no category and no subject, and words already in
-            // front of it are the likeliest candidates for those: a file
-            // reading "wedding-vows-sarah_williams-cries" is already right,
-            // and pulling the name forward would break a correct name on
-            // the strength of a vocabulary that happens to be empty.
-            if (category is null && before.Count > 0)
+            // A name is not first. With no rule to say what leads, the words
+            // already standing in front of it are the best evidence there
+            // is — a file reading "wedding-vows-sarah_williams-cries" is
+            // already right, and pulling the name forward would break it on
+            // the strength of an empty word list.
+            if (leading.Count == 0)
             {
-                category = before[0];
-                before.RemoveAt(0);
-            }
-
-            if (subject is null && before.Count > 0)
-            {
-                subject = before[0];
-                before.RemoveAt(0);
+                while (leading.Count < 2 && before.Count > 0)
+                {
+                    leading.Add(before[0]);
+                    before.RemoveAt(0);
+                }
             }
 
             // Anything still in front joins what came after it, all of it
@@ -350,9 +361,7 @@ public static class FilenameRules
             words = before.Concat(after).ToList();
         }
 
-        var ordered = new List<string>();
-        if (category is not null) ordered.Add(category);
-        if (subject is not null) ordered.Add(subject);
+        var ordered = new List<string>(leading);
         if (person is not null) ordered.Add(person);
         ordered.AddRange(words);
 
@@ -362,18 +371,6 @@ public static class FilenameRules
         return result.Length == 0 ? cleaned : result;
     }
 
-    /// <summary>Removes and returns the first word the vocabulary knows.</summary>
-    private static string? Take(List<string> words, IReadOnlyCollection<string> known)
-    {
-        if (known.Count == 0) return null;
-
-        var index = words.FindIndex(w => known.Contains(w, StringComparer.OrdinalIgnoreCase));
-        if (index < 0) return null;
-
-        var word = words[index];
-        words.RemoveAt(index);
-        return word;
-    }
 
     /// <summary>
     /// Lifts out the name, which is whatever is already written as a

@@ -208,9 +208,15 @@ public class FilenameRulesTests
     {
         var vocab = new FilenameVocabulary
         {
-            Categories = new[] { "wedding" },
-            Subjects = new[] { "vows" },
-            Blacklist = Array.Empty<string>()
+            Words = new[] { "wedding", "vows" },
+            Rules = new[]
+            {
+                new RenameRule
+                {
+                    If = new List<string> { "vows" },
+                    Then = new List<string> { "wedding", "vows" }
+                }
+            }
         };
 
         // The name is recognised by its underscore, the other two by the
@@ -220,16 +226,20 @@ public class FilenameRulesTests
     }
 
     [Fact]
-    public void A_conditional_word_supplies_sections_that_are_not_written()
+    public void A_rule_leads_with_words_the_name_does_not_have()
     {
-        // The point of the rules: neither "football" nor "college" appears
-        // in the name, and both belong in it.
+        // The point of a rule: neither "football" nor "college" appears in
+        // the name, and both belong in front of it.
         var vocab = new FilenameVocabulary
         {
-            Conditionals = new[] { "aggies" },
+            Words = new[] { "aggies", "football", "college" },
             Rules = new[]
             {
-                new RenameRule { Word = "aggies", Category = "football", Subject = "college" }
+                new RenameRule
+                {
+                    If = new List<string> { "aggies" },
+                    Then = new List<string> { "football", "college", "aggies" }
+                }
             }
         };
 
@@ -238,65 +248,96 @@ public class FilenameRulesTests
     }
 
     [Fact]
-    public void A_rule_may_supply_only_one_of_the_two()
+    public void A_condition_may_want_two_words_at_once()
     {
         var vocab = new FilenameVocabulary
         {
-            Rules = new[] { new RenameRule { Word = "aggies", Category = "football" } }
+            Rules = new[]
+            {
+                new RenameRule
+                {
+                    If = new List<string> { "aggies", "practice" },
+                    Then = new List<string> { "football", "practice" }
+                }
+            }
         };
 
-        // An empty subject means "say nothing", not "leave a gap".
-        Assert.Equal("football-aggies-highlights.mp4",
+        Assert.Equal("football-practice-aggies.mp4",
+                     FilenameRules.Apply("aggies practice.mp4", vocab));
+
+        // One of the two is not both.
+        Assert.Equal("aggies-highlights.mp4",
                      FilenameRules.Apply("aggies highlights.mp4", vocab));
     }
 
     [Fact]
-    public void A_rule_does_not_leave_its_word_in_twice()
+    public void The_otherwise_order_is_used_when_the_condition_fails()
     {
         var vocab = new FilenameVocabulary
         {
-            Rules = new[] { new RenameRule { Word = "aggies", Category = "football" } }
+            Rules = new[]
+            {
+                new RenameRule
+                {
+                    If = new List<string> { "aggies" },
+                    Then = new List<string> { "football" },
+                    Else = new List<string> { "other" }
+                }
+            }
         };
 
-        Assert.Equal("football-aggies.mp4",
-                     FilenameRules.Apply("football aggies.mp4", vocab));
+        Assert.Equal("football-aggies.mp4", FilenameRules.Apply("aggies.mp4", vocab));
+        Assert.Equal("other-longhorns.mp4", FilenameRules.Apply("longhorns.mp4", vocab));
     }
 
     [Fact]
-    public void A_rule_beats_a_category_written_in_the_name()
+    public void A_word_the_rule_names_is_not_left_in_twice()
     {
-        // The rule is the more specific statement — it was written about
-        // this word, where the category list is about any name at all.
         var vocab = new FilenameVocabulary
         {
-            Categories = new[] { "practice" },
-            Rules = new[] { new RenameRule { Word = "aggies", Category = "football" } }
+            Rules = new[]
+            {
+                new RenameRule
+                {
+                    If = new List<string> { "aggies" },
+                    Then = new List<string> { "football", "aggies" }
+                }
+            }
         };
 
-        // "practice" is no longer the category, so it stays in the
-        // description — where it was, ahead of the word that displaced it.
-        Assert.Equal("football-practice-aggies.mp4",
-                     FilenameRules.Apply("practice aggies.mp4", vocab));
+        Assert.Equal("football-aggies-practice.mp4",
+                     FilenameRules.Apply("football aggies practice.mp4", vocab));
     }
 
     [Fact]
-    public void A_rule_whose_word_is_absent_does_nothing()
+    public void The_first_rule_with_something_to_say_decides()
     {
         var vocab = new FilenameVocabulary
         {
-            Rules = new[] { new RenameRule { Word = "aggies", Category = "football" } }
+            Rules = new[]
+            {
+                new RenameRule
+                {
+                    If = new List<string> { "aggies" },
+                    Then = new List<string> { "football" }
+                },
+                new RenameRule
+                {
+                    If = new List<string> { "aggies" },
+                    Then = new List<string> { "basketball" }
+                }
+            }
         };
 
-        Assert.Equal("longhorns-highlights.mp4",
-                     FilenameRules.Apply("longhorns highlights.mp4", vocab));
+        Assert.Equal("football-aggies.mp4", FilenameRules.Apply("aggies.mp4", vocab));
     }
 
     [Fact]
-    public void A_half_written_rule_is_ignored()
+    public void A_rule_with_no_ordering_says_nothing()
     {
         var vocab = new FilenameVocabulary
         {
-            Rules = new[] { new RenameRule { Word = "aggies" } }
+            Rules = new[] { new RenameRule { If = new List<string> { "aggies" } } }
         };
 
         Assert.Equal("aggies-highlights.mp4",
@@ -304,20 +345,23 @@ public class FilenameRulesTests
     }
 
     [Fact]
-    public void The_first_rule_to_match_wins_each_slot()
+    public void Empty_slots_in_a_rule_are_ignored()
     {
+        // The window always hands over three slots; two of them are usually
+        // blank, and a blank is not a word to look for.
         var vocab = new FilenameVocabulary
         {
             Rules = new[]
             {
-                new RenameRule { Word = "aggies", Category = "football" },
-                new RenameRule { Word = "aggies", Category = "basketball", Subject = "college" }
+                new RenameRule
+                {
+                    If = new List<string> { "aggies", "", "" },
+                    Then = new List<string> { "football", "", "" }
+                }
             }
         };
 
-        // The second rule still supplies the subject the first left open.
-        Assert.Equal("football-college-aggies.mp4",
-                     FilenameRules.Apply("aggies.mp4", vocab));
+        Assert.Equal("football-aggies.mp4", FilenameRules.Apply("aggies.mp4", vocab));
     }
 
     [Fact]

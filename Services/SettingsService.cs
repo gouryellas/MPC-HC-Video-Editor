@@ -434,36 +434,41 @@ public class AppSettings
     public List<string> RecentVideos { get; set; } = new();
 
     /// <summary>
-    /// The words the bulk renamer recognises, so it can tell which part of a
-    /// filename is which.
+    /// Every word the bulk renamer should notice.
     /// </summary>
     /// <remarks>
-    /// Nothing in a filename marks a word as a category, so without these the
-    /// renamer can only keep the shape a name already has. They live here, in
-    /// the settings file beside the executable, and never in the repository —
-    /// they are a description of one person's library.
+    /// One list rather than a column per section. Which section a word
+    /// belongs to is not a property of the word — the same word can lead one
+    /// name and trail another — so the rules decide that, and this just says
+    /// which words are worth noticing at all.
     ///
-    /// Names are deliberately absent: the underscore in a first_last pair
-    /// already marks one wherever it has been written properly, and a list of
-    /// the people in somebody's library is a different and much more personal
-    /// thing than a list of categories.
+    /// Kept here, in the settings file beside the executable, and never in
+    /// the repository: it is a description of one person's library.
     /// </remarks>
-    public List<string> RenameCategories { get; set; } = new();
-
-    /// <summary>The second section — the event, or what the clip is of.</summary>
-    public List<string> RenameSubjects { get; set; } = new();
+    public List<string> RenameWords { get; set; } = new();
 
     /// <summary>Words struck out of every filename, matched whole.</summary>
     public List<string> RenameBlacklist { get; set; } = new();
 
+    /// <summary>How the words are to be ordered.</summary>
+    public List<RenameRule> RenameRules { get; set; } = new();
+
     /// <summary>
-    /// Words that stand for a category or a subject that is not itself
-    /// written in the filename. Meaningless without the rules below.
+    /// The three lists this one replaced, read once and folded in.
     /// </summary>
+    /// <remarks>
+    /// Categories, subjects and conditionals were three columns of what
+    /// turned out to be the same thing. A settings file written before that
+    /// was understood still has them, and silently dropping somebody's word
+    /// list because the shape changed underneath them is not on.
+    ///
+    /// Written back as part of RenameWords on the next save, at which point
+    /// these stay empty for good.
+    /// </remarks>
+    public List<string> RenameCategories { get; set; } = new();
+    public List<string> RenameSubjects { get; set; } = new();
     public List<string> RenameConditionals { get; set; } = new();
 
-    /// <summary>What each conditional word implies.</summary>
-    public List<RenameRule> RenameRules { get; set; } = new();
 
     /// <summary>
     /// The order of the action toolbar, as <see cref="Models.ToolbarItem.Key"/>

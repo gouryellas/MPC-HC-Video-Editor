@@ -12,9 +12,24 @@ public class FilenameExamplesTests
 {
     private static readonly FilenameVocabulary Vocab = new()
     {
-        Categories = new[] { "wedding" },
-        Subjects = new[] { "vows" },
-        Blacklist = Array.Empty<string>()
+        Words = new[] { "wedding", "vows" },
+
+        // Ordering only — nothing injected. These tests are about shapes
+        // surviving, so a rule that added a word would be testing the rule
+        // rather than the shape.
+        Rules = new[]
+        {
+            new RenameRule
+            {
+                If = new List<string> { "wedding", "vows" },
+                Then = new List<string> { "wedding", "vows" }
+            },
+            new RenameRule
+            {
+                If = new List<string> { "vows" },
+                Then = new List<string> { "vows" }
+            }
+        }
     };
 
     [Fact]

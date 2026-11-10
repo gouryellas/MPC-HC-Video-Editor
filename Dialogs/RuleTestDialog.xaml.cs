@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Media;
 using MpcHcVideoEditor.Services;
@@ -56,21 +56,24 @@ public partial class RuleTestDialog : Window
 
         RuleText.Text = Describe(rule);
 
-        foreach (var example in Examples(rule.Word))
+        foreach (var example in Examples(rule.Conditions.FirstOrDefault() ?? ""))
             _rows.Add(Run(example));
     }
 
     private static string Describe(RenameRule rule)
     {
-        if (rule.Word.Length == 0) return "This rule has no word to look for yet.";
+        if (rule.Conditions.Count == 0) return "This rule has no word to look for yet.";
 
-        var says = new List<string>();
-        if (rule.Category.Length > 0) says.Add($"the category is \"{rule.Category}\"");
-        if (rule.Subject.Length > 0) says.Add($"the subject is \"{rule.Subject}\"");
+        var said = $"If {string.Join(" and ", rule.Conditions)} " +
+                   (rule.Conditions.Count == 1 ? "is" : "are") + " found";
 
-        return says.Count == 0
-            ? $"If \"{rule.Word}\" is found, this rule says nothing yet."
-            : $"If \"{rule.Word}\" is found, then {string.Join(" and ", says)}.";
+        if (rule.ThenOrder.Count > 0)
+            said += $", lead with {string.Join("-", rule.ThenOrder)}";
+
+        if (rule.ElseOrder.Count > 0)
+            said += $"; otherwise lead with {string.Join("-", rule.ElseOrder)}";
+
+        return said + ".";
     }
 
     /// <summary>
@@ -108,10 +111,8 @@ public partial class RuleTestDialog : Window
         // would not have — which is the only question this window is asked.
         var without = FilenameRules.Apply(original, new FilenameVocabulary
         {
-            Categories = _vocabulary.Categories,
-            Subjects = _vocabulary.Subjects,
+            Words = _vocabulary.Words,
             Blacklist = _vocabulary.Blacklist,
-            Conditionals = _vocabulary.Conditionals,
             Rules = _vocabulary.Rules.Where(r => !ReferenceEquals(r, _rule)).ToList()
         });
 

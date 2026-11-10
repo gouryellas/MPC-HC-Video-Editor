@@ -167,10 +167,13 @@ public partial class BulkRenameDialog : Window
 
     private FilenameVocabulary Vocabulary => new()
     {
-        Categories = _settings.Current.RenameCategories,
-        Subjects = _settings.Current.RenameSubjects,
+        Words = _settings.Current.RenameWords
+                    .Concat(_settings.Current.RenameCategories)
+                    .Concat(_settings.Current.RenameSubjects)
+                    .Concat(_settings.Current.RenameConditionals)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
         Blacklist = _settings.Current.RenameBlacklist,
-        Conditionals = _settings.Current.RenameConditionals,
         Rules = _settings.Current.RenameRules
     };
 

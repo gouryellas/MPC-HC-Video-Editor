@@ -131,9 +131,9 @@ public class BulkRenameTests
         // fail silently.
         var vocab = new FilenameVocabulary
         {
-            Categories = new[] { FilenameRules.Clean("Wedding Party") }
+            Words = new[] { FilenameRules.Clean("Wedding Party") }
         };
 
-        Assert.Equal("wedding-party", vocab.Categories.Single());
+        Assert.Equal("wedding-party", vocab.Words.Single());
     }
 }
