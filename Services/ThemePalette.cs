@@ -170,6 +170,52 @@ public sealed record ThemePalette(
     /// </remarks>
     public string OnOperation => "#FFFFFF";
 
+    /// <summary>Text written straight onto <see cref="Accent"/>.</summary>
+    /// <remarks>
+    /// Not <see cref="OnAccent"/>, which is near-white in every theme because
+    /// what wears it is <see cref="PrimaryButton"/> — a deliberately dark
+    /// shade of the accent. The accent itself is a light color in three of the
+    /// five themes, and near-white on it is barely there.
+    ///
+    /// Picked by how bright the accent actually is rather than by
+    /// <see cref="IsLight"/>, which says what the window is, not what this one
+    /// color is: Midnight is a dark theme carrying a pale cyan accent.
+    /// </remarks>
+    public string OnAccentFill => Brightness(Accent) > 0.18 ? "#141414" : "#FFFFFF";
+
+    /// <summary>
+    /// Relative luminance, 0 to 1.
+    /// </summary>
+    /// <remarks>
+    /// The sRGB definition, gamma and all. The flat average of the three
+    /// channels is the obvious shortcut and gets this wrong where it matters:
+    /// it reads a saturated blue as mid-bright and puts black on it.
+    ///
+    /// 0.18 is where black and white are equally readable, so either side of
+    /// it is a real answer rather than a preference.
+    /// </remarks>
+    private static double Brightness(string hex)
+    {
+        if (hex.Length != 7 || hex[0] != '#') return 1;
+
+        static double Channel(string hex, int at)
+        {
+            var value = Convert.ToInt32(hex.Substring(at, 2), 16) / 255.0;
+            return value <= 0.03928 ? value / 12.92 : Math.Pow((value + 0.055) / 1.055, 2.4);
+        }
+
+        try
+        {
+            return 0.2126 * Channel(hex, 1) + 0.7152 * Channel(hex, 3) + 0.0722 * Channel(hex, 5);
+        }
+        catch
+        {
+            // A malformed hex gets the brighter answer, which is the one that
+            // fails safe: dark text on whatever it turns out to be.
+            return 1;
+        }
+    }
+
     /// <summary>Every theme, in the order the settings dialog lists them.</summary>
     /// <remarks>
     /// Computed on access rather than stored in a field. As a field initialized
