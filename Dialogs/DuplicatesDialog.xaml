@@ -41,14 +41,14 @@
                                 <Setter TargetName="Shell" Property="Background"
                                         Value="{DynamicResource ControlHover}"/>
                             </Trigger>
-                            <!-- Dimmed in place rather than recoloured by the
-                                 system: a disabled button should read as the
-                                 same button, unavailable. -->
+                            <!-- Unclickable, and nothing more. A button that
+                                 fades to say it is unavailable is a button
+                                 made hard to read at the moment somebody is
+                                 trying to work out why. The fill is still
+                                 pinned so the system cannot recolour it. -->
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Shell" Property="Background"
                                         Value="{DynamicResource ControlBackground}"/>
-                                <Setter TargetName="Shell" Property="Opacity" Value="0.45"/>
-                                <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
                                 <Setter Property="Cursor" Value="Arrow"/>
                             </Trigger>
                         </ControlTemplate.Triggers>

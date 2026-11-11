@@ -186,8 +186,14 @@
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
+                            <!-- Unclickable, and nothing more. A button that
+                                 fades to say it is unavailable is a button
+                                 made hard to read at the moment somebody is
+                                 trying to work out why it cannot be pressed —
+                                 and these carry colour-coded icons, which is
+                                 the first thing a fade takes away. -->
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.4"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
                             </Trigger>
 
                             <!-- "Show the graphic, not the square." Bound to the
@@ -802,8 +808,10 @@
                                 <Setter TargetName="Chrome" Property="Background"
                                         Value="{DynamicResource ControlBackground}"/>
                             </Trigger>
+                            <!-- Unclickable, and nothing more; the glyph keeps
+                                 its colour. -->
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Glyph" Property="Opacity" Value="0.4"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

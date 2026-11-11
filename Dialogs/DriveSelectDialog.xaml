@@ -38,8 +38,11 @@
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Chrome" Property="Opacity" Value="0.85"/>
                             </Trigger>
+                            <!-- Unclickable, and nothing more. A button that
+                                 fades to say it is unavailable is a button
+                                 made hard to read at the moment somebody is
+                                 trying to work out why. -->
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Chrome" Property="Opacity" Value="0.75"/>
                                 <Setter Property="Cursor" Value="Arrow"/>
                             </Trigger>
                         </ControlTemplate.Triggers>

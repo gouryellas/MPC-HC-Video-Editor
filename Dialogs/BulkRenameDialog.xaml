@@ -45,9 +45,11 @@
                                 <Setter TargetName="Shell" Property="Background"
                                         Value="{DynamicResource ControlHover}"/>
                             </Trigger>
+                            <!-- Unclickable, and nothing more. A button that
+                                 fades to say it is unavailable is a button
+                                 made hard to read at the moment somebody is
+                                 trying to work out why. -->
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Shell" Property="Opacity" Value="0.45"/>
-                                <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
                                 <Setter Property="Cursor" Value="Arrow"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
