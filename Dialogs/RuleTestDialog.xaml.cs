@@ -1,133 +1,109 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows;
-using System.Windows.Media;
 using MpcHcVideoEditor.Services;
 
 namespace MpcHcVideoEditor.Dialogs;
 
-/// <summary>One example and what the rules make of it.</summary>
+/// <summary>One file this rule changes, and what it changes it to.</summary>
 public sealed class RuleTestRow
 {
-    public RuleTestRow(string original, string result, bool fired)
+    public RuleTestRow(string original, string result)
     {
         Original = original;
         Result = result;
-
-        // Green where the rule being tested actually did something, muted
-        // where the name merely got tidied — so a rule that never fires is
-        // obvious rather than looking like it half-worked.
-        ResultBrush = fired
-            ? Application.Current?.TryFindResource("ValueGreen") as Brush ?? Brushes.Gray
-            : Application.Current?.TryFindResource("TextMuted") as Brush ?? Brushes.Gray;
     }
 
     public string Original { get; }
     public string Result { get; }
-    public Brush ResultBrush { get; }
 }
 
 /// <summary>
-/// Shows what a rule does, before a folder is renamed by it.
+/// What one rule does to the files that are actually there.
 /// </summary>
 /// <remarks>
-/// A rule is three dropdowns and a sentence, and the sentence does not say
-/// what the result looks like — whether the supplied words land in front,
-/// what happens to the trigger word, where the rest of the name ends up.
-/// This answers that by running it.
-///
+/// <para>
+/// Against the folder set in the rename window rather than against made-up
+/// names, which could only ever be a guess at what somebody's files look
+/// like — and a guess that always matched the rule, since the examples were
+/// built out of the rule's own trigger word.
+/// </para>
+/// <para>
 /// The whole vocabulary is used, not the one rule in isolation: what matters
 /// is what the renamer will actually do, and that depends on the other lists
-/// as well. The rule under test is only used to decide which examples to
-/// build and whether to call the result a hit.
+/// and rules as well. What is listed is the difference this one rule makes —
+/// every file whose new name would be something else if this rule were not
+/// there. A rule that quietly never fires is the thing worth finding, and it
+/// is invisible in a list of every rename the folder would get.
+/// </para>
+/// <para>
+/// Nothing here is editable and nothing is renamed. It reports.
+/// </para>
 /// </remarks>
 public partial class RuleTestDialog : Window
 {
-    private readonly FilenameVocabulary _vocabulary;
-    private readonly RenameRule _rule;
     private readonly ObservableCollection<RuleTestRow> _rows = new();
 
-    public RuleTestDialog(RenameRule rule, FilenameVocabulary vocabulary)
+    public RuleTestDialog(RenameRule rule, FilenameVocabulary vocabulary,
+                          IReadOnlyList<string> files)
     {
         InitializeComponent();
 
-        _rule = rule;
-        _vocabulary = vocabulary;
         ResultList.ItemsSource = _rows;
+        RuleText.Text = rule.Description;
 
-        RuleText.Text = Describe(rule);
-
-        foreach (var example in Examples(rule.Conditions.FirstOrDefault() ?? ""))
-            _rows.Add(Run(example));
-    }
-
-    private static string Describe(RenameRule rule)
-    {
-        if (rule.Conditions.Count == 0) return "This rule has no word to look for yet.";
-
-        var said = $"If {string.Join(" and ", rule.Conditions)} " +
-                   (rule.Conditions.Count == 1 ? "is" : "are") + " found";
-
-        if (rule.ThenOrder.Count > 0)
-            said += $", lead with {string.Join("-", rule.ThenOrder)}";
-
-        if (rule.ElseOrder.Count > 0)
-            said += $"; otherwise lead with {string.Join("-", rule.ElseOrder)}";
-
-        return said + ".";
+        Run(rule, vocabulary, files);
     }
 
     /// <summary>
-    /// Five names of the shapes files actually arrive in.
+    /// Runs the folder twice — with the rule and without it — and keeps the
+    /// names that come out differently.
     /// </summary>
-    /// <remarks>
-    /// Each one exercises something different: plain, capitals and
-    /// punctuation, a bracketed tag, a name already joined, and a name with
-    /// the trigger word buried rather than leading. The last one is the
-    /// interesting case — it is where a rule and the slot ordering can
-    /// disagree.
-    ///
-    /// Made up on the spot rather than taken from the user's folder, which
-    /// this window has no business reading.
-    /// </remarks>
-    private static IReadOnlyList<string> Examples(string word)
+    private void Run(RenameRule rule, FilenameVocabulary vocabulary,
+                     IReadOnlyList<string> files)
     {
-        var w = word.Length > 0 ? word : "word";
-
-        return new[]
+        if (files.Count == 0)
         {
-            $"{w} highlights.mp4",
-            $"{w.ToUpperInvariant()}  season  opener!!.mkv",
-            $"{w} rematch [take2].mp4",
-            $"sarah_williams {w} interview.mp4",
-            $"2024 season finale {w}.mp4"
+            Summary("No files to check. Choose a folder in the rename window first.");
+            return;
+        }
+
+        var without = new FilenameVocabulary
+        {
+            Words = vocabulary.Words,
+            Blacklist = vocabulary.Blacklist,
+            Rules = vocabulary.Rules.Where(r => !ReferenceEquals(r, rule)).ToList()
         };
-    }
 
-    private RuleTestRow Run(string original)
-    {
-        var result = FilenameRules.Apply(original, _vocabulary);
-
-        // "Fired" means the rule put something there that the plain rules
-        // would not have — which is the only question this window is asked.
-        var without = FilenameRules.Apply(original, new FilenameVocabulary
+        // Grouped by folder, the same way the rename preview groups them: a
+        // clash is only a clash inside one folder.
+        foreach (var folder in files.GroupBy(f => Path.GetDirectoryName(f) ?? ""))
         {
-            Words = _vocabulary.Words,
-            Blacklist = _vocabulary.Blacklist,
-            Rules = _vocabulary.Rules.Where(r => !ReferenceEquals(r, _rule)).ToList()
-        });
+            var names = folder.Select(Path.GetFileName).OfType<string>()
+                              .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                              .ToList();
 
-        return new RuleTestRow(original, result, !string.Equals(result, without, StringComparison.Ordinal));
+            foreach (var name in names)
+            {
+                var withRule = FilenameRules.Apply(name, vocabulary);
+                var plain = FilenameRules.Apply(name, without);
+
+                if (!string.Equals(withRule, plain, StringComparison.Ordinal))
+                    _rows.Add(new RuleTestRow(name, withRule));
+            }
+        }
+
+        Summary(_rows.Count == 0
+            ? $"This rule changes nothing. {Count(files.Count)} checked."
+            : $"{Count(_rows.Count)} changed by this rule, out of {files.Count} checked.");
     }
 
-    private void Own_Changed(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    private static string Count(int n) => n == 1 ? "1 file" : $"{n} files";
+
+    private void Summary(string text)
     {
-        // The typed name sits at the top, replacing the previous attempt
-        // rather than piling up.
-        var typed = OwnBox.Text?.Trim() ?? "";
-
-        while (_rows.Count > 5) _rows.RemoveAt(0);
-        if (typed.Length == 0) return;
-
-        _rows.Insert(0, Run(typed));
+        SummaryText.Text = text;
+        EmptyText.Visibility = _rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
+
 }

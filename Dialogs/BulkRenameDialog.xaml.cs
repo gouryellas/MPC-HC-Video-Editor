@@ -174,7 +174,8 @@ public partial class BulkRenameDialog : Window
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList(),
         Blacklist = _settings.Current.RenameBlacklist,
-        Rules = _settings.Current.RenameRules
+        Rules = _settings.Current.RenameRules,
+        MatchVariants = _settings.Current.RenameMatchVariants
     };
 
     private void SetFolder(string folder)
@@ -193,12 +194,51 @@ public partial class BulkRenameDialog : Window
 
     private void Words_Click(object sender, RoutedEventArgs e)
     {
-        var dlg = new RenameWordsDialog(_settings) { Owner = this };
+        // Handed the folder as a function rather than as a list. The window
+        // stays open while rules are written and tested, and the checkboxes
+        // above can be changed behind it — read when a test is run, it is
+        // whatever the folder is at that moment.
+        var dlg = new RenameWordsDialog(_settings, FilesInFolder) { Owner = this };
         if (dlg.ShowDialog() == true && _rows.Count > 0) Generate_Click(sender, e);
     }
 
     private static readonly string[] VideoExtensions =
         { ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".mpeg", ".mpg", ".ts", ".m4v", ".flv", ".m2ts" };
+
+    /// <summary>
+    /// The files the chosen folder offers, as the two checkboxes filter it.
+    /// </summary>
+    /// <remarks>
+    /// One place, so the rule tester is looking at exactly the files the
+    /// preview would build from. A tester working off a slightly different
+    /// list is worse than no tester.
+    /// </remarks>
+    private IReadOnlyList<string> FilesInFolder()
+    {
+        if (string.IsNullOrWhiteSpace(_folder) || !Directory.Exists(_folder))
+            return Array.Empty<string>();
+
+        try
+        {
+            var search = RecurseCheck.IsChecked == true
+                ? SearchOption.AllDirectories
+                : SearchOption.TopDirectoryOnly;
+
+            var files = Directory.EnumerateFiles(_folder, "*", search);
+
+            if (VideosOnlyCheck.IsChecked == true)
+                files = files.Where(f => VideoExtensions.Contains(
+                    Path.GetExtension(f), StringComparer.OrdinalIgnoreCase));
+
+            return files.ToList();
+        }
+        catch
+        {
+            // A folder that cannot be read is an empty one as far as a
+            // preview is concerned; Generate reports the error properly.
+            return Array.Empty<string>();
+        }
+    }
 
     private void Generate_Click(object sender, RoutedEventArgs e)
     {

@@ -5,38 +5,314 @@ using System.Text;
 namespace MpcHcVideoEditor.Services;
 
 /// <summary>
-/// "If these words are in the name, lead with those words in that order."
+/// Whether two words in a filename mean the same thing.
+/// </summary>
+/// <remarks>
+/// <para>
+/// So that "wave" in the word list also catches waves, waving and waved
+/// without each having to be typed out. Both sides are reduced to a stem and
+/// the stems compared, rather than variants being generated from the list
+/// word — generating only works one way round, and the variant is at least
+/// as likely to be the one in the filename as the one in the list.
+/// </para>
+/// <para>
+/// The stem is not a word and is not meant to be read: bounce, bounces,
+/// bouncing, bounced, bouncy and bounciest all come down to "bounc", which
+/// is the whole point of it.
+/// </para>
+/// </remarks>
+public sealed class WordMatch : IEqualityComparer<string>
+{
+    public static readonly WordMatch Exact = new(false);
+    public static readonly WordMatch Variants = new(true);
+
+    public static WordMatch For(bool variants) => variants ? Variants : Exact;
+
+    private WordMatch(bool variants) => _variants = variants;
+
+    private readonly bool _variants;
+
+    public bool Equals(string? a, string? b)
+    {
+        if (a is null || b is null) return a is null && b is null;
+        if (string.Equals(a, b, StringComparison.OrdinalIgnoreCase)) return true;
+
+        return _variants && Stem(a) == Stem(b);
+    }
+
+    public int GetHashCode(string word) =>
+        (_variants ? Stem(word) : word.ToLowerInvariant()).GetHashCode();
+
+    /// <summary>The shortest a stem is allowed to get.</summary>
+    /// <remarks>
+    /// Below this a suffix is left alone. Taking the s off "bus" or the ing
+    /// off "using" leaves something that will collide with anything.
+    /// </remarks>
+    private const int Floor = 3;
+
+    /// <summary>
+    /// A word with its inflections taken off.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Deliberately not a full stemmer. The published ones are built for
+    /// searching prose and are aggressive enough to fold unrelated words
+    /// together; this handles the endings that actually turn up in
+    /// filenames — plural, third person, participle, past, comparative,
+    /// superlative — and nothing else.
+    /// </para>
+    /// <para>
+    /// Irregulars are not covered. Ran will not match run and swam will not
+    /// match swim: catching those needs a dictionary, and a dictionary that
+    /// is nearly complete is worse than none, because the gaps are
+    /// invisible.
+    /// </para>
+    /// </remarks>
+    internal static string Stem(string word)
+    {
+        var w = word.ToLowerInvariant();
+        if (w.Length <= Floor) return w;
+
+        // Until nothing more comes off. One pass is not enough and, worse,
+        // is not symmetric: "rendered" loses its -ed and stops at "render",
+        // while "render" loses its -er and reaches "rend", so the two no
+        // longer match each other. A word has to arrive at the same place
+        // whichever end of its family it is written from.
+        for (int pass = 0; pass < 4; pass++)
+        {
+            var shorter = Shorten(w);
+            if (shorter == w) break;
+
+            w = shorter;
+        }
+
+        // Running doubles its n and stopped doubles its p. Undone before
+        // the vowel below, so "runn" is "run" and not "runn" minus nothing.
+        if (w.Length > Floor && w[^1] == w[^2] && !IsVowel(w[^1])) w = w[..^1];
+
+        // One trailing e, y or i, and only one. It is what brings bounce,
+        // bouncy and the bounci- of bounciest together. Cascading instead
+        // would take movie down to mov and fold it into move.
+        if (w.Length > Floor && (w[^1] is 'e' or 'y' or 'i')) w = w[..^1];
+
+        return w;
+    }
+
+    /// <summary>Takes off whichever one ending the word has, if any.</summary>
+    private static string Shorten(string w)
+    {
+        // Longest endings first: "bounciest" is -iest, not -est of "bounci"
+        // followed by nothing, and "parties" is -ies rather than -s.
+        if (Cut(w, "iest", out var cut)) return cut;
+        if (Cut(w, "ies", out cut)) return cut;
+
+        // -es only where it had to be: after a hiss, where a bare -s cannot
+        // be pronounced. Boxes, dishes, watches, classes.
+        if (w.EndsWith("es", StringComparison.Ordinal)
+            && w.Length > Floor + 2
+            && (w[..^2].EndsWith("s", StringComparison.Ordinal)
+                || w[..^2].EndsWith("x", StringComparison.Ordinal)
+                || w[..^2].EndsWith("z", StringComparison.Ordinal)
+                || w[..^2].EndsWith("ch", StringComparison.Ordinal)
+                || w[..^2].EndsWith("sh", StringComparison.Ordinal)))
+        {
+            return w[..^2];
+        }
+
+        if (Cut(w, "ing", out cut)) return cut;
+        if (Cut(w, "est", out cut)) return cut;
+        if (Cut(w, "ed", out cut)) return cut;
+        if (Cut(w, "er", out cut)) return cut;
+
+        // A bare -s last, and never off a word that ends in one already:
+        // pass is not the plural of pa.
+        if (w.EndsWith("s", StringComparison.Ordinal)
+            && !w.EndsWith("ss", StringComparison.Ordinal)
+            && w.Length > Floor)
+        {
+            return w[..^1];
+        }
+
+        return w;
+    }
+
+    private static bool Cut(string w, string ending, out string cut)
+    {
+        cut = w;
+
+        if (!w.EndsWith(ending, StringComparison.Ordinal)) return false;
+        if (w.Length - ending.Length < Floor) return false;
+
+        cut = w[..^ending.Length];
+        return true;
+    }
+
+    private static bool IsVowel(char c) => c is 'a' or 'e' or 'i' or 'o' or 'u';
+}
+
+/// <summary>
+/// The six things a line of a rule can say.
+/// </summary>
+/// <remarks>
+/// Written out rather than an enum because they are also the entries in a
+/// dropdown, and a enum with a separate table of display names is two places
+/// to change and one of them gets forgotten.
+/// </remarks>
+public static class RuleActions
+{
+    public const string IfFound = "if these are found";
+    public const string IfNotFound = "if these are NOT found";
+    public const string Order = "the order is";
+    public const string Delete = "delete these";
+    public const string Change = "change these";
+    public const string ChangeTo = "change to";
+
+    public static readonly IReadOnlyList<string> All = new[]
+    {
+        IfFound, IfNotFound, Order, Delete, Change, ChangeTo
+    };
+
+    public static bool Is(string? action, string what) =>
+        string.Equals(action, what, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Whether this line asks a question rather than doing something.</summary>
+    public static bool IsCondition(string? action) =>
+        Is(action, IfFound) || Is(action, IfNotFound);
+}
+
+/// <summary>
+/// One line of a rule: an action, and up to three words for it to act on.
+/// </summary>
+public sealed class RuleLine
+{
+    public string Action { get; set; } = RuleActions.IfFound;
+
+    /// <summary>Up to three words. Empties are gaps, not words.</summary>
+    public List<string> Words { get; set; } = new();
+
+    /// <summary>
+    /// What sits between the words: "and" or "or", one for each gap. Read
+    /// only on a condition — in an ordering or a deletion there is nothing
+    /// for a joiner to mean.
+    /// </summary>
+    public List<string> Joins { get; set; } = new();
+
+    public RuleLine() { }
+
+    public RuleLine(string action, IEnumerable<string>? words = null,
+                    IEnumerable<string>? joins = null)
+    {
+        Action = action;
+        Words = words?.ToList() ?? new List<string>();
+        Joins = joins?.ToList() ?? new List<string>();
+    }
+
+    /// <summary>Just the words, without the gaps left by unused slots.</summary>
+    public IReadOnlyList<string> Used => RenameRule.Used(Words);
+
+    /// <summary>One slot by position, or null if it was left blank.</summary>
+    public string? Slot(int index) =>
+        index >= 0 && index < Words.Count && !string.IsNullOrWhiteSpace(Words[index])
+            ? Words[index].Trim()
+            : null;
+
+    /// <summary>
+    /// The condition as it is read: each word after the first carrying the
+    /// joiner written in front of it.
+    /// </summary>
+    /// <remarks>
+    /// Paired against the raw slots rather than the used ones, so a gap left
+    /// in the middle does not shift the joiners along. The joiner before
+    /// slot two is the first one whether or not slot one was filled in.
+    /// </remarks>
+    public IReadOnlyList<(string Word, bool Or)> Terms
+    {
+        get
+        {
+            var terms = new List<(string, bool)>();
+
+            for (int i = 0; i < Words.Count && i < 3; i++)
+            {
+                if (string.IsNullOrWhiteSpace(Words[i])) continue;
+
+                var joiner = i > 0 && i - 1 < Joins.Count
+                             && string.Equals(Joins[i - 1], "or", StringComparison.OrdinalIgnoreCase);
+
+                terms.Add((Words[i].Trim(), terms.Count > 0 && joiner));
+            }
+
+            return terms;
+        }
+    }
+
+    /// <summary>
+    /// Whether this condition is satisfied by the words of a filename.
+    /// </summary>
+    public bool Holds(IReadOnlyCollection<string> words, WordMatch match)
+    {
+        // Folded left to right, with no precedence: "a and b or c" is read
+        // as "(a and b) or c". Giving "and" the tighter grip would be the
+        // arithmetic convention, but nobody writing three dropdowns is
+        // thinking in boolean algebra — they are reading a sentence.
+        var terms = Terms;
+        if (terms.Count == 0) return true;
+
+        var found = words.Contains(terms[0].Word, match);
+
+        for (int i = 1; i < terms.Count; i++)
+        {
+            var present = words.Contains(terms[i].Word, match);
+            found = terms[i].Or ? found || present : found && present;
+        }
+
+        return RuleActions.Is(Action, RuleActions.IfNotFound) ? !found : found;
+    }
+}
+
+/// <summary>
+/// "When the name says this, do that to it."
 /// </summary>
 /// <remarks>
 /// <para>
 /// One word list cannot say how its words relate. A rule is where that is
-/// written: a condition of up to three words that must all be present, and
-/// an ordering of up to three words to put at the front of the name when
-/// they are.
+/// written, as lines: the conditions it asks about the name, and what to do
+/// when they all hold — put words in a given order, delete them, or swap one
+/// for another.
 /// </para>
 /// <para>
-/// A word in the ordering that is not in the filename is added — which is
-/// the point of it. A clip named after a team can be made to say which sport
-/// and which league it belongs to without either word ever having been typed
+/// A word in an ordering that is not in the filename is added — which is the
+/// point of it. A clip named after a team can be made to say which sport and
+/// which league it belongs to without either word ever having been typed
 /// into the name.
-/// </para>
-/// <para>
-/// The otherwise ordering is used when the condition does not hold. A rule
-/// that has one therefore always applies, which ends the matter; a rule
-/// without one steps aside and lets the next rule be tried.
 /// </para>
 /// </remarks>
 public sealed class RenameRule
 {
     /// <summary>
-    /// Words that must all be present. Up to three; empties are ignored.
+    /// What the person who wrote it calls it, or empty.
     /// </summary>
+    /// <remarks>
+    /// Free text, and never read by the renamer. A list of rules read back
+    /// as sentences is accurate and still hard to find anything in once it
+    /// is twenty long; a name is how somebody points at the one they meant.
+    /// </remarks>
+    public string Name { get; set; } = "";
+
+    /// <summary>The rule, as lines read top to bottom.</summary>
+    public List<RuleLine> Lines { get; set; } = new();
+
+    /// <summary>
+    /// The shape rules were written in before there were lines.
+    /// </summary>
+    /// <remarks>
+    /// Still settable, and still what the tests are written against, because
+    /// a saved rule in somebody's settings file is in this shape and must
+    /// keep working. <see cref="Upgrade"/> turns them into lines; nothing
+    /// below this point reads them.
+    /// </remarks>
     public List<string> If { get; set; } = new();
-
-    /// <summary>The order to lead with when the condition holds.</summary>
+    public List<string> Joins { get; set; } = new();
     public List<string> Then { get; set; } = new();
-
-    /// <summary>The order to lead with when it does not, if any.</summary>
     public List<string> Else { get; set; } = new();
 
     /// <summary>Just the words, without the gaps left by unused slots.</summary>
@@ -46,29 +322,200 @@ public sealed class RenameRule
         .Select(w => w.Trim())
         .ToList();
 
-    public IReadOnlyList<string> Conditions => Used(If);
-    public IReadOnlyList<string> ThenOrder => Used(Then);
-    public IReadOnlyList<string> ElseOrder => Used(Else);
+    private IEnumerable<RuleLine> Conditionals =>
+        Lines.Where(l => RuleActions.IsCondition(l.Action) && l.Terms.Count > 0);
+
+    private IEnumerable<RuleLine> Doings =>
+        Lines.Where(l => !RuleActions.IsCondition(l.Action) && l.Used.Count > 0);
+
+    /// <summary>Every word the conditions look for, in the order written.</summary>
+    public IReadOnlyList<string> Conditions =>
+        Conditionals.SelectMany(l => l.Used).ToList();
 
     /// <summary>
-    /// Whether this rule says anything. A condition with no ordering behind
-    /// it, either way, is a sentence that stops halfway.
+    /// Whether this rule says anything. A condition with nothing behind it
+    /// is a sentence that stops halfway, and so is an action with nothing to
+    /// say when it applies.
     /// </summary>
-    public bool IsUsable =>
-        Conditions.Count > 0 && (ThenOrder.Count > 0 || ElseOrder.Count > 0);
+    public bool IsUsable => Conditionals.Any() && Doings.Any();
 
     /// <summary>
-    /// The ordering this rule calls for, or null if it has nothing to say
-    /// about this name.
+    /// Whether every condition in this rule holds. Several conditions are
+    /// read as all of them having to be true; "or" belongs inside one line.
     /// </summary>
-    public IReadOnlyList<string>? OrderFor(IReadOnlyCollection<string> words)
+    public bool Holds(IReadOnlyCollection<string> words, WordMatch match) =>
+        IsUsable && Conditionals.All(l => l.Holds(words, match));
+
+    /// <summary>
+    /// The first ordering this rule gives, or null if it gives none.
+    /// </summary>
+    public IReadOnlyList<string>? Order =>
+        Doings.FirstOrDefault(l => RuleActions.Is(l.Action, RuleActions.Order))?.Used;
+
+    /// <summary>
+    /// Carries out the deletions and the swaps, in the order they are
+    /// written.
+    /// </summary>
+    /// <remarks>
+    /// A "change these" line is paired with the next "change to" line below
+    /// it, slot against slot: the word in the first box becomes the word in
+    /// the first box underneath. Pairing by position rather than by
+    /// compacting both lists is what makes the two rows line up on screen
+    /// mean what they look like they mean.
+    /// </remarks>
+    public void Edit(List<string> words, WordMatch match)
     {
-        if (!IsUsable) return null;
+        for (int i = 0; i < Lines.Count; i++)
+        {
+            var line = Lines[i];
 
-        var holds = Conditions.All(c => words.Contains(c, StringComparer.OrdinalIgnoreCase));
+            if (RuleActions.Is(line.Action, RuleActions.Delete))
+            {
+                foreach (var word in line.Used)
+                    words.RemoveAll(w => match.Equals(w, word));
+            }
+            else if (RuleActions.Is(line.Action, RuleActions.Change))
+            {
+                var into = Lines.Skip(i + 1)
+                    .FirstOrDefault(l => RuleActions.Is(l.Action, RuleActions.ChangeTo));
 
-        if (holds) return ThenOrder.Count > 0 ? ThenOrder : null;
-        return ElseOrder.Count > 0 ? ElseOrder : null;
+                if (into is null) continue;
+
+                for (int slot = 0; slot < 3; slot++)
+                {
+                    var from = line.Slot(slot);
+                    var to = into.Slot(slot);
+
+                    // A blank on either side is a pair that was never
+                    // finished. Treating it as a deletion would be a second
+                    // way to spell "delete these", and a surprising one.
+                    if (from is null || to is null) continue;
+
+                    // The replacement is written as the rule spells it, not
+                    // as the filename did: swapping "hilites" for
+                    // "highlights" should give the word in the rule, even
+                    // when what was found was "hiliting".
+                    for (int w = 0; w < words.Count; w++)
+                        if (match.Equals(words[w], from)) words[w] = to;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// The rule read back as a sentence.
+    /// </summary>
+    /// <remarks>
+    /// Built from the lines rather than written once per action, so a line
+    /// added to the dropdown and forgotten here still gets said — badly,
+    /// perhaps, but said.
+    ///
+    /// Here rather than in the window because two places show it now: the
+    /// list of rules already written, and the tester.
+    /// </remarks>
+    public string Description
+    {
+        get
+        {
+            if (Conditions.Count == 0) return "This rule has no word to look for yet.";
+
+            var said = new List<string>();
+
+            for (int i = 0; i < Lines.Count; i++)
+            {
+                var line = Lines[i];
+                var words = line.Used;
+                if (words.Count == 0) continue;
+
+                if (RuleActions.IsCondition(line.Action))
+                {
+                    // Read back with the joiners that were actually chosen: a
+                    // rule saying "or" and described as "and" is worse than no
+                    // description at all.
+                    var terms = line.Terms;
+                    var condition = terms[0].Word;
+
+                    for (int t = 1; t < terms.Count; t++)
+                        condition += (terms[t].Or ? " or " : " and ") + terms[t].Word;
+
+                    var verb = terms.Count == 1 ? " is " : " are ";
+                    var how = RuleActions.Is(line.Action, RuleActions.IfNotFound)
+                        ? "not found" : "found";
+
+                    said.Add((said.Count == 0 ? "If " : "and ") + condition + verb + how);
+                }
+                else if (RuleActions.Is(line.Action, RuleActions.Order))
+                {
+                    said.Add("lead with " + string.Join("-", words));
+                }
+                else if (RuleActions.Is(line.Action, RuleActions.Delete))
+                {
+                    said.Add("delete " + string.Join(", ", words));
+                }
+                else if (RuleActions.Is(line.Action, RuleActions.Change))
+                {
+                    var into = Lines.Skip(i + 1)
+                        .FirstOrDefault(l => RuleActions.Is(l.Action, RuleActions.ChangeTo));
+
+                    var pairs = new List<string>();
+                    for (int slot = 0; slot < 3; slot++)
+                    {
+                        var from = line.Slot(slot);
+                        var to = into?.Slot(slot);
+                        if (from is not null && to is not null) pairs.Add($"{from} to {to}");
+                    }
+
+                    if (pairs.Count > 0) said.Add("change " + string.Join(", ", pairs));
+                }
+            }
+
+            return string.Join(", ", said) + ".";
+        }
+    }
+
+    /// <summary>
+    /// Brings rules written in the old shape up to lines.
+    /// </summary>
+    /// <remarks>
+    /// A rule carrying an "otherwise" ordering becomes two rules, because
+    /// the otherwise is now said as its own rule asking the opposite
+    /// question. One rule cannot hold both halves: the conditions of a rule
+    /// all have to hold at once, and "found" and "not found" never do.
+    /// </remarks>
+    public static List<RenameRule> Upgrade(IEnumerable<RenameRule>? rules)
+    {
+        var upgraded = new List<RenameRule>();
+
+        foreach (var rule in rules ?? Array.Empty<RenameRule>())
+        {
+            if (rule.Lines.Count > 0) { upgraded.Add(rule); continue; }
+
+            if (Used(rule.Then).Count > 0)
+            {
+                upgraded.Add(new RenameRule
+                {
+                    Lines =
+                    {
+                        new RuleLine(RuleActions.IfFound, rule.If, rule.Joins),
+                        new RuleLine(RuleActions.Order, rule.Then)
+                    }
+                });
+            }
+
+            if (Used(rule.Else).Count > 0)
+            {
+                upgraded.Add(new RenameRule
+                {
+                    Lines =
+                    {
+                        new RuleLine(RuleActions.IfNotFound, rule.If, rule.Joins),
+                        new RuleLine(RuleActions.Order, rule.Else)
+                    }
+                });
+            }
+        }
+
+        return upgraded;
     }
 }
 
@@ -105,7 +552,36 @@ public sealed class FilenameVocabulary
     /// </remarks>
     public IReadOnlyCollection<string> Blacklist { get; init; } = Array.Empty<string>();
 
-    public IReadOnlyList<RenameRule> Rules { get; init; } = Array.Empty<RenameRule>();
+    /// <summary>
+    /// The rules, always as lines.
+    /// </summary>
+    /// <remarks>
+    /// Brought up to the current shape on the way in rather than at every
+    /// place that reads them, so a rule saved before lines existed behaves
+    /// the same as one written today and nothing downstream has to know
+    /// there were ever two shapes.
+    /// </remarks>
+    public IReadOnlyList<RenameRule> Rules
+    {
+        get => _rules;
+        init => _rules = RenameRule.Upgrade(value);
+    }
+
+    private readonly IReadOnlyList<RenameRule> _rules = Array.Empty<RenameRule>();
+
+    /// <summary>
+    /// Whether a word in a list also stands for its inflections.
+    /// </summary>
+    /// <remarks>
+    /// On, because the alternative is typing wave, waves, waving and waved
+    /// into a box four times and still missing one. Off is there for anyone
+    /// who hits a pair of words it folds together wrongly — it is a
+    /// heuristic, and <see cref="WordMatch"/> says where its edges are.
+    /// </remarks>
+    public bool MatchVariants { get; init; } = true;
+
+    /// <summary>How two words are compared, everywhere in the renamer.</summary>
+    public WordMatch Match => WordMatch.For(MatchVariants);
 
     public static readonly FilenameVocabulary Empty = new();
 
@@ -307,19 +783,38 @@ public static class FilenameRules
 
         // Struck out first, so a blacklisted word cannot take a slot or
         // push a real word into the description.
-        if (vocabulary.Blacklist.Count > 0)
-            words.RemoveAll(w => vocabulary.Blacklist.Contains(w, StringComparer.OrdinalIgnoreCase));
+        //
+        // The conditions are asked about the name as it arrived, though —
+        // see below — so a word being blacklisted does not also make it
+        // invisible to the rules.
+        var asFound = new List<string>(words);
+        var match = vocabulary.Match;
 
-        // The first rule with something to say decides the order of what
-        // leads the name. Tried top to bottom, so the order they are written
-        // in is the order they are tried — and a rule carrying an otherwise
-        // always has something to say, which ends the search.
+        if (vocabulary.Blacklist.Count > 0)
+            words.RemoveAll(w => vocabulary.Blacklist.Contains(w, match));
+
+        // Every rule that holds gets to delete and to swap, top to bottom,
+        // each seeing what the one above it left behind. The ordering is the
+        // exception: the first rule that gives one decides, because a name
+        // can only lead one way and the rule written first is the one meant
+        // to win.
+        //
+        // Conditions are asked of the name as it arrived, not of what is
+        // left after the blacklist. Otherwise "if temp is NOT found" is
+        // always true for anybody who also blacklisted "temp" — which is
+        // exactly the person who would write that rule — and it is true
+        // silently, which is the worst way for a rule to be wrong. Edits are
+        // applied to both lists so a swap the rule above made is what the
+        // rule below asks about.
         IReadOnlyList<string>? lead = null;
 
         foreach (var rule in vocabulary.Rules)
         {
-            lead = rule.OrderFor(words);
-            if (lead is not null) break;
+            if (!rule.Holds(asFound, match)) continue;
+
+            rule.Edit(words, match);
+            rule.Edit(asFound, match);
+            lead ??= rule.Order;
         }
 
         var leading = new List<string>();
@@ -330,10 +825,13 @@ public static class FilenameRules
             // the rule names but the name does not have is added: that is
             // what lets a clip say which sport it belongs to without the
             // word ever having been typed into it.
+            // Taken out wherever it was found and put back as the rule
+            // spells it, so a name carrying "waves" leads with the "wave"
+            // the rule names rather than with both.
             foreach (var word in lead)
             {
-                words.RemoveAll(w => w.Equals(word, StringComparison.OrdinalIgnoreCase));
-                if (!leading.Contains(word, StringComparer.OrdinalIgnoreCase)) leading.Add(word);
+                words.RemoveAll(w => match.Equals(w, word));
+                if (!leading.Contains(word, match)) leading.Add(word);
             }
         }
 

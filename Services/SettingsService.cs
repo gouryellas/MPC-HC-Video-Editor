@@ -454,6 +454,16 @@ public class AppSettings
     public List<RenameRule> RenameRules { get; set; } = new();
 
     /// <summary>
+    /// Whether a word in those lists also stands for its inflections.
+    /// </summary>
+    /// <remarks>
+    /// On, so "wave" is enough and waves, waving and waved do not each have
+    /// to be typed out. See <see cref="WordMatch"/> for what it does and
+    /// does not catch.
+    /// </remarks>
+    public bool RenameMatchVariants { get; set; } = true;
+
+    /// <summary>
     /// The three lists this one replaced, read once and folded in.
     /// </summary>
     /// <remarks>
