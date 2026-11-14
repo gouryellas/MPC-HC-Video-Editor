@@ -124,16 +124,20 @@
 
         <TextBlock Grid.Row="0" Style="{StaticResource Heading}" Text="YOUR TOOLBAR"/>
 
-        <!-- The preview is the width the window is allowed to shrink to, so a
-             row that fits here fits at any size. A row too wide for it wraps,
-             which is exactly what the real toolbar does. -->
+        <!-- The same width as the list below it, so the two boxes read as
+             one pair rather than two sizes.
+
+             The rows inside are still held to the width the window can
+             always count on, which is what keeps the wrapping truthful: a
+             row too wide for the real toolbar wraps here too, and the
+             space to the right of it is the box being square with the
+             list, not toolbar it can use. -->
         <Border Grid.Row="1" x:Name="PreviewFrame"
                 Background="{DynamicResource PanelBackground}"
                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                CornerRadius="4" Padding="6" Margin="0,0,0,4"
-                HorizontalAlignment="Left">
+                CornerRadius="4" Padding="6" Margin="0,0,0,4">
             <Grid>
-            <ItemsControl x:Name="PreviewRows">
+            <ItemsControl x:Name="PreviewRows" HorizontalAlignment="Left">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <!-- A row. The border is what lights up while something

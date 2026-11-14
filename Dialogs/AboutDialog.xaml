@@ -200,7 +200,7 @@
             <!-- IsCancel closes the dialog by itself; Esc and Enter both land
                  here, which is the whole interaction this window needs. -->
             <Button Content="Close" Width="90" IsDefault="True" IsCancel="True"
-                    Background="{DynamicResource PrimaryButton}" BorderBrush="{DynamicResource PrimaryButtonBorder}" Foreground="{DynamicResource OnAccent}"/>
+                    Style="{StaticResource CloseButton}"/>
         </StackPanel>
     </Grid>
 </Window>

@@ -41,17 +41,52 @@ public sealed class RuleSlot : INotifyPropertyChanged
     public static readonly ObservableCollection<string> JoinChoices = new() { Blank, "and", "or" };
 
     /// <summary>
-    /// What a line can do. No blank among them: a line always does
-    /// something, and one that did nothing would be a row to read past
-    /// rather than a row to delete.
+    /// The six phrases a condition can open with, blank first.
     /// </summary>
-    public static readonly ObservableCollection<string> ActionChoices = new(RuleActions.All);
+    /// <remarks>
+    /// A row arrives with nothing chosen and shows only this dropdown.
+    /// The word slots are no use until the phrase has said what the words
+    /// are for.
+    /// </remarks>
+    public static readonly ObservableCollection<string> ActionChoices =
+        new(new[] { Blank }.Concat(RuleActions.All));
 
-    public RuleSlot(string? word, ObservableCollection<string>? choices = null)
+    public RuleSlot(string? word, ObservableCollection<string>? choices = null,
+                    bool isOperator = false)
     {
         _word = string.IsNullOrWhiteSpace(word) ? Blank : word.Trim();
         Choices = choices ?? new ObservableCollection<string> { Blank };
+        IsOperator = isOperator;
     }
+
+    /// <summary>
+    /// Whether this dropdown holds an and/or rather than a word.
+    /// </summary>
+    /// <remarks>
+    /// A row is a run of dropdowns of two kinds, and the only thing that
+    /// differs between them on screen is how wide they are: an "and" needs
+    /// a fraction of the room a word does.
+    /// </remarks>
+    public bool IsOperator { get; }
+
+    public double Width => IsOperator ? 76 : 150;
+
+    /// <summary>What a right-click on this slot offers to take away.</summary>
+    /// <remarks>
+    /// Named for the kind of slot it is rather than "Delete". A row is
+    /// several boxes side by side, and a menu that says only "delete" does
+    /// not say which of them is about to go.
+    /// </remarks>
+    public string DeleteLabel => IsOperator ? "Delete this operator" : "Delete this word";
+
+    /// <summary>
+    /// An operator is still a dropdown — it offers "and" and "or" and
+    /// nothing else — where a word is typed. One template holds both
+    /// controls and these pick which is on screen.
+    /// </summary>
+    public Visibility WordBoxVisibility => IsOperator ? Visibility.Collapsed : Visibility.Visible;
+
+    public Visibility PickerVisibility => IsOperator ? Visibility.Visible : Visibility.Collapsed;
 
     private string _word;
 
@@ -81,75 +116,311 @@ public sealed class RuleSlot : INotifyPropertyChanged
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
-/// <summary>One line of a rule, as the window edits it.</summary>
+/// <summary>
+/// One line of a rule: a phrase, and the run of dropdowns after it.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Not a fixed shape of three words and two gaps. Each of the three add
+/// buttons puts exactly one dropdown on the end of this row and nothing
+/// else — a phrase, an operator, or a word — so what a row contains is
+/// whatever was asked for, in the order it was asked for.
+/// </para>
+/// <para>
+/// The engine still reads a line as words with joiners between them, which
+/// <see cref="Collect"/> works out from the run: the words in order, and
+/// each word's joiner being the operator that happens to sit in front of
+/// it.
+/// </para>
+/// </remarks>
 public sealed class RuleLineRow : INotifyPropertyChanged
 {
+    /// <summary>The most words the engine reads from one line.</summary>
+    public const int MostWords = 3;
+
     public RuleLineRow(RuleLine line)
     {
-        var action = RuleActions.All.FirstOrDefault(a => RuleActions.Is(a, line.Action))
-                     ?? RuleActions.IfFound;
+        // A blank phrase is kept blank. It is how a row that has just been
+        // added says it is waiting to be told what it does.
+        var action = string.IsNullOrWhiteSpace(line.Action)
+            ? RuleSlot.Blank
+            : RuleActions.All.FirstOrDefault(a => RuleActions.Is(a, line.Action))
+              ?? RuleActions.IfFound;
 
         Action = new RuleSlot(action, RuleSlot.ActionChoices);
-        Words = Slots(line.Words, 3);
-        Joins = Slots(line.Joins, 2, RuleSlot.JoinChoices);
+        Watch(Action);
 
-        // What a line looks like follows from what it does: a condition has
-        // joiners in its gaps, an ordering has arrows, and the rest have
-        // nothing at all.
-        Action.PropertyChanged += (_, _) =>
+        Parts.CollectionChanged += (_, e) =>
         {
-            OnPropertyChanged(nameof(IsCondition));
-            OnPropertyChanged(nameof(JoinVisibility));
-            OnPropertyChanged(nameof(ArrowVisibility));
+            foreach (var part in e.NewItems?.OfType<RuleSlot>() ?? Enumerable.Empty<RuleSlot>())
+                Watch(part);
+
+            Bubble();
         };
 
-        // Anything at all moving in this line is worth telling the rule
-        // about: which of its buttons are live depends on whether a single
-        // slot anywhere in it has been filled.
-        foreach (var slot in Words.Concat(Joins).Append(Action))
-            slot.PropertyChanged += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
+        Rebuild(line);
     }
 
-    /// <summary>Raised when any slot in this line changes.</summary>
-    public event EventHandler? Changed;
-
+    /// <summary>The phrase this line opens with.</summary>
     public RuleSlot Action { get; }
 
-    /// <summary>
-    /// Three slots, always — a line of one word is a line of three with two
-    /// left empty, and a row of fixed shape is far easier to read down a
-    /// list than one that changes width with what is in it.
-    /// </summary>
-    public IReadOnlyList<RuleSlot> Words { get; }
+    private int _number;
 
-    /// <summary>Two gaps, read only when the line is a condition.</summary>
-    public IReadOnlyList<RuleSlot> Joins { get; }
+    /// <summary>
+    /// Which line of the rule this is, counting from one.
+    /// </summary>
+    /// <remarks>
+    /// Kept by the rule rather than worked out here, because it changes
+    /// when a line above is deleted. It is on screen so that the buttons
+    /// under the box can name the line they are about to act on.
+    /// </remarks>
+    public int Number
+    {
+        get => _number;
+        set
+        {
+            if (_number == value) return;
+            _number = value;
+            OnPropertyChanged();
+        }
+    }
+
+    private bool _isActive;
+
+    /// <summary>
+    /// Whether this is the line being worked on.
+    /// </summary>
+    /// <remarks>
+    /// The three add buttons act on one line, and until this existed that
+    /// line was always the last one — so adding a word while part-way up a
+    /// rule put it somewhere else entirely, with nothing on screen having
+    /// said where it would go.
+    /// </remarks>
+    public bool IsActive
+    {
+        get => _isActive;
+        set
+        {
+            if (_isActive == value) return;
+            _isActive = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
+    /// Everything after the phrase, in the order it was put there.
+    /// </summary>
+    public ObservableCollection<RuleSlot> Parts { get; } = new();
+
+    public IEnumerable<RuleSlot> WordParts => Parts.Where(p => !p.IsOperator);
+
+    /// <summary>Lays out the run that a saved line amounts to.</summary>
+    private void Rebuild(RuleLine line)
+    {
+        for (int i = 0; i < MostWords; i++)
+        {
+            var word = i < line.Words.Count ? line.Words[i] : RuleSlot.Blank;
+            if (string.IsNullOrWhiteSpace(word)) continue;
+
+            // The joiner that was saved in front of this word, if any.
+            // Without this a condition written as "a or b" would reopen
+            // looking like "a b", the or still in force and nowhere on
+            // screen.
+            var join = i >= 1 && i - 1 < line.Joins.Count ? line.Joins[i - 1] : RuleSlot.Blank;
+
+            if (Parts.Count > 0 && !string.IsNullOrWhiteSpace(join)) Parts.Add(Operator(join));
+
+            Parts.Add(Word(word));
+        }
+
+        // A phrase that governs words always has at least one after it —
+        // it has to. "Delete the found words" governs none, and the empty
+        // dropdown this used to put beside it was a slot that could not be
+        // filled in, could not be read back, and sat there asking to be.
+        if (Parts.Count == 0 && TakesWords) Parts.Add(Word(RuleSlot.Blank));
+    }
+
+    private static RuleSlot Word(string word) => new(word);
+
+    private static RuleSlot Operator(string join) =>
+        new(join, RuleSlot.JoinChoices, isOperator: true);
+
+    /// <summary>Raised when anything in this line changes.</summary>
+    /// <remarks>
+    /// There is no "row emptied itself" event any more. A row that has
+    /// lost its phrase or its words is unfinished, not gone — only the ✕
+    /// at its end takes a row, so there is exactly one gesture that can.
+    /// </remarks>
+    public event EventHandler? Changed;
+
+    private bool _settling;
+
+    private void Watch(RuleSlot slot) =>
+        slot.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(RuleSlot.Word)) Chose(slot);
+            else Bubble();
+        };
+
+    /// <summary>
+    /// Takes a dropdown being blanked as the removal it looks like.
+    /// </summary>
+    /// <remarks>
+    /// A dropdown set back to nothing is a dropdown somebody is finished
+    /// with, so it goes. Blanking the phrase takes the whole line, since
+    /// nothing after it has anything left to belong to; blanking the last
+    /// word does the same, since a phrase with nothing to act on says
+    /// nothing either.
+    /// </remarks>
+    private void Chose(RuleSlot slot)
+    {
+        if (_settling) { Bubble(); return; }
+
+        if (ReferenceEquals(slot, Action))
+        {
+            // Blanked, the row stays — holding its words, waiting to be
+            // told what it does again. Only the ✕ takes a whole row, so
+            // there is exactly one gesture that can.
+            if (!Action.IsSet)
+            {
+                Bubble();
+                return;
+            }
+
+            if (!TakesWords)
+            {
+                // A phrase that acts on words it does not name has nothing
+                // after it at all — and if it was changed to from one that
+                // did, the words that belonged to the old phrase go with
+                // it rather than sitting there meaning nothing.
+                _settling = true;
+                try { Parts.Clear(); }
+                finally { _settling = false; }
+            }
+            else if (Parts.Count == 0)
+            {
+                // Every other phrase brings out the word that has to
+                // follow it.
+                Parts.Add(Word(RuleSlot.Blank));
+            }
+
+            Bubble();
+            return;
+        }
+
+        // A word is typed now, and typing passes through empty on the way
+        // to every correction — backspacing out a typo must not make the
+        // box vanish mid-edit. A word slot goes when it is asked to go:
+        // the right-click menu, or the ✕ on its row.
+        if (!slot.IsOperator || slot.IsSet) { Bubble(); return; }
+
+        _settling = true;
+        try { Parts.Remove(slot); }
+        finally { _settling = false; }
+
+        // An operator left hanging at either end, or doubled up because
+        // the word between two of them has gone, joins nothing.
+        Tidy();
+        Bubble();
+    }
+
+    /// <summary>
+    /// Takes one box out of the run, from the right-click menu.
+    /// </summary>
+    /// <remarks>
+    /// Only the box. A row left with no words is unfinished and stays,
+    /// because taking a whole row is the ✕'s job alone.
+    /// </remarks>
+    public void Remove(RuleSlot slot)
+    {
+        _settling = true;
+
+        try
+        {
+            if (!Parts.Remove(slot)) return;
+        }
+        finally
+        {
+            _settling = false;
+        }
+
+        Tidy();
+        Bubble();
+    }
+
+    /// <summary>Drops operators with nothing left on one side of them.</summary>
+    private void Tidy()
+    {
+        _settling = true;
+
+        try
+        {
+            for (int i = Parts.Count - 1; i >= 0; i--)
+            {
+                if (!Parts[i].IsOperator) continue;
+
+                var wordBefore = i > 0 && !Parts[i - 1].IsOperator;
+                var wordAfter = i + 1 < Parts.Count && !Parts[i + 1].IsOperator;
+
+                if (!wordBefore || !wordAfter) Parts.RemoveAt(i);
+            }
+        }
+        finally
+        {
+            _settling = false;
+        }
+    }
 
     public bool IsCondition => RuleActions.IsCondition(Action.Word);
 
-    public Visibility JoinVisibility =>
-        IsCondition ? Visibility.Visible : Visibility.Collapsed;
-
-    public Visibility ArrowVisibility =>
-        RuleActions.Is(Action.Word, RuleActions.Order) ? Visibility.Visible : Visibility.Collapsed;
-
-    public RuleLine Collect() =>
-        new(Action.Word, Words.Select(s => s.Word), Joins.Select(s => s.Word));
-
     /// <summary>
-    /// A fixed number of slots, by position.
+    /// Whether this phrase has words after it at all.
     /// </summary>
     /// <remarks>
-    /// Not compacted on the way in. The joiner in front of the second slot
-    /// is the first joiner whether or not the first slot was filled, and a
-    /// "change to" pairs with the box above it by position — closing a gap
-    /// here would quietly move both onto the wrong word.
+    /// "Delete the found words" does not: it acts on what the conditions
+    /// above it already name. Its row is the phrase and nothing else.
     /// </remarks>
-    private static IReadOnlyList<RuleSlot> Slots(
-        List<string> from, int count, ObservableCollection<string>? choices = null) =>
-        Enumerable.Range(0, count)
-            .Select(i => new RuleSlot(i < from.Count ? from[i] : RuleSlot.Blank, choices))
-            .ToList();
+    public bool TakesWords => Action.IsSet && !RuleActions.Wordless(Action.Word);
+
+    public bool CanAddWord => TakesWords && WordParts.Count() < MostWords;
+
+    /// <summary>Whether an and/or would have words either side of it.</summary>
+    public bool CanAddOperator =>
+        TakesWords && Parts.Count > 0 && !Parts[^1].IsOperator
+        && WordParts.Count() < MostWords;
+
+    public void AddWord() => Parts.Add(Word(RuleSlot.Blank));
+
+    public void AddOperator() => Parts.Add(Operator(RuleSlot.Blank));
+
+    private void Bubble()
+    {
+        OnPropertyChanged(nameof(IsCondition));
+        OnPropertyChanged(nameof(TakesWords));
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// The line as the engine reads it: words in order, each carrying
+    /// whichever operator sat in front of it.
+    /// </summary>
+    public RuleLine Collect()
+    {
+        var words = new List<string>();
+        var joins = new List<string>();
+        var pending = RuleSlot.Blank;
+
+        foreach (var part in Parts)
+        {
+            if (part.IsOperator) { pending = part.Word; continue; }
+
+            if (words.Count > 0) joins.Add(pending);
+            words.Add(part.Word);
+            pending = RuleSlot.Blank;
+        }
+
+        return new RuleLine(Action.Word, words, joins);
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -178,6 +449,16 @@ public sealed class RenameRuleRow : INotifyPropertyChanged
             foreach (var line in e.NewItems?.OfType<RuleLineRow>() ?? Enumerable.Empty<RuleLineRow>())
                 line.Changed += (_, _) => Rechecked();
 
+            // Numbered before anything is made current, so whatever the
+            // add buttons go on to say about it says the right number.
+            Renumber();
+
+            // A row just added is the one being worked on — that is what
+            // adding it was for. Otherwise the current row holds, unless
+            // it was the row that just left.
+            if (e.NewItems?.OfType<RuleLineRow>().LastOrDefault() is { } fresh) Active = fresh;
+            else if (_active is null || !Lines.Contains(_active)) Active = Lines.LastOrDefault();
+
             Rechecked();
         };
 
@@ -190,15 +471,66 @@ public sealed class RenameRuleRow : INotifyPropertyChanged
 
     public ObservableCollection<RuleLineRow> Lines { get; } = new();
 
+    private RuleLineRow? _active;
+
+    /// <summary>
+    /// The line the add buttons act on.
+    /// </summary>
+    /// <remarks>
+    /// One at a time, and marked as such on screen. Clicking anywhere on a
+    /// line makes it the current one; a line that has just been added
+    /// becomes it without being clicked.
+    /// </remarks>
+    public RuleLineRow? Active
+    {
+        get => _active;
+        set
+        {
+            if (ReferenceEquals(_active, value)) return;
+
+            if (_active is not null) _active.IsActive = false;
+            _active = value;
+            if (_active is not null) _active.IsActive = true;
+
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(Target));
+        }
+    }
+
+    /// <summary>
+    /// Where the next word or operator will go, as the add lines say it.
+    /// </summary>
+    /// <remarks>
+    /// Empty while there is no line to add to, so the sentence reads
+    /// "Add (+) words" and the button says for itself why it cannot.
+    /// </remarks>
+    public string Target => _active is null ? "" : $" to line {_active.Number}";
+
+    private void Renumber()
+    {
+        for (int i = 0; i < Lines.Count; i++) Lines[i].Number = i + 1;
+
+        OnPropertyChanged(nameof(Target));
+    }
+
     private string _name;
 
-    /// <summary>What this rule is called, or empty.</summary>
+    /// <summary>
+    /// What this rule is called, exactly as it is being typed.
+    /// </summary>
+    /// <remarks>
+    /// Not trimmed here. The field writes through on every keystroke, so
+    /// trimming in the setter meant a typed space was removed and written
+    /// back before the next letter arrived — which made a two-word name
+    /// impossible. Tidied in <see cref="Collect"/> instead, once, when
+    /// the typing is over.
+    /// </remarks>
     public string Name
     {
         get => _name;
         set
         {
-            var next = (value ?? "").Trim();
+            var next = value ?? "";
             if (_name == next) return;
 
             _name = next;
@@ -216,7 +548,7 @@ public sealed class RenameRuleRow : INotifyPropertyChanged
     /// rule is born with one, so counting it would make every box look
     /// worked-in from the moment it opened.
     /// </remarks>
-    public bool HasInput => Lines.Any(l => l.Words.Any(s => s.IsSet));
+    public bool HasInput => Lines.Any(l => l.Action.IsSet || l.Parts.Any(p => p.IsSet));
 
     /// <summary>
     /// Whether the rule says enough to be run.
@@ -236,28 +568,16 @@ public sealed class RenameRuleRow : INotifyPropertyChanged
         "pack://application:,,,/Assets/icons/"
         + (IsTestable ? "icon-eye_show.png" : "icon-eye_hide.png");
 
-    /// <summary>
-    /// What the line under the rows says.
-    /// </summary>
-    /// <remarks>
-    /// Always there, so adding a row is always in the same place, and it
-    /// doubles as the empty box's prompt rather than being a second
-    /// control that appears and disappears.
-    /// </remarks>
-    public string AddRowText =>
-        Lines.Count == 0 ? ") a row to get started." : ") another row";
-
     private void Rechecked()
     {
         OnPropertyChanged(nameof(HasInput));
         OnPropertyChanged(nameof(IsTestable));
         OnPropertyChanged(nameof(TestGlyph));
-        OnPropertyChanged(nameof(AddRowText));
     }
 
     public RenameRule Collect() => new()
     {
-        Name = _name,
+        Name = _name.Trim(),
         Lines = Lines.Select(l => l.Collect()).ToList()
     };
 
@@ -288,6 +608,26 @@ public sealed class SavedLineRow
 
     /// <summary>Drives the colour of the mark, as in the editor above.</summary>
     public bool IsCondition { get; }
+
+    /// <summary>
+    /// The phrase at its shortest, for the one-line summary.
+    /// </summary>
+    /// <remarks>
+    /// A list meant to hold twenty rules cannot spend a line and a half
+    /// on each saying "if these are found". Shortened rather than coded:
+    /// "if not" is still English, where "!" would need learning.
+    /// </remarks>
+    public string Short => Action switch
+    {
+        RuleActions.IfFound => "if",
+        RuleActions.IfNotFound => "if not",
+        RuleActions.Order => "order",
+        RuleActions.Delete => "delete",
+        RuleActions.DeleteFound => "delete found",
+        RuleActions.Change => "change",
+        RuleActions.ChangeTo => "to",
+        _ => Action
+    };
 
     private static string Read(RuleLine line)
     {
@@ -335,8 +675,30 @@ public sealed class SavedRuleRow : INotifyPropertyChanged
 
         OnPropertyChanged(nameof(Name));
         OnPropertyChanged(nameof(Rows));
+        OnPropertyChanged(nameof(Summary));
         OnPropertyChanged(nameof(NameVisibility));
     }
+
+    /// <summary>
+    /// The whole rule on one line, a segment per row.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// One line each, so a folder's worth of rules can be seen at once
+    /// rather than scrolled through. The rows are kept as separate
+    /// segments with a dot between them rather than run together into a
+    /// sentence: a rule's shape — which questions it asks, what it does
+    /// when they hold — is the thing worth seeing at a glance, and prose
+    /// buries it in commas.
+    /// </para>
+    /// <para>
+    /// What is lost is the detail of a long rule, which runs off the end.
+    /// That is what the pencil is for: the list is the index, the box
+    /// above is where a rule is read in full.
+    /// </para>
+    /// </remarks>
+    public string Summary =>
+        string.Join("   ·   ", Rows.Select(r => (r.Short + " " + r.Words).TrimEnd()));
 
     private RenameRule Shown => _live ?? Rule;
 
@@ -349,7 +711,11 @@ public sealed class SavedRuleRow : INotifyPropertyChanged
     /// finished rules a blank row is a gap with no meaning.
     /// </remarks>
     public IReadOnlyList<SavedLineRow> Rows =>
-        Shown.Lines.Where(l => l.Used.Count > 0).Select(l => new SavedLineRow(l)).ToList();
+        Shown.Lines
+            .Where(l => (RuleActions.IsCondition(l.Action) || RuleActions.IsDoing(l.Action))
+                        && (l.Used.Count > 0 || RuleActions.Wordless(l.Action)))
+            .Select(l => new SavedLineRow(l))
+            .ToList();
 
     /// <summary>What it is called, above the sentence, when it has a name.</summary>
     public string Name => Shown.Name;
@@ -398,15 +764,17 @@ public sealed class SavedRuleRow : INotifyPropertyChanged
 }
 
 /// <summary>
-/// The words the bulk renamer notices, and the rules that order them.
+/// The blacklist the bulk renamer scrubs with, and the rules that order
+/// what is left.
 /// </summary>
 /// <remarks>
-/// Two boxes of text and a list of rules. There were four boxes — categories,
-/// subjects, conditionals, blacklist — and the first three turned out to be
-/// the same thing said three times: which section a word belongs to is not a
-/// property of the word, since the same word can lead one name and trail
-/// another. The rules say that instead, and the list just says which words
-/// are worth noticing.
+/// One box of text and a list of rules. There were five boxes once —
+/// categories, subjects, conditionals, a word list, the blacklist — and
+/// all but the last turned out to be the rules said somewhere else: a
+/// rule carries its own words, typed straight into it, so a list to pick
+/// them from was a second copy of every word and a detour on the way to
+/// using one. The blacklist stays because the engine reads it directly —
+/// it is the one list that acts on every file by itself.
 /// </remarks>
 public partial class RenameWordsDialog : Window
 {
@@ -436,9 +804,11 @@ public partial class RenameWordsDialog : Window
         _files = files;
         RuleList.ItemsSource = _rules;
 
-        WordsBox.Text = string.Join(Environment.NewLine, Merged(settings));
         BlacklistBox.Text = string.Join(Environment.NewLine, settings.Current.RenameBlacklist);
-        VariantsCheck.IsChecked = settings.Current.RenameMatchVariants;
+        MatchModeBox.SelectedIndex = (int)settings.Current.RenameWordMatchMode;
+        RegexCheck.IsChecked = settings.Current.RenameWordsAreRegex;
+        RegexCheck.Checked += Regex_Changed;
+        RegexCheck.Unchecked += Regex_Changed;
 
         // Brought up to lines first, so a rule saved in the old shape opens
         // as the lines it means rather than as an empty rule.
@@ -472,6 +842,24 @@ public partial class RenameWordsDialog : Window
         // rather than waiting for a save.
         _editor.PropertyChanged += (_, _) => _editing?.Preview(_editor.Collect());
 
+        // A row can now take itself out — blanking its action, or its last
+        // word — so the last row leaving is not always a press of the ✕.
+        // Either way an empty box is a box with nothing left to be editing.
+        //
+        // Guarded on the editor still being this one, or resetting would
+        // see the fresh empty box it just made and do it again.
+        var mine = _editor;
+
+        mine.Lines.CollectionChanged += (_, _) =>
+        {
+            if (mine.Lines.Count > 0 || !ReferenceEquals(_editor, mine)) return;
+
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (ReferenceEquals(_editor, mine) && mine.Lines.Count == 0) ResetBox();
+            }, DispatcherPriority.Background);
+        };
+
         foreach (var row in _rules)
         {
             row.IsEditing = ReferenceEquals(row, editing);
@@ -486,29 +874,10 @@ public partial class RenameWordsDialog : Window
         // On the panel that holds both the control row and the box: the
         // icons are no longer inside the box they act on.
         RuleEditor.DataContext = _editor;
-        RefreshChoices();
     }
 
     /// <summary>The name a brand new rule arrives with.</summary>
     private string NextName() => "Rule #" + (_rules.Count + 1);
-
-    /// <summary>
-    /// The word list, with anything left in the three lists it replaced.
-    /// </summary>
-    /// <remarks>
-    /// Categories, subjects and conditionals were folded into one list.
-    /// Dropping what somebody had already typed into them because the shape
-    /// changed underneath would be the wrong way to make that change.
-    /// </remarks>
-    private static List<string> Merged(SettingsService settings) =>
-        settings.Current.RenameWords
-            .Concat(settings.Current.RenameCategories)
-            .Concat(settings.Current.RenameSubjects)
-            .Concat(settings.Current.RenameConditionals)
-            .Where(w => !string.IsNullOrWhiteSpace(w))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(w => w, StringComparer.OrdinalIgnoreCase)
-            .ToList();
 
     /// <summary>
     /// Edited on a copy, so abandoning an edit leaves the original alone.
@@ -533,20 +902,40 @@ public partial class RenameWordsDialog : Window
     /// would otherwise never match anything, and would fail silently, which
     /// is the worst way for a word list to be wrong.
     /// </remarks>
-    private static List<string> Words(string? text) =>
-        (text ?? "")
-        .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-        .Select(line => FilenameRules.Clean(line.Trim()))
-        .Where(word => word.Length > 0)
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .OrderBy(word => word, StringComparer.OrdinalIgnoreCase)
-        .ToList();
-
-    private void Words_Changed(object sender, TextChangedEventArgs e)
+    private static List<string> Words(string? text, bool regex)
     {
-        RefreshChoices();
-        Recount();
+        var lines = (text ?? "")
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Trim());
+
+        // An expression is left exactly as typed. Running it through the
+        // filename rules would strip the characters it is made of — a
+        // dot, a star, a backslash are none of them allowed in a name —
+        // and leave something that still looks like a pattern and is
+        // not.
+        if (!regex) lines = lines.Select(line => FilenameRules.Clean(line));
+
+        return lines
+            .Where(word => word.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(word => word, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
+
+    /// <summary>
+    /// The blacklist's lines, under the one Regex switch the rules use.
+    /// </summary>
+    private List<string> BlacklistList() =>
+        Words(BlacklistBox.Text, RegexCheck?.IsChecked == true);
+
+    private static WordMatchMode Mode(ComboBox box) =>
+        (WordMatchMode)Math.Max(0, box.SelectedIndex);
+
+    private void MatchMode_Changed(object sender, SelectionChangedEventArgs e) => Recount();
+
+    private void Regex_Changed(object sender, RoutedEventArgs e) => Recount();
+
+    private void Words_Changed(object sender, TextChangedEventArgs e) => Recount();
 
     private void Renumber()
     {
@@ -567,10 +956,9 @@ public partial class RenameWordsDialog : Window
     /// </remarks>
     private void Recount()
     {
-        if (WordsHeading is null) return;   // during InitializeComponent
+        if (BlacklistHeading is null) return;   // during InitializeComponent
 
-        WordsHeading.Text = $"Words ({Words(WordsBox.Text).Count})";
-        BlacklistHeading.Text = $"Blacklisted ({Words(BlacklistBox.Text).Count})";
+        BlacklistHeading.Text = $"Blacklisted ({BlacklistList().Count})";
         RulesHeading.Text = $"Rules ({_rules.Count})";
     }
 
@@ -578,49 +966,117 @@ public partial class RenameWordsDialog : Window
         n == 1 ? $"1 {noun}" : $"{n} {noun}s";
 
     /// <summary>
-    /// Hands every word slot the current word list, blank entry first.
+    /// Adds a condition — a phrase and the words it governs, on its own
+    /// row.
     /// </summary>
-    private void RefreshChoices()
+    /// <remarks>
+    /// The phrase is left blank rather than pre-set. The row is one
+    /// dropdown until it is told what it is, which is both less to look at
+    /// and what brings out the first word afterwards.
+    /// </remarks>
+    private void AddCondition_Click(object sender, RoutedEventArgs e) =>
+        _editor.Lines.Add(new RuleLineRow(new RuleLine(RuleSlot.Blank)));
+
+    /// <summary>
+    /// Adds one and/or dropdown to the condition being written, and
+    /// nothing else.
+    /// </summary>
+    /// <remarks>
+    /// Nothing else: a word does not come with it. Each of the three
+    /// buttons puts exactly one dropdown on the end of the row, which is
+    /// what makes the row whatever was asked for rather than a fixed
+    /// shape with gaps in it.
+    /// </remarks>
+    private void AddOperator_Click(object sender, RoutedEventArgs e)
     {
-        var words = Words(WordsBox.Text);
+        if (Writing() is not { } line) return;
 
-        foreach (var slot in _editor.Lines.SelectMany(l => l.Words))
+        if (!line.CanAddOperator)
         {
-            var choices = new List<string> { RuleSlot.Blank };
-            choices.AddRange(words);
-
-            // A word already chosen but since deleted from the list stays
-            // available, so a rule does not quietly empty itself while
-            // somebody is mid-edit in the box above.
-            if (slot.IsSet && !words.Contains(slot.Word, StringComparer.OrdinalIgnoreCase))
-                choices.Add(slot.Word);
-
-            Sync(slot.Choices, choices);
+            Said(line.Parts.Count == 0 || line.Parts[^1].IsOperator
+                 ? $"An operator goes between two words — add a word to line {line.Number} first."
+                 : $"Line {line.Number} holds three words at most.", ok: false);
+            return;
         }
+
+        line.AddOperator();
     }
 
     /// <summary>
-    /// Brings a collection to match a list without replacing it.
+    /// Adds one word dropdown to the condition being written.
     /// </summary>
     /// <remarks>
-    /// Handing a ComboBox a new ItemsSource clears its SelectedItem, and a
-    /// two-way binding then writes that null straight back into the rule — so
-    /// every rule emptied itself the moment anything was typed in a word box.
-    /// Editing the contents leaves the selection alone.
+    /// With no operator in front of it, for a condition that is a list of
+    /// words rather than a sentence of them. Nothing is implied by
+    /// leaving the operator out: the joiner stays blank, which the engine
+    /// has always read as "and".
     /// </remarks>
-    private static void Sync(ObservableCollection<string> live, IReadOnlyList<string> wanted)
+    private void AddWords_Click(object sender, RoutedEventArgs e)
     {
-        for (int i = live.Count - 1; i >= 0; i--)
-            if (!wanted.Contains(live[i], StringComparer.Ordinal)) live.RemoveAt(i);
+        if (Writing() is not { } line) return;
 
-        for (int i = 0; i < wanted.Count; i++)
-            if (!live.Contains(wanted[i], StringComparer.Ordinal)) live.Insert(i, wanted[i]);
+        if (!line.CanAddWord)
+        {
+            Said($"Line {line.Number} holds three words at most.", ok: false);
+            return;
+        }
+
+        line.AddWord();
     }
 
-    private void AddLine_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// The condition being written — the one marked current.
+    /// </summary>
+    /// <remarks>
+    /// The line clicked last, not the last line. Those were the same thing
+    /// until rows could be worked on out of order, at which point adding a
+    /// word part-way up a rule put it on the bottom row instead.
+    ///
+    /// Words and operators belong to a condition, so there has to be one
+    /// for them to belong to; where there is not, it says so rather than
+    /// quietly doing nothing.
+    /// </remarks>
+    private RuleLineRow? Writing()
     {
-        _editor.Lines.Add(new RuleLineRow(new RuleLine(RuleActions.IfFound)));
-        RefreshChoices();
+        var line = _editor.Active;
+
+        if (line is null)
+        {
+            Said("Add a condition first — words and operators belong to one.", ok: false);
+            return null;
+        }
+
+        if (!line.Action.IsSet)
+        {
+            Said($"Choose what line {line.Number} does first.", ok: false);
+            return null;
+        }
+
+        if (!line.TakesWords)
+        {
+            Said($"\"{line.Action.Word}\" on line {line.Number} takes no words of its own.", ok: false);
+            return null;
+        }
+
+        return line;
+    }
+
+    /// <summary>
+    /// Makes the line under the pointer the one the add buttons act on.
+    /// </summary>
+    /// <remarks>
+    /// On the way down, so it has happened before the dropdown that was
+    /// clicked gets the click — and without handling the event, which is
+    /// still the dropdown's.
+    /// </remarks>
+    private void Row_MouseDown(object sender, MouseButtonEventArgs e) => Working(sender);
+
+    /// <summary>The same, for a line reached by keyboard.</summary>
+    private void Row_GotFocus(object sender, RoutedEventArgs e) => Working(sender);
+
+    private void Working(object sender)
+    {
+        if ((sender as FrameworkElement)?.DataContext is RuleLineRow line) _editor.Active = line;
     }
 
     /// <summary>
@@ -668,33 +1124,75 @@ public partial class RenameWordsDialog : Window
     /// </remarks>
     private void RemoveLine_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { Tag: RuleLineRow line }) return;
+        if (sender is Button { Tag: RuleLineRow line }) DropLine(line);
+    }
 
+    private void DropLine(RuleLineRow line)
+    {
         _editor.Lines.Remove(line);
 
         if (_editor.Lines.Count == 0) ResetBox();
     }
 
     /// <summary>
-    /// Files the rule in the box and clears it for the next one.
+    /// Whatever was right-clicked, as the thing the row stands for.
     /// </summary>
     /// <remarks>
-    /// Written to settings as it is filed. "Saved" is what the button says,
-    /// and a rule that went into the list but not into the file would be
-    /// gone again next time the program opened.
+    /// A context menu is not in the visual tree, so it is given the
+    /// DataContext of the control it was opened on — see the templates.
+    /// Its items inherit from it in the ordinary way.
     /// </remarks>
+    private static T? RightClicked<T>(object sender) where T : class =>
+        (sender as MenuItem)?.DataContext as T;
+
     /// <summary>
-    /// Writes the box into the list, and stays on it.
+    /// Takes one dropdown out of its row, from the right-click menu.
     /// </summary>
     /// <remarks>
-    /// Saving no longer clears the box. With a New rule button beside it
-    /// there is something that means "done, next", so this one can mean
-    /// only what it says: the rule goes into the list, and the box carries
-    /// on editing the very entry it just made, so pressing it twice
-    /// updates rather than duplicates.
-    ///
+    /// Which row it belongs to is asked of the rows rather than carried on
+    /// the dropdown, for the same reason the drag does it: a part's place
+    /// in a row changes as words are added and cleared.
+    /// </remarks>
+    private void DeleteSlot_Click(object sender, RoutedEventArgs e)
+    {
+        if (RightClicked<RuleSlot>(sender) is not { } slot) return;
+
+        _editor.Lines.FirstOrDefault(l => l.Parts.Contains(slot))?.Remove(slot);
+    }
+
+    /// <summary>
+    /// Clears a row's phrase, from its right-click menu.
+    /// </summary>
+    /// <remarks>
+    /// Clears, not removes: every row has exactly one phrase box, so
+    /// deleting it means putting it back to blank. The row and its words
+    /// stay — taking a whole row is the ✕'s job alone.
+    /// </remarks>
+    private void DeleteCondition_Click(object sender, RoutedEventArgs e)
+    {
+        if (RightClicked<RuleLineRow>(sender) is { } line)
+            line.Action.Word = RuleSlot.Blank;
+    }
+
+
+    /// <summary>
+    /// Files the rule in the box, then empties the box.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Written to settings as it is filed. "Saved" is what the button
+    /// says, and a rule that went into the list but not into the file
+    /// would be gone again next time the program opened.
+    /// </para>
+    /// <para>
+    /// Updating an existing rule and writing a new one both end the same
+    /// way, on an empty box ready for the next rule. Clearing after one
+    /// and not the other would make the same button mean two things.
+    /// </para>
+    /// <para>
     /// Unreachable on an unfinished rule, which is what the button being
     /// dead is for.
+    /// </para>
     /// </remarks>
     private void SaveRule_Click(object sender, RoutedEventArgs e)
     {
@@ -704,6 +1202,7 @@ public partial class RenameWordsDialog : Window
         var first = _editing is null;
 
         File(rule);
+        ResetBox();
         Renumber();
 
         Write(first
@@ -820,16 +1319,34 @@ public partial class RenameWordsDialog : Window
 
         var vocabulary = new FilenameVocabulary
         {
-            Words = Words(WordsBox.Text),
-            Blacklist = Words(BlacklistBox.Text),
+            Blacklist = BlacklistList(),
             Rules = rules.Where(r => r.IsUsable).ToList(),
-            MatchVariants = VariantsCheck.IsChecked == true
+            MatchMode = Mode(MatchModeBox),
+            UseRegex = RegexCheck.IsChecked == true,
+            // Precise on purpose and not offered otherwise: these words
+            // are deleted rather than recognised, so a match that reaches
+            // further than written takes a word out of the name with
+            // nothing left to say it went. The Regex switch is the one
+            // exception — an expression says exactly what it matches,
+            // which is its own kind of precise.
+            BlacklistMatchMode = WordMatchMode.Precise,
+            BlacklistUseRegex = RegexCheck.IsChecked == true
         };
 
-        new RuleTestDialog(subject, vocabulary, _files?.Invoke() ?? Array.Empty<string>())
+        var report = new RuleTestDialog(subject, vocabulary,
+                                        _files?.Invoke() ?? Array.Empty<string>())
         {
             Owner = this
-        }.ShowDialog();
+        };
+
+        // A list of renames is a window; "nothing changed" is a sentence,
+        // and a sentence is a toast.
+        if (report.FoundAnything) report.ShowDialog();
+        else
+        {
+            Helpers.Toast.Show(this, report.Outcome);
+            report.Close();
+        }
     }
 
     /// <summary>
@@ -856,14 +1373,15 @@ public partial class RenameWordsDialog : Window
     /// </remarks>
     private void Write(string said, bool ok = true)
     {
-        _settings.Current.RenameWords = Words(WordsBox.Text);
-        _settings.Current.RenameBlacklist = Words(BlacklistBox.Text);
-        _settings.Current.RenameMatchVariants = VariantsCheck.IsChecked == true;
-
-        // Folded in, so they are not read again.
-        _settings.Current.RenameCategories = new List<string>();
-        _settings.Current.RenameSubjects = new List<string>();
-        _settings.Current.RenameConditionals = new List<string>();
+        // The word list itself is gone — rules carry their own words now,
+        // typed straight into them — but whatever was saved in it is left
+        // in the settings file untouched rather than wiped by a window
+        // that no longer shows it.
+        _settings.Current.RenameBlacklist = BlacklistList();
+        _settings.Current.RenameWordMatchMode = Mode(MatchModeBox);
+        _settings.Current.RenameWordsAreRegex = RegexCheck.IsChecked == true;
+        _settings.Current.RenameBlacklistMatchMode = WordMatchMode.Precise;
+        _settings.Current.RenameBlacklistIsRegex = RegexCheck.IsChecked == true;
 
         _settings.Current.RenameRules = _rules.Select(r => r.Rule).ToList();
         _settings.Save();

@@ -14,8 +14,8 @@
 
         <!-- Templated rather than left to the default chrome, which paints a
              disabled button in system colours — a near-white block in a dark
-             window, which is how "Delete checked" looked before anything was
-             checked. -->
+             window, which is how "Delete selected" looked before anything
+             was selected. -->
         <Style TargetType="Button">
             <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
             <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
@@ -61,16 +61,97 @@
             <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
             <Setter Property="FontSize" Value="11"/>
         </Style>
+
+        <!-- A button that brings its own fill. The plain style above
+             hovers to the theme's ControlHover, which would repaint a
+             coloured button grey the moment the pointer crossed it — so
+             this one hovers to whatever its Tag carries instead. -->
+        <Style x:Key="FilledButton" TargetType="Button"
+               BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Shell"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Shell" Property="Background"
+                                        Value="{Binding Tag,
+                                                RelativeSource={RelativeSource TemplatedParent}}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Cursor" Value="Arrow"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- The rail's three parts. Stated once here and matched in the
+             rename window, so the two rails cannot drift apart by one
+             window being edited and the other forgotten. -->
+        <Style x:Key="RailLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,0,0,5"/>
+        </Style>
+
+        <Style x:Key="RailCheck" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextBody}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
+
+        <!-- Pale, and deliberately so: a fixed fill because the theme has
+             no control colour this light. Its own template with no
+             triggers, so the colour holds whatever the pointer is doing.
+             Stated identically in the rename window. -->
+        <Style x:Key="RailButton" TargetType="Button"
+               BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Margin" Value="0,0,0,4"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="Background" Value="#E8E8E8"/>
+            <Setter Property="BorderBrush" Value="#C2C2C2"/>
+            <Setter Property="Foreground" Value="#141414"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <DockPanel Margin="16">
 
-        <!-- What to scan. The folder sits on its own line because a path is
-             long and the two switches beside it are short. -->
+        <!-- The folder, and the one button that acts on it. Scan sits
+             beside Choose because the two are read in that order: pick the
+             folder, then set it going. -->
         <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
@@ -85,59 +166,98 @@
             </Border>
 
             <Button Grid.Column="2" Content="Choose…" Click="ChooseFolder_Click"/>
-        </Grid>
 
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,12">
-            <CheckBox x:Name="RecurseCheck" IsChecked="True" VerticalAlignment="Center"
-                      Content="Include subfolders"
-                      Foreground="{DynamicResource TextBody}"/>
-
-            <!-- Off by default. The exact pass is instant and certain; this
-                 one decodes every candidate and can only ever be a strong
-                 suggestion, so it is asked for rather than assumed. -->
-            <CheckBox x:Name="FootageCheck" VerticalAlignment="Center" Margin="18,0,0,0"
-                      Content="Deep scan (will take longer)"
-                      Foreground="{DynamicResource TextBody}"
-                      ToolTip="Also finds the same footage saved at another size or bitrate, by comparing sampled frames. Much slower — it decodes each file."/>
-
-            <Button Content="Scan" Click="Scan_Click" Margin="18,0,0,0"
+            <!-- One button with two jobs, never both at once: the scan it
+                 starts is the scan it then offers to stop, so there is no
+                 dead Stop sitting beside a live Scan. Red while it would
+                 stop something, because stopping is the destructive one. -->
+            <Button Grid.Column="3" x:Name="ScanButton" Content="Scan" Click="Scan_Click"
+                    MinWidth="78" Style="{StaticResource FilledButton}"
                     Background="{DynamicResource PrimaryButton}"
                     BorderBrush="{DynamicResource PrimaryButtonBorder}"
-                    Foreground="{DynamicResource OnAccent}"/>
-            <Button x:Name="StopButton" Content="Stop" Click="Stop_Click"
-                    IsEnabled="False"/>
-        </StackPanel>
+                    Foreground="{DynamicResource OnAccent}"
+                    Tag="{DynamicResource PrimaryButtonBorder}"/>
+        </Grid>
 
-        <!-- One line, in place of a bar.
-             A scan has no honest percentage: the exact pass narrows by size
-             before it reads anything, so the count of files left to compare
-             changes as it goes. A bar filling and refilling says less than a
-             word that is plainly still moving. -->
-        <TextBlock DockPanel.Dock="Top" x:Name="StageText" Margin="0,0,0,10"
-                   FontSize="13" Visibility="Collapsed"
-                   Foreground="{DynamicResource Accent}"/>
+        <!-- The stage under way and what it has got through. Hidden until
+             there is a scan to describe.
+
+             Two blocks, not one: the stage name carries the moving dots,
+             and the dots change width every tick — a space is narrower
+             than a period in this font, so padding the text could not
+             hold the line still. A fixed slot can, and everything after
+             it stays put. -->
+        <DockPanel DockPanel.Dock="Top" x:Name="ProgressPanel" Visibility="Collapsed"
+                   Margin="0,0,0,10" LastChildFill="False">
+            <TextBlock x:Name="StageText" DockPanel.Dock="Left" Width="158" FontSize="13"
+                       TextTrimming="CharacterEllipsis"
+                       Foreground="{DynamicResource Accent}"/>
+
+            <!-- Against the far edge, so a clock that is ticking does not
+                 drag the sentence about with it. Declared before the
+                 figures: a DockPanel gives the first child docked to a
+                 side the outermost place. -->
+            <TextBlock x:Name="ElapsedText" DockPanel.Dock="Right" FontSize="13"
+                       Foreground="{DynamicResource Accent}"/>
+
+            <TextBlock x:Name="InfoText" DockPanel.Dock="Left" FontSize="13"
+                       TextTrimming="CharacterEllipsis"
+                       Foreground="{DynamicResource Accent}"/>
+        </DockPanel>
 
         <!-- The footer. Built before the list so it is never pushed off the
              bottom by a long set of results. -->
         <DockPanel DockPanel.Dock="Bottom" Margin="0,12,0,0" LastChildFill="False">
-            <TextBlock x:Name="SummaryText" DockPanel.Dock="Left"
-                       VerticalAlignment="Center"
-                       Foreground="{DynamicResource TextSecondary}"/>
+            <!-- Plain to begin with, and red only once there is something
+                 selected for it to delete — see ShowDeletable. The filled
+                 template is used either way, because the plain one puts
+                 the fill back to ControlBackground while a button is
+                 unavailable and a template trigger beats a style setter,
+                 which would leave a red button red only at the edge. -->
+            <Button DockPanel.Dock="Left" x:Name="DeleteButton" Margin="0"
+                    Content="Delete selected" Click="Delete_Click" IsEnabled="False"
+                    Style="{StaticResource FilledButton}"
+                    Tag="{DynamicResource ControlHover}"/>
 
             <Button DockPanel.Dock="Right" Content="Close" Width="90"
-                    IsCancel="True"/>
-            <Button DockPanel.Dock="Right" x:Name="DeleteButton"
-                    Content="Delete checked" Click="Delete_Click" IsEnabled="False"
-                    Background="{DynamicResource PrimaryButton}"
-                    BorderBrush="{DynamicResource PrimaryButtonBorder}"
-                    Foreground="{DynamicResource OnAccent}"/>
-            <Button DockPanel.Dock="Right" Content="Select duplicates"
-                    Click="SelectDuplicates_Click"
-                    ToolTip="In every group, checks all but one — so each set keeps a copy."/>
-            <Button DockPanel.Dock="Right" Content="Select none" Click="SelectNone_Click"/>
-            <Button DockPanel.Dock="Right" Content="Select all" Click="SelectAll_Click"
-                    ToolTip="Checks every file, including the ones a group would otherwise keep."/>
+                    IsCancel="True" Style="{StaticResource CloseButton}"/>
         </DockPanel>
+
+        <!-- The rail. Every switch and sweep lives here, in a fixed column
+             that does not move as the window is resized — so the list beside
+             it gets all the room that is left. -->
+        <Border DockPanel.Dock="Left" Width="150" Margin="0,0,10,0"
+                Background="{DynamicResource PanelBackground}"
+                CornerRadius="6" Padding="10,9">
+            <StackPanel>
+                <TextBlock Text="Depth" Style="{StaticResource RailLabel}"/>
+
+                <!-- Off by default. The exact pass is instant and certain;
+                     this one decodes every candidate and can only ever be a
+                     strong suggestion, so it is asked for rather than
+                     assumed. -->
+                <CheckBox x:Name="FootageCheck" Content="Deep scan"
+                          Style="{StaticResource RailCheck}"/>
+
+                <TextBlock Text="Files" Style="{StaticResource RailLabel}"
+                           Margin="0,14,0,5"/>
+
+                <CheckBox x:Name="RecurseCheck" IsChecked="True"
+                          Content="Include subfolders"
+                          Style="{StaticResource RailCheck}"/>
+
+                <CheckBox x:Name="VideosCheck" IsChecked="True" Content="Videos only"
+                          Style="{StaticResource RailCheck}"/>
+
+                <TextBlock Text="Select" Style="{StaticResource RailLabel}"
+                           Margin="0,14,0,5"/>
+
+                <Button Content="All" Click="SelectAll_Click" Style="{StaticResource RailButton}"/>
+                <Button Content="None" Click="SelectNone_Click" Style="{StaticResource RailButton}"/>
+                <Button Content="Duplicates" Click="SelectDuplicates_Click"
+                        Style="{StaticResource RailButton}"/>
+            </StackPanel>
+        </Border>
 
         <Border Background="{DynamicResource PanelBackground}" CornerRadius="6" Padding="2">
             <Grid>
@@ -177,6 +297,7 @@
                                                             <ColumnDefinition Width="*"/>
                                                             <ColumnDefinition Width="Auto"/>
                                                             <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="Auto"/>
                                                         </Grid.ColumnDefinitions>
 
                                                         <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}"
@@ -184,22 +305,22 @@
                                                                   Margin="0,0,8,0"/>
 
                                                         <StackPanel Grid.Column="1">
-                                                            <!-- Foreground stated rather than
-                                                                 inherited: inside a template the
-                                                                 row would otherwise pick up the
-                                                                 ItemsControl's, which is not the
-                                                                 colour body text wants. -->
                                                             <TextBlock Text="{Binding Name}"
                                                                        Foreground="{DynamicResource TextPrimary}"
-                                                                       TextTrimming="CharacterEllipsis"
-                                                                       ToolTip="{Binding Path}"/>
+                                                                       TextTrimming="CharacterEllipsis"/>
                                                             <TextBlock Text="{Binding Folder}"
                                                                        Style="{StaticResource Quiet}"
-                                                                       TextTrimming="CharacterEllipsis"
-                                                                       ToolTip="{Binding Path}"/>
+                                                                       TextTrimming="CharacterEllipsis"/>
                                                         </StackPanel>
 
-                                                        <TextBlock Grid.Column="3"
+                                                        <Button Grid.Column="2" Content="▶" VerticalAlignment="Center"
+                                                                Margin="8,0,0,0" Padding="6,3"
+                                                                Click="Play_Click" Tag="{Binding Path}"
+                                                                Style="{StaticResource Quiet}"
+                                                                Background="Transparent" BorderThickness="0"
+                                                                Foreground="{DynamicResource Accent}"/>
+
+                                                        <TextBlock Grid.Column="4"
                                                                    Text="{Binding Size}"
                                                                    VerticalAlignment="Center"
                                                                    FontFamily="Consolas" FontSize="11"

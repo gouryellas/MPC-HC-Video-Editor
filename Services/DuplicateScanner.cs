@@ -295,8 +295,14 @@ public sealed class DuplicateScanner
         var placed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var prints = new Dictionary<string, ulong[]>(StringComparer.OrdinalIgnoreCase);
 
+        var probed = 0;
+
         foreach (var file in timed.OrderByDescending(f => f.Bytes))
         {
+            // Counted whether or not this one needs probing, so the bar
+            // reaches its end instead of stopping where the skips began.
+            progress?.Report(new DuplicateProgress("Checking frames", ++probed, timed.Count));
+
             if (placed.Contains(file.Path)) continue;
 
             var candidatesHere = timed
@@ -588,14 +594,17 @@ public sealed class DuplicateScanner
     }
 
     /// <summary>
-    /// Every video under a folder, in a stable order.
+    /// Every video under a folder, in a stable order — or every file,
+    /// when asked to look past the videos.
     /// </summary>
     /// <remarks>
     /// Folders that cannot be read are stepped over rather than ending the
     /// walk — one permission-denied directory should not cost the scan the
     /// rest of the tree.
     /// </remarks>
-    public static IReadOnlyList<string> FindVideos(string folder, bool recursive, CancellationToken ct = default)
+    public static IReadOnlyList<string> FindVideos(string folder, bool recursive,
+                                                   CancellationToken ct = default,
+                                                   bool videosOnly = true)
     {
         var found = new List<string>();
         var pending = new Stack<string>();
@@ -609,7 +618,7 @@ public sealed class DuplicateScanner
             try
             {
                 foreach (var file in Directory.EnumerateFiles(dir))
-                    if (IsVideo(file)) found.Add(file);
+                    if (!videosOnly || IsVideo(file)) found.Add(file);
 
                 if (recursive)
                     foreach (var sub in Directory.EnumerateDirectories(dir))

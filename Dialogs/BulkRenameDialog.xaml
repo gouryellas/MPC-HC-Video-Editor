@@ -17,6 +17,23 @@
             <Setter Property="FontSize" Value="11"/>
         </Style>
 
+        <!-- The rail's three parts, matched to the duplicates window. Both
+             windows state these identically so neither can drift by one
+             being edited and the other forgotten. -->
+        <Style x:Key="RailLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,0,0,5"/>
+        </Style>
+
+        <Style x:Key="RailCheck" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextBody}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
+
+
         <!-- Templated for the same reason the duplicates dialog is: the
              default chrome paints a disabled button in system colours, which
              is a near-white block in a dark window. -->
@@ -58,6 +75,83 @@
             </Setter>
         </Style>
 
+        <!-- The two that carry their own colour.
+
+             Fixed rather than themed, as the operation buttons in the main
+             window are: a filled button brings its own background and its
+             own label, so it has nothing to match. That also means the
+             hover cannot be the theme's, which would repaint a red button
+             grey the moment the pointer crossed it — each hovers to a
+             shade of itself. -->
+        <Style x:Key="FilledButton" TargetType="Button"
+               BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Shell"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Shell" Property="Background"
+                                        Value="{Binding Tag,
+                                                RelativeSource={RelativeSource TemplatedParent}}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Cursor" Value="Arrow"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- The rail's buttons: pale, and deliberately so.
+
+             A fixed fill rather than a themed one, for the reason the
+             filled buttons above carry theirs — the theme has no control
+             colour this light, and the stock chrome that produced it by
+             accident would not follow a theme at all.
+
+             Its own template, with no triggers at all: the button holds
+             one colour whatever the pointer is doing. The cursor already
+             says it can be clicked.
+
+             Declared after the styles it builds on, not before: BasedOn
+             with StaticResource is resolved while the file is read and
+             sees only what has already been declared. -->
+        <Style x:Key="RailButton" TargetType="Button"
+               BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Margin" Value="0,0,0,4"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="Background" Value="#E8E8E8"/>
+            <Setter Property="BorderBrush" Value="#C2C2C2"/>
+            <Setter Property="Foreground" Value="#141414"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style TargetType="TextBox">
             <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
             <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
@@ -66,14 +160,103 @@
             <Setter Property="Padding" Value="4,2"/>
             <Setter Property="CaretBrush" Value="{DynamicResource TextPrimary}"/>
         </Style>
+
+        <!-- Templated, like the buttons. A ComboBox draws its closed face
+             with a system-coloured ToggleButton, so setting Background on
+             the control changes almost nothing and leaves a white slab in
+             a dark window. -->
+        <Style TargetType="ComboBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="Height" Value="26"/>
+            <!-- Stated, not inherited. A control left to the system font
+                 comes out a size or two above everything beside it. -->
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="Face" Focusable="False" ClickMode="Press"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay,
+                                                      RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="Shell"
+                                                Background="{DynamicResource ControlBackground}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
+                                                BorderThickness="1" CornerRadius="4">
+                                            <Path HorizontalAlignment="Right"
+                                                  VerticalAlignment="Center" Margin="0,0,8,0"
+                                                  Data="M 0 0 L 8 0 L 4 5 Z"
+                                                  Fill="{DynamicResource TextSecondary}"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Shell" Property="Background"
+                                                        Value="{DynamicResource ControlHover}"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+
+                            <ContentPresenter Margin="9,0,22,0" VerticalAlignment="Center"
+                                              IsHitTestVisible="False"
+                                              Content="{TemplateBinding SelectionBoxItem}"/>
+
+                            <Popup IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   Placement="Bottom" AllowsTransparency="True"
+                                   Focusable="False" PopupAnimation="Slide">
+                                <Border Background="{DynamicResource PanelBackground}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="1" CornerRadius="4"
+                                        MinWidth="{TemplateBinding ActualWidth}">
+                                    <ItemsPresenter/>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="9,5"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="Row" Background="Transparent"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Row" Property="Background"
+                                        Value="{DynamicResource RowHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Row" Property="Background"
+                                        Value="{DynamicResource RowSelected}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <DockPanel Margin="16">
 
+        <!-- The folder, and the one button that acts on it. Scan sits
+             beside Choose because the two are read in that order: pick the
+             folder, then set it going. The duplicates window says this
+             same line the same way. -->
         <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
@@ -88,51 +271,147 @@
             </Border>
 
             <Button Grid.Column="2" Content="Choose…" Click="ChooseFolder_Click"/>
+
+            <!-- One button with two jobs, never both at once. Theme's own
+                 colour to start a read, red to stop one. -->
+            <Button Grid.Column="3" x:Name="ScanButton" Content="Scan" Click="Generate_Click"
+                    MinWidth="78" Style="{StaticResource FilledButton}"
+                    Background="{DynamicResource PrimaryButton}"
+                    BorderBrush="{DynamicResource PrimaryButtonBorder}"
+                    Foreground="{DynamicResource OnAccent}"
+                    Tag="{DynamicResource PrimaryButtonBorder}"/>
         </Grid>
 
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,12">
-            <!-- Off by default. A rename reaches into every folder beneath
-                 the one chosen, and that is a much larger promise than the
-                 person pointing at a folder has necessarily made. -->
-            <CheckBox x:Name="RecurseCheck" VerticalAlignment="Center"
-                      Content="Include subfolders"
-                      Foreground="{DynamicResource TextBody}"/>
+        <!-- The stage under way and what it has got through — then the
+             finished line, in the same place. Two blocks for the same
+             reason the duplicates window has two: the dots change width
+             every tick, and a fixed slot keeps the count beside them
+             from shuffling. -->
+        <DockPanel DockPanel.Dock="Top" x:Name="ProgressPanel" Visibility="Collapsed"
+                   Margin="0,0,0,10" LastChildFill="False">
+            <TextBlock x:Name="StageText" DockPanel.Dock="Left" Width="158" FontSize="13"
+                       TextTrimming="CharacterEllipsis"
+                       Foreground="{DynamicResource Accent}"/>
 
-            <CheckBox x:Name="VideosOnlyCheck" IsChecked="True" VerticalAlignment="Center"
-                      Margin="18,0,0,0" Content="Videos only"
-                      Foreground="{DynamicResource TextBody}"/>
+            <!-- Against the far edge, so a clock that is ticking does not
+                 drag the sentence about with it. -->
+            <TextBlock x:Name="ElapsedText" DockPanel.Dock="Right" FontSize="13"
+                       Foreground="{DynamicResource Accent}"/>
 
-            <Button Content="Words…" Click="Words_Click"/>
-
-            <!-- One button, pressed again to read the folder afresh. A
-                 separate Refresh was the same work under a second name. -->
-            <Button Content="Generate" Click="Generate_Click" Margin="18,0,0,0"
-                    Background="{DynamicResource PrimaryButton}"
-                    BorderBrush="{DynamicResource PrimaryButtonBorder}"
-                    Foreground="{DynamicResource OnAccent}"/>
-        </StackPanel>
-
-        <DockPanel DockPanel.Dock="Bottom" Margin="0,12,0,0" LastChildFill="False">
-            <TextBlock x:Name="SummaryText" DockPanel.Dock="Left"
-                       VerticalAlignment="Center"
-                       Foreground="{DynamicResource TextSecondary}"/>
-
-            <Button DockPanel.Dock="Right" Content="Close" Width="90" IsCancel="True"/>
-            <Button DockPanel.Dock="Right" x:Name="RenameButton" Content="Rename checked"
-                    Click="Rename_Click" IsEnabled="False"
-                    Background="{DynamicResource PrimaryButton}"
-                    BorderBrush="{DynamicResource PrimaryButtonBorder}"
-                    Foreground="{DynamicResource OnAccent}"/>
-            <Button DockPanel.Dock="Right" Content="Deselect all" Click="DeselectAll_Click"/>
-            <Button DockPanel.Dock="Right" Content="Select all" Click="SelectAll_Click"/>
+            <TextBlock x:Name="InfoText" DockPanel.Dock="Left" FontSize="13"
+                       TextTrimming="CharacterEllipsis"
+                       Foreground="{DynamicResource Accent}"/>
         </DockPanel>
+
+        <!-- Only what acts on the preview once it exists. What produced
+             it lives on the rail and the folder line. -->
+        <DockPanel DockPanel.Dock="Bottom" Margin="0,12,0,0" LastChildFill="False">
+            <Button DockPanel.Dock="Left" x:Name="RenameButton" Content="Rename selected"
+                    Click="Rename_Click" IsEnabled="False" Margin="0"
+                    Background="{DynamicResource PrimaryButton}"
+                    BorderBrush="{DynamicResource PrimaryButtonBorder}"
+                    Foreground="{DynamicResource OnAccent}"/>
+
+            <Button DockPanel.Dock="Right" Content="Close" Width="90" IsCancel="True"
+                    Style="{StaticResource CloseButton}"/>
+        </DockPanel>
+
+        <!-- What the rename did, in the window rather than in a box over
+             it. A result worth reading is worth leaving on screen beside
+             the list it refers to, and a dialog that has to be dismissed
+             before the list can be looked at is the opposite of that.
+
+             Declared after the button bar so it sits above it: in a
+             DockPanel the first child docked to a side is the one
+             furthest out. -->
+        <Border x:Name="ResultPanel" DockPanel.Dock="Bottom" Visibility="Collapsed"
+                Margin="0,10,0,0" Padding="11,8" CornerRadius="6"
+                BorderThickness="1"
+                Background="{DynamicResource PanelBackground}">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="&#x2715;" VerticalAlignment="Top"
+                        Padding="7,1" Margin="8,0,0,0" FontSize="12"
+                        Click="DismissResult_Click"
+                        Background="Transparent" BorderThickness="0"
+                        Foreground="{DynamicResource TextMuted}"/>
+
+                <TextBlock DockPanel.Dock="Top" x:Name="ResultHeadline"
+                           FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap"/>
+
+                <!-- Capped, and scrolls past the cap. A folder that threw
+                     fifty collisions should say fifty, not twelve and a
+                     silence. -->
+                <ScrollViewer x:Name="ResultScroll" MaxHeight="110" Margin="0,6,0,0"
+                              VerticalScrollBarVisibility="Auto">
+                    <ItemsControl x:Name="ResultList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" TextWrapping="Wrap"
+                                           Margin="0,0,0,3" FontSize="12"
+                                           Foreground="{DynamicResource TextSecondary}"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+
+        <!-- The rail. Same fixed column, same three headings, same order
+             as the duplicates window — what differs is only what each
+             window has to offer. -->
+        <Border DockPanel.Dock="Left" Width="150" Margin="0,0,10,0"
+                Background="{DynamicResource PanelBackground}"
+                CornerRadius="6" Padding="10,9">
+            <StackPanel>
+                <!-- The heading carries the explanation, so it sits beside
+                     the words it explains rather than under the controls
+                     they govern. -->
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Model select" Style="{StaticResource RailLabel}"/>
+                    <ContentControl Style="{StaticResource Qmhp}" VerticalAlignment="Top">
+                        <ContentControl.ToolTip>
+                            <TextBlock MaxWidth="420" TextWrapping="Wrap"
+                                       Text="Simple applies the character rules only: lowercase, no spaces, the allowed characters 0-9 a-z ( ) [ ] _ and -, a run of anything else becoming a single dash where it divides two things, no doubled punctuation, a bracketed tag moved to the end and a first_last name joined up. It needs nothing set up to be useful. Custom rules does all of that and then applies the blacklist and the rules written behind the Custom rules button."/>
+                        </ContentControl.ToolTip>
+                    </ContentControl>
+                </StackPanel>
+
+                <ComboBox x:Name="ModelBox" SelectionChanged="Model_Changed"
+                          Margin="0,0,0,5">
+                    <ComboBoxItem Content="Simple"/>
+                    <ComboBoxItem Content="Custom rules"/>
+                </ComboBox>
+
+                <Button Content="Custom rules" Click="Words_Click"
+                        Style="{StaticResource RailButton}"/>
+
+                <TextBlock Text="Files" Style="{StaticResource RailLabel}"
+                           Margin="0,14,0,5"/>
+
+                <!-- Off by default. A rename reaches into every folder
+                     beneath the one chosen, and that is a much larger
+                     promise than the person pointing at a folder has
+                     necessarily made. -->
+                <CheckBox x:Name="RecurseCheck" Content="Include subfolders"
+                          Style="{StaticResource RailCheck}"/>
+
+                <CheckBox x:Name="VideosOnlyCheck" IsChecked="True" Content="Videos only"
+                          Style="{StaticResource RailCheck}"/>
+
+                <TextBlock Text="Select" Style="{StaticResource RailLabel}"
+                           Margin="0,14,0,5"/>
+
+                <Button Content="All" Click="SelectAll_Click" Style="{StaticResource RailButton}"/>
+                <Button Content="None" Click="DeselectAll_Click" Style="{StaticResource RailButton}"/>
+            </StackPanel>
+        </Border>
 
         <Border Background="{DynamicResource PanelBackground}" CornerRadius="6" Padding="2">
             <Grid>
                 <TextBlock x:Name="EmptyText" Margin="14" TextWrapping="Wrap"
                            VerticalAlignment="Top"
                            Foreground="{DynamicResource TextMuted}"
-                           Text="Choose a folder and press Generate. Nothing is renamed until you say so."/>
+                           Text="Choose a folder and press Run. Nothing is renamed until you say so."/>
 
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
@@ -141,6 +420,22 @@
                             <DataTemplate>
                                 <Border Margin="0,0,0,4" Padding="8,6" CornerRadius="4"
                                         Background="{DynamicResource InsetBackground}">
+                                    <!-- A renamed row keeps its place and
+                                         turns green, rather than leaving
+                                         the list. -->
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="BorderThickness" Value="1"/>
+                                            <Setter Property="BorderBrush" Value="Transparent"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Done}" Value="True">
+                                                    <Setter Property="BorderBrush"
+                                                            Value="{DynamicResource StatusOk}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
@@ -158,6 +453,14 @@
                                                   VerticalAlignment="Center" Margin="0,0,8,0"
                                                   Visibility="{Binding ActionVisibility}"/>
 
+                                        <!-- In the tick box's place once the
+                                             decision it offered has been
+                                             carried out. -->
+                                        <TextBlock Text="&#x2713;" FontWeight="Bold" FontSize="14"
+                                                   VerticalAlignment="Center" Margin="0,0,8,0"
+                                                   Visibility="{Binding DoneVisibility}"
+                                                   Foreground="{DynamicResource StatusOk}"/>
+
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Original}"
                                                        Foreground="{DynamicResource TextSecondary}"
@@ -173,6 +476,11 @@
                                                    VerticalAlignment="Center"
                                                    Foreground="{DynamicResource Accent}"
                                                    Visibility="{Binding ActionVisibility}"/>
+
+                                        <TextBlock Grid.Column="2" Text="&#x2192;" Margin="10,0"
+                                                   VerticalAlignment="Center"
+                                                   Visibility="{Binding DoneVisibility}"
+                                                   Foreground="{DynamicResource StatusOk}"/>
 
                                         <!-- Editable, and corrected on the way
                                              out: whatever is typed goes through
@@ -190,6 +498,15 @@
                                                         UpdateSourceTrigger=LostFocus}"
                                                  VerticalAlignment="Center"
                                                  Visibility="{Binding ActionVisibility}"/>
+
+                                        <!-- The name it now has, as text
+                                             rather than a field: there is
+                                             nothing left to type. -->
+                                        <TextBlock Grid.Column="3" Text="{Binding Proposed}"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Visibility="{Binding DoneVisibility}"
+                                                   Foreground="{DynamicResource StatusOk}"/>
                                     </Grid>
                                 </Border>
                             </DataTemplate>

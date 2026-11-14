@@ -1,4 +1,4 @@
-﻿using System.Linq;
+using System.Linq;
 using MpcHcVideoEditor.Services;
 using Xunit;
 
@@ -79,7 +79,6 @@ public class FilenameRulesTests
     [InlineData("a((((b.mp4", "a(b.mp4")]
     [InlineData("a[[b.mp4", "a[b.mp4")]
     [InlineData("a---b.mp4", "a-b.mp4")]
-    [InlineData("a___b.mp4", "a_b.mp4")]
     [InlineData("a...b.mp4", "a-b.mp4")]
     public void No_punctuation_character_may_repeat(string original, string expected)
     {
@@ -575,8 +574,364 @@ public class FilenameRulesTests
             }
         };
 
-        // The first ordering wins; the second rule's deletion still happens.
+        // Every rule that can apply does: the first ordering wins, and
+        // the second rule's deletion still happens.
         Assert.Equal("football-aggies.mp4", FilenameRules.Apply("aggies raw.mp4", vocab));
+    }
+
+    [Fact]
+    public void A_rule_that_does_not_hold_passes_the_file_down()
+    {
+        var vocab = new FilenameVocabulary
+        {
+            Rules = new[]
+            {
+                new RenameRule
+                {
+                    Lines =
+                    {
+                        new RuleLine(RuleActions.IfFound, new[] { "cyclones" }),
+                        new RuleLine(RuleActions.Order, new[] { "basketball" })
+                    }
+                },
+                new RenameRule
+                {
+                    Lines =
+                    {
+                        new RuleLine(RuleActions.IfFound, new[] { "aggies" }),
+                        new RuleLine(RuleActions.Order, new[] { "football" }),
+                        new RuleLine(RuleActions.Delete, new[] { "raw" })
+                    }
+                }
+            }
+        };
+
+        Assert.Equal("football-aggies.mp4",
+                     FilenameRules.Apply("aggies raw.mp4", vocab));
+    }
+
+    [Fact]
+    public void A_file_no_rule_recognises_gets_the_general_treatment()
+    {
+        var vocab = new FilenameVocabulary
+        {
+            Blacklist = new[] { "raw" },
+            Rules = new[]
+            {
+                new RenameRule
+                {
+                    Lines =
+                    {
+                        new RuleLine(RuleActions.IfFound, new[] { "cyclones" }),
+                        new RuleLine(RuleActions.Order, new[] { "basketball" })
+                    }
+                }
+            }
+        };
+
+        // No rule applies: cleanup, the blacklist and the found order
+        // carry it.
+        Assert.Equal("aggies-highlights.mp4",
+                     FilenameRules.Apply("aggies highlights raw.mp4", vocab));
+    }
+
+    [Theory]
+    // The second shape is the one that was silently failing: the cleanup
+    // welds "ab_clip" into one name-pair word, the condition sees "ab" in
+    // the original and fires — and the deletion then has to find the word
+    // inside the pair, or the rule fires and changes nothing.
+    [InlineData("_ab_clip.mp4")]
+    [InlineData("ab_clip.mp4")]
+    [InlineData("ab clip.mp4")]
+    public void Delete_the_found_words_removes_the_word_wherever_cleanup_put_it(string original)
+    {
+        var vocab = new FilenameVocabulary
+        {
+            Rules = new[]
+            {
+                new RenameRule
+                {
+                    Lines =
+                    {
+                        new RuleLine(RuleActions.IfFound, new[] { "ab" }),
+                        new RuleLine(RuleActions.Order, new[] { "xy" }),
+                        new RuleLine(RuleActions.DeleteFound)
+                    }
+                }
+            }
+        };
+
+        Assert.Equal("xy-clip.mp4", FilenameRules.Apply(original, vocab));
+    }
+
+    [Fact]
+    public void Delete_these_reaches_into_a_joined_pair_too()
+    {
+        var vocab = new FilenameVocabulary
+        {
+            Rules = new[]
+            {
+                new RenameRule
+                {
+                    Lines =
+                    {
+                        new RuleLine(RuleActions.IfFound, new[] { "ab" }),
+                        new RuleLine(RuleActions.Delete, new[] { "ab" })
+                    }
+                }
+            }
+        };
+
+        Assert.Equal("clip.mp4", FilenameRules.Apply("ab_clip.mp4", vocab));
+    }
+
+    [Fact]
+    public void The_blacklist_scrubs_after_the_rules_have_had_their_say()
+    {
+        // A rule swaps a word in; the blacklist knows that word. Rules
+        // first, then the general scrub — so the swapped-in word is
+        // scrubbed like anything else.
+        var vocab = new FilenameVocabulary
+        {
+            Blacklist = new[] { "sample" },
+            Rules = new[]
+            {
+                new RenameRule
+                {
+                    Lines =
+                    {
+                        new RuleLine(RuleActions.IfFound, new[] { "aggies" }),
+                        new RuleLine(RuleActions.Change, new[] { "demo" }),
+                        new RuleLine(RuleActions.ChangeTo, new[] { "sample" })
+                    }
+                }
+            }
+        };
+
+        Assert.Equal("aggies.mp4", FilenameRules.Apply("aggies demo.mp4", vocab));
+    }
+
+    [Theory]
+    // Everywhere a space would become a dash, so does an underscore.
+    [InlineData("_leading.mp4", "leading.mp4")]
+    [InlineData("trailing_.mp4", "trailing.mp4")]
+    [InlineData("a___b.mp4", "a-b.mp4")]
+    [InlineData("wedding_vows__take2.mp4", "wedding_vows-take2.mp4")]
+    [InlineData("a_ b.mp4", "a-b.mp4")]
+    // Except the one standing between two words, which is the only mark
+    // a name has.
+    [InlineData("sarah_williams.mp4", "sarah_williams.mp4")]
+    [InlineData("wedding-vows-sarah_williams.mp4", "wedding-vows-sarah_williams.mp4")]
+    public void An_underscore_separates_like_a_space_unless_it_joins_a_name(
+        string original, string expected)
+    {
+        Assert.Equal(expected, FilenameRules.Apply(original));
+    }
+
+    [Theory]
+    // A file that opens with an underscore writes its separators as
+    // underscores, so the next one is not half of a name. Before this,
+    // "_ab_title" lost its leading mark and then welded the rest into
+    // one word "ab_title" that no word list would ever find.
+    [InlineData("_ab_title.mp4", "ab-title.mp4")]
+    [InlineData("x__a_b.mp4", "x-a-b.mp4")]
+    // A name is a pair and only a pair: the underscore that made one is
+    // itself evidence, so a chain stops at two.
+    [InlineData("a_b_c.mp4", "a_b-c.mp4")]
+    // A space between puts the question back open — the next single
+    // underscore after clean separators may still be a name.
+    [InlineData("a_ b c_d.mp4", "a-b-c_d.mp4")]
+    public void An_underscore_that_did_not_join_unmasks_the_ones_after_it(
+        string original, string expected)
+    {
+        Assert.Equal(expected, FilenameRules.Apply(original));
+    }
+
+    [Fact]
+    public void A_condition_is_asked_about_the_name_as_it_was_typed()
+    {
+        // The cleanup keeps sarah_williams as one word, which is right
+        // for the output — but the person who wrote this rule was looking
+        // at a filename that plainly says williams, and the condition has
+        // to see what they saw.
+        var vocab = new FilenameVocabulary
+        {
+            Words = new List<string> { "williams", "wedding" },
+            Rules = new List<RenameRule>
+            {
+                new()
+                {
+                    Lines = new List<RuleLine>
+                    {
+                        new(RuleActions.IfFound, new List<string> { "williams" }),
+                        new(RuleActions.Order, new List<string> { "wedding" }),
+                    }
+                }
+            }
+        };
+
+        Assert.Equal("wedding-sarah_williams-vows.mp4",
+                     FilenameRules.Apply("sarah_williams vows.mp4", vocab));
+    }
+
+    [Fact]
+    public void A_condition_may_name_the_pair_or_either_half()
+    {
+        var vocab = new FilenameVocabulary
+        {
+            Words = new List<string> { "sarah_williams", "wedding" },
+            Rules = new List<RenameRule>
+            {
+                new()
+                {
+                    Lines = new List<RuleLine>
+                    {
+                        new(RuleActions.IfFound, new List<string> { "sarah_williams" }),
+                        new(RuleActions.Order, new List<string> { "wedding" }),
+                    }
+                }
+            }
+        };
+
+        Assert.Equal("wedding-sarah_williams-vows.mp4",
+                     FilenameRules.Apply("sarah_williams vows.mp4", vocab));
+    }
+
+    [Theory]
+    // Whatever the original fenced its words with, the condition sees
+    // the words. The first of these is the shape that started it all:
+    // cleaned on its own, "_ab_clip" once welded into "ab_clip".
+    [InlineData("_ab_clip.mp4")]
+    [InlineData("ab.clip.mp4")]
+    [InlineData("AB (clip).mp4")]
+    public void No_separator_style_hides_a_word_from_a_condition(string original)
+    {
+        var vocab = new FilenameVocabulary
+        {
+            Words = new List<string> { "ab", "action" },
+            Rules = new List<RenameRule>
+            {
+                new()
+                {
+                    Lines = new List<RuleLine>
+                    {
+                        new(RuleActions.IfFound, new List<string> { "ab" }),
+                        new(RuleActions.Order, new List<string> { "action" }),
+                    }
+                }
+            }
+        };
+
+        Assert.StartsWith("action-", FilenameRules.Apply(original, vocab));
+    }
+
+    [Theory]
+    // The two the request named, and what each is expected to catch.
+    [InlineData("go", "goes")]
+    [InlineData("go", "going")]
+    [InlineData("go", "gone")]
+    [InlineData("go", "went")]
+    [InlineData("be", "am")]
+    [InlineData("be", "is")]
+    [InlineData("be", "are")]
+    [InlineData("be", "was")]
+    [InlineData("be", "were")]
+    [InlineData("be", "being")]
+    [InlineData("be", "been")]
+    // And a few of the rest, in both directions.
+    [InlineData("run", "ran")]
+    [InlineData("swam", "swim")]
+    [InlineData("children", "child")]
+    [InlineData("mice", "mouse")]
+    public void Irregular_catches_the_forms_no_ending_explains(string a, string b)
+    {
+        Assert.True(WordMatch.Irregulars.Equals(a, b), $"{a} should match {b}");
+        Assert.True(WordMatch.Irregulars.Equals(b, a), $"{b} should match {a}");
+
+        Assert.Equal(WordMatch.Irregulars.GetHashCode(a), WordMatch.Irregulars.GetHashCode(b));
+    }
+
+    [Fact]
+    public void Each_mode_reaches_further_than_the_one_before()
+    {
+        // Precise is the word as written.
+        Assert.True(WordMatch.Exact.Equals("wave", "wave"));
+        Assert.False(WordMatch.Exact.Equals("wave", "waves"));
+
+        // Variant adds the endings, but cannot reach a word that
+        // changes shape.
+        Assert.True(WordMatch.Variants.Equals("wave", "waves"));
+        Assert.False(WordMatch.Variants.Equals("go", "went"));
+
+        // Irregular is everything Variant does, and those as well.
+        Assert.True(WordMatch.Irregulars.Equals("wave", "waving"));
+        Assert.True(WordMatch.Irregulars.Equals("go", "went"));
+    }
+
+    [Fact]
+    public void A_word_too_short_to_stem_needs_the_irregular_list()
+    {
+        // Three letters is the floor: below it, taking an ending off
+        // leaves something that collides with everything. So "goes" does
+        // not reach "go" by rule — it reaches it by being listed.
+        Assert.False(WordMatch.Variants.Equals("go", "goes"));
+        Assert.True(WordMatch.Irregulars.Equals("go", "goes"));
+    }
+
+    [Fact]
+    public void Unrelated_words_are_not_dragged_in_by_a_family()
+    {
+        Assert.False(WordMatch.Irregulars.Equals("go", "be"));
+        Assert.False(WordMatch.Irregulars.Equals("went", "gotten"));
+        Assert.False(WordMatch.Irregulars.Equals("mouse", "moose"));
+    }
+
+    [Theory]
+    [InlineData("beach|shore", "beach", true)]
+    [InlineData("beach|shore", "shore", true)]
+    [InlineData("beach|shore", "beaches", false)]
+    [InlineData("beach.*", "beaches", true)]
+    [InlineData("20[0-9]{2}", "2026", true)]
+    [InlineData("20[0-9]{2}", "1999", false)]
+    // Anchored, so a pattern cannot match a word that merely contains it.
+    [InlineData("beach", "beachfront", false)]
+    // A half-typed expression matches nothing rather than throwing.
+    [InlineData("beach(", "beach", false)]
+    public void Regex_matches_a_whole_word(string pattern, string word, bool expected)
+    {
+        var match = WordMatch.For(WordMatchMode.Variant, regex: true);
+
+        Assert.Equal(expected, match.Equals(pattern, word));
+    }
+
+    [Fact]
+    public void A_rule_can_be_written_as_an_expression()
+    {
+        var vocab = new FilenameVocabulary
+        {
+            UseRegex = true,
+            Words = new[] { "ferrari|ford|chevrolet", "automobile" },
+            Rules = new[]
+            {
+                new RenameRule
+                {
+                    Lines =
+                    {
+                        new RuleLine(RuleActions.IfFound, new[] { "ferrari|ford|chevrolet" }),
+                        new RuleLine(RuleActions.Order, new[] { "automobile" }),
+                        new RuleLine(RuleActions.DeleteFound)
+                    }
+                }
+            }
+        };
+
+        Assert.Equal("automobile-red-1998.mp4",
+                     FilenameRules.Apply("ferrari red 1998.mp4", vocab));
+
+        Assert.Equal("automobile-barn-find.mp4",
+                     FilenameRules.Apply("barn find chevrolet.mp4", vocab));
+
+        Assert.Equal("red-bicycle.mp4", FilenameRules.Apply("red bicycle.mp4", vocab));
     }
 
     [Fact]
@@ -712,12 +1067,59 @@ public class FilenameRulesTests
     }
 
     [Fact]
-    public void A_blacklisted_word_takes_its_endings_with_it()
+    public void A_blacklisted_word_takes_its_endings_with_it_when_asked()
     {
-        var vocab = new FilenameVocabulary { Blacklist = new[] { "render" } };
+        var vocab = new FilenameVocabulary
+        {
+            Blacklist = new[] { "render" },
+            BlacklistMatchMode = WordMatchMode.Variant
+        };
 
         Assert.Equal("beach-day.mp4", FilenameRules.Apply("beach rendered day.mp4", vocab));
         Assert.Equal("beach-day.mp4", FilenameRules.Apply("beach rendering day.mp4", vocab));
+    }
+
+    [Fact]
+    public void The_blacklist_is_precise_until_told_otherwise()
+    {
+        // Its own setting, and a stricter default than the word list's.
+        // Recognising a word that was not quite meant is a nuisance;
+        // deleting one is a word gone from the name.
+        var vocab = new FilenameVocabulary { Blacklist = new[] { "render" } };
+
+        Assert.Equal("beach-rendered-day.mp4",
+                     FilenameRules.Apply("beach rendered day.mp4", vocab));
+
+        Assert.Equal("beach-day.mp4", FilenameRules.Apply("beach render day.mp4", vocab));
+    }
+
+    [Fact]
+    public void The_two_lists_do_not_share_a_match_mode()
+    {
+        // Loose where words are recognised, strict where they are
+        // deleted — the pairing the separate settings exist for.
+        var vocab = new FilenameVocabulary
+        {
+            Words = new[] { "wave" },
+            Blacklist = new[] { "render" },
+            MatchMode = WordMatchMode.Variant,
+            BlacklistMatchMode = WordMatchMode.Precise,
+            Rules = new[]
+            {
+                new RenameRule
+                {
+                    Lines =
+                    {
+                        new RuleLine(RuleActions.IfFound, new[] { "wave" }),
+                        new RuleLine(RuleActions.Order, new[] { "surf" })
+                    }
+                }
+            }
+        };
+
+        // The rule fires on a variant; the blacklisted word does not.
+        Assert.Equal("surf-waves-rendered.mp4",
+                     FilenameRules.Apply("waves rendered.mp4", vocab));
     }
 
     [Fact]
@@ -725,12 +1127,70 @@ public class FilenameRulesTests
     {
         var vocab = new FilenameVocabulary
         {
-            MatchVariants = false,
+            MatchMode = WordMatchMode.Precise,
             Blacklist = new[] { "render" }
         };
 
         Assert.Equal("beach-rendered-day.mp4",
                      FilenameRules.Apply("beach rendered day.mp4", vocab));
+    }
+
+    [Fact]
+    public void A_rule_can_delete_whatever_it_was_looking_for()
+    {
+        // The list of makes is written once, in the condition. Saying it
+        // again in a delete line is the same list twice, and the second
+        // copy is the one that falls out of step.
+        var vocab = Vocabulary(
+            new RuleLine(RuleActions.IfFound, new[] { "ferrari", "ford", "chevrolet" },
+                         new[] { "or", "or" }),
+            new RuleLine(RuleActions.Order, new[] { "automobile" }),
+            new RuleLine(RuleActions.DeleteFound));
+
+        Assert.Equal("automobile-red-1998.mp4",
+                     FilenameRules.Apply("ferrari red 1998.mp4", vocab));
+
+        Assert.Equal("automobile-barn-find.mp4",
+                     FilenameRules.Apply("barn find chevrolet.mp4", vocab));
+
+        // More than one of them in the same name, and both go.
+        Assert.Equal("automobile-vs.mp4",
+                     FilenameRules.Apply("ford vs ferrari.mp4", vocab));
+
+        // Nothing it was looking for, so the rule never applies.
+        Assert.Equal("red-bicycle.mp4", FilenameRules.Apply("red bicycle.mp4", vocab));
+    }
+
+    [Fact]
+    public void Deleting_the_found_words_leaves_the_absent_ones_alone()
+    {
+        // A "NOT found" condition names words that are, by the fact the
+        // rule applied at all, not in the name to be deleted — and must
+        // not take a word out of the ordering with them.
+        var vocab = Vocabulary(
+            new RuleLine(RuleActions.IfFound, new[] { "ferrari" }),
+            new RuleLine(RuleActions.IfNotFound, new[] { "automobile" }),
+            new RuleLine(RuleActions.Order, new[] { "automobile" }),
+            new RuleLine(RuleActions.DeleteFound));
+
+        Assert.Equal("automobile-red.mp4", FilenameRules.Apply("ferrari red.mp4", vocab));
+    }
+
+    [Fact]
+    public void Delete_the_found_words_counts_as_something_to_do()
+    {
+        // It carries no words of its own, so the usual "a line with no
+        // words says nothing" test would have thrown the whole rule out.
+        var rule = new RenameRule
+        {
+            Lines =
+            {
+                new RuleLine(RuleActions.IfFound, new[] { "ferrari" }),
+                new RuleLine(RuleActions.DeleteFound)
+            }
+        };
+
+        Assert.True(rule.IsUsable);
     }
 
     [Fact]

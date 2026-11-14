@@ -100,8 +100,20 @@ public partial class RuleTestDialog : Window
 
     private static string Count(int n) => n == 1 ? "1 file" : $"{n} files";
 
+    /// <summary>Whether the rule changed any file at all.</summary>
+    /// <remarks>
+    /// Asked by the opener before showing this window: a test that found
+    /// nothing is one sentence, and one sentence is a toast, not a
+    /// dialog to read and dismiss.
+    /// </remarks>
+    public bool FoundAnything => _rows.Count > 0;
+
+    /// <summary>The one-line verdict, for saying outside this window.</summary>
+    public string Outcome { get; private set; } = "";
+
     private void Summary(string text)
     {
+        Outcome = text;
         SummaryText.Text = text;
         EmptyText.Visibility = _rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }

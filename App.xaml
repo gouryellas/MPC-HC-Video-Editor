@@ -92,6 +92,45 @@
              would have done. WPF suppresses tooltips on disabled elements by
              default, and IsEnabled is coerced down the tree, so without this
              the mark went quiet at the only moment it was worth hovering. -->
+        <!-- Every tooltip in the program, themed.
+
+             Nothing had ever styled one, so they were drawn in Windows'
+             own near-white chrome — and the text inside them comes from
+             whichever window built it, which in these dark windows means
+             a pale grey. Pale grey on near-white: the explainers were
+             unreadable, and so was every other tooltip in the app.
+
+             Dark surface, outlined in the accent so it is tied to the
+             mark that summoned it and reads as sitting on top of the
+             window rather than blending into it. Foreground is set here
+             as well, for tooltips whose content does not bring its own.
+
+             Templated rather than left to the default chrome: the stock
+             template paints a system-coloured border of its own that no
+             amount of Background setting removes. -->
+        <Style TargetType="ToolTip">
+            <Setter Property="Background" Value="{DynamicResource InsetBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBody}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="11,8"/>
+            <Setter Property="HasDropShadow" Value="False"/>
+            <Setter Property="MaxWidth" Value="420"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToolTip">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="Qmhp" TargetType="ContentControl">
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="Focusable" Value="False"/>
@@ -259,6 +298,56 @@
                     </Setter>
                 </Trigger>
             </Style.Triggers>
+        </Style>
+
+        <!-- The button that dismisses a window.
+             Here rather than in each window because every dialog carries
+             its own button styling, and a red fill set on top of nine
+             different templates would come out nine different ways — one
+             hovering to the theme grey, one to a system blue, one not at
+             all. This brings its own template, so an explicit style beats
+             whatever the window states implicitly and the button looks
+             the same wherever it is used.
+
+             Red is fixed rather than themed, as the operation buttons
+             are: the fill is its own colour and has nothing to match.
+             It keeps that colour when disabled, since a close button
+             made hard to read is a close button somebody is hunting
+             for. -->
+        <Style x:Key="CloseButton" TargetType="Button">
+            <Setter Property="Background" Value="#B3312C"/>
+            <Setter Property="BorderBrush" Value="#8E2622"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Shell"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Shell" Property="Background" Value="#C93A34"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Shell" Property="Background" Value="#A02A24"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Cursor" Value="Arrow"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Application.Resources>
 </Application>

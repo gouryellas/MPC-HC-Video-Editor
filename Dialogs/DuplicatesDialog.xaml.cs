@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using Microsoft.Win32;
 using MpcHcVideoEditor.Helpers;
@@ -75,13 +76,24 @@ public sealed class DuplicateGroupRow
         Files = new ObservableCollection<DuplicateRow>(
             group.Files.Select(f => new DuplicateRow(f)));
 
-        Heading = group.Kind switch
-        {
-            DuplicateKind.Identical => $"{group.Files.Count} identical files",
-            DuplicateKind.NearIdentical =>
-                $"{group.Files.Count} files, same length and all but the same size",
-            _ => $"{group.Files.Count} files, same footage · {group.Confidence}% alike"
-        };
+        // Three headings and only three, keyed to the two outside facts:
+        // size on disk and running time. Both agreeing — the exact pass's
+        // byte-equal groups among them, since equal bytes cannot differ
+        // in either — is "identical"; otherwise the heading names the one
+        // that agrees. A group the exact pass made was never timed, and
+        // equal bytes answer for the length by themselves.
+        var count = group.Files.Count;
+        var sizes = group.Files.Max(f => f.Bytes) - group.Files.Min(f => f.Bytes)
+                    <= Math.Max(4096, group.Files.Max(f => f.Bytes) / 1000);
+        var timed = group.Files.All(f => f.Seconds > 0);
+        var lengths = timed
+                      && group.Files.Max(f => f.Seconds) - group.Files.Min(f => f.Seconds) <= 2.0;
+
+        Heading = sizes && (lengths || !timed)
+            ? $"{count} identical files"
+            : sizes
+                ? $"{count} files size-matched, but the length differs"
+                : $"{count} files length-matched, but size differs";
 
         // Certainty and likelihood should not look the same. The first two
         // are facts about the files; a footage match is a judgement from
@@ -154,8 +166,23 @@ public partial class DuplicatesDialog : Window
         if (dlg.ShowDialog(this) == true) SetFolder(dlg.FolderName);
     }
 
+    /// <summary>Whether a scan is going, which is what the button means.</summary>
+    private bool _scanning;
+
+    /// <summary>What the last finished scan found, for the summary line.</summary>
+    private int _foundCopies;
+    private string _tookTime = "";
+    private bool _finished;
+
     private async void Scan_Click(object sender, RoutedEventArgs e)
     {
+        // The same button, mid-scan, is the stop button.
+        if (_scanning)
+        {
+            _running?.Cancel();
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(_folder) || !Directory.Exists(_folder))
         {
             EmptyText.Text = "Choose a folder first.";
@@ -168,50 +195,91 @@ public partial class DuplicatesDialog : Window
         var ct = _running.Token;
 
         _groups.Clear();
+        _finished = false;
         Refresh();
 
-        StopButton.IsEnabled = true;
+        ShowScanning(true);
         EmptyText.Visibility = Visibility.Collapsed;
 
-        StageText.Visibility = Visibility.Visible;
+        ProgressPanel.Visibility = Visibility.Visible;
+        _progress = null;
+        _fileTotal = 0;
         _dots = 0;
+        StartPass(1);
         _clock.Restart();
         _tick.Start();
         ShowWorking();
 
+        // Held and painted on the timer's beat rather than on every
+        // report: the scanner reports once per file, and a label that
+        // rewrites itself hundreds of times a second is unreadable where
+        // one that ticks twice a second is a count going up.
+        //
+        // A pass can report under more than one stage name, and a change
+        // of name is a step of its own — so the step number is the pass's
+        // base plus however many names have gone by inside it.
+        var progress = new Progress<DuplicateProgress>(p =>
+        {
+            if (_lastStage is not null && p.Stage != _lastStage) _passOffset++;
+            _lastStage = p.Stage;
+            _progress = p;
+        });
+
         try
         {
             var recursive = RecurseCheck.IsChecked == true;
+            var videosOnly = VideosCheck.IsChecked == true;
             var folder = _folder!;
 
             var files = await Task.Run(
-                () => DuplicateScanner.FindVideos(folder, recursive, ct), ct);
+                () => DuplicateScanner.FindVideos(folder, recursive, ct, videosOnly), ct);
+
+            _fileTotal = files.Count;
 
             var found = new List<DuplicateGroup>();
 
             // Narrowing, pass by pass. Each one only looks at what the ones
             // before it could not account for — a file already known to be a
             // copy is not worth probing, let alone decoding.
-            found.AddRange(await _scanner.FindIdenticalAsync(files, null, ct));
-            found.AddRange(await _scanner.FindNearIdenticalAsync(Rest(files, found), null, ct));
+            // Each pass's first step number. The exact pass reports under
+            // one name, the near pass under two, the deep pass under two
+            // — five in all, three when the deep one is not asked for.
+            StartPass(1);
+            found.AddRange(await _scanner.FindIdenticalAsync(files, progress, ct));
+
+            StartPass(2);
+            found.AddRange(await _scanner.FindNearIdenticalAsync(Rest(files, found), progress, ct));
 
             if (FootageCheck.IsChecked == true)
-                found.AddRange(await _scanner.FindSameFootageAsync(Rest(files, found), null, ct));
+            {
+                StartPass(4);
+                found.AddRange(await _scanner.FindSameFootageAsync(Rest(files, found), progress, ct));
+            }
 
             foreach (var group in found) Add(group);
 
             var copies = found.Sum(g => g.Files.Count);
 
-            StageText.Text = copies == 0
-                ? "Finished! Didn't find any."
-                : $"Finished! Found {copies} file(s).   {Elapsed}";
+            if (copies == 0)
+            {
+                Say("", "Finished! Didn't find any.", Elapsed);
+            }
+            else
+            {
+                // Everything the line used to say in two places, said
+                // once — and kept in step with the selection from here
+                // on by Refresh.
+                _foundCopies = copies;
+                _tookTime = Elapsed;
+                _finished = true;
+            }
 
             EmptyText.Text = $"No duplicates found among {files.Count} file(s).";
             EmptyText.Visibility = _groups.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }
         catch (OperationCanceledException)
         {
-            StageText.Text = $"Stopped.   {Elapsed}";
+            Say("", "Stopped.", Elapsed);
 
             if (_groups.Count == 0)
             {
@@ -222,7 +290,7 @@ public partial class DuplicatesDialog : Window
         catch (Exception ex)
         {
             Diagnostics.Swallowed("DuplicatesDialog.Scan", ex);
-            StageText.Text = "The scan could not finish.";
+            Say("", "The scan could not finish.");
             EmptyText.Text = "The scan could not finish: " + ex.Message;
             EmptyText.Visibility = Visibility.Visible;
         }
@@ -230,8 +298,40 @@ public partial class DuplicatesDialog : Window
         {
             _tick.Stop();
             _clock.Stop();
-            StopButton.IsEnabled = false;
+            ShowScanning(false);
             Refresh();
+        }
+    }
+
+    /// <summary>
+    /// Turns the one button into whichever of its two jobs applies.
+    /// </summary>
+    /// <remarks>
+    /// Red while it would stop something, the same red the rename
+    /// window's Run carries, and back to the theme's own colour when it
+    /// would start one.
+    /// </remarks>
+    private void ShowScanning(bool scanning)
+    {
+        _scanning = scanning;
+        ScanButton.Content = scanning ? "Stop" : "Scan";
+
+        if (scanning)
+        {
+            ScanButton.Background = new SolidColorBrush(Color.FromRgb(0xB3, 0x31, 0x2C));
+            ScanButton.BorderBrush = new SolidColorBrush(Color.FromRgb(0x8E, 0x26, 0x22));
+            ScanButton.Foreground = System.Windows.Media.Brushes.White;
+
+            // Tag is the hover shade the filled template reads. Left
+            // alone, a red Stop would hover to the theme's own colour.
+            ScanButton.Tag = new SolidColorBrush(Color.FromRgb(0xC9, 0x3A, 0x34));
+        }
+        else
+        {
+            ScanButton.SetResourceReference(BackgroundProperty, "PrimaryButton");
+            ScanButton.SetResourceReference(BorderBrushProperty, "PrimaryButtonBorder");
+            ScanButton.SetResourceReference(ForegroundProperty, "OnAccent");
+            ScanButton.SetResourceReference(TagProperty, "PrimaryButtonBorder");
         }
     }
 
@@ -249,20 +349,79 @@ public partial class DuplicatesDialog : Window
     /// </summary>
     private string Elapsed => JobProgress.FormatElapsed(_clock.Elapsed);
 
+    /// <summary>The scanner's latest word on where it is.</summary>
+    private DuplicateProgress? _progress;
+
+    /// <summary>How many files the walk found.</summary>
+    private int _fileTotal;
+
+    /// <summary>Where the pass under way starts counting its steps.</summary>
+    private int _stepBase;
+
+    /// <summary>How many stage names have gone by inside this pass.</summary>
+    private int _passOffset;
+
+    private string? _lastStage;
+
+    /// <summary>Opens a pass at its own step number.</summary>
+    private void StartPass(int step)
+    {
+        _stepBase = step;
+        _passOffset = 0;
+        _lastStage = null;
+    }
+
     /// <summary>
-    /// "Scanning..." with the dots counting down and back, so a long scan is
-    /// visibly still going without claiming a percentage it does not have.
+    /// How many steps a scan has, which is what the deep pass adds to.
     /// </summary>
+    private int Steps => FootageCheck.IsChecked == true ? 5 : 3;
+
+    /// <summary>
+    /// What the scan has to say for itself right now: the step under way
+    /// and how many of the folder's files are accounted for, or moving
+    /// dots while it has nothing countable to report yet.
+    /// </summary>
+    /// <remarks>
+    /// The step number and that step's own count, and nothing derived
+    /// from the folder's total. A count that restarts is a new step, and
+    /// saying which step it is explains the restart; subtracting the
+    /// step's figures from the folder's would not, because the steps
+    /// overlap and do not partition it.
+    ///
+    /// The stage name goes in its own fixed slot, so the dots can change
+    /// width without moving the figures beside them.
+    /// </remarks>
     private void ShowWorking()
     {
-        var what = FootageCheck.IsChecked == true ? "Deep scanning" : "Scanning";
-
-        // Three dots down to none, then round again. Padded so the line does
-        // not change width and shuffle the text beside it.
-        var dots = new string('.', 3 - _dots % 4).PadRight(3);
+        // Three dots down to none, then round again.
+        var dots = new string('.', 3 - _dots % 4);
         _dots++;
 
-        StageText.Text = $"{what}{dots}   {Elapsed}";
+        if (_progress is { Total: > 0 } p)
+        {
+            var step = Math.Min(_stepBase + _passOffset, Steps);
+
+            Say($"{p.Stage}{dots}",
+                $"Step {step}/{Steps} - {p.Done:N0} of {p.Total:N0}", Elapsed);
+            return;
+        }
+
+        var what = FootageCheck.IsChecked == true ? "Deep scanning" : "Scanning";
+        Say($"{what}{dots}", "", Elapsed);
+    }
+
+    /// <summary>
+    /// Writes the status line: a stage in the fixed slot, the figures
+    /// beside it, the clock against the right edge. A stage of its own
+    /// takes the whole line, which is what the finished sentence and the
+    /// stopped one want.
+    /// </summary>
+    private void Say(string stage, string info, string elapsed = "")
+    {
+        StageText.Width = stage.Length == 0 ? 0 : 158;
+        StageText.Text = stage;
+        InfoText.Text = info;
+        ElapsedText.Text = elapsed;
     }
 
     private void Add(DuplicateGroup group)
@@ -274,10 +433,8 @@ public partial class DuplicatesDialog : Window
         CheckDuplicates(row);
     }
 
-    private void Stop_Click(object sender, RoutedEventArgs e) => _running?.Cancel();
-
     /// <summary>
-    /// Checks every copy in a group but the first, so acting on the list
+    /// Selects every copy in a group but the first, so acting on the list
     /// leaves exactly one of everything.
     /// </summary>
     private static void CheckDuplicates(DuplicateGroupRow group)
@@ -309,15 +466,51 @@ public partial class DuplicatesDialog : Window
 
     private void Refresh()
     {
-        var checkedRows = Checked;
-        var bytes = checkedRows.Sum(f => f.File.Bytes);
+        var selected = Checked;
+        var bytes = selected.Sum(f => f.File.Bytes);
 
-        DeleteButton.IsEnabled = checkedRows.Count > 0;
+        DeleteButton.IsEnabled = selected.Count > 0;
+        ShowDeletable(selected.Count > 0);
 
-        SummaryText.Text = _groups.Count == 0
-            ? ""
-            : $"{_groups.Count} group(s) · {checkedRows.Count} checked" +
-              (checkedRows.Count > 0 ? $" · {bytes / 1024.0 / 1024:0.#} MB" : "");
+        // The one line that says it all, kept current as the selection
+        // changes rather than split between a header and a footer.
+        if (_finished)
+        {
+            Say("",
+                $"Finished! Found {_foundCopies} file(s) separated into " +
+                $"{_groups.Count} group(s).   {selected.Count} selected" +
+                (selected.Count > 0 ? $" - {bytes / 1024.0 / 1024:0.#} MB" : ""),
+                _tookTime);
+        }
+    }
+
+    /// <summary>
+    /// Paints the delete button red once it has something to delete.
+    /// </summary>
+    /// <remarks>
+    /// The red is a warning, and a warning about nothing is noise — with
+    /// an empty list, or a scanned list with every box clear, there is
+    /// nothing for it to be a warning about. This is a state the button
+    /// is in rather than the usual "unavailable" dimming: the colour says
+    /// what pressing it would cost, so it arrives when the cost does.
+    /// </remarks>
+    private void ShowDeletable(bool any)
+    {
+        if (any)
+        {
+            DeleteButton.Background = new SolidColorBrush(Color.FromRgb(0xB3, 0x31, 0x2C));
+            DeleteButton.BorderBrush = new SolidColorBrush(Color.FromRgb(0x8E, 0x26, 0x22));
+            DeleteButton.Foreground = Brushes.White;
+            DeleteButton.Tag = new SolidColorBrush(Color.FromRgb(0xC9, 0x3A, 0x34));
+            return;
+        }
+
+        // Back to resource references rather than brushes frozen out of
+        // whichever theme was current when this last ran.
+        DeleteButton.SetResourceReference(BackgroundProperty, "ControlBackground");
+        DeleteButton.SetResourceReference(BorderBrushProperty, "BorderBrush");
+        DeleteButton.SetResourceReference(ForegroundProperty, "TextPrimary");
+        DeleteButton.SetResourceReference(TagProperty, "ControlHover");
     }
 
     /// <summary>
@@ -385,6 +578,16 @@ public partial class DuplicatesDialog : Window
         {
             EmptyText.Text = "Done. Scan again to check what is left.";
             EmptyText.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void Play_Click(object sender, RoutedEventArgs e)
+    {
+        var path = (string?)((Button)sender).Tag;
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            try { System.Diagnostics.Process.Start(path); }
+            catch (Exception ex) { Diagnostics.Swallowed("DuplicatesDialog.Play", ex); }
         }
     }
 

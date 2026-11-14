@@ -6110,7 +6110,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
             // Bare "Writing": the action already names the format, and the panel
             // shows the two joined as "Converting images to PNG · Writing".
             Job.Report("Writing", (double)done / ofd.FileNames.Length * 100);
-            StatusText = $"Converting {Path.GetFileName(file)}…";
+
+            // Stage and count, the way the scan windows say it. The file
+            // being worked on is not repeated here — the job panel shows
+            // it already, and the bar is the one line that has to stay
+            // readable from across the room.
+            StatusText = $"Converting…   {done + 1:N0} of {ofd.FileNames.Length:N0}";
 
             var outPath = await ResolveOutputPathAsync(
                 GetSuffixedOutputPath(file, format.Extension, _lastImageFolder));
@@ -6320,7 +6325,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
             _batchRemaining = ofd.FileNames.Length - done;
             Job.SetFile(done, Path.GetFileName(file));
             Job.Report("Writing", (double)done / ofd.FileNames.Length * 100);
-            StatusText = $"Resizing {Path.GetFileName(file)}…";
+            // Stage and count, as the conversion above says it.
+            StatusText = $"Resizing…   {done + 1:N0} of {ofd.FileNames.Length:N0}";
 
             var format = ImageConversionService.FormatForFile(file);
             if (!string.Equals(format.Extension, Path.GetExtension(file), StringComparison.OrdinalIgnoreCase))

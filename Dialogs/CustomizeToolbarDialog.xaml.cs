@@ -117,9 +117,11 @@ public partial class CustomizeToolbarDialog : Window
 
         ShowHiddenNotice();
 
-        // The preview is bounded by the width the toolbar can always count on.
-        // Padding and the border are not toolbar, so they come off it.
-        PreviewFrame.Width = Math.Max(320, minimumWidth) + 14;
+        // The rows are bounded by the width the toolbar can always count
+        // on, so what wraps here wraps for real. The frame around them
+        // stretches to match the list below instead — the bound belongs
+        // to the toolbar being previewed, not to the box drawn round it.
+        PreviewRows.MaxWidth = Math.Max(320, minimumWidth);
 
         LoadRows(current);
         RefreshAvailable();

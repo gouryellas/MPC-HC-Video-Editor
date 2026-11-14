@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.IO;
 using System.Text;
 
@@ -21,27 +21,271 @@ namespace MpcHcVideoEditor.Services;
 /// is the whole point of it.
 /// </para>
 /// </remarks>
+public enum WordMatchMode
+{
+    /// <summary>The word as written, and nothing else.</summary>
+    Precise,
+
+    /// <summary>And its endings: wave catches waves, waved, waving.</summary>
+    Variant,
+
+    /// <summary>And the ones that change shape: go catches went and gone.</summary>
+    Irregular
+}
+
 public sealed class WordMatch : IEqualityComparer<string>
 {
-    public static readonly WordMatch Exact = new(false);
-    public static readonly WordMatch Variants = new(true);
+    public static readonly WordMatch Exact = For(WordMatchMode.Precise);
+    public static readonly WordMatch Variants = For(WordMatchMode.Variant);
+    public static readonly WordMatch Irregulars = For(WordMatchMode.Irregular);
 
-    public static WordMatch For(bool variants) => variants ? Variants : Exact;
+    public static WordMatch For(WordMatchMode mode, bool regex = false) => new(mode, regex);
 
-    private WordMatch(bool variants) => _variants = variants;
+    private WordMatch(WordMatchMode mode, bool regex)
+    {
+        _mode = mode;
+        _regex = regex;
+    }
 
-    private readonly bool _variants;
+    private readonly WordMatchMode _mode;
+    private readonly bool _regex;
 
     public bool Equals(string? a, string? b)
     {
         if (a is null || b is null) return a is null && b is null;
         if (string.Equals(a, b, StringComparison.OrdinalIgnoreCase)) return true;
 
-        return _variants && Stem(a) == Stem(b);
+        // One of the two came from a word list and the other out of a
+        // filename, and nothing here knows which way round. Both are
+        // tried: a filename word used as a pattern can only ever match
+        // itself, so the wrong guess costs nothing.
+        if (_regex) return Matches(a, b) || Matches(b, a);
+
+        if (_mode == WordMatchMode.Precise) return false;
+
+        if (_mode == WordMatchMode.Irregular
+            && Family(a) is { } family
+            && family == Family(b))
+        {
+            return true;
+        }
+
+        return Stem(a) == Stem(b);
     }
 
     public int GetHashCode(string word) =>
-        (_variants ? Stem(word) : word.ToLowerInvariant()).GetHashCode();
+        _regex
+            // Patterns cannot hash to what they match, so everything
+            // lands in one bucket and the comparison stays linear.
+            ? 0
+            : Key(word).GetHashCode();
+
+    private string Key(string word) => _mode switch
+    {
+        WordMatchMode.Precise => word.ToLowerInvariant(),
+        WordMatchMode.Irregular => Family(word) ?? Stem(word),
+        _ => Stem(word)
+    };
+
+    /// <summary>
+    /// Whether the whole of <paramref name="word"/> is what
+    /// <paramref name="pattern"/> describes.
+    /// </summary>
+    /// <remarks>
+    /// Anchored, so "wave" is still the word wave and not a licence to
+    /// match waveform. A pattern that will not compile is treated as
+    /// matching nothing rather than taking the rename down — a half-typed
+    /// expression in a word list is an ordinary thing to find.
+    /// </remarks>
+    private static bool Matches(string pattern, string word)
+    {
+        try
+        {
+            return System.Text.RegularExpressions.Regex.IsMatch(
+                word, "^(?:" + pattern + ")$",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase
+                | System.Text.RegularExpressions.RegexOptions.CultureInvariant,
+                TimeSpan.FromMilliseconds(250));
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// The words that change shape instead of taking an ending.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// No rule reaches these — went is not go with a suffix — so they are
+    /// listed. The first word of each line is what the rest answer to;
+    /// every member is written out, including the base, so that any two
+    /// of them meet at the same key.
+    /// </para>
+    /// <para>
+    /// The common ones, not all of English. That is why this is a mode
+    /// somebody turns on rather than how matching always works: a list
+    /// like this is never finished, and the gaps in it are invisible
+    /// until a file does not get renamed.
+    /// </para>
+    /// </remarks>
+    private static readonly string[] Families =
+    {
+        "be am is are was were been being",
+        "have has having had",
+        "do does doing did done",
+        "go goes going went gone",
+        "get gets getting got gotten",
+        "make makes making made",
+        "take takes taking took taken",
+        "see sees seeing saw seen",
+        "come comes coming came",
+        "run runs running ran",
+        "give gives giving gave given",
+        "know knows knowing knew known",
+        "think thinks thinking thought",
+        "find finds finding found",
+        "tell tells telling told",
+        "become becomes becoming became",
+        "leave leaves leaving left",
+        "feel feels feeling felt",
+        "bring brings bringing brought",
+        "begin begins beginning began begun",
+        "keep keeps keeping kept",
+        "hold holds holding held",
+        "write writes writing wrote written",
+        "stand stands standing stood",
+        "hear hears hearing heard",
+        "let lets letting",
+        "mean means meaning meant",
+        "set sets setting",
+        "meet meets meeting met",
+        "pay pays paying paid",
+        "sit sits sitting sat",
+        "speak speaks speaking spoke spoken",
+        "lie lies lying lay lain",
+        "lead leads leading led",
+        "read reads reading",
+        "grow grows growing grew grown",
+        "lose loses losing lost",
+        "fall falls falling fell fallen",
+        "send sends sending sent",
+        "build builds building built",
+        "understand understands understanding understood",
+        "draw draws drawing drew drawn",
+        "break breaks breaking broke broken",
+        "spend spends spending spent",
+        "cut cuts cutting",
+        "rise rises rising rose risen",
+        "drive drives driving drove driven",
+        "buy buys buying bought",
+        "wear wears wearing wore worn",
+        "choose chooses choosing chose chosen",
+        "seek seeks seeking sought",
+        "throw throws throwing threw thrown",
+        "catch catches catching caught",
+        "deal deals dealing dealt",
+        "win wins winning won",
+        "forget forgets forgetting forgot forgotten",
+        "teach teaches teaching taught",
+        "eat eats eating ate eaten",
+        "fly flies flying flew flown",
+        "ride rides riding rode ridden",
+        "swim swims swimming swam swum",
+        "sing sings singing sang sung",
+        "ring rings ringing rang rung",
+        "drink drinks drinking drank drunk",
+        "sleep sleeps sleeping slept",
+        "hide hides hiding hid hidden",
+        "shoot shoots shooting shot",
+        "fight fights fighting fought",
+        "hang hangs hanging hung",
+        "shake shakes shaking shook shaken",
+        "wake wakes waking woke woken",
+        "freeze freezes freezing froze frozen",
+        "steal steals stealing stole stolen",
+        "tear tears tearing tore torn",
+        "blow blows blowing blew blown",
+        "beat beats beating beaten",
+        "bite bites biting bit bitten",
+        "hit hits hitting",
+        "hurt hurts hurting",
+        "put puts putting",
+        "shut shuts shutting",
+        "cost costs costing",
+        "feed feeds feeding fed",
+        "sell sells selling sold",
+        "swing swings swinging swung",
+        "stick sticks sticking stuck",
+        "strike strikes striking struck",
+        "slide slides sliding slid",
+        "spin spins spinning spun",
+        "spread spreads spreading",
+        "shine shines shining shone",
+        "sweep sweeps sweeping swept",
+        "dig digs digging dug",
+        "light lights lighting lit",
+
+        // And the nouns that do the same thing.
+        "child children",
+        "man men",
+        "woman women",
+        "person people",
+        "foot feet",
+        "tooth teeth",
+        "goose geese",
+        "mouse mice",
+        "louse lice",
+        "ox oxen",
+        "leaf leaves",
+        "knife knives",
+        "wife wives",
+        "life lives",
+        "half halves",
+        "shelf shelves",
+        "wolf wolves",
+        "calf calves",
+        "loaf loaves",
+        "thief thieves",
+        "cactus cacti",
+        "focus foci",
+        "fungus fungi",
+        "nucleus nuclei",
+        "analysis analyses",
+        "crisis crises",
+        "thesis theses",
+        "phenomenon phenomena",
+        "criterion criteria",
+        "index indices",
+        "matrix matrices",
+        "vertex vertices",
+        "appendix appendices"
+    };
+
+    private static readonly Dictionary<string, string> Irregular = Build();
+
+    private static Dictionary<string, string> Build()
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var family in Families)
+        {
+            var words = family.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+            // First come, first served. A word in two families — lay and
+            // lie overlap, as do leaves on a tree and leaves a room —
+            // belongs to the one listed first rather than silently
+            // rebinding the earlier one.
+            foreach (var word in words) map.TryAdd(word, words[0]);
+        }
+
+        return map;
+    }
+
+    /// <summary>The family this word belongs to, or null.</summary>
+    internal static string? Family(string word) =>
+        Irregular.TryGetValue(word, out var key) ? key : null;
 
     /// <summary>The shortest a stem is allowed to get.</summary>
     /// <remarks>
@@ -164,13 +408,26 @@ public static class RuleActions
     public const string IfNotFound = "if these are NOT found";
     public const string Order = "the order is";
     public const string Delete = "delete these";
+    public const string DeleteFound = "delete the found words";
     public const string Change = "change these";
     public const string ChangeTo = "change to";
 
     public static readonly IReadOnlyList<string> All = new[]
     {
-        IfFound, IfNotFound, Order, Delete, Change, ChangeTo
+        IfFound, IfNotFound, Order, Delete, DeleteFound, Change, ChangeTo
     };
+
+    /// <summary>
+    /// Whether this phrase stands on its own, with no words after it.
+    /// </summary>
+    /// <remarks>
+    /// Only one does. It acts on the words the conditions above it
+    /// already name, which is the point of it: a rule that recognises
+    /// twenty makes of car and then has to list all twenty again to
+    /// strike them out is the same list written twice, and the second
+    /// copy is the one that falls out of step.
+    /// </remarks>
+    public static bool Wordless(string? action) => Is(action, DeleteFound);
 
     public static bool Is(string? action, string what) =>
         string.Equals(action, what, StringComparison.OrdinalIgnoreCase);
@@ -178,6 +435,20 @@ public static class RuleActions
     /// <summary>Whether this line asks a question rather than doing something.</summary>
     public static bool IsCondition(string? action) =>
         Is(action, IfFound) || Is(action, IfNotFound);
+
+    /// <summary>
+    /// Whether this line does something, as opposed to asking or to not
+    /// having been chosen yet.
+    /// </summary>
+    /// <remarks>
+    /// Named rather than taken as "anything that is not a condition". A row
+    /// is added with no action on it and gets one afterwards, so "not a
+    /// condition" is also true of a row that says nothing at all — and a
+    /// rule made only of those would have counted as finished.
+    /// </remarks>
+    public static bool IsDoing(string? action) =>
+        Is(action, Order) || Is(action, Delete) || Is(action, DeleteFound)
+        || Is(action, Change) || Is(action, ChangeTo);
 }
 
 /// <summary>
@@ -326,7 +597,8 @@ public sealed class RenameRule
         Lines.Where(l => RuleActions.IsCondition(l.Action) && l.Terms.Count > 0);
 
     private IEnumerable<RuleLine> Doings =>
-        Lines.Where(l => !RuleActions.IsCondition(l.Action) && l.Used.Count > 0);
+        Lines.Where(l => RuleActions.IsDoing(l.Action)
+                         && (l.Used.Count > 0 || RuleActions.Wordless(l.Action)));
 
     /// <summary>Every word the conditions look for, in the order written.</summary>
     public IReadOnlyList<string> Conditions =>
@@ -372,7 +644,20 @@ public sealed class RenameRule
             if (RuleActions.Is(line.Action, RuleActions.Delete))
             {
                 foreach (var word in line.Used)
-                    words.RemoveAll(w => match.Equals(w, word));
+                    Strike(words, word, match);
+            }
+            else if (RuleActions.Is(line.Action, RuleActions.DeleteFound))
+            {
+                // Every word this rule was looking for, struck out of the
+                // name it was found in. Only the "found" conditions: a
+                // "NOT found" one names words that are, by the fact the
+                // rule applied at all, not there to delete.
+                foreach (var word in Lines
+                             .Where(l => RuleActions.Is(l.Action, RuleActions.IfFound))
+                             .SelectMany(l => l.Used))
+                {
+                    Strike(words, word, match);
+                }
             }
             else if (RuleActions.Is(line.Action, RuleActions.Change))
             {
@@ -403,6 +688,37 @@ public sealed class RenameRule
     }
 
     /// <summary>
+    /// Deletes a word from the name, wherever the cleanup put it.
+    /// </summary>
+    /// <remarks>
+    /// Including inside a joined pair. The cleanup reads a single
+    /// underscore between two words as a first_last name, and it cannot
+    /// always be right — "ab_clip" is two words to the person who named
+    /// the file. The conditions see the original and say the word is
+    /// there; a deletion that then cannot find it in the welded word
+    /// would fire and change nothing, silently. So a pair gives up the
+    /// half that matches and the other half carries on as a word of its
+    /// own.
+    /// </remarks>
+    private static void Strike(List<string> words, string word, WordMatch match)
+    {
+        for (int i = words.Count - 1; i >= 0; i--)
+        {
+            if (match.Equals(words[i], word)) { words.RemoveAt(i); continue; }
+
+            if (!words[i].Contains('_')) continue;
+
+            var halves = words[i].Split('_');
+            if (!halves.Any(half => match.Equals(half, word))) continue;
+
+            var kept = halves.Where(half => !match.Equals(half, word)).ToList();
+
+            if (kept.Count == 0) words.RemoveAt(i);
+            else words[i] = string.Join("_", kept);
+        }
+    }
+
+    /// <summary>
     /// The rule read back as a sentence.
     /// </summary>
     /// <remarks>
@@ -425,6 +741,13 @@ public sealed class RenameRule
             {
                 var line = Lines[i];
                 var words = line.Used;
+
+                if (RuleActions.Wordless(line.Action))
+                {
+                    said.Add("delete the words it looked for");
+                    continue;
+                }
+
                 if (words.Count == 0) continue;
 
                 if (RuleActions.IsCondition(line.Action))
@@ -570,18 +893,46 @@ public sealed class FilenameVocabulary
     private readonly IReadOnlyList<RenameRule> _rules = Array.Empty<RenameRule>();
 
     /// <summary>
-    /// Whether a word in a list also stands for its inflections.
+    /// How closely a word in a list has to match one in a filename.
     /// </summary>
     /// <remarks>
-    /// On, because the alternative is typing wave, waves, waving and waved
-    /// into a box four times and still missing one. Off is there for anyone
-    /// who hits a pair of words it folds together wrongly — it is a
-    /// heuristic, and <see cref="WordMatch"/> says where its edges are.
+    /// Variant by default, because the alternative is typing wave,
+    /// waves, waving and waved into a box four times and still missing
+    /// one. Precise is there for anyone who hits a pair of words it folds
+    /// together wrongly; Irregular is there for the verbs no rule can
+    /// reach. <see cref="WordMatch"/> says where the edges of each are.
     /// </remarks>
-    public bool MatchVariants { get; init; } = true;
+    public WordMatchMode MatchMode { get; init; } = WordMatchMode.Variant;
 
-    /// <summary>How two words are compared, everywhere in the renamer.</summary>
-    public WordMatch Match => WordMatch.For(MatchVariants);
+    /// <summary>
+    /// Whether the words are regular expressions rather than words.
+    /// </summary>
+    /// <remarks>
+    /// When they are, the mode above does not apply: an expression says
+    /// for itself what it will and will not match, and layering a
+    /// stemmer over it would make it say something else.
+    /// </remarks>
+    public bool UseRegex { get; init; }
+
+    /// <summary>How a word list word is compared against a filename word.</summary>
+    public WordMatch Match => WordMatch.For(MatchMode, UseRegex);
+
+    /// <summary>
+    /// The same two settings again, for the blacklist alone.
+    /// </summary>
+    /// <remarks>
+    /// Separate, and Precise by default, because the two lists are not
+    /// the same risk. A loose match in the word list recognises a word
+    /// that was not quite meant; a loose match in the blacklist deletes
+    /// one. "render" reaching "rendered" is useful; reaching "rendering"
+    /// when a file is called that on purpose is a word gone from the
+    /// name with nothing to say it went.
+    /// </remarks>
+    public WordMatchMode BlacklistMatchMode { get; init; } = WordMatchMode.Precise;
+
+    public bool BlacklistUseRegex { get; init; }
+
+    public WordMatch BlacklistMatch => WordMatch.For(BlacklistMatchMode, BlacklistUseRegex);
 
     public static readonly FilenameVocabulary Empty = new();
 
@@ -600,8 +951,15 @@ public sealed record RenameProposal(string Original, string Proposed, string Not
 
 public static class FilenameRules
 {
-    /// <summary>Everything a name may contain, besides the extension's dot.</summary>
-    private const string Allowed = "0123456789abcdefghijklmnopqrstuvwxyz()[]_-";
+    /// <summary>
+    /// Everything a name may contain, besides the extension's dot.
+    /// </summary>
+    /// <remarks>
+    /// No underscore. It is handled as a separator instead — see
+    /// <see cref="Clean"/> — so that it behaves like a space everywhere
+    /// except the one place it means something.
+    /// </remarks>
+    private const string Allowed = "0123456789abcdefghijklmnopqrstuvwxyz()[]-";
 
     /// <summary>
     /// Letters that do not come apart into a letter and an accent, and so
@@ -636,7 +994,7 @@ public static class FilenameRules
         var cleaned = Clean(stem);
         if (cleaned.Length == 0) return fileName;   // nothing left; see Propose
 
-        cleaned = Restructure(cleaned, vocabulary ?? FilenameVocabulary.Empty);
+        cleaned = Restructure(cleaned, vocabulary ?? FilenameVocabulary.Empty, stem);
 
         var ext = Clean(extension.TrimStart('.'));
         return ext.Length > 0 ? cleaned + "." + ext : cleaned;
@@ -670,6 +1028,21 @@ public static class FilenameRules
     /// arrives at "wedding-vows" without needing a rule of its own.
     /// </para>
     /// <para>
+    /// The underscore is a separator too, with one exception: a single one
+    /// standing between two kept characters survives, because that is the
+    /// only mark a first_last name has. Everywhere else — leading,
+    /// trailing, doubled, or in company with a space — it is a dash like
+    /// anything else. So "_leading" loses it, "a__b" becomes "a-b", and
+    /// "sarah_williams" keeps the one that means something.
+    ///
+    /// A name is a pair, though, and only a pair. Any underscore that did
+    /// not join — dropped off the front, doubled, or the one that already
+    /// made a pair — says the file writes its separators as underscores,
+    /// and the next single one is read accordingly. Without this,
+    /// "_pb_title" lost its leading mark and then welded what was left
+    /// into one word "pb_title" that no word list would ever find.
+    /// </para>
+    /// <para>
     /// Then no character may repeat: "((((" becomes "(", "---" becomes "-".
     /// Letters and digits are exempt, which is not in the instruction but
     /// has to be — collapsing those would turn "bookkeeper" into "bokeper"
@@ -682,6 +1055,13 @@ public static class FilenameRules
 
         var kept = new StringBuilder(plain.Length);
 
+        // Whether an underscore here could still be a name-join. Cleared
+        // by any underscore that was not one — a leading one that was
+        // dropped, a doubled one, one riding with a space — and by a join
+        // itself, since a name is two words and a chain of them is a
+        // separator style, not a longer name.
+        var joinable = true;
+
         for (int i = 0; i < plain.Length; i++)
         {
             if (Allowed.Contains(plain[i])) { kept.Append(plain[i]); continue; }
@@ -691,12 +1071,26 @@ public static class FilenameRules
             while (end < plain.Length && !Allowed.Contains(plain[end])) end++;
 
             var dividing = kept.Length > 0 && end < plain.Length;
-            if (dividing) kept.Append('-');
+            var underscored = plain.IndexOf('_', i, end - i) >= 0;
+
+            if (dividing)
+            {
+                var joins = joinable && end - i == 1 && plain[i] == '_';
+                kept.Append(joins ? '_' : '-');
+                joinable = !joins && !underscored;
+            }
+            else if (underscored)
+            {
+                // Dropped, but still evidence: a name that opens with an
+                // underscore writes its separators as underscores, and
+                // the next single one is not half of anybody's name.
+                joinable = false;
+            }
 
             i = end - 1;
         }
 
-        return Squeeze(kept.ToString()).Trim('-');
+        return Squeeze(kept.ToString()).Trim('-', '_');
     }
 
     /// <summary>
@@ -752,6 +1146,52 @@ public static class FilenameRules
     }
 
     /// <summary>
+    /// The words of a name as it was typed, before anything touches it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// What the rule conditions are asked about. Split at every character
+    /// that is not a letter or digit, so whatever the file used for
+    /// separators — the underscores "_ab_clip" is fenced with among
+    /// them — cannot weld two of its words into one that no word list
+    /// would ever hold.
+    /// </para>
+    /// <para>
+    /// A first_last pair is added whole as well as in halves, so a
+    /// condition may name the person or either of their names and be
+    /// right every time.
+    /// </para>
+    /// </remarks>
+    internal static List<string> OriginalWords(string stem)
+    {
+        var plain = Transliterate(stem.ToLowerInvariant());
+        var words = new List<string>();
+        string? previous = null;
+
+        for (int i = 0; i < plain.Length; i++)
+        {
+            if (!char.IsLetterOrDigit(plain[i])) continue;
+
+            int start = i;
+            while (i < plain.Length && char.IsLetterOrDigit(plain[i])) i++;
+            var word = plain[start..i];
+
+            // Joined to the word before by exactly one underscore: the
+            // pair goes in too.
+            if (previous is not null && plain[start - 1] == '_'
+                && start >= 2 && char.IsLetterOrDigit(plain[start - 2]))
+            {
+                words.Add(previous + "_" + word);
+            }
+
+            words.Add(word);
+            previous = word;
+        }
+
+        return words;
+    }
+
+    /// <summary>
     /// Arranges the parts into
     /// <c>category-activity-first_last-subject[tag]</c> as far as it can
     /// tell what they are.
@@ -767,7 +1207,8 @@ public static class FilenameRules
     /// on a guess would produce a name that looks deliberate and is wrong,
     /// which is harder to spot than one that is obviously still untidy.
     /// </remarks>
-    internal static string Restructure(string cleaned, FilenameVocabulary vocabulary)
+    internal static string Restructure(string cleaned, FilenameVocabulary vocabulary,
+                                       string? original = null)
     {
         // Any bracketed groups, held aside and re-attached at the end in the
         // order they appeared.
@@ -781,31 +1222,26 @@ public static class FilenameRules
         var words = body.Split('-', StringSplitOptions.RemoveEmptyEntries).ToList();
         if (words.Count == 0 && tags.Count == 0) return cleaned;
 
-        // Struck out first, so a blacklisted word cannot take a slot or
-        // push a real word into the description.
-        //
-        // The conditions are asked about the name as it arrived, though —
-        // see below — so a word being blacklisted does not also make it
-        // invisible to the rules.
-        var asFound = new List<string>(words);
+        // The conditions are asked about the name as it was typed, so
+        // neither the cleanup nor the blacklist can make a word invisible
+        // to the rules. The cleanup, because its judgement calls — which
+        // underscore is a name and which a separator — could weld two of
+        // the original's words into one that no list would ever hold, and
+        // a rule has to be able to ask about the name its author was
+        // looking at. The blacklist, because "if temp is NOT found" is
+        // otherwise always true for anybody who also blacklisted "temp" —
+        // which is exactly the person who would write that rule — and it
+        // is true silently, which is the worst way for a rule to be wrong.
+        var asFound = original is null ? new List<string>(words) : OriginalWords(original);
         var match = vocabulary.Match;
 
-        if (vocabulary.Blacklist.Count > 0)
-            words.RemoveAll(w => vocabulary.Blacklist.Contains(w, match));
-
-        // Every rule that holds gets to delete and to swap, top to bottom,
-        // each seeing what the one above it left behind. The ordering is the
-        // exception: the first rule that gives one decides, because a name
-        // can only lead one way and the rule written first is the one meant
-        // to win.
-        //
-        // Conditions are asked of the name as it arrived, not of what is
-        // left after the blacklist. Otherwise "if temp is NOT found" is
-        // always true for anybody who also blacklisted "temp" — which is
-        // exactly the person who would write that rule — and it is true
-        // silently, which is the worst way for a rule to be wrong. Edits are
-        // applied to both lists so a swap the rule above made is what the
-        // rule below asks about.
+        // The rules first, all of them. Every rule that holds gets to
+        // delete and to swap, top to bottom, each seeing what the one
+        // above it left behind. The ordering is the exception: the first
+        // rule that gives one decides, because a name can only lead one
+        // way and the rule written first is the one meant to win. Edits
+        // are applied to both lists so a swap the rule above made is what
+        // the rule below asks about.
         IReadOnlyList<string>? lead = null;
 
         foreach (var rule in vocabulary.Rules)
@@ -816,6 +1252,14 @@ public static class FilenameRules
             rule.Edit(asFound, match);
             lead ??= rule.Order;
         }
+
+        // Then the general scrub, once the rules have all had their say.
+        // On its own terms, not the word list's: see
+        // FilenameVocabulary.BlacklistMatch. Before the ordering and the
+        // slots below, so a blacklisted word cannot take a slot or push a
+        // real word into the description.
+        if (vocabulary.Blacklist.Count > 0)
+            words.RemoveAll(w => vocabulary.Blacklist.Contains(w, vocabulary.BlacklistMatch));
 
         var leading = new List<string>();
 

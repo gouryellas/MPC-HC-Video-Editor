@@ -1,7 +1,7 @@
 <Window x:Class="MpcHcVideoEditor.Dialogs.RenameWordsDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Words the renamer knows"
+        Title="Custom Rules"
         Height="748" Width="1000"
         MinHeight="520" MinWidth="840"
         WindowStartupLocation="CenterOwner"
@@ -127,6 +127,25 @@
             <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality"/>
         </Style>
 
+        <!-- Drawn rather than drawn from a file. The two add lines want the
+             same mark in two colours, and a bitmap is the one colour it was
+             painted — a vector takes a Fill, and a Fill can be a theme
+             brush, so both of them follow the theme instead of being two
+             more fixed-colour pictures. -->
+        <Style x:Key="PlusGlyph" TargetType="Path">
+            <Setter Property="Width" Value="11"/>
+            <Setter Property="Height" Value="11"/>
+            <Setter Property="Stretch" Value="Uniform"/>
+            <Setter Property="Data"
+                    Value="M 7,0 L 11,0 L 11,7 L 18,7 L 18,11 L 11,11 L 11,18 L 7,18 L 7,11 L 0,11 L 0,7 L 7,7 Z"/>
+        </Style>
+
+        <Style x:Key="AddLineText" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+        </Style>
+
         <!-- The heading, once it is being typed into. Its own style because
              the implicit TextBox in this window is the one the word lists
              use: multi-line, Consolas and scrolling, none of which belongs
@@ -145,6 +164,24 @@
             <Setter Property="MaxLength" Value="60"/>
             <!-- Room to type in, taken only while it is on screen. -->
             <Setter Property="MinWidth" Value="180"/>
+        </Style>
+
+        <!-- One word slot of a rule, typed into. Its own style because the
+             implicit TextBox here is the blacklist's: multi-line, Consolas
+             and scrolling, none of which belongs in a box one word wide. -->
+        <Style x:Key="SlotBox" TargetType="TextBox">
+            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,2"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="AcceptsReturn" Value="False"/>
+            <Setter Property="TextWrapping" Value="NoWrap"/>
+            <Setter Property="VerticalScrollBarVisibility" Value="Hidden"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="MaxLength" Value="60"/>
         </Style>
 
         <!-- Orange where a line asks something, green where it does
@@ -188,11 +225,19 @@
             <Setter Property="MinWidth" Value="84"/>
             <Setter Property="Height" Value="24"/>
             <Setter Property="Margin" Value="4,0"/>
+            <!-- Stated, not inherited. A control left to the system font
+                 comes out a size or two above the 12 everything else in
+                 this window is written at. -->
+            <Setter Property="FontSize" Value="12"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ComboBox">
                         <Grid>
-                            <ToggleButton x:Name="Face" Focusable="False" ClickMode="Press"
+                            <!-- Opens on release, not on press. A slot can
+                                 be dragged onto the row below it, and a
+                                 dropdown that opens the instant the button
+                                 goes down never lets a drag begin. -->
+                            <ToggleButton x:Name="Face" Focusable="False" ClickMode="Release"
                                           IsChecked="{Binding IsDropDownOpen, Mode=TwoWay,
                                                       RelativeSource={RelativeSource TemplatedParent}}">
                                 <ToggleButton.Template>
@@ -246,6 +291,7 @@
 
         <Style TargetType="ComboBoxItem">
             <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="FontSize" Value="12"/>
             <Setter Property="Padding" Value="8,4"/>
             <!-- So the blank entry at the top of every list is a row big
                  enough to aim at. Left to its own content it would be four
@@ -303,60 +349,36 @@
                 </StackPanel>
             </Button>
 
-            <Button DockPanel.Dock="Right" Content="Close" Width="90" Click="Close_Click"/>
+            <Button DockPanel.Dock="Right" Content="Close" Width="90" Click="Close_Click"
+                    Style="{StaticResource CloseButton}"/>
         </DockPanel>
 
-        <Grid DockPanel.Dock="Top" Height="168">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="14"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
+        <!-- One list left of the five this window began with. The rules
+             carry their own words now, typed straight into them; the
+             blacklist stays because the engine reads it directly — it is
+             the one list that acts on every file by itself. -->
+        <Grid DockPanel.Dock="Top" Height="150">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <DockPanel Grid.Row="0" Grid.Column="0" Margin="0,0,0,6" LastChildFill="False">
-                <!-- The count lives in the heading rather than on a summary
-                     line of its own. It is the same fact, said where the
-                     thing it counts actually is. -->
-                <TextBlock DockPanel.Dock="Left" x:Name="WordsHeading" Text="Words"
-                           Style="{StaticResource Heading}"/>
-                <ContentControl DockPanel.Dock="Left" Style="{StaticResource Qmhp}">
-                    <ContentControl.ToolTip>
-                        <TextBlock MaxWidth="340" TextWrapping="Wrap"
-                                   Text="Every word worth noticing, one per line. The rules below say how they are ordered — a word is not a category or a subject in itself, since the same word can lead one name and trail another."/>
-                    </ContentControl.ToolTip>
-                </ContentControl>
-
-                <!-- Applies to the blacklist as well, which is the same kind
-                     of list doing the opposite job. -->
-                <ContentControl DockPanel.Dock="Right" Style="{StaticResource Qmhp}">
-                    <ContentControl.ToolTip>
-                        <TextBlock MaxWidth="380" TextWrapping="Wrap"
-                                   Text="One word stands for its endings, in both lists: wave also catches waves, waving and waved, and bounce catches bounces, bouncing, bounced, bouncy and bounciest. Plurals, participles, past tenses and -er/-est only — irregulars are not covered, so ran will not match run. Turn it off if it folds together two words you need kept apart."/>
-                    </ContentControl.ToolTip>
-                </ContentControl>
-                <CheckBox DockPanel.Dock="Right" x:Name="VariantsCheck" IsChecked="True"
-                          VerticalAlignment="Center" FontSize="12"
-                          Content="Match word endings"
-                          Foreground="{DynamicResource TextSecondary}"/>
-            </DockPanel>
-            <TextBox   Grid.Row="1" Grid.Column="0" x:Name="WordsBox"
-                       TextChanged="Words_Changed"/>
-
-            <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" Margin="0,0,0,6">
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
                 <TextBlock x:Name="BlacklistHeading" Text="Blacklisted"
                            Style="{StaticResource Heading}"/>
                 <ContentControl Style="{StaticResource Qmhp}">
                     <ContentControl.ToolTip>
-                        <TextBlock MaxWidth="340" TextWrapping="Wrap"
-                                   Text="If any of these words are found, they will be removed from the filename."/>
+                        <TextBlock MaxWidth="360" TextWrapping="Wrap"
+                                   Text="If any of these words are found, they will be removed from the filename. One per line. Matched exactly as written — a list that deletes words earns that strictness — though the Regex option under Rules reads these lines as expressions too."/>
                     </ContentControl.ToolTip>
                 </ContentControl>
             </StackPanel>
-            <TextBox   Grid.Row="1" Grid.Column="2" x:Name="BlacklistBox"/>
+			
+			
+			
+            <TextBox   Grid.Row="1" x:Name="BlacklistBox"
+                       TextChanged="Words_Changed"/>
         </Grid>
 
         <!-- Rules below the words they are built from, because the lists have
@@ -378,10 +400,18 @@
                     <ContentControl DockPanel.Dock="Left" Style="{StaticResource Qmhp}">
                         <ContentControl.ToolTip>
                             <TextBlock MaxWidth="400" TextWrapping="Wrap"
-                                       Text="A rule is lines read top to bottom: the questions it asks about the name, then what to do when all of them hold. Several questions mean all of them — &quot;or&quot; belongs inside one line, between its own words. A word in an ordering that the filename does not have is added, which is how a clip can be made to say what it belongs to without the word ever being typed into it. Write one here and save it to add it to the list; the order of that list is the order the rules are tried in."/>
+                                       Text="A rule is lines read top to bottom: the questions it asks about the name, then what to do when all of them hold. The questions look at the filename as it was typed — before the cleanup or the blacklist has touched it — so nothing can hide a word from them. Several questions mean all of them — &quot;or&quot; belongs inside one line, between its own words. A word in an ordering that the filename does not have is added, which is how a clip can be made to say what it belongs to without the word ever being typed into it.&#x0a;&#x0a;Rules are tried top to bottom and every rule whose questions hold applies its lines, each seeing what the one above left behind; only the ordering is first-come — the first rule to give one decides it. When the rules have all had their say, the general cleanup finishes the name: the blacklist, the name keeping its slot, and the order the words were found in."/>
                         </ContentControl.ToolTip>
                     </ContentControl>
                 </DockPanel>
+
+                <!-- On the page rather than in an explainer, because a
+                     right-click is the one thing here that nothing on
+                     screen suggests is possible. -->
+                <TextBlock DockPanel.Dock="Top" Margin="1,0,0,8" TextWrapping="Wrap"
+                           FontSize="11" FontStyle="Italic"
+                           Foreground="{DynamicResource TextMuted}"
+                           Text="Tip: Right-click a condition, operator, or words box to delete it. To delete the entire row, click the ✕ at the end of it."/>
 
                 <!-- The box. Its DataContext is set in code and replaced
                      outright each time it resets, so nothing can be left
@@ -451,108 +481,293 @@
                         <DockPanel>
                             <!-- Under the rows, always, so adding one is
                                  always in the same place — and on an empty
-                                 box it is the only thing there, which makes
-                                 it the prompt as well without being a
-                                 second control that comes and goes. -->
-                            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
-                                        Margin="13,2,10,9">
-                                <TextBlock Text="Add (" VerticalAlignment="Center"
-                                           FontSize="12"
-                                           Foreground="{DynamicResource TextMuted}"/>
-                                <Button Style="{StaticResource BarIconButton}"
-                                        Margin="1,0" Padding="1,0"
-                                        Click="AddLine_Click">
-                                    <Image Style="{StaticResource BarGlyph}"
-                                           Source="pack://application:,,,/Assets/icons/icon-menu-plus.png"/>
-                                </Button>
-                                <TextBlock Text="{Binding AddRowText}"
-                                           VerticalAlignment="Center" FontSize="12"
-                                           Foreground="{DynamicResource TextMuted}"/>
+                                 box these two are the only things there,
+                                 which makes them the prompt as well
+                                 without being controls that come and go.
+
+                                 Two of them, because the two kinds of row
+                                 are the two halves of a rule: green asks
+                                 something, blue does something, matching
+                                 the mark each row carries down its left
+                                 edge. The button that added a row is also
+                                 what decides which actions its dropdown
+                                 offers. -->
+                            <StackPanel DockPanel.Dock="Bottom" Margin="13,2,10,9">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Add (" Style="{StaticResource AddLineText}"/>
+                                    <Button Style="{StaticResource BarIconButton}"
+                                            Margin="1,0" Padding="2,0"
+                                            Click="AddCondition_Click">
+                                        <Path Style="{StaticResource PlusGlyph}"
+                                              Fill="{DynamicResource StatusOk}"/>
+                                    </Button>
+                                    <TextBlock Text=") a condition"
+                                               Style="{StaticResource AddLineText}"/>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                    <TextBlock Text="Add (" Style="{StaticResource AddLineText}"/>
+                                    <Button Style="{StaticResource BarIconButton}"
+                                            Margin="1,0" Padding="2,0"
+                                            Click="AddOperator_Click">
+                                        <Path Style="{StaticResource PlusGlyph}"
+                                              Fill="{DynamicResource TimelinePosition}"/>
+                                    </Button>
+                                    <TextBlock Text=") an operator"
+                                               Style="{StaticResource AddLineText}"/>
+                                    <!-- Which line it lands on, said before
+                                         it lands there. These buttons are
+                                         at the foot of the box and the row
+                                         they act on may be anywhere in
+                                         it. -->
+                                    <TextBlock Text="{Binding Target}"
+                                               Style="{StaticResource AddLineText}"
+                                               Foreground="{DynamicResource Accent}"
+                                               FontWeight="SemiBold"/>
+                                </StackPanel>
+
+                                <!-- The same word slot, without the and/or
+                                     in front of it, for a condition that
+                                     is a list rather than a sentence. -->
+                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                    <TextBlock Text="Add (" Style="{StaticResource AddLineText}"/>
+                                    <Button Style="{StaticResource BarIconButton}"
+                                            Margin="1,0" Padding="2,0"
+                                            Click="AddWords_Click">
+                                        <Path Style="{StaticResource PlusGlyph}"
+                                              Fill="{DynamicResource ValuePurple}"/>
+                                    </Button>
+                                    <TextBlock Text=") words"
+                                               Style="{StaticResource AddLineText}"/>
+                                    <TextBlock Text="{Binding Target}"
+                                               Style="{StaticResource AddLineText}"
+                                               Foreground="{DynamicResource Accent}"
+                                               FontWeight="SemiBold"/>
+                                </StackPanel>
                             </StackPanel>
 
                             <ItemsControl ItemsSource="{Binding Lines}" Margin="12,9,10,4">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <!-- A mark, what the line does, and three
-                                         slots for it to do it to. A line of
-                                         one word is a line of three with two
-                                         left empty: a row of fixed shape
-                                         reads far better than one that
-                                         changes width with its contents. -->
-                                    <Grid Margin="0,0,0,5">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto" MinWidth="58"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto" MinWidth="58"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
+                                    <!-- A row grows as it is filled in: the
+                                         action dropdown alone, then the
+                                         first word, then the next once that
+                                         one holds something.
 
-                                        <Border Grid.Column="0" Style="{StaticResource LineMark}"/>
-
-                                        <!-- Wide enough for the longest of
-                                             the six, so none of them reads as
-                                             a different action cut short. -->
-                                        <ComboBox Grid.Column="1" Width="220"
-                                                  Margin="0,3,10,3"
-                                                  ItemsSource="{Binding Action.Choices}"
-                                                  SelectedItem="{Binding Action.Word, Mode=TwoWay}"/>
-
-                                        <ComboBox Grid.Column="2" Margin="0,3"
-                                                  ItemsSource="{Binding Words[0].Choices}"
-                                                  SelectedItem="{Binding Words[0].Word, Mode=TwoWay}"/>
-
-                                        <!-- The gap says what the line is: a
-                                             choice of and/or when it asks a
-                                             question, an arrow when it sets
-                                             an order, and nothing when the
-                                             words are just a list. -->
-                                        <ComboBox Grid.Column="3" Margin="6,3"
-                                                  Visibility="{Binding JoinVisibility}"
-                                                  ItemsSource="{Binding Joins[0].Choices}"
-                                                  SelectedItem="{Binding Joins[0].Word, Mode=TwoWay}"/>
-                                        <TextBlock Grid.Column="3" Text="&#x2192;"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"
-                                                   Visibility="{Binding ArrowVisibility}"
-                                                   Foreground="{DynamicResource TextMuted}"/>
-
-                                        <ComboBox Grid.Column="4" Margin="0,3"
-                                                  ItemsSource="{Binding Words[1].Choices}"
-                                                  SelectedItem="{Binding Words[1].Word, Mode=TwoWay}"/>
-
-                                        <ComboBox Grid.Column="5" Margin="6,3"
-                                                  Visibility="{Binding JoinVisibility}"
-                                                  ItemsSource="{Binding Joins[1].Choices}"
-                                                  SelectedItem="{Binding Joins[1].Word, Mode=TwoWay}"/>
-                                        <TextBlock Grid.Column="5" Text="&#x2192;"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"
-                                                   Visibility="{Binding ArrowVisibility}"
-                                                   Foreground="{DynamicResource TextMuted}"/>
-
-                                        <ComboBox Grid.Column="6" Margin="0,3"
-                                                  ItemsSource="{Binding Words[2].Choices}"
-                                                  SelectedItem="{Binding Words[2].Word, Mode=TwoWay}"/>
-
+                                         Stacked at fixed widths rather than
+                                         laid out in a grid of star columns.
+                                         A collapsed child of a StackPanel
+                                         takes no room, where a star column
+                                         holds its share open whether or not
+                                         anything is in it — so the rows
+                                         still line up with each other, and
+                                         a short row is short. -->
+                                    <!-- Lit while this is the line being
+                                         worked on. Transparent otherwise
+                                         rather than unset: a null
+                                         background answers no pointer, and
+                                         the strip either side of the row
+                                         is part of what can be clicked to
+                                         come here. -->
+                                    <Border CornerRadius="4" Padding="4,0,2,0" Margin="0,0,0,2">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="Transparent"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                        <Setter Property="Background"
+                                                                Value="{DynamicResource PanelBackground}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                    <DockPanel Background="Transparent"
+                                               PreviewMouseDown="Row_MouseDown"
+                                               GotFocus="Row_GotFocus">
                                         <!-- Red, because it deletes. Same
                                              size as it was: it is the
                                              colour doing the warning, not
                                              the weight. -->
-                                        <Button Grid.Column="7" Content="&#x2715;"
+                                        <Button DockPanel.Dock="Right" Content="&#x2715;"
                                                 Style="{StaticResource Quiet}"
                                                 Margin="6,0,0,0"
+                                                VerticalAlignment="Center"
                                                 Foreground="{DynamicResource StatusError}"
                                                 Click="RemoveLine_Click" Tag="{Binding}"/>
-                                    </Grid>
+
+                                        <StackPanel Orientation="Horizontal">
+                                            <!-- The line's number, so the
+                                                 buttons under the box can
+                                                 name the line they are
+                                                 about to act on and be
+                                                 believed. Filled in the
+                                                 accent on the line being
+                                                 worked on. -->
+                                            <Border Width="19" Height="17" CornerRadius="3"
+                                                    VerticalAlignment="Top" Margin="0,6,7,0">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background"
+                                                                Value="{DynamicResource ControlBackground}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                <Setter Property="Background"
+                                                                        Value="{DynamicResource Accent}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <TextBlock Text="{Binding Number}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           FontSize="10" FontWeight="Bold">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground"
+                                                                    Value="{DynamicResource TextMuted}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                    <Setter Property="Foreground"
+                                                                            Value="{DynamicResource OnAccentFill}"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Border>
+
+                                            <Border Style="{StaticResource LineMark}"/>
+
+                                            <!-- Wide enough for the longest
+                                                 of the phrases, so none of
+                                                 them reads as a different
+                                                 one cut short. -->
+                                            <!-- Deleting the condition box
+                                                 clears it — the row and its
+                                                 words stay. The whole row is
+                                                 the ✕'s job, and only the
+                                                 ✕'s. -->
+                                            <ComboBox Width="220" Margin="0,3,10,3"
+                                                      ItemsSource="{Binding Action.Choices}"
+                                                      SelectedItem="{Binding Action.Word, Mode=TwoWay}">
+                                                <ComboBox.ContextMenu>
+                                                    <ContextMenu DataContext="{Binding PlacementTarget.DataContext,
+                                                                 RelativeSource={RelativeSource Self}}">
+                                                        <MenuItem Header="Delete this condition"
+                                                                  Click="DeleteCondition_Click"/>
+                                                    </ContextMenu>
+                                                </ComboBox.ContextMenu>
+                                            </ComboBox>
+
+                                            <!-- Whatever was added after it,
+                                                 in the order it was added.
+                                                 A word is typed; an
+                                                 operator is still a
+                                                 dropdown, because it
+                                                 offers "and" and "or" and
+                                                 nothing else. One template
+                                                 holds both controls and
+                                                 the slot says which is on
+                                                 screen.
+
+                                                 Right-click deletes a
+                                                 slot. The menu is handed
+                                                 the slot's own
+                                                 DataContext — a
+                                                 ContextMenu is not in the
+                                                 visual tree and inherits
+                                                 nothing from the row. -->
+                                            <ItemsControl ItemsSource="{Binding Parts}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Orientation="Horizontal"/>
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Width="{Binding Width}" Margin="0,3,5,3"
+                                                              VerticalAlignment="Top">
+                                                            <TextBox Height="24"
+                                                                     Visibility="{Binding WordBoxVisibility}"
+                                                                     Style="{StaticResource SlotBox}"
+                                                                     Text="{Binding Word, Mode=TwoWay,
+                                                                            UpdateSourceTrigger=PropertyChanged}">
+                                                                <TextBox.ContextMenu>
+                                                                    <ContextMenu DataContext="{Binding PlacementTarget.DataContext,
+                                                                                 RelativeSource={RelativeSource Self}}">
+                                                                        <MenuItem Header="{Binding DeleteLabel}"
+                                                                                  Click="DeleteSlot_Click"/>
+                                                                    </ContextMenu>
+                                                                </TextBox.ContextMenu>
+                                                            </TextBox>
+
+                                                            <!-- MinWidth zeroed: the
+                                                                 shared style asks for
+                                                                 84, an operator's cell
+                                                                 is 76, and the first
+                                                                 thing clipped past the
+                                                                 edge would be the
+                                                                 arrow. -->
+                                                            <ComboBox Height="24" Margin="0" MinWidth="0"
+                                                                      Visibility="{Binding PickerVisibility}"
+                                                                      ItemsSource="{Binding Choices}"
+                                                                      SelectedItem="{Binding Word, Mode=TwoWay}">
+                                                                <ComboBox.ContextMenu>
+                                                                    <ContextMenu DataContext="{Binding PlacementTarget.DataContext,
+                                                                                 RelativeSource={RelativeSource Self}}">
+                                                                        <MenuItem Header="{Binding DeleteLabel}"
+                                                                                  Click="DeleteSlot_Click"/>
+                                                                    </ContextMenu>
+                                                                </ComboBox.ContextMenu>
+                                                            </ComboBox>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </DockPanel>
+                                    </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </DockPanel>
                     </Border>
+                </DockPanel>
+
+                <!-- Between the editor and the saved list, because they
+                     govern both: how every rule's words meet a filename,
+                     and — for Regex — how the blacklist's lines do too. -->
+                <DockPanel DockPanel.Dock="Top" Margin="1,0,0,10" LastChildFill="False">
+                    <TextBlock DockPanel.Dock="Left" Text="Word match mode:"
+                               VerticalAlignment="Center" FontSize="12"
+                               Foreground="{DynamicResource TextSecondary}"/>
+
+                    <ComboBox DockPanel.Dock="Left" x:Name="MatchModeBox" Width="112"
+                              VerticalAlignment="Center" Margin="7,0,0,0"
+                              SelectionChanged="MatchMode_Changed">
+                        <ComboBoxItem Content="Precise"/>
+                        <ComboBoxItem Content="Variant"/>
+                        <ComboBoxItem Content="Irregular"/>
+                    </ComboBox>
+
+                    <ContentControl DockPanel.Dock="Left" Style="{StaticResource Qmhp}">
+                        <ContentControl.ToolTip>
+                            <TextBlock MaxWidth="420" TextWrapping="Wrap"
+                                       Text="Applies to the words written in rules — all of them: it is one setting for every saved rule, read when a rename runs, not remembered per rule. The blacklist is not affected by this mode; it matches exactly as written, unless Regex is checked, which reads its lines as expressions too.&#x0a;&#x0a;Precise: words will only match exactly as you write them.&#x0a;&#x0a;Variant: words will match variants of the base word. For example, the word &quot;wave&quot; will match the following: wave, waves, waved, waving.&#x0a;&#x0a;Irregular: words will match precise, variant, and irregular versions of the word. For example, the word &quot;go&quot; will match the following: go, goes, going, gone, went. Another example, the word &quot;be&quot; will match the following: be, am, is, are, was, were, being, been."/>
+                        </ContentControl.ToolTip>
+                    </ContentControl>
+
+                    <CheckBox DockPanel.Dock="Left" x:Name="RegexCheck"
+                              VerticalAlignment="Center" FontSize="12" Margin="16,0,0,0"
+                              Content="Regex"
+                              Foreground="{DynamicResource TextSecondary}"/>
+
+                    <ContentControl DockPanel.Dock="Left" Style="{StaticResource Qmhp}">
+                        <ContentControl.ToolTip>
+                            <TextBlock MaxWidth="400" TextWrapping="Wrap"
+                                       Text="Reads every word written in a rule — and every line of the blacklist — as a regular expression instead of a word, matched against one word of a filename at a time and anchored, so beach is still only beach. The match mode beside it does not apply — an expression says for itself what it will and will not match. An expression that will not compile matches nothing rather than stopping the rename."/>
+                        </ContentControl.ToolTip>
+                    </ContentControl>
                 </DockPanel>
 
                 <TextBlock DockPanel.Dock="Top" Text="Saved rules" Margin="2,0,0,6"
@@ -571,20 +786,18 @@
                     <ItemsControl x:Name="RuleList">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <!-- One box per rule, holding all of its
-                                     rows. A rule is a single thing made of
-                                     several conditions and several
-                                     actions; a frame round the lot says
-                                     which rows belong to which rule, and
-                                     the gap underneath says where one
-                                     stops and the next begins. -->
-                                <Border Margin="0,0,0,9" CornerRadius="4"
+                                <!-- One line per rule. A rule's rows laid
+                                     out in a block read beautifully and
+                                     cost five lines each, which is four
+                                     rules to a screen; as segments with a
+                                     dot between them the shape still shows
+                                     and twenty fit. -->
+                                <Border Margin="0,0,0,3" Padding="7,3" CornerRadius="3"
                                         Background="{DynamicResource InsetBackground}"
                                         BorderThickness="1">
                                     <Border.Style>
                                         <Style TargetType="Border">
-                                            <Setter Property="BorderBrush"
-                                                    Value="{DynamicResource BorderBrush}"/>
+                                            <Setter Property="BorderBrush" Value="Transparent"/>
                                             <Style.Triggers>
                                                 <!-- The one open in the box.
                                                      It stays in the list
@@ -600,84 +813,60 @@
                                         </Style>
                                     </Border.Style>
 
-                                    <DockPanel>
-                                        <DockPanel DockPanel.Dock="Top" Margin="8,6,8,2"
-                                                   LastChildFill="False">
-                                            <Border DockPanel.Dock="Left" MinWidth="24"
-                                                    CornerRadius="3" Padding="6,1" Margin="0,0,10,0"
-                                                    VerticalAlignment="Center"
-                                                    Background="{DynamicResource Accent}">
-                                                <TextBlock Text="{Binding Number}"
-                                                           HorizontalAlignment="Center"
-                                                           FontSize="11" FontWeight="Bold"
-                                                           Foreground="{DynamicResource OnAccentFill}"/>
-                                            </Border>
+                                    <DockPanel LastChildFill="True">
+                                        <Border DockPanel.Dock="Left" MinWidth="22"
+                                                CornerRadius="3" Padding="5,0" Margin="0,0,9,0"
+                                                VerticalAlignment="Center"
+                                                Background="{DynamicResource Accent}">
+                                            <TextBlock Text="{Binding Number}"
+                                                       HorizontalAlignment="Center"
+                                                       FontSize="11" FontWeight="Bold"
+                                                       Foreground="{DynamicResource OnAccentFill}"/>
+                                        </Border>
 
-                                            <TextBlock DockPanel.Dock="Left"
-                                                       Text="{Binding Name}"
-                                                       Visibility="{Binding NameVisibility}"
-                                                       VerticalAlignment="Center"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       FontSize="12" FontWeight="SemiBold"
-                                                       Foreground="{DynamicResource Accent}"/>
+                                        <!-- A fixed column, so the names
+                                             make a column to read down and
+                                             the summaries all start in the
+                                             same place. -->
+                                        <TextBlock DockPanel.Dock="Left" Width="140"
+                                                   Text="{Binding Name}"
+                                                   Visibility="{Binding NameVisibility}"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Margin="0,0,10,0"
+                                                   FontSize="12" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource Accent}"/>
 
-                                            <Button DockPanel.Dock="Right"
-                                                    Style="{StaticResource BarIconButton}"
-                                                    Click="RemoveRule_Click" Tag="{Binding}">
-                                                <Image Style="{StaticResource BarGlyph}"
-                                                       Source="pack://application:,,,/Assets/icons/icon-menu-x.png"/>
-                                            </Button>
+                                        <Button DockPanel.Dock="Right"
+                                                Style="{StaticResource BarIconButton}"
+                                                Click="RemoveRule_Click" Tag="{Binding}">
+                                            <Image Style="{StaticResource BarGlyph}"
+                                                   Source="pack://application:,,,/Assets/icons/icon-menu-x.png"/>
+                                        </Button>
 
-                                            <Button DockPanel.Dock="Right"
-                                                    Style="{StaticResource BarIconButton}"
-                                                    Click="EditRule_Click" Tag="{Binding}">
-                                                <Image Style="{StaticResource BarGlyph}"
-                                                       Source="pack://application:,,,/Assets/icons/icon-edit_bookmarks.png"/>
-                                            </Button>
+                                        <Button DockPanel.Dock="Right"
+                                                Style="{StaticResource BarIconButton}"
+                                                Click="EditRule_Click" Tag="{Binding}">
+                                            <Image Style="{StaticResource BarGlyph}"
+                                                   Source="pack://application:,,,/Assets/icons/icon-edit_bookmarks.png"/>
+                                        </Button>
 
-                                            <Button DockPanel.Dock="Right"
-                                                    Style="{StaticResource BarIconButton}"
-                                                    Click="TestRule_Click" Tag="{Binding}">
-                                                <Image Style="{StaticResource BarGlyph}"
-                                                       Source="pack://application:,,,/Assets/icons/icon-eye_show.png"/>
-                                            </Button>
-                                        </DockPanel>
+                                        <Button DockPanel.Dock="Right"
+                                                Style="{StaticResource BarIconButton}"
+                                                Click="TestRule_Click" Tag="{Binding}">
+                                            <Image Style="{StaticResource BarGlyph}"
+                                                   Source="pack://application:,,,/Assets/icons/icon-eye_show.png"/>
+                                        </Button>
 
-                                        <!-- The rows, marked the same way
-                                             they are in the editor: orange
-                                             where the rule asks something,
-                                             green where it does
-                                             something. -->
-                                        <ItemsControl ItemsSource="{Binding Rows}"
-                                                      Margin="11,2,10,7">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Grid Margin="0,0,0,2">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                            <ColumnDefinition Width="155"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-
-                                                        <Border Grid.Column="0"
-                                                                Style="{StaticResource LineMark}"
-                                                                Margin="0,2,9,2"/>
-
-                                                        <TextBlock Grid.Column="1"
-                                                                   Text="{Binding Action}"
-                                                                   VerticalAlignment="Center"
-                                                                   FontSize="11"
-                                                                   Foreground="{DynamicResource TextMuted}"/>
-
-                                                        <TextBlock Grid.Column="2"
-                                                                   Text="{Binding Words}"
-                                                                   VerticalAlignment="Center"
-                                                                   TextWrapping="Wrap" FontSize="12"
-                                                                   Foreground="{DynamicResource TextBody}"/>
-                                                    </Grid>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
+                                        <!-- Trimmed rather than wrapped: a
+                                             rule too long to fit is read in
+                                             the box above, which is what
+                                             the pencil is for. -->
+                                        <TextBlock Text="{Binding Summary}"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Margin="0,0,8,0" FontSize="12"
+                                                   Foreground="{DynamicResource TextBody}"/>
                                     </DockPanel>
                                 </Border>
                             </DataTemplate>

@@ -42,7 +42,8 @@
                     Background="{DynamicResource PrimaryButton}"
                     BorderBrush="{DynamicResource PrimaryButtonBorder}"
                     Foreground="{DynamicResource OnAccent}"/>
-            <Button Content="Close" IsCancel="True" IsDefault="True"/>
+            <Button Content="Close" IsCancel="True" IsDefault="True"
+                    Margin="6,0,0,0" Style="{StaticResource CloseButton}"/>
         </StackPanel>
 
         <!-- Monospaced and selectable. The whole point is that it can be

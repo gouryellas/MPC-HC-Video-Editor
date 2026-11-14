@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows.Input;
@@ -462,6 +462,69 @@ public class AppSettings
     /// does not catch.
     /// </remarks>
     public bool RenameMatchVariants { get; set; } = true;
+
+    /// <summary>
+    /// How closely a word has to match: Precise, Variant or Irregular.
+    /// </summary>
+    /// <remarks>
+    /// Empty in a file written before there were three of them, which is
+    /// what <see cref="RenameWordMatchMode"/> reads the old yes-or-no
+    /// setting for.
+    /// </remarks>
+    public string RenameWordMatch { get; set; } = "";
+
+    /// <summary>Whether the word list holds expressions rather than words.</summary>
+    public bool RenameWordsAreRegex { get; set; }
+
+    /// <summary>
+    /// The same two settings again, for the blacklist alone.
+    /// </summary>
+    /// <remarks>
+    /// Precise by default. A loose match in the word list recognises a
+    /// word that was not quite meant; a loose match in the blacklist
+    /// deletes one.
+    /// </remarks>
+    public string RenameBlacklistMatch { get; set; } = "";
+
+    public bool RenameBlacklistIsRegex { get; set; }
+
+    [JsonIgnore]
+    public WordMatchMode RenameBlacklistMatchMode
+    {
+        get => Enum.TryParse<WordMatchMode>(RenameBlacklistMatch, out var mode)
+            ? mode
+            : WordMatchMode.Precise;
+
+        set => RenameBlacklistMatch = value.ToString();
+    }
+
+    /// <summary>The match mode, taking the setting it replaced into account.</summary>
+    [JsonIgnore]
+    public WordMatchMode RenameWordMatchMode
+    {
+        get
+        {
+            // "Variation" is what the middle mode was called for about an
+            // hour. A settings file written in that window still says it.
+            if (RenameWordMatch == "Variation") return WordMatchMode.Variant;
+
+            return Enum.TryParse<WordMatchMode>(RenameWordMatch, out var mode)
+                ? mode
+                : RenameMatchVariants ? WordMatchMode.Variant : WordMatchMode.Precise;
+        }
+
+        set => RenameWordMatch = value.ToString();
+    }
+
+    /// <summary>
+    /// Whether the renamer uses the word lists and rules, or only the
+    /// character rules.
+    /// </summary>
+    /// <remarks>
+    /// On, because somebody who has written rules wants them; with none
+    /// written the two modes do the same thing anyway.
+    /// </remarks>
+    public bool RenameUseCustomRules { get; set; } = true;
 
     /// <summary>
     /// The three lists this one replaced, read once and folded in.

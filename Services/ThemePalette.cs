@@ -170,6 +170,19 @@ public sealed record ThemePalette(
     /// </remarks>
     public string OnOperation => "#FFFFFF";
 
+    /// <summary>
+    /// A purple, for a mark that has to be told apart from the green and
+    /// the blue beside it.
+    /// </summary>
+    /// <remarks>
+    /// Two values rather than five, as <see cref="OperationOther"/> has:
+    /// the only thing this has to survive is the surface under it, and
+    /// there are two kinds of those. A mid purple is legible on a dark
+    /// panel and washed out on a pale one, so the light themes get a
+    /// deeper one.
+    /// </remarks>
+    public string ValuePurple => IsLight ? "#6B3FA0" : "#B389E8";
+
     /// <summary>Text written straight onto <see cref="Accent"/>.</summary>
     /// <remarks>
     /// Not <see cref="OnAccent"/>, which is near-white in every theme because

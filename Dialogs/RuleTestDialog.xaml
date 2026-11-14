@@ -38,7 +38,8 @@
                        Foreground="{DynamicResource TextSecondary}"/>
 
             <Button DockPanel.Dock="Right" Content="Close" Width="90"
-                    IsCancel="True" IsDefault="True"/>
+                    IsCancel="True" IsDefault="True"
+                    Style="{StaticResource CloseButton}"/>
         </DockPanel>
 
         <Border Background="{DynamicResource PanelBackground}" CornerRadius="6" Padding="4">
