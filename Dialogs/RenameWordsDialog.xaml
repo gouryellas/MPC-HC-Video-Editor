@@ -370,7 +370,7 @@
                 <ContentControl Style="{StaticResource Qmhp}">
                     <ContentControl.ToolTip>
                         <TextBlock MaxWidth="360" TextWrapping="Wrap"
-                                   Text="If any of these words are found, they will be removed from the filename. One per line. Matched exactly as written — a list that deletes words earns that strictness — though the Regex option under Rules reads these lines as expressions too."/>
+                                   Text="The words in this list will be removed if they are found in the filename. Regex is supported if the option is selected."/>
                     </ContentControl.ToolTip>
                 </ContentControl>
             </StackPanel>
@@ -400,7 +400,7 @@
                     <ContentControl DockPanel.Dock="Left" Style="{StaticResource Qmhp}">
                         <ContentControl.ToolTip>
                             <TextBlock MaxWidth="400" TextWrapping="Wrap"
-                                       Text="A rule is lines read top to bottom: the questions it asks about the name, then what to do when all of them hold. The questions look at the filename as it was typed — before the cleanup or the blacklist has touched it — so nothing can hide a word from them. Several questions mean all of them — &quot;or&quot; belongs inside one line, between its own words. A word in an ordering that the filename does not have is added, which is how a clip can be made to say what it belongs to without the word ever being typed into it.&#x0a;&#x0a;Rules are tried top to bottom and every rule whose questions hold applies its lines, each seeing what the one above left behind; only the ordering is first-come — the first rule to give one decides it. When the rules have all had their say, the general cleanup finishes the name: the blacklist, the name keeping its slot, and the order the words were found in."/>
+                                       Text="These will parse a filename and format it to your liking based on the rules you have written below."/>
                         </ContentControl.ToolTip>
                     </ContentControl>
                 </DockPanel>
@@ -753,7 +753,7 @@
                     <ContentControl DockPanel.Dock="Left" Style="{StaticResource Qmhp}">
                         <ContentControl.ToolTip>
                             <TextBlock MaxWidth="420" TextWrapping="Wrap"
-                                       Text="Applies to the words written in rules — all of them: it is one setting for every saved rule, read when a rename runs, not remembered per rule. The blacklist is not affected by this mode; it matches exactly as written, unless Regex is checked, which reads its lines as expressions too.&#x0a;&#x0a;Precise: words will only match exactly as you write them.&#x0a;&#x0a;Variant: words will match variants of the base word. For example, the word &quot;wave&quot; will match the following: wave, waves, waved, waving.&#x0a;&#x0a;Irregular: words will match precise, variant, and irregular versions of the word. For example, the word &quot;go&quot; will match the following: go, goes, going, gone, went. Another example, the word &quot;be&quot; will match the following: be, am, is, are, was, were, being, been."/>
+                                       Text="This mode determines how creative the rules can be when parsing a filename. The blacklist is not affected by this mode. Regex is supported if the option is selected.&#x0a;&#x0a;Precise: words will only match exactly as you write them.&#x0a;&#x0a;Variant: words will match variants of the base word. For example, the word &quot;wave&quot; will match the following: wave, waves, waved, waving.&#x0a;&#x0a;Irregular: words will match precise, variant, and irregular versions of the word. For example, the word &quot;go&quot; will match the following: go, goes, going, gone, went. Another example, the word &quot;be&quot; will match the following: be, am, is, are, was, were, being, been."/>
                         </ContentControl.ToolTip>
                     </ContentControl>
 
@@ -765,7 +765,7 @@
                     <ContentControl DockPanel.Dock="Left" Style="{StaticResource Qmhp}">
                         <ContentControl.ToolTip>
                             <TextBlock MaxWidth="400" TextWrapping="Wrap"
-                                       Text="Reads every word written in a rule — and every line of the blacklist — as a regular expression instead of a word, matched against one word of a filename at a time and anchored, so beach is still only beach. The match mode beside it does not apply — an expression says for itself what it will and will not match. An expression that will not compile matches nothing rather than stopping the rename."/>
+                                       Text="Allows regular expression in both the rules below and in the blacklist."/>
                         </ContentControl.ToolTip>
                     </ContentControl>
                 </DockPanel>

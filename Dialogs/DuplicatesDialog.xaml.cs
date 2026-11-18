@@ -126,6 +126,7 @@ public sealed class DuplicateGroupRow
 public partial class DuplicatesDialog : Window
 {
     private readonly DuplicateScanner _scanner;
+    private readonly MpcHcService? _mpc;
     private readonly ObservableCollection<DuplicateGroupRow> _groups = new();
     private CancellationTokenSource? _running;
     private string? _folder;
@@ -139,11 +140,16 @@ public partial class DuplicatesDialog : Window
     private readonly System.Diagnostics.Stopwatch _clock = new();
     private int _dots;
 
-    public DuplicatesDialog(FFmpegService ffmpeg, string? startIn = null)
+    /// <param name="mpc">
+    /// Used to play a row. It already knows how to find the player and
+    /// what to do when it cannot, so this window does not have to.
+    /// </param>
+    public DuplicatesDialog(FFmpegService ffmpeg, string? startIn = null, MpcHcService? mpc = null)
     {
         InitializeComponent();
 
         _scanner = new DuplicateScanner(ffmpeg);
+        _mpc = mpc;
         GroupList.ItemsSource = _groups;
 
         _tick.Tick += (_, _) => ShowWorking();
@@ -581,13 +587,36 @@ public partial class DuplicatesDialog : Window
         }
     }
 
+    /// <summary>
+    /// Opens the row's file in the player.
+    /// </summary>
+    /// <remarks>
+    /// Through MpcHcService, which finds mpc-hc itself and shell-executes
+    /// the file if it cannot. The first version of this called
+    /// Process.Start(path) directly, which cannot work: UseShellExecute
+    /// defaults to false on .NET, so handing it a video rather than an
+    /// executable throws — and the throw went to the log, leaving a
+    /// button that did nothing at all.
+    /// </remarks>
     private void Play_Click(object sender, RoutedEventArgs e)
     {
-        var path = (string?)((Button)sender).Tag;
-        if (!string.IsNullOrWhiteSpace(path))
+        if ((sender as Button)?.Tag is not string path || string.IsNullOrWhiteSpace(path))
+            return;
+
+        try
         {
-            try { System.Diagnostics.Process.Start(path); }
-            catch (Exception ex) { Diagnostics.Swallowed("DuplicatesDialog.Play", ex); }
+            if (_mpc is not null) { _mpc.LaunchVideo(path); return; }
+
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = path,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            Diagnostics.Swallowed("DuplicatesDialog.Play", ex);
+            Helpers.Toast.Show(this, "That file could not be opened.");
         }
     }
 

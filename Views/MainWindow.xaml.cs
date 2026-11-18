@@ -625,16 +625,34 @@ public partial class MainWindow : Window
         // another process holds the foreground is a SetForegroundWindow that
         // Windows refuses, and a refusal flashes the taskbar button — the same
         // trap as in RaiseToFront, one call earlier.
-        ShowActivated = activate && !ForegroundWindow.OwnedByAnotherApp();
+        var quiet = !activate || ForegroundWindow.OwnedByAnotherApp();
+
+        // WPF will not show a maximized window without activating it. It does
+        // not quietly activate instead — it throws, which took the whole
+        // restore down every time somebody left the player with the window
+        // maximized. Dropping to Normal for the Show and putting the state
+        // back after it is the way round that, and none of it is seen: the
+        // window is still hidden while it happens.
+        var maximized = WindowState == WindowState.Maximized;
+        if (quiet && maximized) WindowState = WindowState.Normal;
+
+        ShowActivated = !quiet;
         Show();
         ShowActivated = true;
+
+        if (quiet && maximized) WindowState = WindowState.Maximized;
 
         // Un-minimizing is itself a focus grab — Windows hands the foreground
         // to a window coming back from the taskbar — so a restore that must not
         // steal focus leaves a minimized window minimized. Nothing is lost by
         // that: it was put there on purpose, and the overlay has already come
         // down.
-        if (activate) WindowState = WindowState.Normal;
+        //
+        // Only out of Minimized. Setting Normal unconditionally also took a
+        // maximized window out of maximized, so coming back from the player
+        // quietly resized the window the user had left filling the screen.
+        if (activate && WindowState == WindowState.Minimized)
+            WindowState = WindowState.Normal;
 
         if (activate) RaiseToFront();
     }
@@ -1469,11 +1487,13 @@ public partial class MainWindow : Window
         bool hasFolder = _vm.PlaylistFolderExists;
         bool hasAny = false;
 
+        var playlists = new List<string>();
+
         if (hasFolder)
         {
             // Every format PlaylistService understands, not just .pls — an
             // m3u8 in the folder is a playlist and belongs in this menu.
-            var playlists = System.IO.Directory.EnumerateFiles(plsFolder)
+            playlists = System.IO.Directory.EnumerateFiles(plsFolder)
                 .Where(PlaylistService.IsPlaylist)
                 .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -1483,6 +1503,8 @@ public partial class MainWindow : Window
             foreach (var plsPath in playlists)
                 playlistMenu.Items.Insert(insertAt++, BuildPlaylistMenuItem(plsPath));
         }
+
+        RefreshAddClipsSubmenu(playlists);
 
         // The pair stays hidden: markers, not rules. They used to appear
         // whenever there were playlists, which ruled the list off top and
@@ -1512,6 +1534,52 @@ public partial class MainWindow : Window
     /// video / Remove missing entries / Delete playlist), then a separator,
     /// then the numbered video entries (1, 2, 3, …).
     /// </summary>
+    /// <summary>
+    /// Fills "Add selected clips to" with the playlists to choose from.
+    /// </summary>
+    /// <remarks>
+    /// One entry per playlist, each carrying its own path, so picking the
+    /// destination is the same gesture as opening the menu rather than a
+    /// dialog asking for a name to be typed. The loaded playlist is
+    /// ticked, as it is in the list above.
+    ///
+    /// "New playlist…" stays at the foot: the command with no path falls
+    /// through to the prompt, which is the only way to reach a playlist
+    /// that does not exist yet.
+    /// </remarks>
+    private void RefreshAddClipsSubmenu(List<string> playlists)
+    {
+        var menu = AddClipsToPlaylistMenu;
+        menu.Items.Clear();
+
+        var loaded = _vm?.LoadedPlaylistPath;
+
+        foreach (var plsPath in playlists)
+        {
+            var isLoaded = !string.IsNullOrEmpty(loaded) &&
+                           string.Equals(System.IO.Path.GetFullPath(loaded!),
+                                         System.IO.Path.GetFullPath(plsPath),
+                                         StringComparison.OrdinalIgnoreCase);
+
+            menu.Items.Add(new MenuItem
+            {
+                Header = System.IO.Path.GetFileName(plsPath),
+                IsChecked = isLoaded,
+                Command = _vm?.AddClipsToPlaylistCommand,
+                CommandParameter = plsPath
+            });
+        }
+
+        if (playlists.Count > 0) menu.Items.Add(new Separator());
+
+        menu.Items.Add(new MenuItem
+        {
+            Header = "New playlist…",
+            Command = _vm?.AddClipsToPlaylistCommand,
+            CommandParameter = null
+        });
+    }
+
     private MenuItem BuildPlaylistMenuItem(string plsPath)
     {
         var plsName = System.IO.Path.GetFileName(plsPath);

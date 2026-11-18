@@ -145,36 +145,40 @@
         <Border Grid.Row="2" Background="{DynamicResource PanelBackground}" CornerRadius="6" Padding="12">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel>
-                    <!-- Version history, first: it is the part of this window
-                         anybody opens twice. The licensing below it is read
-                         once, if ever, and does not move. -->
-                    <DockPanel Margin="0,0,0,4">
-                        <TextBlock Text="Version history" Foreground="{DynamicResource Accent}"
-                                   FontWeight="SemiBold" FontSize="13"/>
-                        <TextBlock x:Name="HistoryCount" DockPanel.Dock="Right"
-                                   HorizontalAlignment="Right"
-                                   Foreground="{DynamicResource TextMuted}" FontSize="11"
-                                   VerticalAlignment="Center"/>
-                    </DockPanel>
+                    <!-- Two halves, one shown at a time: Help ▸ About is the
+                         releases, Help ▸ Licenses is the licensing. They
+                         share a window because they share a header — the
+                         mark, the version and what the program is — and
+                         because a reader who wants one never wants to
+                         scroll past the other to reach it. -->
+                    <StackPanel x:Name="HistorySection">
+                        <DockPanel Margin="0,0,0,4">
+                            <TextBlock Text="Version history" Foreground="{DynamicResource Accent}"
+                                       FontWeight="SemiBold" FontSize="13"/>
+                            <TextBlock x:Name="HistoryCount" DockPanel.Dock="Right"
+                                       HorizontalAlignment="Right"
+                                       Foreground="{DynamicResource TextMuted}" FontSize="11"
+                                       VerticalAlignment="Center"/>
+                        </DockPanel>
 
-                    <StackPanel x:Name="VersionList" Margin="0,0,0,4"/>
+                        <StackPanel x:Name="VersionList" Margin="0,0,0,4"/>
 
-                    <!-- Said only when there is nothing to say; filled in and
-                         shown by the code behind. -->
-                    <TextBlock x:Name="HistoryEmpty" Visibility="Collapsed"
-                               Foreground="{DynamicResource TextMuted}" FontSize="12"
-                               TextWrapping="Wrap" Margin="0,2,0,8"/>
+                        <!-- Said only when there is nothing to say; filled in
+                             and shown by the code behind. -->
+                        <TextBlock x:Name="HistoryEmpty" Visibility="Collapsed"
+                                   Foreground="{DynamicResource TextMuted}" FontSize="12"
+                                   TextWrapping="Wrap" Margin="0,2,0,8"/>
+                    </StackPanel>
 
-                    <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,10,0,0"/>
+                    <StackPanel x:Name="LicenseSection">
+                        <TextBlock Text="License" Foreground="{DynamicResource Accent}" FontWeight="SemiBold"
+                                   FontSize="13" Margin="0,0,0,6"/>
+                        <TextBlock x:Name="LicenseText" Foreground="{DynamicResource TextDim}" FontSize="12"
+                                   TextWrapping="Wrap"/>
 
-                    <TextBlock Text="License" Foreground="{DynamicResource Accent}" FontWeight="SemiBold"
-                               FontSize="13" Margin="0,14,0,6"/>
-                    <TextBlock x:Name="LicenseText" Foreground="{DynamicResource TextDim}" FontSize="12"
-                               TextWrapping="Wrap"/>
-
-                    <TextBlock Text="Third-party components" Foreground="{DynamicResource Accent}" FontWeight="SemiBold"
-                               FontSize="13" Margin="0,14,0,6"/>
-                    <TextBlock Foreground="{DynamicResource TextDim}" FontSize="12" TextWrapping="Wrap">
+                        <TextBlock Text="Third-party components" Foreground="{DynamicResource Accent}" FontWeight="SemiBold"
+                                   FontSize="13" Margin="0,14,0,6"/>
+                        <TextBlock Foreground="{DynamicResource TextDim}" FontSize="12" TextWrapping="Wrap">
                         <Run Text="ffmpeg 9.0.1"  Foreground="{DynamicResource ValueYellow}"/><LineBreak/>
                         <Run Text="Does all encoding, cutting and concatenation. Distributed with this application, in a build configured with --enable-gpl and --enable-version3 and therefore licensed under the GNU GPL v3 or later. The corresponding source and the scripts that produced these binaries are at github.com/BtbN/FFmpeg-Builds."/>
                         <LineBreak/><LineBreak/>
@@ -189,7 +193,8 @@
                         <LineBreak/><LineBreak/>
                         <Run Text=".NET and WPF"  Foreground="{DynamicResource ValueYellow}"/><LineBreak/>
                         <Run Text="MIT license, © Microsoft Corporation."/>
-                    </TextBlock>
+                        </TextBlock>
+                    </StackPanel>
                 </StackPanel>
             </ScrollViewer>
         </Border>

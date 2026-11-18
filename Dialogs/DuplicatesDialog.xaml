@@ -62,6 +62,32 @@
             <Setter Property="FontSize" Value="11"/>
         </Style>
 
+        <!-- The play glyph on a row: a button that is only its glyph.
+             Its own style because "Quiet" above is a TextBlock style, and
+             a TextBlock style handed to a Button does not fail quietly —
+             it throws as each row is built, once per row and again on
+             every redraw. -->
+        <Style x:Key="PlayButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
+            <Setter Property="Padding" Value="6,2"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- A button that brings its own fill. The plain style above
              hovers to the theme's ControlHover, which would repaint a
              coloured button grey the moment the pointer crossed it — so
@@ -214,7 +240,9 @@
                  the fill back to ControlBackground while a button is
                  unavailable and a template trigger beats a style setter,
                  which would leave a red button red only at the edge. -->
-            <Button DockPanel.Dock="Left" x:Name="DeleteButton" Margin="0"
+            <!-- The rail's width, so the footer squares up with the column
+                 above it. -->
+            <Button DockPanel.Dock="Left" x:Name="DeleteButton" Margin="0" Width="158"
                     Content="Delete selected" Click="Delete_Click" IsEnabled="False"
                     Style="{StaticResource FilledButton}"
                     Tag="{DynamicResource ControlHover}"/>
@@ -305,20 +333,27 @@
                                                                   Margin="0,0,8,0"/>
 
                                                         <StackPanel Grid.Column="1">
-                                                            <TextBlock Text="{Binding Name}"
-                                                                       Foreground="{DynamicResource TextPrimary}"
-                                                                       TextTrimming="CharacterEllipsis"/>
+                                                            <!-- The glyph sits with the name rather than
+                                                                 out at the edge of the row: it plays that
+                                                                 file, and a column of them away to the
+                                                                 right belongs to no name in particular.
+                                                                 The name is capped so a long one trims
+                                                                 instead of pushing the glyph out of
+                                                                 sight. -->
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <TextBlock Text="{Binding Name}"
+                                                                           Foreground="{DynamicResource TextPrimary}"
+                                                                           MaxWidth="460"
+                                                                           TextTrimming="CharacterEllipsis"/>
+                                                                <Button Content="▶" VerticalAlignment="Center"
+                                                                        Click="Play_Click" Tag="{Binding Path}"
+                                                                        Style="{StaticResource PlayButton}"/>
+                                                            </StackPanel>
+
                                                             <TextBlock Text="{Binding Folder}"
                                                                        Style="{StaticResource Quiet}"
                                                                        TextTrimming="CharacterEllipsis"/>
                                                         </StackPanel>
-
-                                                        <Button Grid.Column="2" Content="▶" VerticalAlignment="Center"
-                                                                Margin="8,0,0,0" Padding="6,3"
-                                                                Click="Play_Click" Tag="{Binding Path}"
-                                                                Style="{StaticResource Quiet}"
-                                                                Background="Transparent" BorderThickness="0"
-                                                                Foreground="{DynamicResource Accent}"/>
 
                                                         <TextBlock Grid.Column="4"
                                                                    Text="{Binding Size}"

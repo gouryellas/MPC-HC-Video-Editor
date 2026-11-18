@@ -21,13 +21,22 @@ public partial class AboutDialog : Window
     /// </remarks>
     public const string RepositoryUrl = UpdateCheckService.RepositoryUrl;
 
-    public AboutDialog()
+    /// <param name="licensesOnly">
+    /// Opens on the licensing rather than the releases, which is what
+    /// Help ▸ Licenses asks for. The two entries used to lead to the same
+    /// window, so whichever you chose you arrived at the other one too.
+    /// </param>
+    public AboutDialog(bool licensesOnly = false)
     {
         InitializeComponent();
 
         VersionText.Text = $"Version {AppVersion.Display}";
 
         LicenseText.Text = ReadLicense();
+
+        Title = licensesOnly ? "Licenses" : "About";
+        HistorySection.Visibility = licensesOnly ? Visibility.Collapsed : Visibility.Visible;
+        LicenseSection.Visibility = licensesOnly ? Visibility.Visible : Visibility.Collapsed;
 
         // Drawn at 128 and shown at 56: the mark is vector, and asking for it
         // at the size it will be displayed leaves nothing in hand for a
@@ -36,7 +45,9 @@ public partial class AboutDialog : Window
         try { Logo.Source = IconRenderer.At(ThemeService.Current, 128); }
         catch { /* a missing picture is not worth failing the dialog over */ }
 
-        BuildVersionHistory();
+        // Forty-odd rows nobody is going to look at, on a window opened to
+        // read a licence.
+        if (!licensesOnly) BuildVersionHistory();
     }
 
     /// <summary>

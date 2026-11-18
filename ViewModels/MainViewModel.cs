@@ -2327,6 +2327,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         MergeSelectedCommand.NotifyCanExecuteChanged();
         SplitSelectedCommand.NotifyCanExecuteChanged();
         AddCurrentToPlaylistCommand.NotifyCanExecuteChanged();
+        AddClipsToPlaylistCommand.NotifyCanExecuteChanged();
         RevealVideoCommand.NotifyCanExecuteChanged();
 
         // Both gate on facts this key already tracks, and neither was being
@@ -5903,23 +5904,35 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// (complete + EndSeconds &gt; StartSeconds) or the command no-ops
     /// with a status message.</param>
     [RelayCommand]
-    private async Task SplitSingle(Bookmark? bookmark)
+    private async Task SplitSingle(Bookmark? bookmark) => await QuickSaveClipAsync(bookmark);
+
+    /// <summary>
+    /// The quick save itself, reporting where it wrote.
+    /// </summary>
+    /// <returns>
+    /// The file written, or null if nothing was. Split apart from the
+    /// command because adding a clip to a playlist has to save it first
+    /// and then needs to know the name it ended up with — which the
+    /// caller cannot work out for itself, since the clip is renamed to
+    /// whatever was free.
+    /// </returns>
+    private async Task<string?> QuickSaveClipAsync(Bookmark? bookmark)
     {
         if (bookmark == null)
         {
             StatusText = "No bookmark to split.";
-            return;
+            return null;
         }
         if (!bookmark.IsValid)
         {
             StatusText = "Bookmark is incomplete — close it before splitting.";
-            return;
+            return null;
         }
         if (string.IsNullOrEmpty(Session.VideoPath) || !File.Exists(Session.VideoPath))
         {
             Notify("Source video not found.", "Split clip",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
+            return null;
         }
 
         // The one-click button is the only thing that uses the quick save
@@ -5929,7 +5942,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             Notify("Could not determine where to save the clip.", "Split clip",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
+            return null;
         }
 
         BeginNameBatch(1);
@@ -5941,7 +5954,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var named = EnforceFileNamePolicy(
             GetSuffixedOutputPath(Session.VideoPath, format.Extension, outDir),
             out var nameCanceled);
-        if (nameCanceled) return;
+        if (nameCanceled) return null;
 
         // Every row builds its name from the video rather than the bookmark,
         // so all of them propose the same file. GetUniqueOutputPath walks
@@ -6028,6 +6041,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // finished panel on screen for a few seconds, and nothing that has to
         // happen on the way out should be waiting behind it.
         if (succeeded) Job.Complete("Quick saved clip " + bookmark.Index + " to", outPath);
+
+        return succeeded ? outPath : null;
     }
 
     /// <summary>
@@ -6912,14 +6927,26 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         if (!Session.HasVideo) { Notify("No video loaded."); return; }
 
+        if (ResolvePlaylistTarget() is not { } target) return;
+
+        _playlists.AddFiles(target, new[] { Session.VideoPath });
+        StatusText = $"Added {Path.GetFileName(Session.VideoPath)} → {Path.GetFileName(target)}";
+        PlaylistsChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Which playlist to add to: the loaded one, or one the user picks.
+    /// </summary>
+    /// <returns>
+    /// The playlist file to write to, or null if there is nowhere to put
+    /// one or the user backed out. Shared so that adding a clip asks the
+    /// question exactly as adding the whole video does.
+    /// </returns>
+    private string? ResolvePlaylistTarget()
+    {
         // Fast path: a playlist is deliberately loaded — add to it directly.
         if (!string.IsNullOrEmpty(LoadedPlaylistPath) && File.Exists(LoadedPlaylistPath))
-        {
-            _playlists.AddFiles(LoadedPlaylistPath, new[] { Session.VideoPath });
-            StatusText = $"Added {Path.GetFileName(Session.VideoPath)} → {Path.GetFileName(LoadedPlaylistPath)}";
-            PlaylistsChanged?.Invoke();
-            return;
-        }
+            return LoadedPlaylistPath;
 
         // No loaded playlist — prompt the user to pick one.
         var folder = _settings.Current.PlaylistFolder;
@@ -6930,17 +6957,81 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Notify(string.IsNullOrEmpty(folder)
                 ? "Set a playlist folder first, or use Playlist ▸ Load playlist… to load one."
                 : $"The playlist folder is no longer there:\n{folder}\n\nSet it again, or use Playlist ▸ Load playlist… to load one.");
-            return;
+            return null;
         }
+
         var list = _playlists.ListPlaylists(folder).ToList();
         var names = list.Select(Path.GetFileName).ToArray();
         var pick = new InputDialog("Add to playlist", "Enter playlist filename:\n" + string.Join("\n", names.Take(12)), names.FirstOrDefault() ?? "playlist.pls");
-        if (pick.ShowDialog() != true) return;
-        var target = list.FirstOrDefault(p => string.Equals(Path.GetFileName(p), pick.Value, StringComparison.OrdinalIgnoreCase))
+        if (pick.ShowDialog() != true) return null;
+
+        return list.FirstOrDefault(p => string.Equals(Path.GetFileName(p), pick.Value, StringComparison.OrdinalIgnoreCase))
             ?? Path.Combine(folder, pick.Value.EndsWith(".pls") ? pick.Value : pick.Value + ".pls");
-        _playlists.AddFiles(target, new[] { Session.VideoPath });
-        StatusText = $"Added to {Path.GetFileName(target)}";
+    }
+
+    /// <summary>
+    /// Whether any ticked clip could be written out and listed.
+    /// </summary>
+    private bool CanAddClipsToPlaylist() =>
+        HasActiveVideo && Session.Bookmarks.Any(b => b.IsValid && b.IsSelected);
+
+    /// <summary>
+    /// Writes the ticked clips out and puts what it wrote in a playlist.
+    /// </summary>
+    /// <param name="playlistPath">
+    /// The playlist chosen from the submenu. Null asks for one, which is
+    /// what the "New playlist…" entry at the foot of that submenu does.
+    /// </param>
+    /// <remarks>
+    /// A playlist holds files, and a clip is not one until it has been
+    /// written — so this is the quick save followed by the add, and the
+    /// path that goes in the list is the name the save actually ended up
+    /// with rather than the one it asked for. Nothing is listed that was
+    /// not written: a clip that fails to save is reported and skipped.
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(CanAddClipsToPlaylist))]
+    private async Task AddClipsToPlaylist(string? playlistPath)
+    {
+        var clips = Session.Bookmarks.Where(b => b.IsSelected && b.IsValid).ToList();
+
+        if (clips.Count == 0)
+        {
+            StatusText = "Tick the clips you want added first.";
+            return;
+        }
+
+        // Settled before anything is written. A folder full of clips cut
+        // for a playlist the user then backed out of choosing is a worse
+        // outcome than being asked first.
+        var target = !string.IsNullOrWhiteSpace(playlistPath)
+            ? playlistPath
+            : ResolvePlaylistTarget();
+
+        if (string.IsNullOrWhiteSpace(target)) return;
+
+        var written = new List<string>();
+
+        foreach (var clip in clips)
+        {
+            var path = await QuickSaveClipAsync(clip);
+            if (path is not null) written.Add(path);
+        }
+
+        if (written.Count == 0)
+        {
+            StatusText = "Nothing was saved, so nothing was added.";
+            return;
+        }
+
+        _playlists.AddFiles(target, written);
         PlaylistsChanged?.Invoke();
+
+        StatusText = written.Count == 1
+            ? $"Added {Path.GetFileName(written[0])} → {Path.GetFileName(target)}"
+            : $"Added {written.Count} clips → {Path.GetFileName(target)}";
+
+        _toast.Show(written.Count == 1 ? "Clip added to playlist" : $"{written.Count} clips added to playlist",
+                    Path.GetFileName(target), "➕");
     }
 
     // ------------------------------------------------------------------
@@ -9049,6 +9140,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
         dlg.ShowDialog();
     }
 
+    /// <summary>
+    /// Help ▸ Licenses: the same window, opened on the licensing.
+    /// </summary>
+    /// <remarks>
+    /// It used to run the About command, so both menu entries showed the
+    /// release history with the licences underneath — the entry named
+    /// after the thing you wanted took you past it.
+    /// </remarks>
+    [RelayCommand]
+    private void ShowLicenses()
+    {
+        var dlg = new AboutDialog(licensesOnly: true) { Owner = Application.Current?.MainWindow };
+        dlg.ShowDialog();
+    }
+
     // ------------------------------------------------------------------
     // Update checks
     // ------------------------------------------------------------------
@@ -9502,7 +9608,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ? Path.GetDirectoryName(Session.VideoPath)
             : ResolveSaveToDirectory();
 
-        var dlg = new Dialogs.DuplicatesDialog(_ffmpeg, start)
+        var dlg = new Dialogs.DuplicatesDialog(_ffmpeg, start, _mpc)
         {
             Owner = DialogOwner
         };
