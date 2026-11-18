@@ -3,6 +3,33 @@
 Every released version, newest first. Generated from the published
 GitHub releases; Help ▸ About shows this same file.
 
+## 5.8.3 — 2026-11-18
+
+### (New) Actions > Rename files
+
+- This allows you to pick a folder and create naming rules that you can save and apply to the entire folder. You can do that by using custom rules as the model. The simple, just does some basic formatting such as lower case, weird character removal, space removal, etc.
+
+### (New) Actions > Find duplicates
+
+- Pick a folder and choose if you want sub folders included, and it will find duplicate files for you. You can choose deep scan to scan more thoroughly, but it will take longer.
+
+### Custom rules
+
+- Inside the rename files modal, you can set rules and conditions about how to parse and format filenames. There are 3 modes for how the files get parsed. Precise means exact. Variant means "wave" will match "waves", "waved", and "waving". Irregular means "go" will match "goes", "going", "gone", "went", and "go".
+- Regex is supported for rules if you enable it.
+
+### (New) Playlist > Add selected clips to...
+
+- If you have clips selected, you can now add those processed clips directly to the playlist of your selection.
+
+### Help
+
+- "About" and "Licenses" were the same page. Now, "About" will show every release and its corresponding notes, while "Licenses" remains the same.
+
+### Minor fixes
+
+- Returning from the player with the window maximized could throw an error.
+
 ## 5.8.2 — 2026-11-08
 
 ### Save frame thumbnail
