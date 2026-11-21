@@ -166,15 +166,19 @@ public partial class CustomizeToolbarDialog : Window
     /// three fillers.
     /// </summary>
     /// <remarks>
-    /// Everything stays listed, including what is already on the toolbar —
-    /// dimmed, and refused if dropped. Dropping placed actions out of the list
-    /// hid them completely, so somebody looking for Save frame or Convert found
-    /// no trace of either and reasonably concluded they were missing. A greyed
-    /// entry answers that: it is here, and it is already on your toolbar.
+    /// What is on the toolbar is not listed here. The list answers one
+    /// question — what else can I add — and an entry that cannot be added
+    /// is not an answer to it.
     ///
-    /// Actions are still unique. A second Merge button would be a second way to
-    /// do one thing in one row. The fillers are not: a layout may want any
-    /// number of spacers, expanders and rows.
+    /// It did list them, dimmed, so that somebody hunting for Save frame
+    /// would find it rather than conclude it was missing. The preview
+    /// sitting directly above answers that just as well, and without a
+    /// list half full of things that refuse to be dragged.
+    ///
+    /// Actions are unique: a second Merge button would be a second way to
+    /// do one thing in one row. The fillers are not, so they stay listed
+    /// however many are placed — a layout may want any number of spacers,
+    /// expanders and rows.
     /// </remarks>
     private void RefreshAvailable()
     {
@@ -185,14 +189,15 @@ public partial class CustomizeToolbarDialog : Window
 
         foreach (var item in _catalogue)
         {
+            if (item.Kind == ToolbarItemKind.Button && placed.Contains(item.Key))
+                continue;
+
             if (filter.Length > 0 &&
                 !item.Label.Contains(filter, StringComparison.OrdinalIgnoreCase) &&
                 !item.Group.Contains(filter, StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            var copy = item.Clone();
-            copy.IsPlaced = item.Kind == ToolbarItemKind.Button && placed.Contains(item.Key);
-            _available.Add(copy);
+            _available.Add(item.Clone());
         }
 
         ApplyChrome();

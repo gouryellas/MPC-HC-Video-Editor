@@ -1575,16 +1575,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ? $"Add current video to '{Path.GetFileName(LoadedPlaylistPath).Replace("_", "__")}'"
             : "Add current video to a playlist…";
 
-    /// <summary>
-    /// Tooltip for the "Add current video to playlist…" menu item.
-    /// Explains what will happen on click — either "add to the loaded
-    /// playlist directly" or "pick a playlist".
-    /// </summary>
-    public string AddToPlaylistToolTip
-        => !string.IsNullOrEmpty(LoadedPlaylistPath) && File.Exists(LoadedPlaylistPath)
-            ? $"Add the current video to the loaded playlist ({Path.GetFileName(LoadedPlaylistPath)}) directly"
-            : "Pick an existing playlist (or type a new name) and add the current video to it";
-
     public ObservableCollection<string> RecentVideos { get; } = new();
 
     /// <summary>
@@ -2787,8 +2777,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// Recomputes <see cref="LoadedPlaylistName"/>,
     /// <see cref="PlaylistFileDisplay"/>, and the computed menu-bound
     /// properties (<see cref="HasLoadedPlaylist"/>,
-    /// <see cref="AddToPlaylistMenuLabel"/>,
-    /// <see cref="AddToPlaylistToolTip"/>) from
+    /// <see cref="AddToPlaylistMenuLabel"/>) from
     /// <see cref="LoadedPlaylistPath"/>. Called automatically by the
     /// source-generated <c>OnLoadedPlaylistPathChanged</c> partial.
     /// </summary>
@@ -2808,7 +2797,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // — fire PropertyChanged so WPF re-reads them.
         OnPropertyChanged(nameof(HasLoadedPlaylist));
         OnPropertyChanged(nameof(AddToPlaylistMenuLabel));
-        OnPropertyChanged(nameof(AddToPlaylistToolTip));
+
         OnPropertyChanged(nameof(PlaylistFileName));
 
         // "Clear loaded playlist" is gated on the loaded playlist having
@@ -5552,7 +5541,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // dialog, as it is typed.
         while (true)
         {
-            var dlg = new EnterTimeDialog(value, refusal) { Owner = DialogOwner };
+            // The video the words stand for times in. The floor is the last
+            // mark rather than nothing, so a random time lands somewhere a
+            // bookmark could actually go — marks run forwards.
+            var context = new TimeInput.Context(
+                Session.VideoDurationSeconds,
+                LatestMarkedTime() is var latest && latest > 0 ? latest : null,
+                Session.CurrentTimeSeconds);
+
+            var dlg = new EnterTimeDialog(value, refusal, context) { Owner = DialogOwner };
             if (dlg.ShowDialog() != true) return;
 
             value = dlg.Value;
@@ -5891,8 +5888,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Splits a single bookmark into its own clip — the save button at the
-    /// head of each row in the bookmark list. Output goes to the
+    /// Writes a single bookmark out as its own clip — the save button at
+    /// the head of each row in the bookmark list. Output goes to the
     /// quick save folder, falling back to the source video's own directory
     /// when no quick save folder is set (see
     /// <see cref="ResolveQuickSaveDirectory"/>), using the active suffix and
@@ -5920,17 +5917,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         if (bookmark == null)
         {
-            StatusText = "No bookmark to split.";
+            StatusText = "No bookmark to save.";
             return null;
         }
         if (!bookmark.IsValid)
         {
-            StatusText = "Bookmark is incomplete — close it before splitting.";
+            StatusText = "Bookmark is incomplete — close it before saving.";
             return null;
         }
         if (string.IsNullOrEmpty(Session.VideoPath) || !File.Exists(Session.VideoPath))
         {
-            Notify("Source video not found.", "Split clip",
+            Notify("Source video not found.", "Quick save",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return null;
         }
@@ -5940,7 +5937,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var outDir = ResolveQuickSaveDirectory();
         if (string.IsNullOrWhiteSpace(outDir))
         {
-            Notify("Could not determine where to save the clip.", "Split clip",
+            Notify("Could not determine where to save the clip.", "Quick save",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return null;
         }
@@ -5990,7 +5987,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Job.Report("Cutting " + bookmark.StartDisplay + " → " + bookmark.EndDisplay, 0);
 
             MarkStep(bookmark);
-            StatusText = $"Splitting clip {bookmark.Index} → {Path.GetFileName(outPath)}";
+            StatusText = $"Saving clip {bookmark.Index} → {Path.GetFileName(outPath)}";
 
             // Real progress from ffmpeg rather than a figure chosen to look
             // like something was happening.
@@ -6026,7 +6023,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             // ShowError rather than a bare MessageBox: it carries the error
             // icon, which is what makes Windows play the failure sound, and it
             // colours the status strip on the way past.
-            StatusText = "Split failed";
+            StatusText = "Quick save failed";
             ShowError(ex.Message, "Quick save failed");
         }
         finally

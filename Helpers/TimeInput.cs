@@ -49,6 +49,145 @@ public static class TimeInput
     }
 
     /// <summary>
+    /// What the video is, so a word can stand for a time in it.
+    /// </summary>
+    /// <param name="Duration">
+    /// The video's length in seconds, or 0 when it is not known — which is
+    /// what makes the words that depend on it refuse rather than guess.
+    /// </param>
+    /// <param name="After">
+    /// The last mark already set, which "last" names and "random" stays
+    /// clear of. Null when there is none.
+    /// </param>
+    /// <param name="Now">
+    /// Where the playhead is, which "now" names. Null when there is no
+    /// video playing to ask.
+    /// </param>
+    /// <remarks>
+    /// Passed in rather than reached for: this class knows how a time is
+    /// written and nothing about the program around it, and the one place
+    /// that knows the duration is the one place that should say it.
+    /// </remarks>
+    public readonly record struct Context(double Duration = 0, double? After = null, double? Now = null);
+
+    /// <summary>
+    /// The words that stand for a single time, for anything that wants to
+    /// list them — the dialog's own help, and the tests.
+    /// </summary>
+    public static readonly string[] Keywords =
+    {
+        "start", "now", "here", "last", "quarter", "third",
+        "half", "middle", "end", "random"
+    };
+
+    /// <summary>
+    /// The words that stand for a whole range rather than one time.
+    /// </summary>
+    /// <remarks>
+    /// Read before the dash is looked for, because they are the answer by
+    /// themselves. "random 30s" carries a length, so it is matched by its
+    /// first word rather than listed whole.
+    /// </remarks>
+    public static readonly string[] RangeKeywords = { "rest", "all", "random <length>" };
+
+    /// <summary>
+    /// Reads a word that stands for a time in the video.
+    /// </summary>
+    /// <remarks>
+    /// Case and surrounding space are already dealt with by the caller.
+    /// Each word either names a point the duration settles outright, or —
+    /// for "random" — a point drawn once, so that reading the same text
+    /// twice can give two answers. That is the whole purpose of the word,
+    /// but it does mean the reading shown as you type is not necessarily
+    /// the value you get, which is why the dialog draws it only once.
+    /// </remarks>
+    private static bool TryParseWord(string text, Context context, out double seconds, out string error)
+    {
+        seconds = 0;
+        error = string.Empty;
+
+        var word = text.ToLowerInvariant();
+        if (!Keywords.Contains(word)) return false;
+
+        if (word == "start")
+        {
+            seconds = 0;
+            return true;
+        }
+
+        // Neither of these needs the length — they name a time somebody
+        // has already put somewhere — so they are answered before the
+        // duration is insisted on.
+        if (word is "now" or "here")
+        {
+            if (context.Now is not { } now)
+            {
+                error = $"\"{text}\" needs the playhead, and there is no video playing.";
+                return true;
+            }
+
+            seconds = now;
+            return true;
+        }
+
+        if (word == "last")
+        {
+            if (context.After is not { } last)
+            {
+                error = "\"last\" needs a bookmark before it, and there is not one yet.";
+                return true;
+            }
+
+            seconds = last;
+            return true;
+        }
+
+        if (context.Duration <= 0)
+        {
+            error = $"\"{text}\" needs the video's length, and that is not known yet.";
+            return true;
+        }
+
+        switch (word)
+        {
+            case "end":
+                seconds = context.Duration;
+                return true;
+
+            case "half":
+            case "middle":
+                seconds = context.Duration / 2;
+                return true;
+
+            case "quarter":
+                seconds = context.Duration / 4;
+                return true;
+
+            case "third":
+                seconds = context.Duration / 3;
+                return true;
+
+            case "random":
+                // After the last mark, because a random time before it could
+                // not be used anyway — marks go forwards. A hundredth of a
+                // second off each end so the draw is inside the video rather
+                // than on its boundary.
+                var floor = Math.Max(0, context.After ?? 0);
+                if (floor >= context.Duration - 0.01)
+                {
+                    error = "There is no room left after the last mark for a random time.";
+                    return true;
+                }
+
+                seconds = floor + Random.Shared.NextDouble() * (context.Duration - floor);
+                seconds = Math.Round(Math.Min(seconds, context.Duration - 0.01), 2);
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// The dashes a range may be written with. The en and em dashes are here
     /// because a word processor turns a typed hyphen into one, and a pasted
     /// range should not be refused for a character the user did not type.
@@ -60,6 +199,15 @@ public static class TimeInput
     /// </summary>
     /// <param name="error">Why it was refused, in the words the field shows.</param>
     public static bool TryParse(string? input, out Parsed result, out string error)
+        => TryParse(input, default, out result, out error);
+
+    /// <inheritdoc cref="TryParse(string?, out Parsed, out string)"/>
+    /// <param name="context">
+    /// The video the words stand for times in. Default when there is no
+    /// video, which leaves every numeric form working and refuses only
+    /// the words that need a length.
+    /// </param>
+    public static bool TryParse(string? input, Context context, out Parsed result, out string error)
     {
         result = default;
         error = string.Empty;
@@ -71,13 +219,18 @@ public static class TimeInput
             return false;
         }
 
+        // Words that are a range by themselves, read before the dash is
+        // looked for — there is no dash in them to find.
+        if (TryParseRangeWord(text, context, out result, out error))
+            return error.Length == 0;
+
         // From index 1, so a leading dash stays part of the value it is on and
         // is refused as a negative time rather than splitting into an empty
         // left-hand side.
         var dash = text.IndexOfAny(Dashes, 1);
         if (dash < 0)
         {
-            if (!TryParseOne(text, out var single, out error)) return false;
+            if (!TryParseOne(text, context, out var single, out error)) return false;
             result = new Parsed(single, null);
             return true;
         }
@@ -91,8 +244,12 @@ public static class TimeInput
             return false;
         }
 
-        if (!TryParseOne(left, out var start, out error)) return false;
-        if (!TryParseOne(right, out var end, out error)) return false;
+        if (!TryParseOne(left, context, out var start, out error)) return false;
+
+        // The right-hand side is drawn after the left, so "4:00 - random"
+        // lands somewhere in what is left of the video rather than
+        // somewhere that might be before the time it runs from.
+        if (!TryParseOne(right, context with { After = start }, out var end, out error)) return false;
 
         result = new Parsed(start, end);
         return true;
@@ -102,6 +259,11 @@ public static class TimeInput
     /// Reads one time — no dash, no range.
     /// </summary>
     public static bool TryParseOne(string? input, out double seconds, out string error)
+        => TryParseOne(input, default, out seconds, out error);
+
+    /// <inheritdoc cref="TryParseOne(string?, out double, out string)"/>
+    /// <param name="context">The video the words stand for times in.</param>
+    public static bool TryParseOne(string? input, Context context, out double seconds, out string error)
     {
         seconds = 0;
         error = string.Empty;
@@ -122,9 +284,204 @@ public static class TimeInput
             return false;
         }
 
+        // Before the scanner, which would read these as unknown words.
+        if (TryParseWord(text, context, out seconds, out error))
+            return error.Length == 0;
+
+        if (TryParseOffset(text, context, out seconds, out error))
+            return error.Length == 0;
+
+        if (TryParsePercent(text, context, out seconds, out error))
+            return error.Length == 0;
+
+        // A range word on one side of a range is not a time, and saying
+        // "unknown word" would send somebody looking for a typo.
+        var bare = text.ToLowerInvariant();
+        if (bare is "rest" or "all" || bare.StartsWith("random ", StringComparison.Ordinal))
+        {
+            error = $"\"{text}\" is a whole range on its own — it cannot be one end of another.";
+            return false;
+        }
+
         return text.Contains(':')
             ? TryParseClock(text, out seconds, out error)
             : TryParseSpoken(text, out seconds, out error);
+    }
+
+    /// <summary>
+    /// A share of the video: <c>25%</c>.
+    /// </summary>
+    private static bool TryParsePercent(string text, Context context, out double seconds, out string error)
+    {
+        seconds = 0;
+        error = string.Empty;
+
+        if (!text.EndsWith('%')) return false;
+
+        var number = text[..^1].Trim();
+        if (!double.TryParse(number, NumberStyles.Float, CultureInfo.InvariantCulture, out var percent))
+        {
+            error = $"\"{text}\" is not a number of per cent.";
+            return true;
+        }
+
+        if (percent is < 0 or > 100)
+        {
+            error = "A share of the video runs from 0% to 100%.";
+            return true;
+        }
+
+        if (context.Duration <= 0)
+        {
+            error = $"\"{text}\" needs the video's length, and that is not known yet.";
+            return true;
+        }
+
+        seconds = context.Duration * percent / 100;
+        return true;
+    }
+
+    /// <summary>
+    /// A time with something added to or taken off it: <c>end minus 10s</c>,
+    /// <c>middle + 30s</c>.
+    /// </summary>
+    /// <remarks>
+    /// Addition is <c>+</c> and subtraction is the word <c>minus</c>,
+    /// because a dash already separates the two ends of a range and
+    /// <c>end-10s</c> cannot be both. The left side goes back through the
+    /// whole reader, so anything that is a time can be offset — a word, a
+    /// clock, a share — and offsets can be chained.
+    /// </remarks>
+    private static bool TryParseOffset(string text, Context context, out double seconds, out string error)
+    {
+        seconds = 0;
+        error = string.Empty;
+
+        const string minus = " minus ";
+
+        var plusAt = text.IndexOf('+');
+        var minusAt = text.IndexOf(minus, StringComparison.OrdinalIgnoreCase);
+
+        int at, width, sign;
+
+        if (plusAt >= 0 && (minusAt < 0 || plusAt < minusAt)) { at = plusAt; width = 1; sign = 1; }
+        else if (minusAt >= 0) { at = minusAt; width = minus.Length; sign = -1; }
+        else return false;
+
+        var left = text[..at].Trim();
+        var right = text[(at + width)..].Trim();
+
+        if (left.Length == 0 || right.Length == 0)
+        {
+            error = $"\"{text}\" is missing one side of the sum.";
+            return true;
+        }
+
+        if (!TryParseOne(left, context, out var from, out error)) return true;
+
+        // The right-hand side is a length rather than a time, so it never
+        // reads the words: "end minus end" is not a thing anybody means.
+        if (!(right.Contains(':')
+                ? TryParseClock(right, out var by, out error)
+                : TryParseSpoken(right, out by, out error)))
+            return true;
+
+        var result = from + sign * by;
+
+        if (result < 0)
+        {
+            error = "That lands before the start of the video.";
+            return true;
+        }
+
+        if (context.Duration > 0 && result > context.Duration)
+        {
+            error = $"That lands after the end of the video ({Format(context.Duration)}).";
+            return true;
+        }
+
+        seconds = Math.Round(result, 3);
+        return true;
+    }
+
+    /// <summary>A time written back, for an error that has to name one.</summary>
+    private static string Format(double seconds) =>
+        TimeSpan.FromSeconds(seconds).ToString(seconds >= 3600 ? @"h\:mm\:ss" : @"m\:ss");
+
+    /// <summary>
+    /// A word that is a whole range: <c>rest</c>, <c>all</c>,
+    /// <c>random 30s</c>.
+    /// </summary>
+    /// <remarks>
+    /// These answer with both ends at once, so they are read before the
+    /// dash is looked for rather than on either side of one.
+    ///
+    /// "random 30s" draws a clip of the length given, placed so that the
+    /// whole of it fits after the last mark and before the end — the
+    /// point of asking for a length is that the clip is that long, so a
+    /// draw that would run off the end is refused rather than trimmed.
+    /// </remarks>
+    private static bool TryParseRangeWord(string text, Context context, out Parsed result, out string error)
+    {
+        result = default;
+        error = string.Empty;
+
+        var word = text.ToLowerInvariant();
+        var floor = Math.Max(0, context.After ?? 0);
+
+        if (word is "rest" or "all")
+        {
+            if (context.Duration <= 0)
+            {
+                error = $"\"{text}\" needs the video's length, and that is not known yet.";
+                return true;
+            }
+
+            // "all" is the whole video whatever has been marked; "rest" is
+            // what is left of it after the last mark.
+            var from = word == "all" ? 0 : floor;
+
+            if (from >= context.Duration)
+            {
+                error = "There is nothing left after the last mark.";
+                return true;
+            }
+
+            result = new Parsed(from, context.Duration);
+            return true;
+        }
+
+        if (!word.StartsWith("random ", StringComparison.Ordinal)) return false;
+
+        if (context.Duration <= 0)
+        {
+            error = $"\"{text}\" needs the video's length, and that is not known yet.";
+            return true;
+        }
+
+        var lengthText = text[("random ".Length)..].Trim();
+
+        if (!(lengthText.Contains(':')
+                ? TryParseClock(lengthText, out var length, out error)
+                : TryParseSpoken(lengthText, out length, out error)))
+            return true;
+
+        if (length <= 0)
+        {
+            error = "A random clip needs a length greater than nothing.";
+            return true;
+        }
+
+        var room = context.Duration - floor - length;
+        if (room < 0)
+        {
+            error = $"There is not {Format(length)} left after the last mark.";
+            return true;
+        }
+
+        var start = Math.Round(floor + Random.Shared.NextDouble() * room, 2);
+        result = new Parsed(start, Math.Round(start + length, 2));
+        return true;
     }
 
     /// <summary>

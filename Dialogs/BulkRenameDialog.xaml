@@ -382,7 +382,27 @@
                     <ComboBoxItem Content="Custom rules"/>
                 </ComboBox>
 
-                <Button Content="Custom rules" Click="Words_Click"
+                <!-- A verb and an ellipsis, which is how every other button
+                     in the program says it opens a window: Choose…,
+                     Browse…, Rename…. It read "Custom rules" before — the
+                     same words as the option in the dropdown directly
+                     above it, so it looked like a label for that state
+                     rather than something to press.
+
+                     Standing off from the dropdown by more than the gap
+                     between the rail's own buttons, so the eye stops
+                     reading it as part of that control's furniture; and
+                     carrying a glyph, which is read as pressable faster
+                     than any wording is.
+
+                     The glyph is part of the content string rather than a
+                     TextBlock holding both: this window styles every
+                     TextBlock with a pale foreground meant for the dark
+                     panels, and a TextBlock inside the button took that
+                     colour instead of the button's own — pale grey on a
+                     pale fill, which is no text at all. -->
+                <Button Content="&#x270E;  Edit rules…" Click="Words_Click"
+                        Margin="0,8,0,4"
                         Style="{StaticResource RailButton}"/>
 
                 <TextBlock Text="Files" Style="{StaticResource RailLabel}"
@@ -411,7 +431,7 @@
                 <TextBlock x:Name="EmptyText" Margin="14" TextWrapping="Wrap"
                            VerticalAlignment="Top"
                            Foreground="{DynamicResource TextMuted}"
-                           Text="Choose a folder and press Run. Nothing is renamed until you say so."/>
+                           Text="Choose a folder and press Scan. Nothing is renamed until you say so."/>
 
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">

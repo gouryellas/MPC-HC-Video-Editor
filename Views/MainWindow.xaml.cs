@@ -1021,6 +1021,44 @@ public partial class MainWindow : Window
     };
 
     /// <summary>
+    /// A menu header with the "?" beside it carrying the explanation.
+    /// </summary>
+    /// <remarks>
+    /// What the entries written out in XAML do, for the ones built here.
+    /// An explanation belongs on the mark rather than on the entry: a
+    /// tooltip over the whole row appears whenever the pointer rests
+    /// anywhere on it, including while somebody is only passing through
+    /// on the way down the menu. The mark has to be aimed at.
+    ///
+    /// Paths are not explanations and keep their plain tooltip — the
+    /// point of those is to see the thing itself, not a description of
+    /// it.
+    /// </remarks>
+    private object ExplainedHeader(string text, string explanation)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+
+        row.Children.Add(new TextBlock
+        {
+            Text = text,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
+        row.Children.Add(new ContentControl
+        {
+            Style = (Style)FindResource("Qmhp"),
+            ToolTip = new TextBlock
+            {
+                Text = explanation,
+                MaxWidth = 330,
+                TextWrapping = TextWrapping.Wrap
+            }
+        });
+
+        return row;
+    }
+
+    /// <summary>
     /// Builds a quick save shortcut entry for the File menu. Header is the
     /// leaf folder name with the full path in the tooltip; the submenu offers
     /// "Set" (point quick save at this folder) and "Remove". These never open
@@ -1040,7 +1078,7 @@ public partial class MainWindow : Window
             Tag = entry
         };
 
-        var set = new MenuItem { Header = "Set", Icon = MenuIcon("menu-set"), ToolTip = $"Quick save to {entry.Path}" };
+        var set = new MenuItem { Header = "Set", Icon = MenuIcon("menu-set") };
         set.Click += (_, _) => _vm?.SetQuickSaveShortcutCommand.Execute(entry);
 
         var remove = new MenuItem { Header = "Remove", Icon = MenuIcon("menu-x") };
@@ -1383,11 +1421,11 @@ public partial class MainWindow : Window
         var noneActive = _vm.ActiveSuffixText.Length == 0;
         var noneItem = new MenuItem
         {
-            Header = "[no tag]",
+            Header = ExplainedHeader("[no tag]",
+                "Write output under the source's own name, with no tag added. " +
+                "Saved beside the source that means the same filename, so you will be " +
+                "asked whether to replace it."),
             Icon = MenuIcon(noneActive ? "check_mark" : "menu-naming_tag"),
-            ToolTip = "Write output under the source's own name, with no tag added. " +
-                      "Saved beside the source that means the same filename, so you will be " +
-                      "asked whether to replace it.",
             FontWeight = noneActive ? FontWeights.SemiBold : FontWeights.Normal
         };
 
@@ -1421,7 +1459,6 @@ public partial class MainWindow : Window
             {
                 Header = $"[{entry.Text.Replace("_", "__")}]",
                 Icon = MenuIcon(isActive ? "check_mark" : "menu-naming_tag"),
-                ToolTip = $"Click to set [{entry.Text}] as the active tag",
                 Tag = entry,
                 FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Normal
             };
@@ -1637,14 +1674,15 @@ public partial class MainWindow : Window
         // a general command and gives no sign of which one it would drop.
         var loadThis = new MenuItem
         {
-            Header = isLoaded ? "Unload this playlist" : "Load this playlist",
+            Header = ExplainedHeader(
+                isLoaded ? "Unload this playlist" : "Load this playlist",
+                isLoaded
+                    ? "Stops this being the playlist that \"Add current video\" and \"+ to playlist\" " +
+                      "write to, so they ask which again. The playlist itself is left alone."
+                    : "Makes this the playlist that \"Add current video\" and \"+ to playlist\" " +
+                      "write to. Does not open anything in the player."),
             Icon = MenuIcon(isLoaded ? "menu-x" : "menu-folder_open"),
-            Tag = plsPath,
-            ToolTip = isLoaded
-                ? "Stops this being the playlist that \"Add current video\" and \"+ to playlist\" " +
-                  "write to, so they ask which again. The playlist itself is left alone."
-                : "Makes this the playlist that \"Add current video\" and \"+ to playlist\" " +
-                  "write to. Does not open anything in the player."
+            Tag = plsPath
         };
         loadThis.Click += (_, e) =>
         {
@@ -1662,11 +1700,11 @@ public partial class MainWindow : Window
         // about this program, this one is about the player.
         var openAll = new MenuItem
         {
-            Header = "Open all",
+            Header = ExplainedHeader("Open all",
+                "Sends every video this playlist still has to MPC-HC as one playlist " +
+                "and starts the first. Entries whose file is gone are left out."),
             Icon = MenuIcon("play_all"),
-            Tag = plsPath,
-            ToolTip = "Sends every video this playlist still has to MPC-HC as one playlist " +
-                      "and starts the first. Entries whose file is gone are left out."
+            Tag = plsPath
         };
         openAll.Click += (_, e) =>
         {
@@ -1709,11 +1747,11 @@ public partial class MainWindow : Window
         // first and adding them one at a time.
         var addFiles = new MenuItem
         {
-            Header = "Add files…",
+            Header = ExplainedHeader("Add files…",
+                "Pick one or more videos to append to this playlist. " +
+                "Files already listed are skipped."),
             Icon = MenuIcon("menu-plus"),
-            Tag = plsPath,
-            ToolTip = "Pick one or more videos to append to this playlist. " +
-                      "Files already listed are skipped."
+            Tag = plsPath
         };
         addFiles.Click += (_, e) =>
         {
@@ -1735,11 +1773,11 @@ public partial class MainWindow : Window
         // again is almost always the better answer than dropping the entry.
         var relocate = new MenuItem
         {
-            Header = "Find moved files…",
+            Header = ExplainedHeader("Find moved files…",
+                "Searches a folder you choose for the files of entries that are confirmed " +
+                "gone, and repoints the playlist at them instead of removing them."),
             Icon = MenuIcon("detect_cuts"),
-            Tag = plsPath,
-            ToolTip = "Searches a folder you choose for the files of entries that are confirmed " +
-                      "gone, and repoints the playlist at them instead of removing them."
+            Tag = plsPath
         };
         relocate.Click += (_, e) =>
         {
@@ -1750,12 +1788,12 @@ public partial class MainWindow : Window
 
         var removeMissing = new MenuItem
         {
-            Header = "Remove missing entries",
+            Header = ExplainedHeader("Remove missing entries",
+                "Removes entries whose file is gone and whose drive is connected — " +
+                "immediately, without asking. Entries on a disconnected drive cannot " +
+                "be checked and are always left alone."),
             Icon = MenuIcon("menu-x"),
-            Tag = plsPath,
-            ToolTip = "Removes entries whose file is gone and whose drive is connected — " +
-                      "immediately, without asking. Entries on a disconnected drive cannot " +
-                      "be checked and are always left alone."
+            Tag = plsPath
         };
         removeMissing.Click += (_, e) =>
         {

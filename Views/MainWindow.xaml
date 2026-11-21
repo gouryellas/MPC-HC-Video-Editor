@@ -940,15 +940,14 @@
                      untouched. -->
                 <MenuItem ItemsSource="{Binding HistoryEntries}"
                           IsEnabled="{Binding HasHistory}"
-                          InputGestureText="Ctrl+Z"
-                          ToolTip="Every change to the bookmarks still on the stack, newest first. Click one to jump straight to it, however many steps away it is.">
+                          InputGestureText="Ctrl+Z">
                     <MenuItem.Header>
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{Binding UndoEditHeader}" VerticalAlignment="Center"/>
                             <ContentControl Style="{StaticResource Qmhp}">
                                 <ContentControl.ToolTip>
                                     <TextBlock MaxWidth="330" TextWrapping="Wrap"
-                                               Text="Undoes the action and every action before it in the list, if others exist."/>
+                                               Text="Every change to the bookmarks still on the stack, newest first. Click one to jump straight to it, however many steps away it is. Undoing one undoes every action before it in the list."/>
                                 </ContentControl.ToolTip>
                             </ContentControl>
                         </StackPanel>
@@ -991,8 +990,18 @@
                  disagreeing. -->
             <MenuItem Header="Actions">
                 <MenuItem Header="Video" Style="{StaticResource MenuSectionHeader}"/>
-                <MenuItem Header="Merge selected / all / any" Command="{Binding MergeSelectedCommand}"
-                          ToolTip="Merges the checked bookmarks, or every bookmark, or — with no video loaded — files you pick. A single bookmark is written out on its own as a trim.">
+                <MenuItem Command="{Binding MergeSelectedCommand}">
+                    <MenuItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Merge selected / all / any" VerticalAlignment="Center"/>
+                            <ContentControl Style="{StaticResource Qmhp}">
+                                <ContentControl.ToolTip>
+                                    <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                               Text="Merges the checked bookmarks, or every bookmark, or — with no video loaded — files you pick. A single bookmark is written out on its own as a trim."/>
+                                </ContentControl.ToolTip>
+                            </ContentControl>
+                        </StackPanel>
+                    </MenuItem.Header>
                     <MenuItem.Icon>
                         <Image Style="{StaticResource MenuIcon}"
                                Source="pack://application:,,,/Assets/icons/icon-merge.png"/>
@@ -1047,25 +1056,39 @@
                 <MenuItem Header="Files" Style="{StaticResource MenuSectionHeader}"/>
                 <!-- Needs no video loaded: it works on a folder, and the
                      loaded video's folder is only what it opens on. -->
-                <MenuItem Header="Find duplicates…" Command="{Binding FindDuplicatesCommand}">
+                <MenuItem Command="{Binding FindDuplicatesCommand}">
+                    <MenuItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Find duplicates…" VerticalAlignment="Center"/>
+                            <ContentControl Style="{StaticResource Qmhp}">
+                                <ContentControl.ToolTip>
+                                    <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                               Text="Scans a folder for files that are copies of each other. Finds byte-for-byte copies straight away, and can also look for the same footage saved at a different size or bitrate."/>
+                                </ContentControl.ToolTip>
+                            </ContentControl>
+                        </StackPanel>
+                    </MenuItem.Header>
                     <MenuItem.Icon>
                         <Image Style="{StaticResource MenuIcon}"
                                Source="pack://application:,,,/Assets/icons/icon-find_duplicates.png"/>
                     </MenuItem.Icon>
-                    <MenuItem.ToolTip>
-                        <TextBlock MaxWidth="330" TextWrapping="Wrap"
-                                   Text="Scans a folder for files that are copies of each other. Finds byte-for-byte copies straight away, and can also look for the same footage saved at a different size or bitrate."/>
-                    </MenuItem.ToolTip>
                 </MenuItem>
-                <MenuItem Header="Rename files…" Command="{Binding BulkRenameCommand}">
+                <MenuItem Command="{Binding BulkRenameCommand}">
+                    <MenuItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Rename files…" VerticalAlignment="Center"/>
+                            <ContentControl Style="{StaticResource Qmhp}">
+                                <ContentControl.ToolTip>
+                                    <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                               Text="Puts a folder's filenames into one shape. Shows every change before anything is renamed, and each name can be unticked or typed over."/>
+                                </ContentControl.ToolTip>
+                            </ContentControl>
+                        </StackPanel>
+                    </MenuItem.Header>
                     <MenuItem.Icon>
                         <Image Style="{StaticResource MenuIcon}"
                                Source="pack://application:,,,/Assets/icons/icon-rename.png"/>
                     </MenuItem.Icon>
-                    <MenuItem.ToolTip>
-                        <TextBlock MaxWidth="330" TextWrapping="Wrap"
-                                   Text="Puts a folder's filenames into one shape. Shows every change before anything is renamed, and each name can be unticked or typed over."/>
-                    </MenuItem.ToolTip>
                 </MenuItem>
 
                 <MenuItem Header="Images" Style="{StaticResource MenuSectionHeader}"/>
@@ -1261,8 +1284,7 @@
                 <!-- Header carries the live hotkey binding, e.g.
                      "Set timestamp: MButton". Bound to SetTimestampMenuLabel. -->
                 <MenuItem Header="Time" Style="{StaticResource MenuSectionHeader}"/>
-                <MenuItem Header="{Binding SetTimestampMenuLabel}" Command="{Binding SetTimestampCommand}"
-                          ToolTip="Set a bookmark at the current MPC-HC position — toggles open/close automatically">
+                <MenuItem Header="{Binding SetTimestampMenuLabel}" Command="{Binding SetTimestampCommand}">
                     <MenuItem.Icon>
                         <Image Style="{StaticResource MenuIcon}"
                                Source="pack://application:,,,/Assets/icons/icon-set_timestamp.png"/>
@@ -1500,15 +1522,13 @@
                                Source="pack://application:,,,/Assets/icons/icon-menu-x.png"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Create playlist…" Click="NewPlaylist_Click"
-                          ToolTip="Create a new empty .pls file in the playlist folder">
+                <MenuItem Header="Create playlist…" Click="NewPlaylist_Click">
                     <MenuItem.Icon>
                         <Image Style="{StaticResource MenuIcon}"
                                Source="pack://application:,,,/Assets/icons/icon-menu-plus.png"/>
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="{Binding AddToPlaylistMenuLabel}" Command="{Binding AddCurrentToPlaylistCommand}"
-                          ToolTip="{Binding AddToPlaylistToolTip}">
+                <MenuItem Header="{Binding AddToPlaylistMenuLabel}" Command="{Binding AddCurrentToPlaylistCommand}">
                     <MenuItem.Icon>
                         <Image Style="{StaticResource MenuIcon}"
                                Source="pack://application:,,,/Assets/icons/icon-menu-plus.png"/>
@@ -1528,10 +1548,6 @@
                         <Image Style="{StaticResource MenuIcon}"
                                Source="pack://application:,,,/Assets/icons/icon-to_playlist.png"/>
                     </MenuItem.Icon>
-                    <MenuItem.ToolTip>
-                        <TextBlock MaxWidth="330" TextWrapping="Wrap"
-                                   Text="Quick saves each ticked clip, then adds the files it wrote to the playlist you pick."/>
-                    </MenuItem.ToolTip>
                 </MenuItem>
                 <Separator/>
                 <MenuItem Click="RefreshPlaylists_Click"
@@ -1791,8 +1807,7 @@
 
             <MenuItem Header="Help">
                 <MenuItem Header="Program" Style="{StaticResource MenuSectionHeader}"/>
-                <MenuItem Header="About…" Command="{Binding ShowAboutCommand}"
-                          ToolTip="Version, licensing and third-party components">
+                <MenuItem Header="About…" Command="{Binding ShowAboutCommand}">
                     <MenuItem.Icon>
                         <Image Style="{StaticResource MenuIcon}"
                                Source="pack://application:,,,/Assets/icons/icon-menu-letter_i.png"/>
@@ -2572,10 +2587,18 @@
                                         <Run Text="{Binding StartDisplay, Mode=OneWay}"/><Run Text=" – "/><Run Text="{Binding EndDisplay, Mode=OneWay}"/><Run Text="  "/><Run Text="{Binding EffectiveDurationDisplay, StringFormat=({0}), Mode=OneWay}" Foreground="{DynamicResource ValueGreen}"/>
                                     </TextBlock>
 
-                                    <TextBlock Text="open" FontStyle="Italic" Margin="0,5,0,0"
+                                    <!-- The mark that has been set, then the word
+                                         for the one that has not. An open cut
+                                         used to say only "open", so the time
+                                         just marked was nowhere on the card and
+                                         the first thing a new bookmark did was
+                                         vanish from every view but the rows. -->
+                                    <TextBlock FontStyle="Italic" Margin="0,5,0,0"
                                                HorizontalAlignment="Center"
                                                Foreground="{DynamicResource StatusError}"
-                                               Visibility="{Binding IsIncomplete, Converter={StaticResource BoolToVis}}"/>
+                                               Visibility="{Binding IsIncomplete, Converter={StaticResource BoolToVis}}">
+                                        <Run Text="{Binding StartDisplay, Mode=OneWay}"/><Run Text=" – open"/>
+                                    </TextBlock>
                                 </StackPanel>
                             </Border>
                         </DataTemplate>
@@ -2671,9 +2694,11 @@
 
                                     <Border VerticalAlignment="Bottom" Background="#A0000000" Padding="4,1"
                                             Visibility="{Binding IsIncomplete, Converter={StaticResource BoolToVis}}">
-                                        <TextBlock Text="open" FontSize="10" FontStyle="Italic"
+                                        <TextBlock FontSize="10" FontStyle="Italic"
                                                    HorizontalAlignment="Center"
-                                                   Foreground="{DynamicResource StatusError}"/>
+                                                   Foreground="{DynamicResource StatusError}">
+                                            <Run Text="{Binding StartDisplay, Mode=OneWay}"/><Run Text=" – open"/>
+                                        </TextBlock>
                                     </Border>
                                 </Grid>
                             </Border>
@@ -2753,9 +2778,11 @@
                                                        TextTrimming="CharacterEllipsis"
                                                        Foreground="{DynamicResource ValueYellow}"
                                                        Visibility="{Binding HasLabel, Converter={StaticResource BoolToVis}}"/>
-                                            <TextBlock Text="open" FontStyle="Italic"
+                                            <TextBlock FontStyle="Italic"
                                                        Foreground="{DynamicResource StatusError}"
-                                                       Visibility="{Binding IsIncomplete, Converter={StaticResource BoolToVis}}"/>
+                                                       Visibility="{Binding IsIncomplete, Converter={StaticResource BoolToVis}}">
+                                                <Run Text="{Binding StartDisplay, Mode=OneWay}"/><Run Text=" – open"/>
+                                            </TextBlock>
                                         </StackPanel>
 
                                         <!-- The arrow goes after the length, as it
@@ -2893,9 +2920,11 @@
                                                    Foreground="{DynamicResource TextSecondary}"/>
                                     </Grid>
 
-                                    <TextBlock Text="open" FontStyle="Italic" Margin="0,4,0,0"
+                                    <TextBlock FontStyle="Italic" Margin="0,4,0,0"
                                                Foreground="{DynamicResource StatusError}"
-                                               Visibility="{Binding IsIncomplete, Converter={StaticResource BoolToVis}}"/>
+                                               Visibility="{Binding IsIncomplete, Converter={StaticResource BoolToVis}}">
+                                        <Run Text="{Binding StartDisplay, Mode=OneWay}"/><Run Text=" – open"/>
+                                    </TextBlock>
 
                                 </StackPanel>
                             </Border>

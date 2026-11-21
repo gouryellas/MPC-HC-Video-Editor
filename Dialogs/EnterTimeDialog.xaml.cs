@@ -31,15 +31,24 @@ public partial class EnterTimeDialog : Window
     /// <summary>What was typed, already read. Valid whenever Value is.</summary>
     public TimeInput.Parsed Parsed { get; private set; }
 
+    private readonly TimeInput.Context _context;
+
     /// <param name="seed">The value to start with, usually the playhead.</param>
     /// <param name="error">
     /// Why a previous attempt was refused, when the caller is re-asking. These
     /// are the caller's own reasons — an overlap, a time before the last mark —
     /// not anything about how the time was written.
     /// </param>
-    public EnterTimeDialog(string seed, string? error = null)
+    /// <param name="context">
+    /// The video, so that "end", "middle" and the rest stand for times in
+    /// it. Left out, those words are refused and every other form still
+    /// reads as it did.
+    /// </param>
+    public EnterTimeDialog(string seed, string? error = null, TimeInput.Context context = default)
     {
         InitializeComponent();
+
+        _context = context;
 
         if (!string.IsNullOrWhiteSpace(error))
         {
@@ -88,7 +97,7 @@ public partial class EnterTimeDialog : Window
             return;
         }
 
-        if (TimeInput.TryParse(InputBox.Text, out var parsed, out _))
+        if (TimeInput.TryParse(InputBox.Text, _context, out var parsed, out _))
         {
             Parsed = parsed;
             OkButton.IsEnabled = true;
@@ -127,7 +136,7 @@ public partial class EnterTimeDialog : Window
     {
         // The button is disabled while the text cannot be read, so this only
         // has to catch Enter arriving before the box has been re-read.
-        if (!TimeInput.TryParse(InputBox.Text, out var parsed, out _)) return;
+        if (!TimeInput.TryParse(InputBox.Text, _context, out var parsed, out _)) return;
 
         Value = InputBox.Text.Trim();
         Parsed = parsed;

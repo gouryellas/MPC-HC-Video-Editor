@@ -121,6 +121,33 @@
                     </TextBlock>
                 </StackPanel>
 
+                <!-- Words that stand for a time in this video rather than
+                     naming one. They need the video's length, so they are
+                     refused when it is not known yet. -->
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Places" Style="{StaticResource FormLabel}"/>
+                    <TextBlock Style="{StaticResource ExampleRow}">
+                        <Hyperlink Style="{StaticResource ExampleLink}" Click="Example_Click">start</Hyperlink><Run Text="   "/><Hyperlink Style="{StaticResource ExampleLink}" Click="Example_Click">now</Hyperlink><Run Text="   "/><Hyperlink Style="{StaticResource ExampleLink}" Click="Example_Click">last</Hyperlink><Run Text="   "/><Hyperlink Style="{StaticResource ExampleLink}" Click="Example_Click">quarter</Hyperlink><Run Text="   "/><Hyperlink Style="{StaticResource ExampleLink}" Click="Example_Click">third</Hyperlink><Run Text="   "/><Hyperlink Style="{StaticResource ExampleLink}" Click="Example_Click">middle</Hyperlink><Run Text="   "/><Hyperlink Style="{StaticResource ExampleLink}" Click="Example_Click">end</Hyperlink><Run Text="   "/><Hyperlink Style="{StaticResource ExampleLink}" Click="Example_Click">random</Hyperlink><Run Text="   "/><Hyperlink Style="{StaticResource ExampleLink}" Click="Example_Click">25%</Hyperlink>
+                    </TextBlock>
+                </StackPanel>
+
+                <!-- Addition is "+" and subtraction is the word, because a
+                     dash already separates the ends of a range. -->
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Sums" Style="{StaticResource FormLabel}"/>
+                    <TextBlock Style="{StaticResource ExampleRow}">
+                        <Hyperlink Style="{StaticResource ExampleLink}" Click="Example_Click">end minus 10s</Hyperlink><Run Text="   "/><Hyperlink Style="{StaticResource ExampleLink}" Click="Example_Click">middle + 30s</Hyperlink><Run Text="   "/><Hyperlink Style="{StaticResource ExampleLink}" Click="Example_Click">last + 5s</Hyperlink><Run Text="   "/><Hyperlink Style="{StaticResource ExampleLink}" Click="Example_Click">now minus 2min</Hyperlink>
+                    </TextBlock>
+                </StackPanel>
+
+                <!-- A range in one word, so no dash is typed at all. -->
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Whole ranges" Style="{StaticResource FormLabel}"/>
+                    <TextBlock Style="{StaticResource ExampleRow}">
+                        <Hyperlink Style="{StaticResource ExampleLink}" Click="Example_Click">rest</Hyperlink><Run Text="   "/><Hyperlink Style="{StaticResource ExampleLink}" Click="Example_Click">all</Hyperlink><Run Text="   "/><Hyperlink Style="{StaticResource ExampleLink}" Click="Example_Click">random 30s</Hyperlink><Run Text="   "/><Hyperlink Style="{StaticResource ExampleLink}" Click="Example_Click">middle - end</Hyperlink><Run Text="   "/><Hyperlink Style="{StaticResource ExampleLink}" Click="Example_Click">last - end</Hyperlink>
+                    </TextBlock>
+                </StackPanel>
+
             </StackPanel>
         </Border>
 

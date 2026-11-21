@@ -121,4 +121,193 @@ public class PlayheadSplitTests
         Assert.Equal(PlayheadSplit.Outcome.NoDuration,
                      PlayheadSplit.At(new List<BookmarkState>(), 100, 0).Outcome);
     }
+
+    // ------------------------------------------------------------------
+    // Words that stand for a time in the video
+    // ------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("start", 0)]
+    [InlineData("quarter", 60)]
+    [InlineData("third", 80)]
+    [InlineData("middle", 120)]
+    [InlineData("end", 240)]
+    [InlineData("END", 240)]
+    [InlineData("  Middle  ", 120)]
+    public void A_word_can_stand_for_a_time_in_the_video(string typed, double expected)
+    {
+        Assert.True(Helpers.TimeInput.TryParseOne(
+            typed, new Helpers.TimeInput.Context(240), out var seconds, out _));
+
+        Assert.Equal(expected, seconds, 3);
+    }
+
+    [Fact]
+    public void A_word_that_needs_the_length_is_refused_without_one()
+    {
+        Assert.False(Helpers.TimeInput.TryParseOne("end", default, out _, out var error));
+        Assert.Contains("length", error);
+    }
+
+    [Fact]
+    public void Start_needs_no_length()
+    {
+        // Nothing has to be known about the video to say where it begins,
+        // so this one word works before a duration has been read.
+        Assert.True(Helpers.TimeInput.TryParseOne("start", default, out var seconds, out _));
+        Assert.Equal(0, seconds);
+    }
+
+    [Fact]
+    public void A_random_time_lands_in_the_video_and_after_the_last_mark()
+    {
+        var context = new Helpers.TimeInput.Context(240, After: 200);
+
+        // Drawn, so it is worth asking more than once.
+        for (var i = 0; i < 50; i++)
+        {
+            Assert.True(Helpers.TimeInput.TryParseOne("random", context, out var seconds, out _));
+            Assert.InRange(seconds, 200, 240);
+        }
+    }
+
+    [Fact]
+    public void A_random_time_with_no_room_left_says_so()
+    {
+        var context = new Helpers.TimeInput.Context(240, After: 240);
+
+        Assert.False(Helpers.TimeInput.TryParseOne("random", context, out _, out var error));
+        Assert.Contains("no room", error);
+    }
+
+    [Fact]
+    public void A_range_may_be_written_in_words()
+    {
+        Assert.True(Helpers.TimeInput.TryParse(
+            "middle - end", new Helpers.TimeInput.Context(240), out var parsed, out _));
+
+        Assert.Equal(120, parsed.Start, 3);
+        Assert.Equal(240, parsed.End!.Value, 3);
+    }
+
+    [Fact]
+    public void A_random_end_comes_after_the_start_it_was_given()
+    {
+        // The right-hand side is drawn knowing the left, so the range
+        // cannot come out backwards.
+        for (var i = 0; i < 50; i++)
+        {
+            Assert.True(Helpers.TimeInput.TryParse(
+                "200 - random", new Helpers.TimeInput.Context(240), out var parsed, out _));
+
+            Assert.InRange(parsed.End!.Value, 200, 240);
+        }
+    }
+
+    [Fact]
+    public void An_unknown_word_is_still_refused()
+    {
+        Assert.False(Helpers.TimeInput.TryParseOne(
+            "banana", new Helpers.TimeInput.Context(240), out _, out var error));
+
+        Assert.NotEmpty(error);
+    }
+
+    [Theory]
+    [InlineData("now", 90)]
+    [InlineData("here", 90)]
+    [InlineData("last", 200)]
+    [InlineData("half", 120)]
+    [InlineData("25%", 60)]
+    [InlineData("0%", 0)]
+    [InlineData("100%", 240)]
+    [InlineData("end minus 10s", 230)]
+    [InlineData("middle + 30s", 150)]
+    [InlineData("last + 5s", 205)]
+    [InlineData("now minus 1min", 30)]
+    [InlineData("END MINUS 10s", 230)]
+    public void The_rest_of_the_words_and_sums_read(string typed, double expected)
+    {
+        var context = new Helpers.TimeInput.Context(240, After: 200, Now: 90);
+
+        Assert.True(Helpers.TimeInput.TryParseOne(typed, context, out var seconds, out var error), error);
+        Assert.Equal(expected, seconds, 3);
+    }
+
+    [Theory]
+    [InlineData("start minus 10s", "before the start")]
+    [InlineData("end + 10s", "after the end")]
+    [InlineData("150%", "0% to 100%")]
+    public void A_sum_that_leaves_the_video_says_so(string typed, string expected)
+    {
+        var context = new Helpers.TimeInput.Context(240, After: 200, Now: 90);
+
+        Assert.False(Helpers.TimeInput.TryParseOne(typed, context, out _, out var error));
+        Assert.Contains(expected, error);
+    }
+
+    [Fact]
+    public void Now_and_last_refuse_when_there_is_nothing_to_name()
+    {
+        var bare = new Helpers.TimeInput.Context(240);
+
+        Assert.False(Helpers.TimeInput.TryParseOne("now", bare, out _, out var noPlayhead));
+        Assert.Contains("playhead", noPlayhead);
+
+        Assert.False(Helpers.TimeInput.TryParseOne("last", bare, out _, out var noMark));
+        Assert.Contains("bookmark", noMark);
+    }
+
+    [Fact]
+    public void Rest_runs_from_the_last_mark_to_the_end()
+    {
+        Assert.True(Helpers.TimeInput.TryParse(
+            "rest", new Helpers.TimeInput.Context(240, After: 200), out var parsed, out _));
+
+        Assert.Equal(200, parsed.Start, 3);
+        Assert.Equal(240, parsed.End!.Value, 3);
+    }
+
+    [Fact]
+    public void All_is_the_whole_video_whatever_has_been_marked()
+    {
+        Assert.True(Helpers.TimeInput.TryParse(
+            "all", new Helpers.TimeInput.Context(240, After: 200), out var parsed, out _));
+
+        Assert.Equal(0, parsed.Start, 3);
+        Assert.Equal(240, parsed.End!.Value, 3);
+    }
+
+    [Fact]
+    public void A_random_clip_is_the_length_asked_for_and_fits()
+    {
+        var context = new Helpers.TimeInput.Context(240, After: 100);
+
+        for (var i = 0; i < 50; i++)
+        {
+            Assert.True(Helpers.TimeInput.TryParse("random 30s", context, out var parsed, out _));
+
+            Assert.Equal(30, parsed.End!.Value - parsed.Start, 2);
+            Assert.InRange(parsed.Start, 100, 210);
+            Assert.InRange(parsed.End!.Value, 130, 240);
+        }
+    }
+
+    [Fact]
+    public void A_random_clip_too_long_to_fit_is_refused()
+    {
+        var context = new Helpers.TimeInput.Context(240, After: 230);
+
+        Assert.False(Helpers.TimeInput.TryParse("random 30s", context, out _, out var error));
+        Assert.Contains("not", error);
+    }
+
+    [Fact]
+    public void A_whole_range_word_cannot_be_one_end_of_a_range()
+    {
+        Assert.False(Helpers.TimeInput.TryParse(
+            "10 - rest", new Helpers.TimeInput.Context(240), out _, out var error));
+
+        Assert.Contains("whole range", error);
+    }
 }
