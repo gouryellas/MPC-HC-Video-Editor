@@ -189,17 +189,36 @@ public partial class AboutDialog : Window
     private void Repo_Click(object sender, RoutedEventArgs e) => OpenUrl(RepositoryUrl);
 
     /// <summary>
-    /// Hands a URL to the default browser.
+    /// Hands a web address to the default browser.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <c>UseShellExecute</c> is required: without it .NET tries to execute the
     /// URL as a program and throws.
+    /// </para>
+    /// <para>
+    /// Which is also why the scheme is checked first. Shell-executing is how
+    /// Windows opens anything at all, so the same call given a path or a
+    /// <c>file:</c> address runs a program rather than browsing to a page.
+    /// Every address this passes is either a constant here or the release
+    /// page read from the update check's reply — the latter is the one that
+    /// arrives from outside, and "it came from GitHub over HTTPS" is a reason
+    /// to expect a web address rather than a reason not to check for one.
+    /// </para>
     /// </remarks>
     public static void OpenUrl(string url)
     {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var address) ||
+            (address.Scheme != Uri.UriSchemeHttp && address.Scheme != Uri.UriSchemeHttps))
+        {
+            MessageBox.Show($"That is not a web address, so it was not opened:\n\n{url}",
+                "Open link", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         try
         {
-            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(address.AbsoluteUri) { UseShellExecute = true });
         }
         catch (Exception ex)
         {

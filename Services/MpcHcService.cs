@@ -842,12 +842,19 @@ public class MpcHcService
         {
             try
             {
-                Process.Start(new ProcessStartInfo
+                // ArgumentList rather than a quoted Arguments string: it
+                // escapes each value by the rules the receiving program
+                // actually parses, so a path can hold anything at all
+                // without ending the argument early and having the rest
+                // of itself read as further switches.
+                var start = new ProcessStartInfo
                 {
                     FileName = exe,
-                    Arguments = $"\"{path}\"",
                     UseShellExecute = false
-                });
+                };
+                start.ArgumentList.Add(path);
+
+                Process.Start(start);
                 return true;
             }
             catch
@@ -922,17 +929,28 @@ public class MpcHcService
         var exe = FindMpcExecutable();
         if (exe is null) return LaunchVideo(paths[0]);
 
-        var arguments = string.Join(" ", paths.Select(p => $"\"{p}\""));
-        if (arguments.Length + exe.Length + 8 > 32000) return LaunchVideo(paths[0]);
+        // Measured on the same quoting the launch uses, which is now the
+        // runtime's rather than this method's — the limit is the command
+        // line Windows will accept, so it has to be the string that will
+        // actually be built.
+        if (paths.Sum(p => p.Length + 3) + exe.Length + 8 > 32000) return LaunchVideo(paths[0]);
 
         try
         {
-            Process.Start(new ProcessStartInfo
+            // ArgumentList, so a path carrying a quote cannot close its
+            // own argument and have the remainder read as switches. The
+            // one caller only passes paths that File.Exists accepted, and
+            // a Windows path cannot contain a quote — but that is the
+            // caller's guarantee, not this method's.
+            var start = new ProcessStartInfo
             {
                 FileName = exe,
-                Arguments = arguments,
                 UseShellExecute = false
-            });
+            };
+
+            foreach (var path in paths) start.ArgumentList.Add(path);
+
+            Process.Start(start);
             return true;
         }
         catch

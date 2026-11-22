@@ -302,6 +302,29 @@ public class PlayheadSplitTests
         Assert.Contains("not", error);
     }
 
+    // ------------------------------------------------------------------
+    // A path cannot smuggle extra arguments onto a command line
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void An_ordinary_path_is_quoted_for_the_command_line()
+    {
+        Assert.Equal("\"C:\\Videos\\a clip.mp4\"",
+                     FFmpegService.Quoted(@"C:\Videos\a clip.mp4"));
+    }
+
+    [Theory]
+    [InlineData("C:\\a\" -y -f lavfi -i nullsrc \"b.mp4")]
+    [InlineData("\"")]
+    public void A_path_carrying_a_quote_is_refused(string hostile)
+    {
+        // Windows has no legal filename containing a quote, so such a
+        // path did not come from the filesystem — and left alone it would
+        // close its own argument and leave the rest to be read as further
+        // switches. Playlists are plain text and can say anything.
+        Assert.Throws<ArgumentException>(() => FFmpegService.Quoted(hostile));
+    }
+
     [Fact]
     public void A_whole_range_word_cannot_be_one_end_of_a_range()
     {

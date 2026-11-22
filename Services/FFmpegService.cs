@@ -249,7 +249,7 @@ public class FFmpegService
             {
                 FileName = _ffprobePath,
                 Arguments = "-v error -select_streams a -show_entries stream=index " +
-                            $"-of csv=p=0 \"{filePath}\"",
+                            $"-of csv=p=0 {Quoted(filePath)}",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -408,7 +408,7 @@ public class FFmpegService
             {
                 FileName = _ffprobePath,
                 Arguments = "-v error -select_streams v:0 -show_entries stream_side_data=rotation " +
-                            $"-of csv=p=0 \"{filePath}\"",
+                            $"-of csv=p=0 {Quoted(filePath)}",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -463,7 +463,7 @@ public class FFmpegService
                 FileName = _ffprobePath,
                 Arguments = "-v error -show_entries " +
                             "stream=index,codec_type,codec_name:stream_disposition=attached_pic " +
-                            $"-of csv=p=0 \"{filePath}\"",
+                            $"-of csv=p=0 {Quoted(filePath)}",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -629,7 +629,7 @@ public class FFmpegService
         try
         {
             var args = "-v error -show_entries stream=codec_type,duration -of csv=p=0 " +
-                       $"\"{filePath}\"";
+                       $"{Quoted(filePath)}";
             var psi = new ProcessStartInfo
             {
                 FileName = _ffprobePath,
@@ -962,8 +962,8 @@ public class FFmpegService
             ? MappingFor(streams, format.Extension, viaMp4Segments: false) + "-c:v copy -c:a copy"
             : VideoFormats.ApplyEncoder(format, VideoCodec, QualityArgs);
 
-        var args = $"-hide_banner -y {OpenVideo(inputPath)}-i \"{inputPath}\" {normalize}" +
-                   $"{codecs} \"{outputPath}\"";
+        var args = $"-hide_banner -y {OpenVideo(inputPath)}-i {Quoted(inputPath)} {normalize}" +
+                   $"{codecs} {Quoted(outputPath)}";
 
         // Probe first so the progress bar has something to divide by.
         await RunAsync(args, progress, ct, await GetDurationAsync(inputPath));
@@ -994,9 +994,9 @@ public class FFmpegService
         var crop = $"crop=trunc(in_w*{Frac(width)}/2)*2:trunc(in_h*{Frac(height)}/2)*2:" +
                    $"trunc(in_w*{Frac(x)}/2)*2:trunc(in_h*{Frac(y)}/2)*2";
 
-        var args = $"-hide_banner -y {OpenVideo(inputPath)}-i \"{inputPath}\" " +
+        var args = $"-hide_banner -y {OpenVideo(inputPath)}-i {Quoted(inputPath)} " +
                    $"-vf \"{crop}\" -c:v {VideoCodec} {QualityArgs} -pix_fmt yuv420p " +
-                   $"-c:a copy \"{outputPath}\"";
+                   $"-c:a copy {Quoted(outputPath)}";
 
         await RunAsync(args, progress, ct, await GetDurationAsync(inputPath));
     }
@@ -1050,10 +1050,10 @@ public class FFmpegService
         string args;
         if (webp)
         {
-            args = $"-hide_banner -y -ss {start} -to {end} {OpenVideo(inputPath)}-i \"{inputPath}\" " +
+            args = $"-hide_banner -y -ss {start} -to {end} {OpenVideo(inputPath)}-i {Quoted(inputPath)} " +
                    $"-an -vf \"{string.Join(",", vf)}\" " +
                    $"-c:v libwebp_anim -lossless 0 -q:v 75 -compression_level 5 -loop 0 " +
-                   $"\"{outputPath}\"";
+                   $"{Quoted(outputPath)}";
         }
         else
         {
@@ -1065,8 +1065,8 @@ public class FFmpegService
                         ",split[s0][s1];[s0]palettegen=stats_mode=diff[p];" +
                         "[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle";
 
-            args = $"-hide_banner -y -ss {start} -to {end} {OpenVideo(inputPath)}-i \"{inputPath}\" " +
-                   $"-an -vf \"{chain}\" -loop 0 \"{outputPath}\"";
+            args = $"-hide_banner -y -ss {start} -to {end} {OpenVideo(inputPath)}-i {Quoted(inputPath)} " +
+                   $"-an -vf \"{chain}\" -loop 0 {Quoted(outputPath)}";
         }
 
         await RunAsync(args, progress, ct, b.DurationSeconds / b.Speed);
@@ -1100,10 +1100,10 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
             $"{Path.GetFileName(inputPath)} has no audio track, so there is nothing to extract.");
 
     // Optional map so files with no audio don't hard-fail on the map itself
-    var args = $"-hide_banner -y {OpenVideo(inputPath)}-i \"{inputPath}\" " +
+    var args = $"-hide_banner -y {OpenVideo(inputPath)}-i {Quoted(inputPath)} " +
                $"-vn -map 0:a:0? " +
                $"-c:a libmp3lame -q:a 0 " +
-               $"\"{outputPath}\"";
+               $"{Quoted(outputPath)}";
 
     try
     {
@@ -1144,8 +1144,8 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
             Path.GetDirectoryName(inputPath) ?? "",
             Path.GetFileNameWithoutExtension(inputPath) + "-silent" + Path.GetExtension(inputPath));
 
-        var args = $"-hide_banner -y {OpenVideo(inputPath)}-i \"{inputPath}\" " +
-                   $"-map 0 -map -0:a -c copy \"{outputPath}\"";
+        var args = $"-hide_banner -y {OpenVideo(inputPath)}-i {Quoted(inputPath)} " +
+                   $"-map 0 -map -0:a -c copy {Quoted(outputPath)}";
 
         await RunAsync(args, progress, ct, await GetDurationAsync(inputPath));
     }
@@ -1291,8 +1291,8 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
             // written back out, which is the whole trick.
             var spinArg = spin is { } degrees ? $"-display_rotation:v:0 {degrees} " : string.Empty;
 
-            var concatArgs = $"-hide_banner -y {spinArg}-f concat -safe 0 -i \"{concatList}\" " +
-                             $"{joinMapping}{outputArgs} \"{outputPath}\"";
+            var concatArgs = $"-hide_banner -y {spinArg}-f concat -safe 0 -i {Quoted(concatList)} " +
+                             $"{joinMapping}{outputArgs} {Quoted(outputPath)}";
 
             // What was asked for, at the speed each clip will actually play.
             // Computed before the join rather than after it, because it is
@@ -1499,7 +1499,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
 
         var sb = new StringBuilder();
         sb.Append($"-hide_banner -y -ss {start} -to {end} " +
-                  $"{OpenVideo(input)}-i \"{input}\" ");
+                  $"{OpenVideo(input)}-i {Quoted(input)} ");
 
         if (vf.Count > 0)
             sb.Append($"-vf \"{string.Join(",", vf)}\" ");
@@ -1532,7 +1532,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
             sb.Append("-c copy ");
         }
 
-        sb.Append($"\"{output}\"");
+        sb.Append($"{Quoted(output)}");
 
         await RunAsync(sb.ToString(), null, ct);
     }
@@ -1666,9 +1666,9 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
                 // effort spent here buys nothing. Routed through the chosen
                 // encoder all the same, since x264's presets mean nothing to a
                 // GPU encoder.
-                var args = $"-hide_banner -y {OpenVideoKeepingTimestamps(files[i])}-i \"{files[i]}\" " +
+                var args = $"-hide_banner -y {OpenVideoKeepingTimestamps(files[i])}-i {Quoted(files[i])} " +
                            $"-c:v {VideoCodec} {VideoEncoders.QualityArgsFor(Encoder, EncodingQuality.Fast)} " +
-                           $"{scaleArgs}{rateArgs}-pix_fmt yuv420p -c:a aac -ar 48000 -ac 2 \"{seg}\"";
+                           $"{scaleArgs}{rateArgs}-pix_fmt yuv420p -c:a aac -ar 48000 -ac 2 {Quoted(seg)}";
                 await RunAsync(args, null, ct);
                 segments.Add(seg);
             }
@@ -1699,8 +1699,8 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
             // Only the audio: the video is already normalised and stream-copied,
             // which is what keeps the join cheap. Audio is a rounding error
             // beside the per-input video encodes that have already run.
-            var concatArgs = $"-hide_banner -y -f concat -safe 0 -i \"{listFile}\" " +
-                             $"-c:v copy -c:a aac -ar 48000 -ac 2 \"{outputPath}\"";
+            var concatArgs = $"-hide_banner -y -f concat -safe 0 -i {Quoted(listFile)} " +
+                             $"-c:v copy -c:a aac -ar 48000 -ac 2 {Quoted(outputPath)}";
             await RunAsync(concatArgs, null, ct);
         }
         finally
@@ -1906,7 +1906,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         // keep the switch arms parallel.
         filter = filter.Replace("-vn:__none__ ", string.Empty);
 
-        var args = $"-hide_banner -nostats {OpenVideo(inputPath)}-i \"{inputPath}\" {filter} -f null -";
+        var args = $"-hide_banner -nostats {OpenVideo(inputPath)}-i {Quoted(inputPath)} {filter} -f null -";
         var log = await RunCaptureAsync(args, duration, progress, ct);
 
         var ranges = settings.Mode switch
@@ -1922,6 +1922,38 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
     }
 
     private static string Fmt(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// A file path as one argument of a command line.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The commands here are assembled as one string rather than through
+    /// <c>ArgumentList</c>, because most of what is in them is flags and
+    /// filtergraphs — <c>-vf "scale=…,crop=…"</c> — which carry their own
+    /// commas, colons and escaping. Handing those to ArgumentList would
+    /// mean unpicking the quoting of every filter in the program.
+    /// </para>
+    /// <para>
+    /// A path is the only part of such a command that comes from outside,
+    /// so it is the only part that has to be proved harmless. Windows has
+    /// no legal filename containing a quote, so a path holding one did
+    /// not come from the filesystem — and left alone it would close this
+    /// argument early and leave the remainder of itself to be read as
+    /// further switches. Refusing is right: there is no file it could
+    /// have meant.
+    /// </para>
+    /// </remarks>
+    internal static string Quoted(string path)
+    {
+        if (path is null) throw new ArgumentNullException(nameof(path));
+
+        if (path.Contains('"'))
+            throw new ArgumentException(
+                "A file path cannot contain a quotation mark.", nameof(path));
+
+        return "\"" + path + "\"";
+    }
 
     /// <summary>
     /// A fraction of a frame, at five decimals — a tenth of a pixel on a 4K
@@ -2117,8 +2149,8 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
 
             progress?.Report(new FFmpegProgressEventArgs { Message = $"Writing {number - 1} chapters…" });
 
-            var args = $"-hide_banner -y {OpenVideoKeepingTimestamps(inputPath)}-i \"{inputPath}\" -i \"{metaPath}\" " +
-                       $"-map_metadata 1 -map_chapters 1 -c copy \"{outputPath}\"";
+            var args = $"-hide_banner -y {OpenVideoKeepingTimestamps(inputPath)}-i {Quoted(inputPath)} -i {Quoted(metaPath)} " +
+                       $"-map_metadata 1 -map_chapters 1 -c copy {Quoted(outputPath)}";
             await RunAsync(args, progress, ct);
         }
         finally
@@ -2194,7 +2226,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         var timestamp = Math.Floor(seconds * 1_000_000) / 1_000_000;
         var stamp = timestamp.ToString("0.######", CultureInfo.InvariantCulture);
         var vf = filters.Count > 0 ? $"-vf \"{string.Join(",", filters)}\" " : string.Empty;
-        var args = $"-hide_banner -loglevel error -ss {stamp} {OpenVideo(videoPath)}-i \"{videoPath}\" " +
+        var args = $"-hide_banner -loglevel error -ss {stamp} {OpenVideo(videoPath)}-i {Quoted(videoPath)} " +
                    $"-frames:v 1 {vf}-f image2pipe -c:v png -";
 
         return await PipePngAsync(args, ct).ConfigureAwait(false);
@@ -2212,7 +2244,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
             {
                 FileName = _ffprobePath,
                 Arguments = $"-v error {OpenVideoKeepingTimestamps(videoPath)}-select_streams v:0 -show_entries stream=start_time " +
-                            $"-of default=noprint_wrappers=1:nokey=1 \"{videoPath}\"",
+                            $"-of default=noprint_wrappers=1:nokey=1 {Quoted(videoPath)}",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -2293,7 +2325,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
                    $"-read_intervals {from.ToString("0.###", CultureInfo.InvariantCulture)}" +
                    $"%{to.ToString("0.###", CultureInfo.InvariantCulture)} " +
                    $"-show_entries frame=best_effort_timestamp_time " +
-                   $"-of csv=p=0 \"{videoPath}\"";
+                   $"-of csv=p=0 {Quoted(videoPath)}";
 
         try
         {
@@ -2430,9 +2462,9 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         if (width > 0) vf.Add($"scale={width}:-2:flags=lanczos");
         if (columns > 0 && rows > 0) vf.Add($"tile={columns}x{rows}");
 
-        var args = $"-hide_banner -y {OpenVideo(inputPath)}-i \"{inputPath}\" " +
+        var args = $"-hide_banner -y {OpenVideo(inputPath)}-i {Quoted(inputPath)} " +
                    $"-an -vf \"{string.Join(",", vf)}\" -fps_mode passthrough " +
-                   $"\"{pattern}\" " +
+                   $"{Quoted(pattern)} " +
                    $"-map 0:v:0 -c:v wrapped_avframe -f null -";
 
         await RunAsync(args, progress, ct, await GetDurationAsync(inputPath));
@@ -2479,7 +2511,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
     {
         if (string.IsNullOrWhiteSpace(videoPath) || !File.Exists(videoPath)) return null;
 
-        var args = $"-hide_banner -loglevel error -nostats {OpenVideo(videoPath)}-i \"{videoPath}\" " +
+        var args = $"-hide_banner -loglevel error -nostats {OpenVideo(videoPath)}-i {Quoted(videoPath)} " +
                    $"-filter_complex \"agate=threshold=0.005:ratio=2.5:range=0.1:attack=5:release=300:detection=peak," +
                    $"showwavespic=s={width}x{height}:colors={ToFfmpegColor(color)}:split_channels=0:scale=sqrt:filter=peak\" " +
                    $"-frames:v 1 -f image2pipe -c:v png -";
@@ -2667,7 +2699,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         try
         {
             var args = "-v error -select_streams v:0 -show_entries stream=width,height " +
-                       $"-of csv=p=0 \"{filePath}\"";
+                       $"-of csv=p=0 {Quoted(filePath)}";
             var psi = new ProcessStartInfo
             {
                 FileName = _ffprobePath,
@@ -2733,7 +2765,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         try
         {
             var at = seconds.ToString("0.###", CultureInfo.InvariantCulture);
-            var args = $"-hide_banner -loglevel error -ss {at} {OpenVideo(filePath)}-i \"{filePath}\" " +
+            var args = $"-hide_banner -loglevel error -ss {at} {OpenVideo(filePath)}-i {Quoted(filePath)} " +
                        $"-frames:v 1 -vf \"scale={size}:{size},format=gray\" " +
                        $"-f rawvideo -pix_fmt gray -";
 
@@ -2776,7 +2808,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         try
         {
             var args = $"-v error {OpenVideoKeepingTimestamps(filePath)}-show_entries format=duration " +
-                       $"-of default=noprint_wrappers=1:nokey=1 \"{filePath}\"";
+                       $"-of default=noprint_wrappers=1:nokey=1 {Quoted(filePath)}";
             var psi = new ProcessStartInfo
             {
                 FileName = _ffprobePath,
@@ -2828,7 +2860,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         try
         {
             var args = $"-v error -select_streams v:0 -show_entries stream=r_frame_rate " +
-                       $"-of default=noprint_wrappers=1:nokey=1 \"{filePath}\"";
+                       $"-of default=noprint_wrappers=1:nokey=1 {Quoted(filePath)}";
             var psi = new ProcessStartInfo
             {
                 FileName = _ffprobePath,
