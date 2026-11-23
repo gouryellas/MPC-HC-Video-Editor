@@ -337,6 +337,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // icon-menu-plus rather than icon-to_playlist, which is also a plus
         // and drawn differently — two shapes and two greens for the one idea.
         new() { Key = "add-to-playlist", Group = "Playlist", Label = "➕ To playlist", Icon = "➕", IconFile = "icon-menu-plus", Command = AddCurrentToPlaylistCommand },
+        new() { Key = "compress", Group = "Actions", Label = "Compress to size", IconFile = "icon-compression", Command = CompressToSizeCommand },
+        new() { Key = "watermark", Group = "Actions", Label = "Add watermark", IconFile = "icon-water_mark", Command = AddWatermarkCommand },
+        new() { Key = "find-duplicates", Group = "Actions", Label = "Find duplicates", IconFile = "icon-find_duplicates", Command = FindDuplicatesCommand },
+        new() { Key = "rename-files", Group = "Actions", Label = "Rename files", IconFile = "icon-rename", Command = BulkRenameCommand },
+        new() { Key = "strip-metadata", Group = "Actions", Label = "Strip metadata", IconFile = "icon-strip_metadata", Command = StripMetadataCommand },
+        new() { Key = "processing-order", Group = "Bookmarks", Label = "Processing order", IconFile = "icon-menu-re_order", Command = SetProcessingOrderManualCommand },
 
         // The fillers. Each is a real entry in the layout; only their drawing is
         // particular to the Customize dialog.
@@ -344,7 +350,38 @@ public partial class MainViewModel : ObservableObject, IDisposable
         new() { Key = "expander", Group = "Layout", Kind = ToolbarItemKind.Expander, Label = "Expander",
                 ToolTip = "Takes up whatever width is left, pushing what follows it to the right" },
         new() { Key = "row-break", Group = "Layout", Kind = ToolbarItemKind.RowBreak, Label = "New row" },
-    }.Concat(SuffixButtons()).Select(InFamily).ToList();
+    }.Concat(SuffixButtons()).Concat(ShortcutButtons()).Select(InFamily).ToList();
+
+    /// <summary>
+    /// A button for each folder shortcut, which opens that folder.
+    /// </summary>
+    /// <remarks>
+    /// Keyed on the folder rather than the name, so renaming a shortcut keeps
+    /// its place on the toolbar and only its caption changes. A removed
+    /// shortcut drops off the toolbar by the same rule as any unknown key.
+    ///
+    /// Always drawn as the folder and the name, even with small buttons on:
+    /// every one of them has the same picture, so the name is the only thing
+    /// telling them apart.
+    /// </remarks>
+    private IEnumerable<ToolbarItem> ShortcutButtons()
+    {
+        foreach (var entry in Shortcuts.ToList())
+        {
+            if (string.IsNullOrWhiteSpace(entry.Path)) continue;
+
+            yield return new ToolbarItem
+            {
+                Key = "shortcut:" + entry.Path.TrimEnd('\\', '/').ToLowerInvariant(),
+                Group = "Shortcuts",
+                Label = entry.Name,
+                IconFile = "icon-menu-folder",
+                ToolTip = entry.Path,
+                AlwaysLabelled = true,
+                Command = new RelayCommand(() => OpenShortcut(entry))
+            };
+        }
+    }
 
     /// <summary>
     /// Gives a catalogue entry the style of the family it belongs to.
@@ -1719,6 +1756,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // After the commands exist — every button in it holds one.
         BuildToolbar();
 
+        // The shortcut buttons are built from this list, so a shortcut added,
+        // removed or reordered has to redraw the toolbar.
+        Shortcuts.CollectionChanged += (_, _) => BuildToolbar();
+
         // Subscribed once, here, rather than assigned in ApplySettings. It was
         // assigned there — "so saving Settings twice cannot end up playing the
         // sound twice" — and an assignment takes the whole invocation list, so
@@ -1892,6 +1933,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _ffmpeg.Encoder = _settings.Current.VideoEncoder;
         _ffmpeg.QualityArgs = _settings.GetQualityArgs();
         _ffmpeg.PreciseCuts = _settings.Current.PreciseCuts;
+        _ffmpeg.SmartCuts = _settings.Current.SmartCuts;
         _ffmpeg.NormalizeAudio = _settings.Current.NormalizeAudio;
 
         _hotkeys.BlockInPlayer = _settings.Current.BlockHotkeyInPlayer;
@@ -6454,11 +6496,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (videos.Count > 0 && videoMode != CleanupMode.Never)
         {
             var ask = videoMode == CleanupMode.Ask;
-            var prompt = videos.Count == 1
-                ? $"Delete the original video?\n\n{Path.GetFileName(videos[0])}\n\n{DeletionNote(1)}"
-                : $"Delete the {videos.Count} original video files this operation used?\n\n{DeletionNote(videos.Count)}";
 
-            if (!ask || Confirm(prompt, "Delete original video"))
+            // Strip metadata hands photos through here too, and calling a
+            // photo a video would make somebody hesitate over the wrong file.
+            var noun = videos.Any(MetadataStripper.IsSupportedImage) ? "file" : "video";
+            var prompt = videos.Count == 1
+                ? $"Delete the original {noun}?\n\n{Path.GetFileName(videos[0])}\n\n{DeletionNote(1)}"
+                : $"Delete the {videos.Count} original {(noun == "file" ? "files" : "video files")} this operation used?\n\n{DeletionNote(videos.Count)}";
+
+            if (!ask || Confirm(prompt, $"Delete original {noun}"))
             {
                 // MPC-HC holds an open handle on the file it is playing, and
                 // will not let go on its own — no amount of retrying gets past
@@ -6897,6 +6943,439 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // session's bookmark file — which belongs to a different video — is not
         // swept up with them.
         await RunPostOperationCleanup(stripped, includeBookmarks: false);
+    }
+
+    // ------------------------------------------------------------------
+    // Remove silences
+    // ------------------------------------------------------------------
+
+    /// <summary>The last Remove silences settings, offered again next time.</summary>
+    private SilenceSettings _lastSilenceSettings = SilenceSettings.Default;
+
+    /// <summary>
+    /// Writes a copy of the video with its silent stretches taken out.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Scan for cuts already finds the stretches that are not silent; this
+    /// pads each one, joins any the padding makes touch, and writes them out
+    /// through the same merge every other cut goes through — so the cut
+    /// accuracy setting applies here as everywhere, and Smart makes it quick.
+    /// </para>
+    /// <para>
+    /// The loaded video when there is one, and a file asked for when not. The
+    /// bookmarks are left alone: this is a finished file, not a set of
+    /// proposals, and Scan for cuts is there for anyone who wants to review
+    /// the gaps before anything is written.
+    /// </para>
+    /// </remarks>
+    [RelayCommand]
+    private async Task RemoveSilencesAsync()
+    {
+        var source = Session.VideoPath;
+        if (string.IsNullOrEmpty(source) || !File.Exists(source))
+        {
+            var ofd = new OpenFileDialog { Filter = "Video Files|*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.webm;*.mpeg;*.mpg;*.ts;*.m4v|All Files|*.*" };
+            if (ofd.ShowDialog() != true) return;
+            source = ofd.FileName;
+        }
+
+        var ask = new RemoveSilencesDialog(_lastSilenceSettings) { Owner = DialogOwner };
+        if (ask.ShowDialog() != true) return;
+        _lastSilenceSettings = ask.Settings;
+        var settings = ask.Settings;
+
+        var format = OutputFormat;
+        BeginNameBatch(1);
+        var outPath = await ResolveOutputPathAsync(
+            GetSuffixedOutputPath(source, format.Extension, ResolveSaveToDirectory()));
+        if (outPath == null) return;
+
+        var succeeded = false;
+        string? summary = null;
+
+        IsBusy = true; ProgressPercent = 0; StatusText = "Finding silences…";
+        Job.Begin("Removing silences");
+        Job.SetFile(0, Path.GetFileName(source));
+
+        try
+        {
+            // The scan is the first fifth of the bar; cutting and joining
+            // the rest.
+            var scanProgress = new Progress<FFmpegProgressEventArgs>(p =>
+            {
+                ProgressPercent = p.Percent * 0.2;
+                Job.Report("Finding silences", p.Percent * 0.2);
+            });
+
+            var duration = await _ffmpeg.GetDurationAsync(source);
+            var spoken = await _ffmpeg.DetectRangesAsync(source,
+                new DetectionSettings(DetectionMode.Silence, settings.ThresholdDb, settings.MinSilenceSeconds, 0),
+                scanProgress);
+
+            var keep = PadAndJoin(spoken, settings.PaddingSeconds, duration);
+
+            if (keep.Count == 0)
+            {
+                StatusText = "The whole video is silent at that level";
+                ShowInfo("Every part of this video is quieter than the level you set, so there is nothing to keep. " +
+                         "Try a lower number, such as -40.", "Remove silences");
+                return;
+            }
+
+            var kept = keep.Sum(r => r.Duration);
+            var removed = duration - kept;
+
+            if (keep.Count == 1 && removed < 0.5)
+            {
+                StatusText = "No silences long enough to remove";
+                ShowInfo("No silence in this video is long and quiet enough to remove at these settings.",
+                         "Remove silences");
+                return;
+            }
+
+            var cuts = keep.Select((r, i) => new Bookmark
+            {
+                Index = i + 1,
+                StartSeconds = r.Start,
+                EndSeconds = r.End
+            }).ToList();
+
+            var mergeProgress = new Progress<FFmpegProgressEventArgs>(p =>
+            {
+                var pct = 20 + p.Percent * 0.8;
+                ProgressPercent = pct;
+                StatusText = p.Message;
+                Job.Report(p.Message, pct);
+            });
+
+            Job.SetFile(0, Path.GetFileName(outPath));
+            await _ffmpeg.MergeBookmarksAsync(source, outPath, cuts, mergeProgress, default, format);
+
+            var gaps = keep.Count - 1 + (keep[0].Start > 0.05 ? 1 : 0) + (keep[^1].End < duration - 0.05 ? 1 : 0);
+            summary = $"Removed {Bookmark.FormatTime(removed)} of silence in {gaps} place(s) · " +
+                      $"{Bookmark.FormatTime(kept)} left";
+
+            StatusText = $"Created {Path.GetFileName(outPath)}";
+            _toast.Show("Silences removed", summary, "🎬");
+            succeeded = true;
+        }
+        catch (Exception ex)
+        {
+            StatusText = "Remove silences failed";
+            ShowError(ex.Message, "Remove silences failed");
+        }
+        finally
+        {
+            IsBusy = false; ProgressPercent = 0;
+            if (!succeeded) Job.End();
+        }
+
+        if (succeeded)
+        {
+            Job.Complete("Removed silences into", Path.GetFileName(outPath), summary: summary);
+            await RunPostOperationCleanup(new List<string> { source }, includeBookmarks: false, justWrote: outPath);
+        }
+    }
+
+    /// <summary>
+    /// Widens each kept stretch by the padding and merges any that then meet.
+    /// </summary>
+    internal static List<DetectedRange> PadAndJoin(IEnumerable<DetectedRange> ranges, double padding, double duration)
+    {
+        var joined = new List<DetectedRange>();
+
+        foreach (var r in ranges.OrderBy(r => r.Start))
+        {
+            var start = Math.Max(0, r.Start - padding);
+            var end = duration > 0 ? Math.Min(duration, r.End + padding) : r.End + padding;
+            if (end <= start) continue;
+
+            if (joined.Count > 0 && start <= joined[^1].End)
+                joined[^1] = new DetectedRange(joined[^1].Start, Math.Max(joined[^1].End, end));
+            else
+                joined.Add(new DetectedRange(start, end));
+        }
+
+        return joined;
+    }
+
+    // ------------------------------------------------------------------
+    // Compress to size
+    // ------------------------------------------------------------------
+
+    /// <summary>The last size asked for, in MB, offered again next time.</summary>
+    private double _lastCompressMegabytes = 25;
+
+    /// <summary>
+    /// Re-encodes each picked video to fit under a size.
+    /// </summary>
+    /// <remarks>
+    /// A file already under the size is skipped and said to be: making it
+    /// bigger to hit a number would be absurd, and re-encoding it at the same
+    /// size would only lose quality.
+    /// </remarks>
+    [RelayCommand]
+    private async Task CompressToSizeAsync()
+    {
+        var ofd = new OpenFileDialog { Filter = "Video Files|*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.webm;*.mpeg;*.mpg;*.ts;*.m4v|All Files|*.*", Multiselect = true };
+        if (ofd.ShowDialog() != true) return;
+
+        var ask = new CompressDialog(_lastCompressMegabytes) { Owner = DialogOwner };
+        if (ask.ShowDialog() != true) return;
+        _lastCompressMegabytes = ask.TargetMegabytes;
+
+        var target = (long)(ask.TargetMegabytes * 1024 * 1024);
+        var label = $"{ask.TargetMegabytes:0.##} MB";
+        var files = ofd.FileNames;
+
+        var compressed = new List<string>();
+        var skipped = new List<string>();
+        var errors = new List<string>();
+        int done = 0;
+
+        IsBusy = true;
+        Job.Begin($"Compressing to {label}", files.Length);
+        BeginNameBatch(files.Length);
+
+        foreach (var file in files)
+        {
+            _batchRemaining = files.Length - done;
+            Job.SetFile(done, Path.GetFileName(file));
+
+            if (new FileInfo(file).Length <= target)
+            {
+                skipped.Add(Path.GetFileName(file));
+                done++;
+                continue;
+            }
+
+            var outPath = await ResolveOutputPathAsync(
+                GetSuffixedOutputPath(file, ".mp4", ResolveSaveToDirectory()));
+            if (outPath == null) { done++; continue; }
+
+            StatusText = $"Compressing {Path.GetFileName(file)}…";
+
+            var slice = 100.0 / files.Length;
+            var basePct = done * slice;
+            var fileProgress = new Progress<FFmpegProgressEventArgs>(p =>
+            {
+                Job.Report(p.Message, basePct + p.Percent / 100.0 * slice);
+                ProgressPercent = basePct + p.Percent / 100.0 * slice;
+            });
+
+            try
+            {
+                await _ffmpeg.CompressToSizeAsync(file, outPath, target, fileProgress);
+                compressed.Add(file);
+            }
+            catch (Exception ex) { errors.Add($"{Path.GetFileName(file)}: {ex.Message}"); }
+            done++;
+        }
+
+        IsBusy = false; ProgressPercent = 0;
+
+        var made = $"Compressed {compressed.Count} file(s) to {label}" +
+                   (skipped.Count > 0 ? $" · {skipped.Count} already under it" : string.Empty);
+
+        if (compressed.Count == 0 && errors.Count == 0)
+        {
+            Job.End(made);
+            StatusText = made;
+            ShowInfo(skipped.Count == 1
+                         ? $"{skipped[0]} is already under {label}, so it was left as it is."
+                         : $"All {skipped.Count} files are already under {label}, so they were left as they are.",
+                     "Compress to size");
+            return;
+        }
+
+        if (errors.Count > 0)
+        {
+            Job.End($"{made} · {errors.Count} failed");
+            StatusText = $"Finished with {errors.Count} error(s)";
+            ShowError(string.Join("\n\n", errors), "Compress to size");
+        }
+        else
+        {
+            Job.Complete(made + " in", ResolveSaveToDirectory());
+            StatusText = made;
+        }
+
+        await RunPostOperationCleanup(compressed, includeBookmarks: false);
+    }
+
+    // ------------------------------------------------------------------
+    // Watermark
+    // ------------------------------------------------------------------
+
+    /// <summary>The last watermark, offered again next time.</summary>
+    private FFmpegService.WatermarkSpec? _lastWatermark;
+
+    /// <summary>
+    /// Writes a copy of each picked video with text or an image over it.
+    /// </summary>
+    [RelayCommand]
+    private async Task AddWatermarkAsync()
+    {
+        var ofd = new OpenFileDialog { Filter = "Video Files|*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.webm;*.mpeg;*.mpg;*.ts;*.m4v|All Files|*.*", Multiselect = true };
+        if (ofd.ShowDialog() != true) return;
+
+        var ask = new WatermarkDialog(_lastWatermark) { Owner = DialogOwner };
+        if (ask.ShowDialog() != true) return;
+        _lastWatermark = ask.Spec;
+
+        var format = OutputFormat;
+        var files = ofd.FileNames;
+        var marked = new List<string>();
+        var errors = new List<string>();
+        int done = 0;
+
+        IsBusy = true;
+        Job.Begin("Adding watermark", files.Length);
+        BeginNameBatch(files.Length);
+
+        foreach (var file in files)
+        {
+            _batchRemaining = files.Length - done;
+            Job.SetFile(done, Path.GetFileName(file));
+
+            var outPath = await ResolveOutputPathAsync(
+                GetSuffixedOutputPath(file, format.Extension, ResolveSaveToDirectory()));
+            if (outPath == null) { done++; continue; }
+
+            StatusText = $"Watermarking {Path.GetFileName(file)}…";
+
+            var slice = 100.0 / files.Length;
+            var basePct = done * slice;
+            var fileProgress = new Progress<FFmpegProgressEventArgs>(p =>
+            {
+                Job.Report("Encoding", basePct + p.Percent / 100.0 * slice);
+                ProgressPercent = basePct + p.Percent / 100.0 * slice;
+            });
+
+            try
+            {
+                await _ffmpeg.AddWatermarkAsync(file, outPath, ask.Spec, format, fileProgress);
+                if (!string.Equals(file, outPath, StringComparison.OrdinalIgnoreCase)) marked.Add(file);
+            }
+            catch (Exception ex) { errors.Add($"{Path.GetFileName(file)}: {ex.Message}"); }
+            done++;
+        }
+
+        IsBusy = false; ProgressPercent = 0;
+
+        var made = $"Watermarked {marked.Count} file(s)";
+
+        if (errors.Count > 0)
+        {
+            Job.End($"{made} · {errors.Count} failed");
+            StatusText = $"Finished with {errors.Count} error(s)";
+            ShowError(string.Join("\n\n", errors), "Add watermark");
+        }
+        else
+        {
+            Job.Complete(made + " in", ResolveSaveToDirectory());
+            StatusText = made;
+        }
+
+        await RunPostOperationCleanup(marked, includeBookmarks: false);
+    }
+
+    // ------------------------------------------------------------------
+    // Strip metadata
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Writes a copy of each picked video or image with its metadata removed.
+    /// </summary>
+    /// <remarks>
+    /// Nothing is re-encoded either way — videos have their streams copied
+    /// and images have their blocks copied — so the copies are exactly as
+    /// good as the originals, and a folder of them takes seconds.
+    /// </remarks>
+    [RelayCommand]
+    private async Task StripMetadataAsync()
+    {
+        var images = string.Join(";", MetadataStripper.ImageExtensions.Select(e => "*" + e));
+        var ofd = new OpenFileDialog
+        {
+            Filter = $"Videos and images|*.mp4;*.mkv;*.mov;*.m4v;*.avi;*.wmv;*.webm;*.ts;{images}" +
+                     $"|Video Files|*.mp4;*.mkv;*.mov;*.m4v;*.avi;*.wmv;*.webm;*.ts|Images|{images}|All Files|*.*",
+            Multiselect = true
+        };
+        if (ofd.ShowDialog() != true) return;
+
+        var files = ofd.FileNames;
+        var cleanedVideos = new List<string>();
+        var cleanedImages = new List<string>();
+        var errors = new List<string>();
+        int done = 0;
+
+        IsBusy = true;
+        Job.Begin("Stripping metadata", files.Length);
+        BeginNameBatch(files.Length);
+
+        foreach (var file in files)
+        {
+            _batchRemaining = files.Length - done;
+            Job.SetFile(done, Path.GetFileName(file));
+            Job.Report("Copying without metadata", (double)done / files.Length * 100);
+            ProgressPercent = (double)done / files.Length * 100;
+            StatusText = $"Cleaning {Path.GetFileName(file)}…";
+
+            var extension = Path.GetExtension(file);
+            var candidate = GetSuffixedOutputPath(file, extension, ResolveSaveToDirectory());
+
+            // With the naming tag set to None the copy would be handed the
+            // name of the file it is reading.
+            if (string.Equals(candidate, file, StringComparison.OrdinalIgnoreCase))
+                candidate = NextFreeName(candidate);
+
+            var outPath = await ResolveOutputPathAsync(candidate);
+            if (outPath == null) { done++; continue; }
+
+            try
+            {
+                if (MetadataStripper.IsSupportedImage(file))
+                {
+                    var source = file;
+                    await Task.Run(() => MetadataStripper.StripImage(source, outPath));
+                    cleanedImages.Add(file);
+                }
+                else
+                {
+                    await _ffmpeg.StripVideoMetadataAsync(file, outPath);
+                    cleanedVideos.Add(file);
+                }
+            }
+            catch (Exception ex) { errors.Add($"{Path.GetFileName(file)}: {ex.Message}"); }
+            done++;
+        }
+
+        IsBusy = false; ProgressPercent = 0;
+
+        var made = (cleanedVideos.Count, cleanedImages.Count) switch
+        {
+            (> 0, > 0) => $"Stripped the metadata from {cleanedVideos.Count} video(s) and {cleanedImages.Count} image(s)",
+            (_, > 0) => $"Stripped the metadata from {cleanedImages.Count} image(s)",
+            _ => $"Stripped the metadata from {cleanedVideos.Count} video(s)"
+        };
+
+        if (errors.Count > 0)
+        {
+            Job.End($"{made} · {errors.Count} failed");
+            StatusText = $"Finished with {errors.Count} error(s)";
+            ShowError(string.Join("\n\n", errors), "Strip metadata");
+        }
+        else
+        {
+            Job.Complete(made + " into", ResolveSaveToDirectory());
+            StatusText = made;
+        }
+
+        // Photos as well as videos: the copy is the point of the operation,
+        // so the original is offered up under the same setting either way.
+        await RunPostOperationCleanup(cleanedVideos.Concat(cleanedImages).ToList(), includeBookmarks: false);
     }
 
     [RelayCommand]
@@ -8906,6 +9385,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             var match = Shortcuts.FirstOrDefault(s => string.Equals(
                 (s.Path ?? "").TrimEnd('\\', '/'), entry.Path.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase));
             if (match != null) match.Name = newName;
+            BuildToolbar();
             StatusText = $"Renamed shortcut to: {newName}";
         }
     }
@@ -8938,6 +9418,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // The dialog mutates the ObservableCollection in place (add / remove
         // / rename / reorder). Persist the final order so it survives restarts.
         _settings.ReorderShortcuts(Shortcuts);
+        BuildToolbar();
         StatusText = Shortcuts.Count > 0
             ? $"{Shortcuts.Count} shortcut(s) saved"
             : "No shortcuts";
@@ -9012,6 +9493,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         s.Quality = dlg.Quality;
         s.VideoEncoder = dlg.VideoEncoder;
         s.PreciseCuts = dlg.PreciseCuts;
+        s.SmartCuts = dlg.SmartCuts;
         s.NormalizeAudio = dlg.NormalizeAudio;
         s.FadeSeconds = dlg.FadeSeconds;
         s.NameTemplate = dlg.NameTemplate;

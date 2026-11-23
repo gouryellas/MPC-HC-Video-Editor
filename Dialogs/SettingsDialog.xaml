@@ -315,8 +315,12 @@
                                              Content="Fast — copy without re-encoding"/>
                                 <RadioButton x:Name="CutPrecise" GroupName="CutAccuracy"
                                              Content="Precise — cut exactly on the marked frame"/>
+                                <RadioButton x:Name="CutSmart" GroupName="CutAccuracy"
+                                             Content="Smart — exact start, re-encoding only the first second or two"/>
                                 <TextBlock Style="{StaticResource Hint}"
                                            Text="A copied cut can only start at a keyframe, so a clip may begin earlier than marked — a frame or two on some files, several seconds on others. Precise re-encodes every segment to land on the exact frame, which costs time and one generation of quality on cuts that would otherwise have been lossless."/>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Smart lands on the exact frame too, but re-encodes only the stretch from the mark to the next keyframe and copies everything after it untouched — close to Fast's speed, with almost the whole clip lossless. It works on H.264 video; anything else, and any cut with a crop, flip, speed change, fade, mute or loudness evening, is re-encoded in full as Precise would."/>
                             </StackPanel>
                         </Border>
 

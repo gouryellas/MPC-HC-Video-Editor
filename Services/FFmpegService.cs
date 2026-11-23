@@ -113,6 +113,42 @@ public class FFmpegService
     public bool PreciseCuts { get; set; } = true;
 
     /// <summary>
+    /// Reach the exact frame by re-encoding only as far as the next keyframe,
+    /// and copy everything from there on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Read only alongside <see cref="PreciseCuts"/>: it is a cheaper way to
+    /// the same exact start, not a third kind of accuracy. A precise cut
+    /// re-encodes the whole segment to fix its first second; this re-encodes
+    /// that second and copies the rest bit for bit.
+    /// </para>
+    /// <para>
+    /// The two halves are joined through MPEG-TS, because that is where H.264
+    /// carries its parameter sets in the stream rather than once in the file
+    /// header. The re-encoded head and the copied tail were made by different
+    /// encoders with different settings, and an MP4 holding both under one
+    /// header would decode the tail with the head's settings. Carried in the
+    /// stream, each part brings its own, and that survives the MP4 wrapping
+    /// and the later join untouched.
+    /// </para>
+    /// <para>
+    /// Every segment is then written on a 90 kHz clock, whether it went this
+    /// way or was re-encoded in full. Segments on different clocks — a copied
+    /// one on the source's, an encoded one on x264's — were measured joining
+    /// into a file that claimed to be several times its real length.
+    /// </para>
+    /// </remarks>
+    public bool SmartCuts { get; set; }
+
+    /// <summary>
+    /// How far past a smart cut's start to look for the keyframe the copy can
+    /// begin from. A source keyed more sparsely than this is cut the precise
+    /// way instead.
+    /// </summary>
+    private const double SmartCutSearchSeconds = 30;
+
+    /// <summary>
     /// Even out loudness across the clips being written.
     /// </summary>
     /// <remarks>
@@ -304,7 +340,9 @@ public class FFmpegService
     private int? LosslessRotation(
         IList<Bookmark> bookmarks, VideoFormats.Format format, double? existingRotation)
     {
-        if (PreciseCuts || NormalizeAudio) return null;
+        // Smart cuts copy almost everything, so the matrix still saves the
+        // re-encode it is there to save.
+        if ((PreciseCuts && !SmartCuts) || NormalizeAudio) return null;
 
         // Written as a stream copy at the join, or the matrix is pointless —
         // the re-encode it would avoid is happening anyway.
@@ -1497,6 +1535,15 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         // the audio chain without putting one on the picture.
         bool reencode = PreciseCuts || NormalizeAudio || b.IsMuted || vf.Count > 0;
 
+        // Only the start was the reason to re-encode, so only the start needs
+        // it. Anything else asking for the encoder needs every frame, and the
+        // whole segment goes the precise way below.
+        var smart = PreciseCuts && SmartCuts;
+        var accuracyOnly = smart && !NormalizeAudio && !b.IsMuted && vf.Count == 0;
+
+        if (accuracyOnly && await TrySmartSegmentAsync(input, output, b, streams, ct))
+            return;
+
         var sb = new StringBuilder();
         sb.Append($"-hide_banner -y -ss {start} -to {end} " +
                   $"{OpenVideo(input)}-i {Quoted(input)} ");
@@ -1519,6 +1566,11 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
             // cheaper than encoding every segment into the target codec.
             sb.Append($"-c:v {VideoCodec} {QualityArgs} -pix_fmt yuv420p ");
             sb.Append("-c:a aac -b:a 192k -ar 48000 -ac 2 ");
+
+            // Beside smart segments, this one has to carry its parameter sets
+            // in the stream as they do, and keep the same clock — see
+            // SmartCuts for what goes wrong at the join otherwise.
+            if (smart) sb.Append(SmartSegmentVideoArgs);
         }
         else if (mapping.Length > 0)
         {
@@ -1535,6 +1587,537 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
         sb.Append($"{Quoted(output)}");
 
         await RunAsync(sb.ToString(), null, ct);
+    }
+
+    /// <summary>
+    /// What every segment written in smart mode shares: parameter sets in the
+    /// stream, and a 90 kHz clock.
+    /// </summary>
+    private const string SmartSegmentVideoArgs = "-flags:v -global_header -video_track_timescale 90000 ";
+
+    /// <summary>
+    /// The facts a smart cut needs about a source's picture.
+    /// </summary>
+    private readonly record struct SmartCutSource(string Codec, string PixelFormat, string Profile);
+
+    /// <summary>
+    /// Writes one segment by re-encoding from its start to the next keyframe
+    /// and copying the rest.
+    /// </summary>
+    /// <returns>
+    /// False when this source or this cut cannot be done that way — not H.264,
+    /// no keyframe close enough, or any step failing — and the caller then
+    /// re-encodes the segment in full. A smart cut that goes wrong costs the
+    /// time it took, never the clip.
+    /// </returns>
+    private async Task<bool> TrySmartSegmentAsync(string input, string output, Bookmark b,
+        IReadOnlyList<MediaStream>? streams, CancellationToken ct)
+    {
+        // Half a millisecond: far below a frame at any real rate, and enough
+        // to absorb the rounding between ffprobe's printed times and ours.
+        const double Eps = 0.0005;
+
+        var folder = Path.GetDirectoryName(output) ?? Path.GetTempPath();
+        var stem = Path.Combine(folder, Path.GetFileNameWithoutExtension(output));
+        var head = stem + "-head.ts";
+        var tail = stem + "-tail.ts";
+        var list = stem + "-parts.txt";
+
+        try
+        {
+            // The head has to be re-encoded into something the copied tail
+            // can follow, which x264 can only promise for H.264 in plain
+            // 8-bit 4:2:0. Anything else is cut the precise way.
+            var source = await SmartCutSourceAsync(input, ct);
+            if (source is not { Codec: "h264", PixelFormat: "yuv420p" } picture) return false;
+
+            var start = b.StartSeconds;
+            var end = b.EndSeconds;
+
+            var origin = await StreamStartTimeAsync(input, ct);
+            var frames = (await VideoPacketsAsync(input, start + origin,
+                              Math.Min(end, start + SmartCutSearchSeconds) + origin + 1.0, ct))
+                .Select(p => (Time: p.Time - origin, p.Key))
+                .Where(p => p.Time >= start - Eps)
+                .OrderBy(p => p.Time)
+                .ToList();
+
+            if (frames.Count == 0) return false;
+
+            // The first frame a precise cut would have shown, and the first
+            // keyframe from there on that still falls inside the cut.
+            var first = frames[0].Time;
+            var keyIndex = frames.FindIndex(p => p.Key && p.Time < end - Eps);
+            if (keyIndex < 0) return false;
+
+            var key = frames[keyIndex].Time;
+            var headFrames = frames.Count(p => p.Time < key - Eps);
+
+            var parts = new List<string>();
+
+            if (headFrames > 0)
+            {
+                // Counted in frames rather than measured in seconds, so the
+                // head stops on the frame before the keyframe and neither
+                // repeats nor drops the one the tail starts with. Read the same
+                // way the precise path reads, so it starts on the same frame.
+                var profile = picture.Profile.ToLowerInvariant() switch
+                {
+                    "high" => "-profile:v high ",
+                    "main" => "-profile:v main ",
+                    "baseline" or "constrained baseline" => "-profile:v baseline ",
+                    _ => string.Empty
+                };
+
+                await RunAsync($"-hide_banner -y -ss {Secs(start)} {OpenVideo(input)}-i {Quoted(input)} " +
+                               $"-map 0:v:0 -an -sn -dn -frames:v {headFrames} " +
+                               $"-c:v libx264 -preset medium -crf 16 -pix_fmt yuv420p {profile}" +
+                               $"-fps_mode passthrough -f mpegts {Quoted(head)}", null, ct);
+                parts.Add(head);
+            }
+
+            // Asked for a hair past the keyframe: a copy starts from the
+            // keyframe at or before the time given, and a time rounded a
+            // fraction below it would start from the one before. A second
+            // over the end is trimmed off when the parts are wrapped below.
+            await RunAsync($"-hide_banner -y -ss {Secs(key + Eps)} {OpenVideoKeepingTimestamps(input)}" +
+                           $"-i {Quoted(input)} -t {Secs(end - key + 1.0)} " +
+                           "-map 0:v:0 -an -sn -dn -c:v copy -avoid_negative_ts make_zero " +
+                           $"-f mpegts {Quoted(tail)}", null, ct);
+            parts.Add(tail);
+
+            await File.WriteAllLinesAsync(list,
+                parts.Select(f => $"file '{f.Replace("'", "'\\''")}'"), ct);
+
+            // The picture from the parts, everything else from the source.
+            // Audio is encoded exactly as a precise segment's is, so smart and
+            // precise segments can sit side by side in one merge.
+            var mapping = streams is null ? string.Empty : MappingFor(streams, ".mp4");
+            mapping = mapping.Length == 0
+                ? "-map 0:v:0 -map 1:a? "
+                : "-map 0:v:0 " + mapping.Replace("-map 0:v:0 ", string.Empty).Replace("-map 0:", "-map 1:");
+
+            await RunAsync($"-hide_banner -y -f concat -safe 0 -i {Quoted(list)} " +
+                           $"-ss {Secs(start)} {OpenVideo(input)}-i {Quoted(input)} " +
+                           $"{mapping}-t {Secs(end - first)} " +
+                           "-c:v copy -c:a aac -b:a 192k -ar 48000 -ac 2 " +
+                           $"{SmartSegmentVideoArgs}{Quoted(output)}", null, ct);
+
+            return File.Exists(output) && new FileInfo(output).Length > 0;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return false;
+        }
+        finally
+        {
+            foreach (var f in new[] { head, tail, list })
+                try { File.Delete(f); } catch { /* the merge's folder goes anyway */ }
+        }
+    }
+
+    /// <summary>Seconds to six places, for times that must not round onto a neighbour.</summary>
+    private static string Secs(double value) => value.ToString("0.######", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// Codec, pixel format and profile of the first video stream, or null when
+    /// they cannot be read.
+    /// </summary>
+    private async Task<SmartCutSource?> SmartCutSourceAsync(string input, CancellationToken ct)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = _ffprobePath,
+                Arguments = "-v error -select_streams v:0 -show_entries stream=codec_name,pix_fmt,profile " +
+                            $"-of default=noprint_wrappers=1 {Quoted(input)}",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var p = Process.Start(psi);
+            if (p is null) return null;
+
+            var text = await p.StandardOutput.ReadToEndAsync(ct);
+            await p.WaitForExitAsync(ct);
+
+            string codec = "", pix = "", profile = "";
+            foreach (var line in text.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var eq = line.IndexOf('=');
+                if (eq < 0) continue;
+                var value = line[(eq + 1)..].Trim();
+                switch (line[..eq].Trim())
+                {
+                    case "codec_name": codec = value; break;
+                    case "pix_fmt": pix = value; break;
+                    case "profile": profile = value; break;
+                }
+            }
+
+            return codec.Length == 0 ? null : new SmartCutSource(codec, pix, profile);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// Presentation time and keyframe flag of every video packet in a span,
+    /// on the file's own clock.
+    /// </summary>
+    /// <remarks>
+    /// Packets rather than frames: nothing is decoded, so reading even thirty
+    /// seconds of a 4K file is quick. Read with the edit list ignored, the
+    /// same as every cut reads the file, so the times agree with the marks.
+    /// </remarks>
+    private async Task<List<(double Time, bool Key)>> VideoPacketsAsync(
+        string input, double from, double to, CancellationToken ct)
+    {
+        var packets = new List<(double, bool)>();
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = _ffprobePath,
+            Arguments = $"-v error {OpenVideoKeepingTimestamps(input)}-select_streams v:0 " +
+                        $"-read_intervals {Secs(Math.Max(0, from))}%{Secs(to)} " +
+                        $"-show_entries packet=pts_time,flags -of csv=p=0 {Quoted(input)}",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var p = Process.Start(psi);
+        if (p is null) return packets;
+
+        var text = await p.StandardOutput.ReadToEndAsync(ct);
+        await p.WaitForExitAsync(ct);
+
+        foreach (var line in text.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var fields = line.Trim().Split(',');
+            if (fields.Length < 2) continue;
+            if (!double.TryParse(fields[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var time))
+                continue;
+
+            packets.Add((time, fields[1].Contains('K')));
+        }
+
+        return packets;
+    }
+
+    // ------------------------------------------------------------------
+    // Compress to a target size
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// How a file will be squeezed into a size: the two bitrates, and the
+    /// height the picture is brought down to, if it is.
+    /// </summary>
+    /// <param name="MaxHeight">Null when the picture keeps its own size.</param>
+    public readonly record struct CompressPlan(int VideoKbps, int AudioKbps, int? MaxHeight);
+
+    /// <summary>
+    /// Works out the bitrates that land a video of this length in this many
+    /// bytes, or says why nothing can.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Six percent comes off the top for the container. MP4's indexes and
+    /// headers are small but not nothing, and a target is a limit somebody
+    /// has to fit under — an upload refused for being 10.1 MB is the failure
+    /// this exists to prevent.
+    /// </para>
+    /// <para>
+    /// The audio gives way first as the budget shrinks, because voices stay
+    /// clear at 64 kbps long after a picture at the same saving has turned to
+    /// blocks. Then the picture comes down in size: fewer pixels at a decent
+    /// bitrate look far better than full size at a starved one, and the
+    /// thresholds are roughly where H.264 stops holding each size together.
+    /// </para>
+    /// </remarks>
+    public static CompressPlan PlanCompression(double durationSeconds, long targetBytes,
+        bool hasAudio, int sourceHeight)
+    {
+        if (durationSeconds <= 0)
+            throw new InvalidOperationException("The video's length could not be read, so there is nothing to divide the size by.");
+
+        var totalKbps = targetBytes * 8.0 / 1000.0 / durationSeconds * 0.94;
+
+        var audio = !hasAudio ? 0
+                  : totalKbps >= 1000 ? 128
+                  : totalKbps >= 400 ? 96
+                  : 64;
+
+        var video = (int)Math.Floor(totalKbps - audio);
+
+        // Below this there is no picture worth sending, at any size.
+        const int FloorKbps = 60;
+        if (video < FloorKbps)
+        {
+            var neededMb = Math.Ceiling((FloorKbps + audio) * 1000.0 / 8.0 * durationSeconds / 0.94 / 1024 / 1024);
+            throw new InvalidOperationException(
+                $"{targetBytes / 1024.0 / 1024.0:0.#} MB is too small for {Bookmark.FormatTime(durationSeconds)} of video. " +
+                $"It would need at least {neededMb:0} MB.");
+        }
+
+        int? cap = video >= 2500 ? null
+                 : video >= 1300 ? 1080
+                 : video >= 700 ? 720
+                 : video >= 350 ? 480
+                 : 360;
+
+        if (cap is { } c && sourceHeight > 0 && sourceHeight <= c) cap = null;
+
+        return new CompressPlan(video, audio, cap);
+    }
+
+    /// <summary>
+    /// Re-encodes a video to come in at, or just under, a given size.
+    /// </summary>
+    /// <remarks>
+    /// Two passes, because one cannot hit a size: a single pass at a bitrate
+    /// spends it evenly, and a video is not evenly hard to encode. The first
+    /// pass measures where the detail is and the second spends the budget
+    /// there. Always x264 — the GPU encoders have no second pass to give.
+    ///
+    /// The first audio track only, and no subtitles: every extra track is
+    /// bytes the picture does not get, and a file being made small to send
+    /// is not one anybody needs a commentary track in.
+    /// </remarks>
+    public async Task<CompressPlan> CompressToSizeAsync(string inputPath, string outputPath, long targetBytes,
+        IProgress<FFmpegProgressEventArgs>? progress = null, CancellationToken ct = default)
+    {
+        var duration = await GetDurationAsync(inputPath);
+        var hasAudio = await HasAudioAsync(inputPath);
+        var (_, height) = await GetVideoSizeAsync(inputPath);
+
+        var plan = PlanCompression(duration, targetBytes, hasAudio, height);
+
+        var scale = plan.MaxHeight is { } h ? $"-vf \"scale=-2:{h}\" " : string.Empty;
+        // Passthrough on both passes. Left to itself ffmpeg treats the two
+        // outputs differently: the null muxer takes frames as they come, MP4
+        // pads a variable-rate source out to a constant rate with duplicates.
+        // The second pass then has frames the first never measured, x264
+        // warns, and on a long enough file it fails outright.
+        var video = $"-fps_mode passthrough -c:v libx264 -preset medium -b:v {plan.VideoKbps}k -pix_fmt yuv420p ";
+
+        var log = Path.Combine(Path.GetTempPath(), "mpc-compress-" + Guid.NewGuid().ToString("N")[..8]);
+
+        IProgress<FFmpegProgressEventArgs>? Pass(int number) => progress is null ? null
+            : new Progress<FFmpegProgressEventArgs>(e => progress.Report(new FFmpegProgressEventArgs
+            {
+                Message = $"Pass {number} of 2",
+                Current = (int)((number - 1) * 50 + e.Percent / 2),
+                Total = 100
+            }));
+
+        try
+        {
+            await RunAsync($"-hide_banner -y {OpenVideo(inputPath)}-i {Quoted(inputPath)} -map 0:v:0 {scale}" +
+                           $"{video}-pass 1 -passlogfile {Quoted(log)} -an -f null NUL",
+                           Pass(1), ct, duration);
+
+            var audio = plan.AudioKbps > 0 ? $"-map 0:a:0? -c:a aac -b:a {plan.AudioKbps}k -ac 2 " : "-an ";
+
+            await RunAsync($"-hide_banner -y {OpenVideo(inputPath)}-i {Quoted(inputPath)} -map 0:v:0 {scale}" +
+                           $"{video}-pass 2 -passlogfile {Quoted(log)} {audio}-movflags +faststart " +
+                           $"{Quoted(outputPath)}",
+                           Pass(2), ct, duration);
+        }
+        finally
+        {
+            // x264 leaves a log and its macroblock-tree beside it.
+            foreach (var f in Directory.GetFiles(Path.GetTempPath(), Path.GetFileName(log) + "*"))
+                try { File.Delete(f); } catch { /* temp; Windows will have it eventually */ }
+        }
+
+        return plan;
+    }
+
+    // ------------------------------------------------------------------
+    // Watermark
+    // ------------------------------------------------------------------
+
+    /// <summary>Where a watermark sits on the picture.</summary>
+    public enum WatermarkPosition { TopLeft, TopRight, BottomLeft, BottomRight, Center }
+
+    /// <summary>
+    /// A watermark: either words or a picture, never both.
+    /// </summary>
+    /// <param name="SizePercent">
+    /// Text height as a percentage of the picture's height, or an image's
+    /// width as a percentage of the picture's width. Relative, so one setting
+    /// suits a batch of files at different sizes.
+    /// </param>
+    /// <param name="Opacity">0 to 1.</param>
+    public sealed record WatermarkSpec(string? Text, string? ImagePath, WatermarkPosition Position,
+        double SizePercent, double Opacity);
+
+    /// <summary>
+    /// Writes a copy of a video with text or an image laid over every frame.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The text is handed to drawtext in a file rather than on the command
+    /// line. Words typed by a person can carry every character drawtext and
+    /// the filtergraph parser treat as syntax — colons, quotes, percent signs,
+    /// backslashes — and a file is read as it stands.
+    /// </para>
+    /// <para>
+    /// Kept clear of the edge by three percent of the picture's height on
+    /// every side, so a corner mark is not cropped by a player that overscans
+    /// and does not sit on the rounded corner of a phone screen.
+    /// </para>
+    /// </remarks>
+    public async Task AddWatermarkAsync(string inputPath, string outputPath, WatermarkSpec spec,
+        VideoFormats.Format format, IProgress<FFmpegProgressEventArgs>? progress = null, CancellationToken ct = default)
+    {
+        var opacity = Math.Clamp(spec.Opacity, 0, 1);
+        var streams = await ListStreamsAsync(inputPath, ct);
+        var encode = VideoFormats.ApplyEncoder(format, VideoCodec, QualityArgs);
+
+        var textFile = string.Empty;
+        string args;
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(spec.Text))
+            {
+                textFile = Path.Combine(Path.GetTempPath(), "mpc-watermark-" + Guid.NewGuid().ToString("N")[..8] + ".txt");
+                await File.WriteAllTextAsync(textFile, spec.Text.Trim(), new UTF8Encoding(false), ct);
+
+                var (x, y) = spec.Position switch
+                {
+                    WatermarkPosition.TopLeft => ("h*0.03", "h*0.03"),
+                    WatermarkPosition.TopRight => ("w-tw-h*0.03", "h*0.03"),
+                    WatermarkPosition.BottomLeft => ("h*0.03", "h-th-h*0.03"),
+                    WatermarkPosition.BottomRight => ("w-tw-h*0.03", "h-th-h*0.03"),
+                    _ => ("(w-tw)/2", "(h-th)/2")
+                };
+
+                var size = Fmt(Math.Clamp(spec.SizePercent, 1, 50) / 100.0);
+                var draw = $"drawtext=fontfile='{FilterPath(WatermarkFont())}':textfile='{FilterPath(textFile)}':expansion=none" +
+                           $":fontsize=h*{size}:fontcolor=white@{Fmt(opacity)}" +
+                           $":shadowcolor=black@{Fmt(opacity * 0.6)}:shadowx=2:shadowy=2:x={x}:y={y}";
+
+                args = $"-hide_banner -y {OpenVideo(inputPath)}-i {Quoted(inputPath)} " +
+                       $"{MappingFor(streams, format.Extension, viaMp4Segments: false)}" +
+                       $"-vf \"{draw}\" {encode} {Quoted(outputPath)}";
+            }
+            else if (!string.IsNullOrWhiteSpace(spec.ImagePath) && File.Exists(spec.ImagePath))
+            {
+                var (width, _) = await GetVideoSizeAsync(inputPath);
+                if (width <= 0) throw new InvalidOperationException("The video's size could not be read.");
+
+                // Even, because a picture an odd number of pixels wide can
+                // trip the encoder after the overlay is composited.
+                var markWidth = Math.Max(2, (int)Math.Round(width * Math.Clamp(spec.SizePercent, 1, 100) / 100.0 / 2) * 2);
+
+                var (x, y) = spec.Position switch
+                {
+                    WatermarkPosition.TopLeft => ("H*0.03", "H*0.03"),
+                    WatermarkPosition.TopRight => ("W-w-H*0.03", "H*0.03"),
+                    WatermarkPosition.BottomLeft => ("H*0.03", "H-h-H*0.03"),
+                    WatermarkPosition.BottomRight => ("W-w-H*0.03", "H-h-H*0.03"),
+                    _ => ("(W-w)/2", "(H-h)/2")
+                };
+
+                // Everything but the picture, from the source as it stands.
+                var rest = MappingFor(streams, format.Extension, viaMp4Segments: false)
+                    .Replace("-map 0:v:0 ", string.Empty);
+                if (rest.Length == 0) rest = "-map 0:a? ";
+
+                var graph = $"[1:v]scale={markWidth}:-1,format=rgba,colorchannelmixer=aa={Fmt(opacity)}[mark];" +
+                            $"[0:v][mark]overlay={x}:{y}:format=auto[out]";
+
+                args = $"-hide_banner -y {OpenVideo(inputPath)}-i {Quoted(inputPath)} -i {Quoted(spec.ImagePath)} " +
+                       $"-filter_complex \"{graph}\" -map \"[out]\" {rest}{encode} {Quoted(outputPath)}";
+            }
+            else
+            {
+                throw new InvalidOperationException("There is no watermark to add: no text was typed and no image was chosen.");
+            }
+
+            await RunAsync(args, progress, ct, await GetDurationAsync(inputPath));
+        }
+        finally
+        {
+            if (textFile.Length > 0) try { File.Delete(textFile); } catch { /* temp */ }
+        }
+    }
+
+    /// <summary>
+    /// A bold sans-serif that every Windows has, for drawtext to draw with.
+    /// </summary>
+    private static string WatermarkFont()
+    {
+        var fonts = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
+        foreach (var name in new[] { "segoeuib.ttf", "arialbd.ttf", "segoeui.ttf", "arial.ttf" })
+        {
+            var path = Path.Combine(fonts, name);
+            if (File.Exists(path)) return path;
+        }
+
+        throw new InvalidOperationException("No usable font was found in the Windows fonts folder.");
+    }
+
+    /// <summary>
+    /// A path written as a filter option inside single quotes.
+    /// </summary>
+    /// <remarks>
+    /// Forward slashes, and the drive's colon escaped — the option parser
+    /// splits on colons even inside the quotes the graph parser has already
+    /// removed. A quote in the path cannot be carried at all.
+    /// </remarks>
+    private static string FilterPath(string path)
+    {
+        if (path.Contains('\''))
+            throw new InvalidOperationException($"This path has an apostrophe in it, which ffmpeg's filters cannot read: {path}");
+
+        return path.Replace('\\', '/').Replace(":", "\\:");
+    }
+
+    // ------------------------------------------------------------------
+    // Strip metadata
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Writes a copy of a video with its tags removed and its streams copied
+    /// untouched.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// What goes: the file's tags — title, comment, creation time, the
+    /// encoder's name, and the location a phone writes into every video it
+    /// records — and every stream's tags with them. Data tracks go too, which
+    /// is where cameras like GoPro keep a second-by-second GPS log, and cover
+    /// art, which is a picture somebody chose and may say as much as a tag.
+    /// </para>
+    /// <para>
+    /// What stays: picture, sound, subtitles, Matroska's font attachments
+    /// (without them styled subtitles fall back to a default face), and the
+    /// display rotation — that is side data on the stream rather than a tag,
+    /// and dropping it would turn every portrait phone video on its side.
+    /// Chapters stay; they are structure, not a description of the owner.
+    /// </para>
+    /// </remarks>
+    public async Task StripVideoMetadataAsync(string inputPath, string outputPath,
+        IProgress<FFmpegProgressEventArgs>? progress = null, CancellationToken ct = default)
+    {
+        var args = $"-hide_banner -y {OpenVideoKeepingTimestamps(inputPath)}-i {Quoted(inputPath)} " +
+                   "-map 0:V? -map 0:a? -map 0:s? -map 0:t? -c copy " +
+                   "-map_metadata -1 -map_metadata:s -1 -fflags +bitexact " +
+                   $"{Quoted(outputPath)}";
+
+        await RunAsync(args, progress, ct, await GetDurationAsync(inputPath));
     }
 
     // ------------------------------------------------------------------
@@ -1728,7 +2311,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
     /// the encoder is then the first thing worth changing. Nothing else in the
     /// message would point at it.
     /// </remarks>
-    private string DescribeFailure(int exitCode, Queue<string> recentErrors)
+    private string DescribeFailure(int exitCode, Queue<string> recentErrors, string arguments)
     {
         string[] lines;
         lock (recentErrors) lines = recentErrors.ToArray();
@@ -1737,7 +2320,11 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
             ? Environment.NewLine + Environment.NewLine + string.Join(Environment.NewLine, lines)
             : string.Empty;
 
-        var hint = Encoder != VideoEncoder.Software
+        // Only when the GPU encoder was actually in this command. Some jobs
+        // are always x264 whatever the setting — Compress to size, smart-cut
+        // heads — and blaming the GPU for those sends somebody to the wrong
+        // setting.
+        var hint = Encoder != VideoEncoder.Software && arguments.Contains(VideoEncoders.CodecFor(Encoder))
             ? Environment.NewLine + Environment.NewLine +
               $"This used the {VideoEncoders.DisplayName(Encoder)} encoder. If it keeps failing, " +
               "switch the H.264 encoder back to Software in Settings ▸ Encoding — it works on any machine."
@@ -1857,7 +2444,7 @@ public async Task StripAudioAsync(string inputPath, string? outputPath = null,
             try { process.WaitForExit(); } catch { /* already reaped */ }
 
             if (exitCode != 0)
-                throw new Exception(DescribeFailure(exitCode, recentErrors));
+                throw new Exception(DescribeFailure(exitCode, recentErrors, arguments));
         }
         finally
         {

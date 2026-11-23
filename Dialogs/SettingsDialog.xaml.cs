@@ -126,6 +126,12 @@ public partial class SettingsDialog : Window
     /// <summary>Whether cuts are re-encoded to land on the exact frame.</summary>
     public bool PreciseCuts { get; private set; }
 
+    /// <summary>
+    /// Whether an exact cut re-encodes only up to the next keyframe and copies
+    /// the rest. Only meaningful alongside <see cref="PreciseCuts"/>.
+    /// </summary>
+    public bool SmartCuts { get; private set; }
+
     /// <summary>Whether written clips are brought to a common loudness.</summary>
     public bool NormalizeAudio { get; private set; }
 
@@ -196,6 +202,7 @@ public partial class SettingsDialog : Window
         Quality = current.Quality;
         VideoEncoder = current.VideoEncoder;
         PreciseCuts = current.PreciseCuts;
+        SmartCuts = current.SmartCuts;
         NormalizeAudio = current.NormalizeAudio;
         FadeSeconds = current.FadeSeconds;
         NameTemplate = string.IsNullOrWhiteSpace(current.NameTemplate)
@@ -260,7 +267,8 @@ public partial class SettingsDialog : Window
         RefreshDetectedPort();
 
         CutFast.IsChecked = !current.PreciseCuts;
-        CutPrecise.IsChecked = current.PreciseCuts;
+        CutPrecise.IsChecked = current.PreciseCuts && !current.SmartCuts;
+        CutSmart.IsChecked = current.PreciseCuts && current.SmartCuts;
         NormalizeAudioCheck.IsChecked = current.NormalizeAudio;
         FadeSecondsBox.Text = current.FadeSeconds.ToString("0.##", CultureInfo.CurrentCulture);
         NameTemplateBox.Text = NameTemplate;
@@ -445,7 +453,11 @@ public partial class SettingsDialog : Window
                      : EncoderAmf.IsChecked == true ? VideoEncoder.Amf
                      : VideoEncoder.Software;
 
-        PreciseCuts = CutPrecise.IsChecked == true;
+        // Smart is an exact cut reached a cheaper way, so it is stored as
+        // Precise plus a flag. A build that predates it reads the same file
+        // as Precise, which is the nearest thing it knows how to do.
+        SmartCuts = CutSmart.IsChecked == true;
+        PreciseCuts = CutPrecise.IsChecked == true || SmartCuts;
         NormalizeAudio = NormalizeAudioCheck.IsChecked == true;
         FadeSeconds = fadeSeconds;
 

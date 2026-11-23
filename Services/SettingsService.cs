@@ -214,6 +214,18 @@ public class AppSettings
     public bool PreciseCuts { get; set; } = true;
 
     /// <summary>
+    /// Reach the exact frame by re-encoding only as far as the next keyframe
+    /// and copying the rest. Read only when <see cref="PreciseCuts"/> is on —
+    /// see <see cref="FFmpegService.SmartCuts"/>.
+    /// </summary>
+    /// <remarks>
+    /// On for a fresh install. A settings file from before this option
+    /// existed is read with it off — see <see cref="TryLoadFrom"/> — so
+    /// somebody who already had Fast or Precise keeps what they had.
+    /// </remarks>
+    public bool SmartCuts { get; set; } = true;
+
+    /// <summary>
     /// Even out loudness across written clips. Off by default: it forces a
     /// re-encode, and material that was already consistent gains nothing.
     /// </summary>
@@ -893,6 +905,10 @@ public class SettingsService
             var loaded = JsonSerializer.Deserialize<AppSettings>(json, _jsonOptions);
             if (loaded is null) return false;
 
+            // Written before Smart existed: the cut setting in it was a
+            // choice between Fast and Precise, and stays that choice.
+            if (!HasProperty(json, nameof(AppSettings.SmartCuts))) loaded.SmartCuts = false;
+
             Current = loaded;
             return true;
         }
@@ -900,6 +916,19 @@ public class SettingsService
         {
             return false;
         }
+    }
+
+    /// <summary>Whether a settings file names a property at all.</summary>
+    private static bool HasProperty(string json, string name)
+    {
+        using var doc = JsonDocument.Parse(json, new JsonDocumentOptions
+        {
+            AllowTrailingCommas = true,
+            CommentHandling = JsonCommentHandling.Skip
+        });
+
+        return doc.RootElement.ValueKind == JsonValueKind.Object &&
+               doc.RootElement.EnumerateObject().Any(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

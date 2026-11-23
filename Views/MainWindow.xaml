@@ -1028,6 +1028,57 @@
                                Source="pack://application:,,,/Assets/icons/icon-convert_video.png"/>
                     </MenuItem.Icon>
                 </MenuItem>
+                <MenuItem Command="{Binding CompressToSizeCommand}">
+                    <MenuItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Compress to size…" VerticalAlignment="Center"/>
+                            <ContentControl Style="{StaticResource Qmhp}">
+                                <ContentControl.ToolTip>
+                                    <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                               Text="Re-encodes videos to fit under a size you choose, such as 10 MB or 25 MB, making the picture smaller if it has to."/>
+                                </ContentControl.ToolTip>
+                            </ContentControl>
+                        </StackPanel>
+                    </MenuItem.Header>
+                    <MenuItem.Icon>
+                        <Image Style="{StaticResource MenuIcon}"
+                               Source="pack://application:,,,/Assets/icons/icon-compression.png"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Command="{Binding AddWatermarkCommand}">
+                    <MenuItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Add watermark…" VerticalAlignment="Center"/>
+                            <ContentControl Style="{StaticResource Qmhp}">
+                                <ContentControl.ToolTip>
+                                    <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                               Text="Puts text or an image in a corner or the center of every frame, on copies of the videos you pick."/>
+                                </ContentControl.ToolTip>
+                            </ContentControl>
+                        </StackPanel>
+                    </MenuItem.Header>
+                    <MenuItem.Icon>
+                        <Image Style="{StaticResource MenuIcon}"
+                               Source="pack://application:,,,/Assets/icons/icon-water_mark.png"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Command="{Binding RemoveSilencesCommand}">
+                    <MenuItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Remove silences…" VerticalAlignment="Center"/>
+                            <ContentControl Style="{StaticResource Qmhp}">
+                                <ContentControl.ToolTip>
+                                    <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                               Text="Writes a copy of the video with its silent stretches taken out. Works on the loaded video, or asks for one."/>
+                                </ContentControl.ToolTip>
+                            </ContentControl>
+                        </StackPanel>
+                    </MenuItem.Header>
+                    <MenuItem.Icon>
+                        <Image Style="{StaticResource MenuIcon}"
+                               Source="pack://application:,,,/Assets/icons/icon-remove_silence.png"/>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <!-- The alternative to cutting: keep the file whole and make
                      the bookmarks navigable inside it. Streams are copied, so
                      it is lossless regardless of the cut-accuracy setting. -->
@@ -1088,6 +1139,23 @@
                     <MenuItem.Icon>
                         <Image Style="{StaticResource MenuIcon}"
                                Source="pack://application:,,,/Assets/icons/icon-rename.png"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Command="{Binding StripMetadataCommand}">
+                    <MenuItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Strip metadata…" VerticalAlignment="Center"/>
+                            <ContentControl Style="{StaticResource Qmhp}">
+                                <ContentControl.ToolTip>
+                                    <TextBlock MaxWidth="330" TextWrapping="Wrap"
+                                               Text="Writes copies of videos and photos without their hidden details: location, camera, dates, titles and comments. Nothing is re-encoded."/>
+                                </ContentControl.ToolTip>
+                            </ContentControl>
+                        </StackPanel>
+                    </MenuItem.Header>
+                    <MenuItem.Icon>
+                        <Image Style="{StaticResource MenuIcon}"
+                               Source="pack://application:,,,/Assets/icons/icon-strip_metadata.png"/>
                     </MenuItem.Icon>
                 </MenuItem>
 

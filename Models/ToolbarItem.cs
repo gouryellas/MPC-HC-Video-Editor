@@ -181,7 +181,17 @@ public sealed class ToolbarItem : INotifyPropertyChanged
     /// without one — a naming tag — keeps its text, because hiding that would
     /// leave an empty square.
     /// </remarks>
-    public bool ShowText => !(_isCompact && HasImage);
+    public bool ShowText => !(Compact && HasImage);
+
+    /// <summary>
+    /// True for a button that keeps its name beside its picture even when
+    /// small buttons are on — the folder shortcuts, which all share one
+    /// picture and are told apart only by name.
+    /// </summary>
+    public bool AlwaysLabelled { get; init; }
+
+    /// <summary>Whether this button is actually drawn small.</summary>
+    private bool Compact => _isCompact && !AlwaysLabelled;
 
     /// <summary>What the toolbar button actually shows.</summary>
     /// <remarks>
@@ -191,7 +201,7 @@ public sealed class ToolbarItem : INotifyPropertyChanged
     /// </remarks>
     public string Caption => HasImage
         ? WithoutLeadingGlyph(Label)
-        : _isCompact && Icon is { Length: > 0 } ? Icon : Label;
+        : Compact && Icon is { Length: > 0 } ? Icon : Label;
 
     /// <summary>
     /// How big the picture is drawn.
@@ -203,7 +213,7 @@ public sealed class ToolbarItem : INotifyPropertyChanged
     /// so the artwork is not flush against the edge. Beside a label it drops to
     /// the cap height of the text it sits next to.
     /// </remarks>
-    public double IconSize => _isCompact && HasImage ? 22 : 20;
+    public double IconSize => Compact && HasImage ? 22 : 20;
 
     /// <summary>
     /// The button's inner padding, as a string for WPF to convert.
@@ -214,7 +224,7 @@ public sealed class ToolbarItem : INotifyPropertyChanged
     /// Everything else keeps the shared value — this overrides the style's
     /// setter, so it has to repeat it rather than leave it unset.
     /// </remarks>
-    public string ButtonPadding => _isCompact && HasImage ? "3" : "10,5";
+    public string ButtonPadding => Compact && HasImage ? "3" : "10,5";
 
     /// <summary>
     /// True while the toolbar is drawn without button chrome — no fill, no
@@ -239,14 +249,14 @@ public sealed class ToolbarItem : INotifyPropertyChanged
 
     /// <summary>Square while compact, and whatever it asked for otherwise.</summary>
     public double ButtonWidth =>
-        _isCompact && (HasImage || Icon is { Length: > 0 }) ? 36 : Width;
+        Compact && (HasImage || Icon is { Length: > 0 }) ? 36 : Width;
 
     /// <summary>
     /// The minimum width, dropped while compact — one button reserves room for
     /// its longer name, which an icon does not need.
     /// </summary>
     public double ButtonMinWidth =>
-        _isCompact && (HasImage || Icon is { Length: > 0 }) ? 0 : MinWidth;
+        Compact && (HasImage || Icon is { Length: > 0 }) ? 0 : MinWidth;
 
     /// <summary>
     /// A label with its decorative first word removed: "📍 Set timestamp"
@@ -377,6 +387,7 @@ public sealed class ToolbarItem : INotifyPropertyChanged
         Width = Width,
         MinWidth = MinWidth,
         StyleKey = StyleKey,
+        AlwaysLabelled = AlwaysLabelled,
 
         // Carried, unlike IsCompact: the Customize dialog draws its chips
         // full-size whatever the size setting says, but it does honour the
