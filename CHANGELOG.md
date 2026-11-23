@@ -3,6 +3,40 @@
 Every released version, newest first. Generated from the published
 GitHub releases; Help ▸ About shows this same file.
 
+## 5.8.4 — 2026-11-23
+
+### (New) Actions > Compress to size
+
+- Pick one or more videos and a size such as 10, 25, 50 or 100 MB, or type your own. Each video is re-encoded to fit under that size, and the picture is made smaller if it has to be. Videos already under the size are left alone.
+
+### (New) Actions > Add watermark
+
+- Put text or an image on your videos. Choose a corner or the center, how big it is and how see-through it is. Sizes are a share of the picture, so one setting suits videos of any size.
+
+### (New) Actions > Remove silences
+
+- Finds the silent stretches in a video and writes a copy without them. You can set how quiet counts as silent, how long a silence has to be, and how much padding to keep either side.
+
+### (New) Actions > Strip metadata
+
+- Writes copies of videos and photos without their hidden details: location, camera, dates, titles and comments. Nothing is re-encoded. The original can be deleted afterwards, following your delete settings.
+
+### (New) Smart cuts
+
+- A third cut accuracy option in Settings, next to Fast and Precise. It starts exactly where you marked, but re-encodes only the first second or two and copies the rest untouched. That makes it nearly as fast as Fast cuts and nearly as accurate as Precise ones. It works on H.264 videos; anything else, or a cut with crop, flip, speed, fade or mute, is fully re-encoded as before.
+- Smart is now the default setting, unless you already have Fast or Precise selected.
+
+### Toolbar
+
+- Compress to size, Add watermark, Find duplicates, Rename files, Strip metadata and Processing order can now be added to the toolbar.
+- Your folder shortcuts can be added too. They always show the folder icon with the shortcut's name, even with small buttons on.
+
+### Minor fixes
+
+- Explanations now appear only on the "?" beside a menu entry, not whenever the pointer passes over the row.
+- Quick save said "Splitting" while it saved a clip. It now says "Saving".
+- File paths and web links are checked more strictly before they're passed to other programs.
+
 ## 5.8.3 — 2026-11-18
 
 ### (New) Actions > Rename files
