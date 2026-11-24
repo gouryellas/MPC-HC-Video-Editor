@@ -3,6 +3,25 @@
 Every released version, newest first. Generated from the published
 GitHub releases; Help ▸ About shows this same file.
 
+## 5.8.5 — 2026-11-24
+
+### (New) Settings > Advanced
+
+- Contains all the settings on one easy-to-see page. You can configure everything from here.
+
+### (New) Translations
+
+- Foreign words in filenames are turned into English when a file is named or renamed.
+- Download Spanish, Russian or French lists under Settings > Output
+
+### Output filenames
+
+- Was not following the {anchor} tag configuration in settings. Now it does.
+
+### Menus
+
+- If you set a setting in the menu, it will keep the menu open instead of closing it.
+
 ## 5.8.4 — 2026-11-23
 
 ### (New) Actions > Compress to size
