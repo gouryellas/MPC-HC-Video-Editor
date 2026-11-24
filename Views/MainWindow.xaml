@@ -1328,7 +1328,7 @@
                      whose whole purpose is to be hovered should answer at
                      once. The tooltip is on the mark, which is not a
                      MenuItem, so it keeps the ordinary delay. -->
-                <MenuItem IsCheckable="True"
+                <MenuItem IsCheckable="True" StaysOpenOnClick="True"
                           IsChecked="{Binding BlockHotkeyInPlayer, Mode=TwoWay}">
                     <MenuItem.Header>
                         <StackPanel Orientation="Horizontal">
@@ -1817,7 +1817,7 @@
                      works there — it says what it recorded in a toast, since
                      this window is behind the player at the time. -->
                 <MenuItem Header="Behavior" Style="{StaticResource MenuSectionHeader}"/>
-                <MenuItem Header="Switch views automatically" IsCheckable="True"
+                <MenuItem Header="Switch views automatically" IsCheckable="True" StaysOpenOnClick="True"
                           IsChecked="{Binding AutoSwitchViews, Mode=TwoWay}"/>
                 <!-- Five alternatives, not five switches — see
                      MainViewModel.CutsAsList for why each one only acts on
@@ -1837,35 +1837,35 @@
                      storyboard is up. -->
                 <MenuItem Header="Layout" Style="{StaticResource MenuSectionHeader}"/>
                 <MenuItem Header="List" IsCheckable="True"
-                          IsChecked="{Binding CutsAsList, Mode=TwoWay}">
+                          IsChecked="{Binding CutsAsList, Mode=TwoWay}" StaysOpenOnClick="True">
                     <MenuItem.Icon>
                         <Image Style="{StaticResource MenuIcon}"
                                Source="pack://application:,,,/Assets/icons/icon-menu-list_view.png"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Slides" IsCheckable="True"
-                          IsChecked="{Binding LayoutIsCards, Mode=TwoWay}">
+                          IsChecked="{Binding LayoutIsCards, Mode=TwoWay}" StaysOpenOnClick="True">
                     <MenuItem.Icon>
                         <Image Style="{StaticResource MenuIcon}"
                                Source="pack://application:,,,/Assets/icons/icon-menu-slides_view.png"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Compact" IsCheckable="True"
-                          IsChecked="{Binding LayoutIsContactSheet, Mode=TwoWay}">
+                          IsChecked="{Binding LayoutIsContactSheet, Mode=TwoWay}" StaysOpenOnClick="True">
                     <MenuItem.Icon>
                         <Image Style="{StaticResource MenuIcon}"
                                Source="pack://application:,,,/Assets/icons/icon-menu-compact_view.png"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Film" IsCheckable="True"
-                          IsChecked="{Binding LayoutIsDetail, Mode=TwoWay}">
+                          IsChecked="{Binding LayoutIsDetail, Mode=TwoWay}" StaysOpenOnClick="True">
                     <MenuItem.Icon>
                         <Image Style="{StaticResource MenuIcon}"
                                Source="pack://application:,,,/Assets/icons/icon-menu-film_view.png"/>
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Detailed" IsCheckable="True"
-                          IsChecked="{Binding LayoutIsFilmstrip, Mode=TwoWay}">
+                          IsChecked="{Binding LayoutIsFilmstrip, Mode=TwoWay}" StaysOpenOnClick="True">
                     <MenuItem.Icon>
                         <Image Style="{StaticResource MenuIcon}"
                                Source="pack://application:,,,/Assets/icons/icon-menu-detailed_view.png"/>
@@ -2311,17 +2311,17 @@
                                 </MenuItem.Icon>
                             </MenuItem>
                             <Separator/>
-                            <MenuItem Header="Scan for bookmarks…" Command="{Binding ScanEditPointsCommand}">
+                            <MenuItem Header="Mark bookmarks…" Command="{Binding ScanEditPointsCommand}">
                                 <MenuItem.Icon>
                                     <Image Style="{StaticResource MenuIcon}"
-                                           Source="pack://application:,,,/Assets/icons/icon-detect_cuts.png"/>
+                                           Source="pack://application:,,,/Assets/icons/icon-mark_bookmarks.png"/>
                                 </MenuItem.Icon>
                             </MenuItem>
                             <!-- Only while a scan has left something to snap
                                  to. Present at all times it read as a global
                                  on/off, with nothing saying it belonged to
                                  the last scan and did nothing without one. -->
-                            <MenuItem IsCheckable="True"
+                            <MenuItem IsCheckable="True" StaysOpenOnClick="True"
                                       IsChecked="{Binding SnapToEditPoints, Mode=TwoWay}"
                                       Visibility="{Binding HasSnapPoints, Converter={StaticResource BoolToVis}}">
                                 <MenuItem.Header>
@@ -2520,21 +2520,21 @@
                              in force. Ctrl and the wheel does it without the
                              menu — see Storyboard_PreviewMouseWheel. -->
                         <ContextMenu x:Key="ClipSpeedMenu">
-                            <MenuItem Header="Quarter speed" Tag="0.25" Click="ClipSpeed_Click" IsCheckable="True"
+                            <MenuItem Header="Quarter speed" Tag="0.25" Click="ClipSpeed_Click" IsCheckable="True" StaysOpenOnClick="True"
                                       IsChecked="{Binding Speed, Mode=OneWay, Converter={StaticResource SpeedIs}, ConverterParameter=0.25}"/>
-                            <MenuItem Header="Half speed" Tag="0.5" Click="ClipSpeed_Click" IsCheckable="True"
+                            <MenuItem Header="Half speed" Tag="0.5" Click="ClipSpeed_Click" IsCheckable="True" StaysOpenOnClick="True"
                                       IsChecked="{Binding Speed, Mode=OneWay, Converter={StaticResource SpeedIs}, ConverterParameter=0.5}"/>
-                            <MenuItem Header="0.75x" Tag="0.75" Click="ClipSpeed_Click" IsCheckable="True"
+                            <MenuItem Header="0.75x" Tag="0.75" Click="ClipSpeed_Click" IsCheckable="True" StaysOpenOnClick="True"
                                       IsChecked="{Binding Speed, Mode=OneWay, Converter={StaticResource SpeedIs}, ConverterParameter=0.75}"/>
-                            <MenuItem Header="Normal" Tag="1" Click="ClipSpeed_Click" IsCheckable="True"
+                            <MenuItem Header="Normal" Tag="1" Click="ClipSpeed_Click" IsCheckable="True" StaysOpenOnClick="True"
                                       IsChecked="{Binding Speed, Mode=OneWay, Converter={StaticResource SpeedIs}, ConverterParameter=1}"/>
-                            <MenuItem Header="1.25x" Tag="1.25" Click="ClipSpeed_Click" IsCheckable="True"
+                            <MenuItem Header="1.25x" Tag="1.25" Click="ClipSpeed_Click" IsCheckable="True" StaysOpenOnClick="True"
                                       IsChecked="{Binding Speed, Mode=OneWay, Converter={StaticResource SpeedIs}, ConverterParameter=1.25}"/>
-                            <MenuItem Header="1.5x" Tag="1.5" Click="ClipSpeed_Click" IsCheckable="True"
+                            <MenuItem Header="1.5x" Tag="1.5" Click="ClipSpeed_Click" IsCheckable="True" StaysOpenOnClick="True"
                                       IsChecked="{Binding Speed, Mode=OneWay, Converter={StaticResource SpeedIs}, ConverterParameter=1.5}"/>
-                            <MenuItem Header="1.75x" Tag="1.75" Click="ClipSpeed_Click" IsCheckable="True"
+                            <MenuItem Header="1.75x" Tag="1.75" Click="ClipSpeed_Click" IsCheckable="True" StaysOpenOnClick="True"
                                       IsChecked="{Binding Speed, Mode=OneWay, Converter={StaticResource SpeedIs}, ConverterParameter=1.75}"/>
-                            <MenuItem Header="Double speed" Tag="2" Click="ClipSpeed_Click" IsCheckable="True"
+                            <MenuItem Header="Double speed" Tag="2" Click="ClipSpeed_Click" IsCheckable="True" StaysOpenOnClick="True"
                                       IsChecked="{Binding Speed, Mode=OneWay, Converter={StaticResource SpeedIs}, ConverterParameter=2}"/>
                         </ContextMenu>
 

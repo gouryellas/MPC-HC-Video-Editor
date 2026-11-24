@@ -158,7 +158,9 @@ if ($Full -or -not $exists) {
     $releases = & $gh api "repos/$Repo/releases?per_page=30" | ConvertFrom-Json
 }
 
-$releases = @($releases | Where-Object { -not $_.draft })
+# Versions only. The translation lists are attached to a release of their
+# own, tagged "translations", which is not a version and has no notes.
+$releases = @($releases | Where-Object { -not $_.draft -and $_.tag_name -match '^[vV]?\d' })
 $missing = @($releases | Where-Object { ($_.tag_name -replace '^[vV]', '') -notin $known })
 
 if ($missing.Count -eq 0) {

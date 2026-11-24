@@ -1078,7 +1078,9 @@ public partial class MainWindow : Window
             Tag = entry
         };
 
-        var set = new MenuItem { Header = "Set", Icon = MenuIcon("menu-set") };
+        // Stays open, so the Quick save line at the top of the menu can be
+        // seen changing to this folder.
+        var set = new MenuItem { Header = "Set", Icon = MenuIcon("menu-set"), StaysOpenOnClick = true };
         set.Click += (_, _) => _vm?.SetQuickSaveShortcutCommand.Execute(entry);
 
         var remove = new MenuItem { Header = "Remove", Icon = MenuIcon("menu-x") };
@@ -1426,7 +1428,10 @@ public partial class MainWindow : Window
                 "Saved beside the source that means the same filename, so you will be " +
                 "asked whether to replace it."),
             Icon = MenuIcon(noneActive ? "check_mark" : "menu-naming_tag"),
-            FontWeight = noneActive ? FontWeights.SemiBold : FontWeights.Normal
+            FontWeight = noneActive ? FontWeights.SemiBold : FontWeights.Normal,
+
+            // A choice, so the menu stays open to show it took.
+            StaysOpenOnClick = true
         };
 
         // Red while it is the active one, as on the toolbar: every other tag
@@ -1460,7 +1465,8 @@ public partial class MainWindow : Window
                 Header = $"[{entry.Text.Replace("_", "__")}]",
                 Icon = MenuIcon(isActive ? "check_mark" : "menu-naming_tag"),
                 Tag = entry,
-                FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Normal
+                FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Normal,
+                StaysOpenOnClick = true
             };
             item.Click += (_, _) => _vm?.SetActiveSuffixCommand.Execute(entry);
             suffixMenu.Items.Insert(insertAt++, item);
@@ -1491,7 +1497,27 @@ public partial class MainWindow : Window
     /// <see cref="PlaylistEmptyPlaceholder"/> is shown instead (and both
     /// separators collapse to avoid a stray divider line).
     /// </summary>
+    /// <remarks>
+    /// Loading a playlist or adding to one rebuilds the menu while it may be
+    /// open on that playlist, and those entries leave the menu open. The
+    /// rebuild replaces the item whose submenu was showing, which would shut
+    /// it, so that playlist's submenu is opened again on the new item.
+    /// </remarks>
     private void RefreshPlaylistsMenu()
+    {
+        var openPath = PlaylistMenu.Items.OfType<MenuItem>()
+            .FirstOrDefault(m => m.IsSubmenuOpen)?.Tag as string;
+
+        RebuildPlaylistsMenu();
+
+        if (openPath is null || !PlaylistMenu.IsSubmenuOpen) return;
+        var again = PlaylistMenu.Items.OfType<MenuItem>().FirstOrDefault(m =>
+            m.Tag is string path && string.Equals(path, openPath, StringComparison.OrdinalIgnoreCase));
+        if (again is not null)
+            Dispatcher.BeginInvoke(() => again.IsSubmenuOpen = true, System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    private void RebuildPlaylistsMenu()
     {
         if (_vm == null) return;
 
@@ -1682,7 +1708,10 @@ public partial class MainWindow : Window
                     : "Makes this the playlist that \"Add current video\" and \"+ to playlist\" " +
                       "write to. Does not open anything in the player."),
             Icon = MenuIcon(isLoaded ? "menu-x" : "menu-folder_open"),
-            Tag = plsPath
+            Tag = plsPath,
+
+            // Done in place, so the menu stays open to show it took.
+            StaysOpenOnClick = true
         };
         loadThis.Click += (_, e) =>
         {
@@ -1726,7 +1755,10 @@ public partial class MainWindow : Window
         // Bound rather than assigned, because these items are built when the
         // playlist list changes and a video can be loaded long afterwards —
         // a value set once here would be stale by the time it mattered.
-        var addCurrent = new MenuItem { Header = "Add current video", Icon = MenuIcon("menu-plus"), Tag = plsPath };
+        var addCurrent = new MenuItem
+        {
+            Header = "Add current video", Icon = MenuIcon("menu-plus"), Tag = plsPath, StaysOpenOnClick = true
+        };
         if (_vm is not null)
         {
             addCurrent.SetBinding(UIElement.IsEnabledProperty,
@@ -1793,7 +1825,8 @@ public partial class MainWindow : Window
                 "immediately, without asking. Entries on a disconnected drive cannot " +
                 "be checked and are always left alone."),
             Icon = MenuIcon("menu-x"),
-            Tag = plsPath
+            Tag = plsPath,
+            StaysOpenOnClick = true
         };
         removeMissing.Click += (_, e) =>
         {

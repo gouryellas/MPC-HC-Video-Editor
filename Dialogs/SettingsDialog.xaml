@@ -1,6 +1,7 @@
 <Window x:Class="MpcHcVideoEditor.Dialogs.SettingsDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:MpcHcVideoEditor.Dialogs"
         Title="Settings"
         Height="600" Width="560"
         MinHeight="500" MinWidth="500"
@@ -62,6 +63,69 @@
             <Setter Property="Padding" Value="6,4"/>
         </Style>
 
+        <!-- The Advanced tab's 1/0 lists, drawn in the text boxes' colours
+             so an on/off line looks as it did when it was a box to type in. -->
+        <Style x:Key="FlagList" TargetType="ComboBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton Focusable="False" ClickMode="Press"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay,
+                                                      RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border Background="{DynamicResource ControlBackground}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
+                                                BorderThickness="1">
+                                            <Path HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                  Margin="0,0,8,0" Data="M 0 0 L 8 0 L 4 5 Z"
+                                                  Fill="{DynamicResource TextSecondary}"/>
+                                        </Border>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter Margin="5,3,22,3" VerticalAlignment="Center"
+                                              IsHitTestVisible="False"
+                                              Content="{TemplateBinding SelectionBoxItem}"/>
+                            <Popup IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom"
+                                   AllowsTransparency="True" Focusable="False">
+                                <Border Background="White"
+                                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                        MinWidth="{TemplateBinding ActualWidth}">
+                                    <ItemsPresenter/>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="Foreground" Value="Black"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ComboBoxItem">
+                                    <Border x:Name="Row" Background="Transparent" Padding="5,3">
+                                        <ContentPresenter/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Row" Property="Background" Value="#DDDDDD"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="Heading" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -97,7 +161,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TabControl Grid.Row="0" Background="{DynamicResource WindowBackground}" BorderBrush="{DynamicResource BorderBrush}">
+        <TabControl Grid.Row="0" x:Name="SettingsTabs" SelectionChanged="SettingsTabs_SelectionChanged" Background="{DynamicResource WindowBackground}" BorderBrush="{DynamicResource BorderBrush}">
 
             <!-- ============================ GENERAL ============================ -->
             <TabItem Header="General">
@@ -460,6 +524,22 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Downloads and removals act at once rather than on
+                             Save: a list either is on disk or is not, and Cancel
+                             un-downloading a file would be stranger than not. -->
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Translations" Style="{StaticResource Heading}"/>
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                           Text="Foreign words in a filename are replaced with English when renaming files, and when an output name would otherwise be refused. Downloading a language fetches its word list only; nothing about your files is sent anywhere. Downloads and removals happen right away, not on Save."/>
+                                <StackPanel x:Name="LanguageRows"/>
+                                <Button Content="Open translations.txt" HorizontalAlignment="Left"
+                                        Margin="0,10,0,0" Click="OpenTranslations_Click"/>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Your own list, one &quot;foreign,english&quot; pair per line. Its entries win over any downloaded language."/>
+                            </StackPanel>
+                        </Border>
+
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
@@ -630,6 +710,132 @@
 
                     </StackPanel>
                 </ScrollViewer>
+            </TabItem>
+
+            <!-- =========================== ADVANCED ============================ -->
+            <!-- Every setting on the other tabs as one name and one value. Not a
+                 second copy of them: each line reads and writes the control it
+                 names, so a change here moves that control, and a change there
+                 shows here. Applied on Enter or on leaving the box; a value the
+                 setting cannot take is put back. -->
+            <TabItem Header="Advanced" x:Name="AdvancedTab">
+                <Grid Margin="10,10,10,10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                               Text="Every setting, by name. On/off settings are 1 or 0. A typed change applies as soon as you press Enter or leave the box."/>
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="AdvancedList" Grid.IsSharedSizeScope="True">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,1,6,1">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" SharedSizeGroup="AdvName"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding Name}"
+                                                   FontFamily="Consolas" FontSize="13"
+                                                   Foreground="{DynamicResource TextBody}"
+                                                   VerticalAlignment="Center" Margin="0,0,24,0"/>
+                                        <Grid Grid.Column="1">
+                                            <!-- Typed text, and a folder with a button to browse for one. -->
+                                            <DockPanel x:Name="TextPanel" Visibility="Collapsed">
+                                                <Button x:Name="BrowseButton" DockPanel.Dock="Right" Content="Browse…"
+                                                        Margin="6,0,0,0" Padding="10,2" Visibility="Collapsed"
+                                                        Click="AdvancedBrowse_Click"/>
+                                                <TextBox x:Name="ValueBox" Text="{Binding Value, Mode=OneWay}"
+                                                         FontFamily="Consolas" FontSize="13" Padding="4,2"
+                                                         PreviewKeyDown="AdvancedValue_KeyDown"
+                                                         PreviewTextInput="AdvancedValue_TextInput"
+                                                         DataObject.Pasting="AdvancedValue_Pasting"
+                                                         LostKeyboardFocus="AdvancedValue_LostFocus"/>
+                                            </DockPanel>
+
+                                            <!-- A list to pick from, such as Theme. -->
+                                            <ComboBox x:Name="ValueList" Visibility="Collapsed"
+                                                      ItemsSource="{Binding Choices}"
+                                                      DisplayMemberPath="Label" SelectedValuePath="Key"
+                                                      SelectedValue="{Binding Value, Mode=OneWay}"
+                                                      SelectionChanged="AdvancedChoice_SelectionChanged"/>
+
+                                            <!-- On or off: 1 or 0, and nothing else. -->
+                                            <ComboBox x:Name="FlagList" Visibility="Collapsed"
+                                                      Style="{StaticResource FlagList}"
+                                                      ItemsSource="{Binding Choices}"
+                                                      DisplayMemberPath="Label" SelectedValuePath="Key"
+                                                      SelectedValue="{Binding Value, Mode=OneWay}"
+                                                      SelectionChanged="AdvancedChoice_SelectionChanged"/>
+
+                                            <!-- The hotkey: Set, press it, Apply. -->
+                                            <DockPanel x:Name="HotkeyPanel" Visibility="Collapsed">
+                                                <Button DockPanel.Dock="Right" Content="Clear" Margin="6,0,0,0" Padding="10,2"
+                                                        Click="AdvancedHotkeyClear_Click"/>
+                                                <Button DockPanel.Dock="Right" Content="Apply" Margin="6,0,0,0" Padding="10,2"
+                                                        IsEnabled="{Binding CanApply}"
+                                                        Click="AdvancedHotkeyApply_Click"/>
+                                                <Button DockPanel.Dock="Right" Content="Set" Margin="6,0,0,0" Padding="10,2"
+                                                        Tag="{Binding ElementName=HotkeyBox}"
+                                                        Click="AdvancedHotkeySet_Click"/>
+                                                <TextBox x:Name="HotkeyBox" IsReadOnly="True" IsReadOnlyCaretVisible="False"
+                                                         Text="{Binding Shown, Mode=OneWay}"
+                                                         FontFamily="Consolas" FontSize="13" Padding="4,2"
+                                                         PreviewKeyDown="AdvancedHotkey_KeyDown"
+                                                         PreviewMouseDown="AdvancedHotkey_MouseDown"
+                                                         LostKeyboardFocus="AdvancedHotkey_LostFocus"/>
+                                            </DockPanel>
+
+                                            <!-- A colour: follow theme, no colour, or custom; a custom
+                                                 one has a swatch to click for the wheel. -->
+                                            <StackPanel x:Name="ColourRow" Orientation="Horizontal" Visibility="Collapsed">
+                                            <ComboBox ItemsSource="{x:Static local:AdvancedSetting.ColourModes}"
+                                                      DisplayMemberPath="Label" SelectedValuePath="Key"
+                                                      SelectedValue="{Binding Mode, Mode=OneWay}"
+                                                      MinWidth="130"
+                                                      SelectionChanged="AdvancedColourMode_SelectionChanged"/>
+                                            <StackPanel x:Name="ColourPanel" Orientation="Horizontal" Visibility="Collapsed"
+                                                        Background="Transparent" Cursor="Hand" Margin="10,0,0,0"
+                                                        MouseLeftButtonUp="AdvancedColour_Click">
+                                                <Border Width="48" Height="20" CornerRadius="3" BorderThickness="1"
+                                                        Background="{Binding Swatch}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"/>
+                                                <TextBlock Text="{Binding Value}" FontFamily="Consolas" FontSize="13"
+                                                           Foreground="{DynamicResource TextBody}"
+                                                           VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                            </StackPanel>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Grid>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding Kind}" Value="Text">
+                                            <Setter TargetName="TextPanel" Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Kind}" Value="Folder">
+                                            <Setter TargetName="TextPanel" Property="Visibility" Value="Visible"/>
+                                            <Setter TargetName="BrowseButton" Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Kind}" Value="List">
+                                            <Setter TargetName="ValueList" Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Kind}" Value="Flag">
+                                            <Setter TargetName="FlagList" Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Kind}" Value="Hotkey">
+                                            <Setter TargetName="HotkeyPanel" Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Kind}" Value="Color">
+                                            <Setter TargetName="ColourRow" Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsCustom}" Value="True">
+                                            <Setter TargetName="ColourPanel" Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
             </TabItem>
 
         </TabControl>

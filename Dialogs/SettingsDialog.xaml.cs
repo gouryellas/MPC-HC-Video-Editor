@@ -150,10 +150,10 @@ public partial class SettingsDialog : Window
     /// <summary>
     /// The theme in force when the dialog opened, so Cancel can put it back.
     /// </summary>
-    private readonly string _originalThemeKey;
+    private string _originalThemeKey;
 
     /// <inheritdoc cref="_originalThemeKey"/>
-    private readonly bool _originalFollowSystemTheme;
+    private bool _originalFollowSystemTheme;
 
     private readonly string _originalFfmpegFolder;
 
@@ -181,6 +181,8 @@ public partial class SettingsDialog : Window
         InitializeComponent();
 
         _ffmpeg = ffmpeg;
+
+        BuildLanguageRows();
 
         // The tag the filename preview should demonstrate. Read once here:
         // naming tags are managed under Options, not in this dialog, so it
@@ -403,6 +405,107 @@ public partial class SettingsDialog : Window
         : ask.IsChecked == true ? CleanupMode.Ask
         : CleanupMode.Never;
 
+    /// <summary>
+    /// One row per downloadable language: its name, whether it is on this
+    /// machine and how many words it holds, and the button that changes that.
+    /// </summary>
+    private void BuildLanguageRows()
+    {
+        LanguageRows.Children.Clear();
+
+        foreach (var pack in Translations.Packs)
+        {
+            var installed = Translations.IsInstalled(pack);
+
+            var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var name = new TextBlock
+            {
+                Text = pack.Name,
+                VerticalAlignment = VerticalAlignment.Center,
+                Foreground = ThemeService.Brush(nameof(ThemePalette.TextBody))
+            };
+
+            var status = new TextBlock
+            {
+                Text = installed
+                    ? $"Installed, {Translations.CountEntries(pack):N0} words"
+                    : "Not installed",
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(10, 0, 10, 0),
+                Foreground = ThemeService.Brush(installed
+                    ? nameof(ThemePalette.StatusOk)
+                    : nameof(ThemePalette.TextSecondary))
+            };
+            Grid.SetColumn(status, 1);
+
+            var button = new Button
+            {
+                Content = installed ? "Remove" : "Download",
+                MinWidth = 90,
+                Tag = pack
+            };
+            button.Click += installed ? RemoveLanguage_Click : DownloadLanguage_Click;
+            Grid.SetColumn(button, 2);
+
+            row.Children.Add(name);
+            row.Children.Add(status);
+            row.Children.Add(button);
+            LanguageRows.Children.Add(row);
+        }
+    }
+
+    private async void DownloadLanguage_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: LanguagePack pack } button) return;
+
+        button.IsEnabled = false;
+        button.Content = "Downloading…";
+        try
+        {
+            await Translations.DownloadAsync(pack);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Download " + pack.Name,
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        BuildLanguageRows();
+    }
+
+    private void RemoveLanguage_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: LanguagePack pack }) return;
+
+        try
+        {
+            Translations.Remove(pack);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Remove " + pack.Name,
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        BuildLanguageRows();
+    }
+
+    private void OpenTranslations_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var path = Translations.EnsureUserFile();
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Open translations.txt",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private void BrowseFfmpeg_Click(object sender, RoutedEventArgs e)
     {
         var dlg = new OpenFolderDialog { Title = "Select the folder containing ffmpeg.exe" };
@@ -495,9 +598,39 @@ public partial class SettingsDialog : Window
 
         FollowSystemTheme = FollowSystemThemeCheck.IsChecked == true;
 
-        // Setting DialogResult closes a modal window on its own; no Close()
-        // call, which would be a second close.
-        DialogResult = true;
+        // Applied, and the window stays up. What was saved is now what Cancel
+        // and closing go back to.
+        Saved?.Invoke();
+        _originalThemeKey = ThemeKey;
+        _originalFollowSystemTheme = FollowSystemTheme;
+        PlaySaveClick((FrameworkElement)sender);
+    }
+
+    /// <summary>
+    /// Called by Save once the properties above hold what the dialog says, for
+    /// the caller to write them. The window stays open.
+    /// </summary>
+    public Action? Saved { get; init; }
+
+    /// <summary>A quick press-and-spring on the Save button, to show the save happened.</summary>
+    private static void PlaySaveClick(FrameworkElement button)
+    {
+        button.RenderTransformOrigin = new Point(0.5, 0.5);
+        var scale = new System.Windows.Media.ScaleTransform(1, 1);
+        button.RenderTransform = scale;
+
+        var press = new System.Windows.Media.Animation.DoubleAnimationUsingKeyFrames
+        {
+            Duration = TimeSpan.FromMilliseconds(260)
+        };
+        press.KeyFrames.Add(new System.Windows.Media.Animation.EasingDoubleKeyFrame(
+            0.9, System.Windows.Media.Animation.KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(80))));
+        press.KeyFrames.Add(new System.Windows.Media.Animation.EasingDoubleKeyFrame(
+            1.0, System.Windows.Media.Animation.KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(260)),
+            new System.Windows.Media.Animation.BackEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut, Amplitude = 0.6 }));
+
+        scale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleXProperty, press);
+        scale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleYProperty, press);
     }
 
     /// <summary>
@@ -549,14 +682,16 @@ public partial class SettingsDialog : Window
     /// saving. Covers Escape and the close button as well as Cancel, which is
     /// why it hangs off the window closing rather than a button.
     /// </summary>
+    /// <remarks>
+    /// Save leaves the window open and moves the baseline to what it saved,
+    /// so this puts back the last save, or the theme from before the dialog
+    /// opened if Save was never pressed.
+    /// </remarks>
     protected override void OnClosed(EventArgs e)
     {
-        if (DialogResult != true)
-        {
-            var revertKey = _originalFollowSystemTheme ? SystemTheme.ResolveThemeKey() : _originalThemeKey;
-            if (ThemeService.Current.Key != revertKey)
-                ThemeService.ApplyFromKey(revertKey);
-        }
+        var revertKey = _originalFollowSystemTheme ? SystemTheme.ResolveThemeKey() : _originalThemeKey;
+        if (ThemeService.Current.Key != revertKey)
+            ThemeService.ApplyFromKey(revertKey);
 
         base.OnClosed(e);
     }

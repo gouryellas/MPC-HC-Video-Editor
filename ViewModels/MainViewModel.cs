@@ -313,7 +313,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         new() { Key = "undo-bookmark", Group = "Bookmarks", Label = "⎌ Undo bookmark", Icon = "⎌", IconFile = "icon-undo_timestamp", Command = UndoLastBookmarkCommand },
         new() { Key = "enter-time", Group = "Bookmarks", Label = "⌨ Enter time", Icon = "⌨", IconFile = "icon-enter_time", Command = EnterTimeManualCommand },
         new() { Key = "split-at-playhead", Group = "Bookmarks", Label = "✂ Split time", Icon = "✂", IconFile = "icon-split_time", Command = SplitAtPlayheadCommand },
-        new() { Key = "detect", Group = "Bookmarks", Label = "🔍 Detect bookmarks", Icon = "🔍", IconFile = "icon-detect_cuts", Command = DetectBookmarksCommand },
+        new() { Key = "detect", Group = "Bookmarks", Label = "🔍 Scan for bookmarks", Icon = "🔍", IconFile = "icon-detect_cuts", Command = DetectBookmarksCommand },
         new() { Key = "edit-bookmarks", Group = "Bookmarks", Label = "✎ Edit bookmarks", Icon = "✎", IconFile = "icon-edit_bookmarks", Command = EditBookmarksCommand },
         // Walking the cuts, as two buttons rather than the one this used to
         // have. Telling them apart was the problem the first time: play/pause
@@ -343,6 +343,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         new() { Key = "rename-files", Group = "Actions", Label = "Rename files", IconFile = "icon-rename", Command = BulkRenameCommand },
         new() { Key = "strip-metadata", Group = "Actions", Label = "Strip metadata", IconFile = "icon-strip_metadata", Command = StripMetadataCommand },
         new() { Key = "processing-order", Group = "Bookmarks", Label = "Processing order", IconFile = "icon-menu-re_order", Command = SetProcessingOrderManualCommand },
+        new() { Key = "scan-bookmarks", Group = "Bookmarks", Label = "Mark bookmarks", IconFile = "icon-mark_bookmarks", Command = ScanEditPointsCommand },
+        new() { Key = "export-bookmarks", Group = "Bookmarks", Label = "Export bookmarks", IconFile = "icon-menu-export_bookmarks", Command = ExportCutListCommand },
+        new() { Key = "import-bookmarks", Group = "Bookmarks", Label = "Import bookmarks", IconFile = "icon-menu-import_bookmarks", Command = ImportCutListCommand },
+        new() { Key = "open-playlist", Group = "Playlist", Label = "Open playlist", IconFile = "icon-menu-folder_open", Command = LoadPlaylistFileCommand },
 
         // The fillers. Each is a real entry in the layout; only their drawing is
         // particular to the Customize dialog.
@@ -2660,9 +2664,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ? Path.GetDirectoryName(basePath) ?? ""
             : outputDirectory;
         var nameWithoutExt = Path.GetFileNameWithoutExtension(basePath);
-        var suffix = _settings.GetActiveSuffixText();
-        var template = _settings.Current.NameTemplate;
-
         int counter = Math.Max(1, startIndex);
         while (true)
         {
@@ -2670,8 +2671,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             // collision still reads [done2] rather than gaining a suffix of its
             // own. With a custom template the bracket is whatever {suffix}
             // expanded to, and the counter follows the same rule.
-            var bracket = SuffixBracket(counter);
-            var stem = NameTemplate.Build(template, nameWithoutExt, bracket, bookmark);
+            var stem = NamedStem(nameWithoutExt, counter, bookmark);
             var candidate = Path.Combine(dir, $"{stem}{extension}");
             if (!File.Exists(candidate)) return candidate;
             counter++;
@@ -3028,6 +3028,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
 
         Waveform = null;
+
+        // "No colour" draws no waveform, so there is nothing to decode.
+        if (SeekbarAppearance.IsNone(_settings.Current.SeekbarWaveformColor))
+        {
+            _waveformSource = path;
+            return;
+        }
+
         var cts = new CancellationTokenSource();
         _waveformRender = cts;
 
@@ -4922,8 +4930,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // Spaces are corrected without asking. They are in most media
         // filenames, dashes are the only sensible substitution, and there is
         // nothing here for the user to weigh up — being prompted on virtually
-        // every operation was the whole problem. Anything else still asks.
-        stem = FileNameRules.NormalizeSpaces(stem);
+        // every operation was the whole problem. Letters and digits from other
+        // scripts that are plainly one English letter or digit (a Cyrillic "о",
+        // an accented "é") are corrected the same way. Anything else still asks.
+        //
+        // A name that would otherwise be put to the user goes through
+        // translations.txt first, so a foreign word listed there arrives as
+        // its English before anything is judged. Only then: a name that was
+        // going to pass untouched is not reworded behind the user's back.
+        if (!FileNameRules.IsValid(FileNameRules.NormalizeSpaces(stem)))
+            stem = Services.Translations.Apply(stem);
+
+        stem = FileNameRules.NormalizeSpaces(FileNameRules.NormalizeLookalikes(stem));
 
         // The bracket suffix comes from the naming tag, which is already
         // constrained, so only the stem is worth checking.
@@ -4938,8 +4956,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             var dlg = new RenameFileDialog(
                 Path.GetFileName(candidate), stem, suffix, ext,
-                "This output filename contains characters that are not allowed. " +
-                "Enter a name to save it as.",
+                DescribeDisallowed(stem),
                 Path.GetDirectoryName(candidate),
                 offerApplyToAll: _batchRemaining > 1)
             { Owner = DialogOwner };
@@ -4961,6 +4978,25 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// The rename prompt's explanation, naming the characters that broke the
+    /// rules so a name that looks fine says what is wrong with it.
+    /// </summary>
+    private static string DescribeDisallowed(string stem)
+    {
+        var problems = FileNameRules.DescribeProblems(stem);
+        if (problems.Count == 0)
+            return "This output filename contains characters that are not allowed. " +
+                   "Enter a name to save it as.";
+
+        var list = problems.Count == 1
+            ? problems[0]
+            : string.Join(", ", problems.Take(problems.Count - 1)) + " and " + problems[^1];
+
+        return $"This output filename contains {list}, which {(problems.Count == 1 ? "is" : "are")} not allowed. " +
+               "Enter a name to save it as.";
+    }
+
+    /// <summary>
     /// The container every video operation writes, from settings. Read fresh
     /// each time rather than cached, so a change in the Settings dialog
     /// applies to the very next operation.
@@ -4979,8 +5015,27 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ? Path.GetDirectoryName(basePath) ?? ""
             : outputDirectory;
 
-        return Path.Combine(dir,
-            $"{Path.GetFileNameWithoutExtension(basePath)}{SuffixBracket()}{extension}");
+        return Path.Combine(dir, NamedStem(Path.GetFileNameWithoutExtension(basePath)) + extension);
+    }
+
+    /// <summary>
+    /// An output name, without its folder or extension, from the Output
+    /// filename pattern in Settings.
+    /// </summary>
+    /// <param name="counter">
+    /// 1 for the first of something; 2 and up go in the tag's bracket, as
+    /// [done2], to keep names apart.
+    /// </param>
+    /// <param name="bookmark">The clip being written, for the clip variables; null for a whole file.</param>
+    private string NamedStem(string sourceStem, int counter = 1, Bookmark? bookmark = null)
+    {
+        var template = _settings.Current.NameTemplate;
+        var stem = NameTemplate.Build(template, sourceStem, SuffixBracket(counter), bookmark);
+
+        // Without {tag} the counter has no bracket to go in, and the second
+        // name would be the first again.
+        if (counter > 1 && !NameTemplate.HasTag(template)) stem += $"[{counter}]";
+        return stem;
     }
 
     /// <summary>
@@ -5890,7 +5945,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 Job.Report($"Cutting {b.StartDisplay} → {b.EndDisplay}", (double)(i - 1) / toSplit.Count * 100);
 
                 var outPath = await ResolveOutputPathAsync(
-                    BuildSplitPath(outDir, Session.VideoFileName, i, format.Extension));
+                    BuildSplitPath(outDir, Session.VideoFileName, i, format.Extension, b));
                 if (outPath == null) continue;   // canceled this clip
 
                 await _ffmpeg.MergeBookmarksAsync(Session.VideoPath, outPath, new[] { b }, null, default, format);
@@ -5923,10 +5978,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <c>&lt;name&gt;[done].mp4</c>; index 2+ produces
     /// <c>&lt;name&gt;[done2].mp4</c>, <c>&lt;name&gt;[done3].mp4</c>, etc.
     /// </summary>
-    private string BuildSplitPath(string outDir, string videoFileName, int index, string? extension = null)
+    /// <remarks>
+    /// When the pattern numbers each clip itself ({number3} and the like),
+    /// the clips are already told apart, so the bracket stays [done] on all of
+    /// them rather than counting up as well.
+    /// </remarks>
+    private string BuildSplitPath(string outDir, string videoFileName, int index, string? extension = null,
+                                  Bookmark? bookmark = null)
     {
         var nameWithoutExt = Path.GetFileNameWithoutExtension(videoFileName);
-        return Path.Combine(outDir, $"{nameWithoutExt}{SuffixBracket(index)}{extension ?? OutputFormat.Extension}");
+        var counter = bookmark is not null && NameTemplate.HasNumber(_settings.Current.NameTemplate) ? 1 : index;
+        return Path.Combine(outDir, NamedStem(nameWithoutExt, counter, bookmark) + (extension ?? OutputFormat.Extension));
     }
 
     /// <summary>
@@ -5990,8 +6052,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // Correct the name first, then walk for a free one. The other order
         // looks equivalent and is not: correcting a name after checking it is
         // free can land right back on an existing file.
+        //
+        // The source name alone goes in here, not the patterned one:
+        // GetUniqueOutputPath below applies the pattern, and applying it
+        // twice would write {date} or {number} into the name twice.
         var named = EnforceFileNamePolicy(
-            GetSuffixedOutputPath(Session.VideoPath, format.Extension, outDir),
+            Path.Combine(outDir, Path.GetFileNameWithoutExtension(Session.VideoPath) + SuffixBracket() + format.Extension),
             out var nameCanceled);
         if (nameCanceled) return null;
 
@@ -9459,30 +9525,54 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void OpenSettings()
     {
-        var dlg = new SettingsDialog(_settings.Current, AutoSwitchViews, _ffmpeg)
+        var current = _settings.Current;
+        var extras = new AdvancedExtras
+        {
+            SaveToFolder = _pinnedSaveToFolder,
+            QuickSaveFolder = current.QuickSaveFolder ?? "",
+            PlaylistFolder = current.PlaylistFolder ?? "",
+            Hotkey = _hotkeys.Binding,
+            View = StoryboardView ? StoryboardLayout.ToString() : "list",
+            SeekbarColor = current.SeekbarColor,
+            SeekbarBorderColor = current.SeekbarBorderColor,
+            SeekbarTrackColor = current.SeekbarTrackColor,
+            SeekbarMarkColor = current.SeekbarMarkColor,
+            SeekbarPlayheadColor = current.SeekbarPlayheadColor,
+            SeekbarWaveformColor = current.SeekbarWaveformColor,
+            ButtonColors = new Dictionary<string, string>(current.ButtonColors)
+        };
+
+        // Save applies and stays open, so the work happens in Saved, as many
+        // times as Save is pressed. Closing only tidies up.
+        SettingsDialog dlg = null!;
+        dlg = new SettingsDialog(_settings.Current, AutoSwitchViews, _ffmpeg)
         {
             Owner = Application.Current?.MainWindow,
             PreviewToolbarIcons = ApplyToolbarIconStyle,
-            PreviewChapterNames = PreviewChapterNames
+            PreviewChapterNames = PreviewChapterNames,
+            Extras = extras,
+            Saved = () => ApplySettings(dlg, extras)
         };
 
-        var closed = dlg.ShowDialog();
+        dlg.ShowDialog();
 
-        // Dropped first thing, either way. While it stands, UseChapterNames
-        // answers for the dialog rather than for the settings, and from here
-        // on the settings are the truth again — ApplyChapterNaming below is
-        // what moves the list, and it raises the property itself.
+        // Whatever was not saved comes back off. The settings hold the last
+        // save, or what was there before if Save was never pressed, which
+        // makes them the record of how things should look.
         EndChapterNamesPreview();
+        ApplyToolbarIconStyle(_settings.Current.SmallButtonIcons,
+                              _settings.Current.FlatButtonIcons);
+    }
 
-        if (closed != true)
-        {
-            // Cancelled, so the preview has to come back off. The settings
-            // were never written, which makes them the record of how the
-            // toolbar looked before the dialog opened.
-            ApplyToolbarIconStyle(_settings.Current.SmallButtonIcons,
-                                  _settings.Current.FlatButtonIcons);
-            return;
-        }
+    /// <summary>Writes what Settings says, for its Save button.</summary>
+    private void ApplySettings(SettingsDialog dlg, AdvancedExtras extras)
+    {
+        // Dropped first. While it stands, UseChapterNames answers for the
+        // dialog rather than for the settings, and from here on the settings
+        // are the truth again — ApplyChapterNaming below is what moves the
+        // list, and it raises the property itself. Ticking the box again
+        // starts a new preview.
+        EndChapterNamesPreview();
 
         var s = _settings.Current;
 
@@ -9497,6 +9587,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         s.NormalizeAudio = dlg.NormalizeAudio;
         s.FadeSeconds = dlg.FadeSeconds;
         s.NameTemplate = dlg.NameTemplate;
+
+        // A pattern without {tag} writes no tag, so the tag menu says None
+        // rather than naming a tag that will not appear.
+        var tagDropped = !NameTemplate.HasTag(s.NameTemplate) && s.UseNamingTag;
+        if (tagDropped) s.UseNamingTag = false;
 
         // The dialog already applied one of these live so it could be seen;
         // this is what makes it survive a restart. ThemeKey is saved either
@@ -9540,6 +9635,54 @@ public partial class MainViewModel : ObservableObject, IDisposable
         s.OverlayClickable = dlg.OverlayClickable;
         s.MaxHistory = dlg.MaxHistory;
 
+        // From the Advanced tab: the folders, the hotkey and the colours the
+        // menus otherwise set. Before the "remember" line below, which stores
+        // whichever Save to folder is pinned once this has run.
+        var foldersChanged = false;
+        if (extras.SaveToFolder != _pinnedSaveToFolder)
+        {
+            _pinnedSaveToFolder = extras.SaveToFolder;
+            Session.OutputDirectory = ResolveSaveToDirectory();
+            foldersChanged = true;
+        }
+        if (extras.QuickSaveFolder != (s.QuickSaveFolder ?? ""))
+        {
+            s.QuickSaveFolder = extras.QuickSaveFolder;
+            foldersChanged = true;
+        }
+        if (extras.PlaylistFolder != (s.PlaylistFolder ?? ""))
+        {
+            s.PlaylistFolder = extras.PlaylistFolder;
+            foldersChanged = true;
+        }
+
+        var hotkeyChanged = extras.Hotkey.Display != _hotkeys.Binding.Display;
+        if (hotkeyChanged)
+        {
+            _settings.SetTimestampHotkey(extras.Hotkey);
+            _hotkeys.Binding = extras.Hotkey;
+            if (extras.Hotkey.Kind == HotkeyBinding.HotkeyKind.None) _hotkeys.Stop();
+            else _hotkeys.Start();
+        }
+
+        var seekbarColorsChanged = s.SeekbarColor != extras.SeekbarColor
+                                   || s.SeekbarBorderColor != extras.SeekbarBorderColor
+                                   || s.SeekbarTrackColor != extras.SeekbarTrackColor
+                                   || s.SeekbarMarkColor != extras.SeekbarMarkColor
+                                   || s.SeekbarPlayheadColor != extras.SeekbarPlayheadColor
+                                   || s.SeekbarWaveformColor != extras.SeekbarWaveformColor;
+        var waveformColorChanged = s.SeekbarWaveformColor != extras.SeekbarWaveformColor;
+        s.SeekbarColor = extras.SeekbarColor;
+        s.SeekbarBorderColor = extras.SeekbarBorderColor;
+        s.SeekbarTrackColor = extras.SeekbarTrackColor;
+        s.SeekbarMarkColor = extras.SeekbarMarkColor;
+        s.SeekbarPlayheadColor = extras.SeekbarPlayheadColor;
+        s.SeekbarWaveformColor = extras.SeekbarWaveformColor;
+
+        var buttonColorsChanged = extras.ButtonColors.Count != s.ButtonColors.Count
+                                  || extras.ButtonColors.Any(kv => !s.ButtonColors.TryGetValue(kv.Key, out var v) || v != kv.Value);
+        if (buttonColorsChanged) s.ButtonColors = extras.ButtonColors;
+
         // Turning "remember" on adopts whatever folder is pinned right now,
         // rather than waiting for the user to pick one again. Turning it off
         // forgets the stored folder so it cannot come back on a later restart.
@@ -9560,9 +9703,30 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // save rather than written into settings above.
         AutoSwitchViews = dlg.AutoSwitchViews;
 
+        // The rest of the Advanced tab's changes, now that they are saved.
+        if (foldersChanged) RefreshFolderDisplays();
+        if (hotkeyChanged) UpdateHotkeyStatus();
+        if (seekbarColorsChanged) SeekbarAppearance.Apply(s, ThemeService.Current);
+        if (waveformColorChanged) _ = RefreshWaveformAsync(Session.VideoPath, force: true);
+        if (buttonColorsChanged) ButtonColors.Apply(s.ButtonColors, ThemeService.Current);
+
+        // Through the properties the View menu uses, which save, redraw and
+        // fetch thumbnails as a pick from the menu would.
+        var view = StoryboardView ? StoryboardLayout.ToString() : "list";
+        if (extras.View != view)
+        {
+            if (extras.View == "list") StoryboardView = false;
+            else if (Enum.TryParse<StoryboardLayout>(extras.View, out var layout))
+            {
+                StoryboardLayout = layout;
+                StoryboardView = true;
+            }
+        }
+
         // The suffix example spells out an extension, and the overlay reads
         // its appearance when it next appears.
         SuffixExampleDisplay = BuildSuffixExample(_settings.GetActiveSuffixText());
+        if (tagDropped) UpdateActiveSuffixDisplay();
         OnPropertyChanged(nameof(ShowSeekbar));
         OnPropertyChanged(nameof(HideSeekbar));
         OnPropertyChanged(nameof(ShowSeekbarWaveform));
@@ -11184,7 +11348,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 Job.SetFile(i - 1, Path.GetFileName(Session.VideoPath));
 
                 var outPath = await ResolveOutputPathAsync(
-                    BuildSplitPath(outDir, Session.VideoFileName, i, choice.Extension));
+                    BuildSplitPath(outDir, Session.VideoFileName, i, choice.Extension, b));
                 if (outPath == null) continue;
 
                 var slice = 100.0 / cuts.Count;
@@ -11315,7 +11479,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Directory.CreateDirectory(outDir);
 
         var tiling = _thumbColumns > 0;
-        var stem = Path.GetFileNameWithoutExtension(video) + SuffixBracket()
+        var stem = NamedStem(Path.GetFileNameWithoutExtension(video))
                    + (tiling ? "-sheet-" : "-thumb-");
 
         // ffmpeg fills the counter in, so the number of files does not have to

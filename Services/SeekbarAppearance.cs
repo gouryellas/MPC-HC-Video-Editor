@@ -28,12 +28,25 @@ public static class SeekbarAppearance
     public const string FollowTheme = "theme";
 
     /// <summary>
+    /// Settings value meaning "no colour": that part of the seekbar is not
+    /// painted at all, and for the waveform, none is drawn.
+    /// </summary>
+    public const string NoColour = "none";
+
+    /// <summary>Fully transparent, which is what "no colour" paints.</summary>
+    private const string Transparent = "#00000000";
+
+    /// <summary>Whether a setting is <see cref="NoColour"/>.</summary>
+    public static bool IsNone(string? setting) =>
+        string.Equals(setting, NoColour, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// What a bracket, a cut's number and its tick are painted before anyone
     /// chooses otherwise. Not drawn from the theme — <see cref="TimelineRanges"/>
     /// never has been, so "theme" here means this fixed value rather than a
     /// palette property that does not exist.
     /// </summary>
-    private const string DefaultMark = "#FFFFFF";
+    public const string DefaultMark = "#FFFFFF";
 
     /// <summary>
     /// What the waveform is painted before anyone chooses otherwise — the
@@ -73,7 +86,8 @@ public static class SeekbarAppearance
     }
 
     private static string Resolve(string? setting, string themeDefault) =>
-        string.IsNullOrEmpty(setting)
+        IsNone(setting) ? Transparent
+        : string.IsNullOrEmpty(setting)
         || string.Equals(setting, FollowTheme, StringComparison.OrdinalIgnoreCase)
         || !ButtonColors.IsColour(setting)
             ? themeDefault

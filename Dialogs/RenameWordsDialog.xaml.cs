@@ -625,7 +625,7 @@ public sealed class SavedLineRow
         RuleActions.Delete => "delete",
         RuleActions.DeleteFound => "delete found",
         RuleActions.Change => "change",
-        RuleActions.ChangeTo => "to",
+        RuleActions.ChangeTo => "change to",
         _ => Action
     };
 
@@ -874,6 +874,8 @@ public partial class RenameWordsDialog : Window
         // On the panel that holds both the control row and the box: the
         // icons are no longer inside the box they act on.
         RuleEditor.DataContext = _editor;
+
+        CancelEditButton.Visibility = editing is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
     /// <summary>The name a brand new rule arrives with.</summary>
@@ -1251,6 +1253,20 @@ public partial class RenameWordsDialog : Window
         ResetBox(Copy(was.Rule), was);
         Renumber();
         Said($"Put {Named(was.Rule)} back as it was saved.", ok: true);
+    }
+
+    /// <summary>
+    /// Stops editing a saved rule without keeping any of the changes, and
+    /// empties the box for a new one.
+    /// </summary>
+    private void CancelEdit_Click(object sender, RoutedEventArgs e)
+    {
+        var was = _editing;
+        if (was is null) return;
+
+        ResetBox();
+        Renumber();
+        Said($"Stopped editing {Named(was.Rule)}. It is unchanged.", ok: true);
     }
 
     /// <summary>Opens a rule from the list in the box.</summary>

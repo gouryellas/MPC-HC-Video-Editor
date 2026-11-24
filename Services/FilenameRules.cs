@@ -989,7 +989,10 @@ public static class FilenameRules
         // so every dot in the name is deleted — and the one separating the
         // extension would go with them if it were still attached.
         var extension = Path.GetExtension(fileName);
-        var stem = Path.GetFileNameWithoutExtension(fileName);
+        // Translated first, from translations.txt beside the executable, so
+        // every rule after this works on the English words. Before Clean,
+        // because Clean drops accents and letters the list is written in.
+        var stem = Translations.Apply(Path.GetFileNameWithoutExtension(fileName));
 
         var cleaned = Clean(stem);
         if (cleaned.Length == 0) return fileName;   // nothing left; see Propose
@@ -1009,7 +1012,7 @@ public static class FilenameRules
     /// rename it to ".mp4".
     /// </remarks>
     internal static bool EmptiesOut(string fileName) =>
-        Clean(Path.GetFileNameWithoutExtension(fileName)).Length == 0;
+        Clean(Translations.Apply(Path.GetFileNameWithoutExtension(fileName))).Length == 0;
 
     /// <summary>
     /// The character rules.
@@ -1133,9 +1136,15 @@ public static class FilenameRules
             else spelled.Append(c);
         }
 
+        // Look-alikes from other scripts next: a Cyrillic "о" becomes "o", and
+        // a letter with no English twin is left for the rules after this, as
+        // before. Shared with the output-name check, so a rename and a save
+        // agree on what counts as obvious.
+        var plain = Helpers.FileNameRules.NormalizeLookalikes(spelled.ToString());
+
         // Decomposed, so an accent becomes its own character and can be
         // dropped on its own, leaving the letter it was sitting on.
-        var decomposed = spelled.ToString().Normalize(NormalizationForm.FormD);
+        var decomposed = plain.Normalize(NormalizationForm.FormD);
 
         var stripped = new StringBuilder(decomposed.Length);
         foreach (var c in decomposed)

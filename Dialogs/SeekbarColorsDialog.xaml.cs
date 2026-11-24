@@ -226,9 +226,9 @@ public partial class SeekbarColorsDialog : Window
     }
 
     /// <summary>
-    /// One colour choice: follow the theme, or pick a swatch — the same two
-    /// answers a button family has, minus "no colour", which means nothing
-    /// for a bar that always needs some fill to be visible at all.
+    /// One colour choice: follow the theme, no colour, or pick a swatch — the
+    /// same three answers a button family has. No colour leaves that part
+    /// unpainted.
     /// </summary>
     private UIElement ColorPicker(string heading, Func<string> get, Action<string> set)
     {
@@ -240,9 +240,11 @@ public partial class SeekbarColorsDialog : Window
         var group = heading;
 
         var theme = Radio("Follow the theme", group, () => set(SeekbarAppearance.FollowTheme));
+        var none = Radio("No colour", group, () => set(SeekbarAppearance.NoColour));
         var pick = Radio("Pick one:", group, () => set(ButtonColors.IsColour(get()) ? get() : Presets[0]));
 
         choices.Children.Add(theme);
+        choices.Children.Add(none);
         choices.Children.Add(pick);
         panel.Children.Add(choices);
 
@@ -277,7 +279,8 @@ public partial class SeekbarColorsDialog : Window
             var current = get();
             var custom = ButtonColors.IsColour(current);
 
-            theme.IsChecked = !custom;
+            theme.IsChecked = !custom && !SeekbarAppearance.IsNone(current);
+            none.IsChecked = SeekbarAppearance.IsNone(current);
             pick.IsChecked = custom;
 
             swatches.Opacity = custom ? 1.0 : 0.45;
@@ -315,7 +318,8 @@ public partial class SeekbarColorsDialog : Window
     }
 
     private static string Resolve(string setting, string themeDefault) =>
-        string.IsNullOrEmpty(setting)
+        SeekbarAppearance.IsNone(setting) ? "#00000000"
+        : string.IsNullOrEmpty(setting)
         || string.Equals(setting, SeekbarAppearance.FollowTheme, StringComparison.OrdinalIgnoreCase)
         || !ButtonColors.IsColour(setting)
             ? themeDefault

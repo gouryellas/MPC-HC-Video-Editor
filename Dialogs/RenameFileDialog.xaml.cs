@@ -117,7 +117,10 @@ public partial class RenameFileDialog : Window
 
         foreach (var c in e.Text)
         {
+            // A look-alike from another script is let through; TextChanged
+            // swaps it for its English letter as soon as it lands.
             if (FileNameRules.IsAllowedChar(c)) continue;
+            if (FileNameRules.NormalizeLookalikes(c.ToString()).All(FileNameRules.IsAllowedChar)) continue;
 
             e.Handled = true;
             MessageText.Text = $"'{c}' is not allowed.\n\n" + FileNameRules.Description;
@@ -129,6 +132,20 @@ public partial class RenameFileDialog : Window
     {
         // Doubled punctuation can still arrive by paste or by deleting the
         // character between two of them, so validate the whole string too.
+
+        // Typed or pasted look-alikes become their English letter in place,
+        // the same correction the incoming filename gets. Each swap is one
+        // character for one, so the caret stays where it was. Setting Text
+        // raises this handler again, which then finds nothing to change.
+        var plain = FileNameRules.NormalizeLookalikes(NameBox.Text);
+        if (plain != NameBox.Text)
+        {
+            var caret = NameBox.CaretIndex;
+            NameBox.Text = plain;
+            NameBox.CaretIndex = Math.Min(caret, plain.Length);
+            return;
+        }
+
         var stem = NameBox.Text;
         var ok = FileNameRules.IsValid(stem);
 

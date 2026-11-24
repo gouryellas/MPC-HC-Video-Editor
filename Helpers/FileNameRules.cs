@@ -65,6 +65,187 @@ public static class FileNameRules
     }
 
     /// <summary>
+    /// Says which characters make <paramref name="name"/> fail
+    /// <see cref="IsValid"/>, one entry per distinct problem, in the order
+    /// they first appear. Empty when the name is valid.
+    /// </summary>
+    /// <remarks>
+    /// Exists for names that look fine and are not. A letter from another
+    /// alphabet can be indistinguishable from an English one, so the entry
+    /// says so rather than leaving the user to compare the name with itself.
+    /// </remarks>
+    public static IReadOnlyList<string> DescribeProblems(string? name)
+    {
+        var problems = new List<string>();
+        if (string.IsNullOrEmpty(name)) return problems;
+
+        for (int i = 0; i < name.Length; i++)
+        {
+            var c = name[i];
+            string? entry = null;
+
+            if (!IsAllowedChar(c))
+            {
+                if (char.IsWhiteSpace(c))
+                    entry = "a space";
+                else if (char.IsLetter(c))
+                    entry = $"“{c}” (a letter from another alphabet, U+{(int)c:X4})";
+                else if (char.IsDigit(c))
+                    entry = $"“{c}” (a digit from another script, U+{(int)c:X4})";
+                else if (char.IsControl(c) ||
+                         char.GetUnicodeCategory(c) == System.Globalization.UnicodeCategory.Format)
+                    entry = $"an invisible character (U+{(int)c:X4})";
+                else
+                    entry = $"“{c}”";
+            }
+            else if (i > 0 && c == name[i - 1] && Punctuation.Contains(c))
+            {
+                entry = $"“{c}{c}” (doubled)";
+            }
+
+            if (entry is not null && !problems.Contains(entry))
+                problems.Add(entry);
+        }
+
+        return problems;
+    }
+
+    /// <summary>
+    /// Letters and digits from other scripts that are unmistakably one
+    /// English letter or digit, mapped to it.
+    /// </summary>
+    /// <remarks>
+    /// Only look-alikes: a Cyrillic "о" is an "o" to anyone reading the name,
+    /// a Cyrillic "б" is read as a 6, and a "ц" as a "u". A letter with no
+    /// English twin, such as "ж", is left out on purpose and still goes to the prompt,
+    /// because any substitute for it would be a guess.
+    ///
+    /// Accented Latin letters are not listed here; they are handled by
+    /// stripping the accent in <see cref="NormalizeLookalikes"/>.
+    /// </remarks>
+    private static readonly Dictionary<char, char> Lookalikes = new()
+    {
+        // Cyrillic capitals
+        ['А'] = 'A', ['В'] = 'B', ['Е'] = 'E', ['Ё'] = 'E', ['З'] = '3', ['І'] = 'I',
+        ['Ј'] = 'J', ['К'] = 'K', ['М'] = 'M', ['Н'] = 'H', ['О'] = 'O', ['Р'] = 'P',
+        ['С'] = 'C', ['Ѕ'] = 'S', ['Т'] = 'T', ['У'] = 'Y', ['Ү'] = 'Y', ['Х'] = 'X', ['Ц'] = 'U',
+        ['Ԛ'] = 'Q', ['Ԝ'] = 'W', ['Ӏ'] = 'I',
+        // Cyrillic small letters
+        ['а'] = 'a', ['б'] = '6', ['е'] = 'e', ['ё'] = 'e', ['з'] = '3', ['і'] = 'i',
+        ['ј'] = 'j', ['к'] = 'k', ['о'] = 'o', ['р'] = 'p', ['с'] = 'c', ['ѕ'] = 's',
+        ['у'] = 'y', ['х'] = 'x', ['ц'] = 'u', ['һ'] = 'h', ['ԁ'] = 'd', ['ԛ'] = 'q', ['ԝ'] = 'w',
+        ['ӏ'] = 'l',
+        // Greek capitals
+        ['Α'] = 'A', ['Β'] = 'B', ['Ε'] = 'E', ['Ζ'] = 'Z', ['Η'] = 'H', ['Ι'] = 'I',
+        ['Κ'] = 'K', ['Μ'] = 'M', ['Ν'] = 'N', ['Ο'] = 'O', ['Ρ'] = 'P', ['Τ'] = 'T',
+        ['Υ'] = 'Y', ['Χ'] = 'X',
+        // Greek small letters
+        ['ο'] = 'o', ['ν'] = 'v', ['ι'] = 'i', ['κ'] = 'k', ['ρ'] = 'p', ['α'] = 'a',
+        // Latin letters with a stroke rather than an accent, which
+        // decomposition does not separate
+        ['ø'] = 'o', ['Ø'] = 'O', ['đ'] = 'd', ['Đ'] = 'D', ['ł'] = 'l', ['Ł'] = 'L',
+        ['ı'] = 'i', ['ħ'] = 'h', ['Ħ'] = 'H', ['ŧ'] = 't', ['Ŧ'] = 'T',
+    };
+
+    /// <summary>
+    /// Replaces letters and digits from other scripts with their English
+    /// equivalents, a word at a time, and only where every one in the word has
+    /// an obvious equivalent.
+    /// </summary>
+    /// <remarks>
+    /// Three kinds of character have an obvious equivalent:
+    /// <list type="bullet">
+    ///   <item>an accented English letter, which loses the accent ("é" → "e");</item>
+    ///   <item>a full-width or other compatibility form ("Ａ" → "A", "５" → "5");</item>
+    ///   <item>a digit from another script, by its value ("٣" → "3"), and the
+    ///   look-alike letters in <see cref="Lookalikes"/>.</item>
+    /// </list>
+    /// The whole-word condition is what keeps this to the obvious. A stray
+    /// Cyrillic "о" in an English word is plainly an "o", but "Привет" is a
+    /// Russian word, and turning its look-alikes into English while leaving
+    /// the rest would produce something that is neither. So a word containing
+    /// any letter with no equivalent is left exactly as it was, and goes on to
+    /// the prompt or the renamer's own rules as before.
+    ///
+    /// Fixed silently, like spaces: there is nothing for the user to decide.
+    /// </remarks>
+    public static string NormalizeLookalikes(string? name)
+    {
+        if (string.IsNullOrEmpty(name)) return name ?? string.Empty;
+        if (name.All(c => c < 128)) return name;
+
+        var sb = new StringBuilder(name.Length);
+        var word = new StringBuilder();
+        var plain = new StringBuilder();
+        var convertible = true;
+
+        void Flush()
+        {
+            sb.Append(convertible ? plain : word);
+            word.Clear();
+            plain.Clear();
+            convertible = true;
+        }
+
+        foreach (var c in name)
+        {
+            if (!char.IsLetterOrDigit(c) && !IsMark(c))
+            {
+                Flush();
+                sb.Append(c);
+                continue;
+            }
+
+            word.Append(c);
+            if (TryPlain(c, out var english)) plain.Append(english);
+            else if (IsMark(c)) { /* an accent written separately: dropped */ }
+            else convertible = false;
+        }
+
+        Flush();
+        return sb.ToString();
+    }
+
+    /// <summary>True for an accent written as its own character.</summary>
+    private static bool IsMark(char c) =>
+        System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c)
+            == System.Globalization.UnicodeCategory.NonSpacingMark;
+
+    /// <summary>
+    /// The English letter or digit <paramref name="c"/> obviously stands for,
+    /// if there is one. Plain English letters and digits are their own.
+    /// </summary>
+    private static bool TryPlain(char c, out char english)
+    {
+        english = c;
+        if (char.IsAsciiLetterOrDigit(c)) return true;
+
+        if (Lookalikes.TryGetValue(c, out english)) return true;
+
+        if (char.IsDigit(c))
+        {
+            var value = (int)char.GetNumericValue(c);
+            if (value is >= 0 and <= 9) { english = (char)('0' + value); return true; }
+        }
+
+        // Decompose and accept it only when it comes down to one plain English
+        // letter or digit once the accents are dropped. "é" gives "e"; "ж"
+        // decomposes to itself and has no equivalent.
+        var parts = c.ToString().Normalize(NormalizationForm.FormKD)
+            .Where(p => !IsMark(p))
+            .ToArray();
+
+        if (parts.Length == 1 && char.IsAsciiLetterOrDigit(parts[0]))
+        {
+            english = parts[0];
+            return true;
+        }
+
+        english = c;
+        return false;
+    }
+
+    /// <summary>
     /// Replaces whitespace with dashes, and does nothing else.
     /// </summary>
     /// <remarks>
@@ -124,6 +305,7 @@ public static class FileNameRules
     {
         if (string.IsNullOrWhiteSpace(name)) return "output";
 
+        name = NormalizeLookalikes(name);
         var sb = new StringBuilder(name.Length);
 
         foreach (var raw in name)

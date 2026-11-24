@@ -1495,6 +1495,10 @@ public class SettingsService
         if (match == null) return false;
         Current.ActiveSuffixText = match.Text;
         Current.UseNamingTag = true;
+
+        // A tag picked is a tag wanted in the name, so the Output filename
+        // pattern gets {tag} back if it was taken out.
+        Current.NameTemplate = Helpers.NameTemplate.WithTag(Current.NameTemplate);
         Save();
         return true;
     }

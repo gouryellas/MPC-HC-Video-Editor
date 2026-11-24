@@ -469,6 +469,13 @@
                                    Source="pack://application:,,,/Assets/icons/icon-undo.png"/>
                         </Button>
 
+                        <!-- Only while a saved rule is open in the box: leaves
+                             it as it was saved and empties the box. Docked
+                             first, so it is the one at the far right. -->
+                        <Button x:Name="CancelEditButton" DockPanel.Dock="Right" Content="Cancel"
+                                Click="CancelEdit_Click" Padding="12,3" FontSize="11"
+                                Style="{StaticResource CloseButton}" Margin="6,0,0,0" Visibility="Collapsed"/>
+
                         <Button DockPanel.Dock="Right" Content="New rule"
                                 Click="NewRule_Click" Padding="12,3" FontSize="11"/>
                     </DockPanel>

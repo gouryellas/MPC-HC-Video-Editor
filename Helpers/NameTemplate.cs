@@ -91,6 +91,22 @@ public static class NameTemplate
             "Number and length first, for skimming a folder at a glance.")
     };
 
+    /// <summary>Whether a pattern carries the naming tag. A blank one is the default, which does.</summary>
+    public static bool HasTag(string? template) =>
+        string.IsNullOrWhiteSpace(template)
+        || template.Contains("{tag}", StringComparison.OrdinalIgnoreCase)
+        || template.Contains("{suffix}", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Whether a pattern numbers each clip, so clips are told apart without a counter.</summary>
+    public static bool HasNumber(string? template) =>
+        template is not null
+        && (template.Contains("{number", StringComparison.OrdinalIgnoreCase)
+            || template.Contains("{index", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>The pattern with {tag} put back on the end, if it has none.</summary>
+    public static string WithTag(string? template) =>
+        HasTag(template) ? (string.IsNullOrWhiteSpace(template) ? Default : template!) : template + "{tag}";
+
     /// <summary>
     /// Expands <paramref name="template"/> for one clip.
     /// </summary>
